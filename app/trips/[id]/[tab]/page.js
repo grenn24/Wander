@@ -25,7 +25,7 @@ export default function TripTabPage({ params }) {
   const {
     trip, days, activities, packing, members, online, isOwner, setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   } = useTrip();
 
@@ -90,6 +90,7 @@ export default function TripTabPage({ params }) {
           onDuplicate={onDuplicate}
           onDelete={deleteActivity}
           onPrint={() => window.print()}
+          onAddMany={addActivities}
           onEditTrip={() => setTripDraft({ ...trip })} />
       ) : null}
 
@@ -106,7 +107,8 @@ export default function TripTabPage({ params }) {
       ) : null}
 
       {tab === 'packing' ? (
-        <Packing items={packing} onAdd={addPacking} onUpdate={updatePacking} onDelete={deletePacking} />
+        <Packing items={packing} onAdd={addPacking} onUpdate={updatePacking} onDelete={deletePacking}
+          trip={trip} days={days} activities={activities} onAddMany={addPackingItems} />
       ) : null}
 
       {tab === 'notes' ? (

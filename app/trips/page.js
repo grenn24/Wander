@@ -7,6 +7,7 @@ import { Plus, CalendarDays, MapPin, Wallet, ArrowRight } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
+import PlanPrompt from '@/components/PlanPrompt';
 import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
@@ -80,6 +81,10 @@ export default function TripsHome() {
             <button className="btn primary" onClick={openNew}>
               <Plus size={16} /> New trip
             </button>
+          </div>
+
+          <div className="trips-plan">
+            <PlanPrompt compact />
           </div>
 
           {loading ? (

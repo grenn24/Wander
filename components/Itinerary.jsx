@@ -1,17 +1,19 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2 } from 'lucide-react';
+import { MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Sparkles } from 'lucide-react';
+import AiSuggest from '@/components/AiSuggest';
 import { categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
-  onQuickAdd, onEditTrip, onPrint,
+  onQuickAdd, onEditTrip, onPrint, onAddMany,
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
   const [menuFor, setMenuFor] = useState(null);
   const [activeDay, setActiveDay] = useState(null);
+  const [suggestFor, setSuggestFor] = useState(null);
   const jumpedFor = useRef(null);
   const stripRef = useRef(null);
   // A click picks a day deliberately; the spy must not argue with it until the
@@ -248,7 +250,13 @@ export default function Itinerary({
                 );
               })}
             </div>
-            <QuickAdd day={d} label={fmtDay(d)} onQuickAdd={onQuickAdd} onDetails={onAdd} />
+            <QuickAdd day={d} label={fmtDay(d)} onQuickAdd={onQuickAdd} onDetails={onAdd}
+              onIdeas={onAddMany ? () => setSuggestFor(suggestFor === d ? null : d) : null}
+              ideasOpen={suggestFor === d} />
+            {suggestFor === d ? (
+              <AiSuggest trip={trip} day={d} dayLabel={`Day ${i + 1}, ${fmtDay(d)}`}
+                existing={list} onAdd={onAddMany} onClose={() => setSuggestFor(null)} />
+            ) : null}
           </section>
         );
       })}
@@ -283,7 +291,7 @@ export default function Itinerary({
   );
 }
 
-function QuickAdd({ day, label, onQuickAdd, onDetails }) {
+function QuickAdd({ day, label, onQuickAdd, onDetails, onIdeas, ideasOpen }) {
   const [text, setText] = useState('');
   const inputRef = useRef(null);
 
@@ -306,6 +314,12 @@ function QuickAdd({ day, label, onQuickAdd, onDetails }) {
       <button className="btn sm" type="submit" disabled={!text.trim()}>Add</button>
       <button className="btn ghost sm" type="button" title="Add with times, cost and a map pin"
         onClick={() => { onDetails(day, text.trim()); setText(''); }}>Details…</button>
+      {onIdeas ? (
+        <button className="btn ghost sm icon-btn ideas-btn" type="button" aria-pressed={ideasOpen}
+          title={`Suggest activities for ${label}`} onClick={onIdeas}>
+          <Sparkles size={15} />
+        </button>
+      ) : null}
     </form>
   );
 }

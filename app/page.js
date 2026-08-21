@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import PlanPrompt from '@/components/PlanPrompt';
+import Aurora from '@/components/Aurora';
 import {
   Plane, CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -46,8 +48,8 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: '1', title: 'Start a trip', body: 'Name it, set the dates. Every day in the range appears, ready to fill.' },
-  { n: '2', title: 'Fill in the days', body: 'Type activities straight into a day. Add times, costs and map pins when they matter.' },
+  { n: '1', title: 'Describe it', body: 'A sentence is enough. Where, roughly how long, and what you actually care about.' },
+  { n: '2', title: 'Adjust the plan', body: 'Every day arrives filled in and editable. Move things, retime them, ask for more ideas.' },
   { n: '3', title: 'Send the link', body: 'Everyone you share with can edit immediately — no account, no invite to accept.' },
 ];
 
@@ -59,6 +61,7 @@ export default async function Landing({ searchParams }) {
 
   return (
     <div className="lp">
+      <Aurora />
       <header className="lp-nav">
         <div className="lp-nav-in">
           <span className="brand-link" style={{ pointerEvents: 'none' }}>
@@ -76,17 +79,17 @@ export default async function Landing({ searchParams }) {
         <section className="lp-hero">
           <div className="lp-hero-copy">
             <span className="lp-eyebrow"><Zap size={13} /> No accounts. No sign-ups.</span>
-            <h1>Plan the trip together, day by day.</h1>
+            <h1>Describe the trip. Get the plan.</h1>
             <p className="lp-lede">
-              Wander turns a set of dates into a day-by-day plan you can actually follow — with the
-              map, the budget and the packing list attached. Share one link and everyone edits the
-              same trip, live.
+              Say where you are going and what you are into. Wander lays out every day, pins it on
+              the map, and totals the budget — then share one link and everyone edits the same
+              trip, live.
             </p>
+            <PlanPrompt autoFocus={false} />
             <div className="lp-cta">
-              <Link className="btn primary lg" href="/trips">
-                Start planning <ArrowRight size={17} />
+              <Link className="btn lg" href="/trips">
+                Or start from a blank trip <ArrowRight size={17} />
               </Link>
-              <a className="btn lg" href="#how">See how it works</a>
             </div>
             <ul className="lp-ticks">
               <li><Check size={15} /> Free and open source</li>
@@ -166,10 +169,8 @@ export default async function Landing({ searchParams }) {
 
         <section className="lp-final">
           <h2>Where are you going?</h2>
-          <p>Start a trip now — it takes a name and two dates.</p>
-          <Link className="btn primary lg" href="/trips">
-            Start planning <ArrowRight size={17} />
-          </Link>
+          <p>One sentence is enough to get a whole itinerary back.</p>
+          <div className="lp-final-box"><PlanPrompt /></div>
         </section>
       </main>
 

@@ -19,6 +19,21 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY  = eyJhbGciOi...
 Postgres directly: PostgREST serves the queries, GoTrue issues the anonymous
 guest sessions, and Realtime drives the live collaboration.
 
+### AI planning (optional)
+
+```
+OPENAI_API_KEY   = sk-...
+OPENAI_MODEL     = gpt-5-mini      # optional
+```
+
+Note the missing `NEXT_PUBLIC_` prefix: unlike the Supabase anon key, this is a
+real secret. It is read only by the route handlers in `app/api/`, and the
+browser calls those rather than OpenAI. Never add the prefix — it would inline
+the key into the client bundle for every visitor.
+
+Without it the app works exactly as before; the planning features return a 503
+that the UI explains, and every screen stays usable by hand.
+
 ## Running locally
 
 Local development points at the hosted Supabase project — there is no local

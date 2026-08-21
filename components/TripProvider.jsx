@@ -197,6 +197,43 @@ export default function TripProvider({ tripId, children }) {
     return data;
   }, [supabase, tripId, activities, fail, pushToast]);
 
+  /** Bulk insert, for anything that produces several rows at once. */
+  const addActivities = useCallback(async (drafts) => {
+    if (!supabase || !tripId || !drafts.length) return 0;
+    const rows = [];
+    drafts.forEach((d) => {
+      rows.push({
+        trip_id: tripId,
+        day: d.day,
+        title: (d.title || '').trim() || 'Untitled',
+        start_time: d.start_time || null,
+        category: d.category || 'sightseeing',
+        location: d.location || '',
+        cost: Number(d.cost || 0),
+        notes: d.notes || '',
+        sort_order: nextSortOrder([...activities, ...rows], d.day),
+      });
+    });
+    const { data, error } = await supabase.from('activities').insert(rows).select();
+    if (error) { fail(error); return 0; }
+    if (data) setActivities((prev) => [...prev, ...data].sort(sortActs));
+    return data ? data.length : 0;
+  }, [supabase, tripId, activities, fail]);
+
+  const addPackingItems = useCallback(async (items) => {
+    if (!supabase || !tripId || !items.length) return 0;
+    const rows = items.map((i) => ({
+      trip_id: tripId,
+      label: i.label,
+      category: i.category || 'general',
+      qty: Number(i.qty) || 1,
+    }));
+    const { data, error } = await supabase.from('packing_items').insert(rows).select();
+    if (error) { fail(error); return 0; }
+    if (data) setPacking((prev) => [...prev, ...data]);
+    return data ? data.length : 0;
+  }, [supabase, tripId, fail]);
+
   const deleteActivity = useCallback(async (act) => {
     if (!supabase || !act || !act.id) return;
     const snapshot = { ...act };
@@ -281,12 +318,12 @@ export default function TripProvider({ tripId, children }) {
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   ]);
 

@@ -1,10 +1,41 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
-export default function Packing({ items, onAdd, onUpdate, onDelete }) {
+export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, activities, onAddMany }) {
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState('');
+
+  async function generate() {
+    setAiBusy(true); setAiErr('');
+    try {
+      const res = await fetch('/api/packing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: (trip && (trip.destination || trip.name)) || '',
+          dates: trip ? `${trip.start_date} to ${trip.end_date}` : '',
+          days: days ? days.length : 1,
+          existing: items.map((i) => i.label),
+          themes: (activities || []).map((a) => a.title).slice(0, 30),
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) { setAiErr(body.error || 'Could not build a list.'); return; }
+      const fresh = (body.items || []).filter(
+        (i) => !items.some((e) => e.label.toLowerCase() === i.label.toLowerCase()),
+      );
+      if (!fresh.length) { setAiErr('Nothing new to add — your list already covers it.'); return; }
+      await onAddMany(fresh);
+    } catch (e) {
+      setAiErr('Could not reach the planner.');
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   const [label, setLabel] = useState('');
   const [category, setCategory] = useState('general');
   const [qty, setQty] = useState(1);
@@ -32,10 +63,19 @@ export default function Packing({ items, onAdd, onUpdate, onDelete }) {
 
   return (
     <div>
-      <div className="page-head">
-        <h2>Packing list</h2>
-        <div className="small muted">{packed} of {items.length} packed</div>
+      <div className="page-head spread">
+        <div>
+          <h2>Packing list</h2>
+          <div className="small muted">{packed} of {items.length} packed</div>
+        </div>
+        {onAddMany ? (
+          <button className="btn sm" onClick={generate} disabled={aiBusy}>
+            {aiBusy ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+            {items.length ? ' Suggest more' : ' Build the list'}
+          </button>
+        ) : null}
       </div>
+      {aiErr ? <div className="err" style={{ marginTop: -8, marginBottom: 12 }}>{aiErr}</div> : null}
 
       {items.length ? (
         <div className="card" style={{ marginBottom: 14 }}>
@@ -71,7 +111,12 @@ export default function Packing({ items, onAdd, onUpdate, onDelete }) {
       </form>
 
       {items.length === 0 ? (
-        <div className="empty">Nothing on the list yet.</div>
+        <div className="empty">
+          <p className="empty-title">Nothing on the list yet</p>
+          <p className="small muted" style={{ margin: 0 }}>
+            Add items above, or have one built from where you are going and how long for.
+          </p>
+        </div>
       ) : (
         Object.keys(grouped).map((g) => (
           <section key={g} style={{ marginBottom: 16 }}>

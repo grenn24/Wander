@@ -1163,3 +1163,179 @@ body::before {
 
 /* Same contract for the strip: --strip-h drives the day-header offset. */
 .itin.has-strip .daystrip { min-height: var(--strip-h); align-items: center; }
+
+/* ================================================================== ai ---- */
+
+/* -------------------------------------------------------- the prompt box -- */
+.planbox { margin: 4px 0 22px; max-width: 100%; }
+.planbox-field {
+  position: relative;
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 13px 13px 13px 42px;
+  border-radius: 18px;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.planbox-field:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift),
+              0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.planbox-spark {
+  position: absolute; left: 15px; top: 17px;
+  color: var(--accent); pointer-events: none;
+}
+.planbox-input {
+  flex: 1; min-width: 0; resize: none; border: none; outline: none;
+  background: transparent; color: var(--text-1);
+  font: inherit; font-size: 15.5px; line-height: 1.5;
+  max-height: 160px;
+}
+.planbox-input::placeholder { color: var(--text-3); }
+.planbox-go {
+  flex: none; width: 40px; height: 40px; padding: 0; border-radius: 13px;
+}
+.planbox.compact .planbox-field { padding: 10px 10px 10px 38px; border-radius: 15px; }
+.planbox.compact .planbox-spark { top: 14px; left: 13px; }
+.planbox.compact .planbox-input { font-size: 14.5px; }
+.planbox.compact .planbox-go { width: 34px; height: 34px; border-radius: 11px; }
+
+.planbox-samples {
+  display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px;
+}
+.samplechip {
+  font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  color: var(--text-2); text-align: left;
+  background: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
+  border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+  transition: transform .16s var(--spring), color .16s var(--ease), border-color .16s var(--ease);
+}
+.samplechip:hover {
+  color: var(--text-1); transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.samplechip.shuffle { display: inline-grid; place-items: center; width: 32px; padding: 0; }
+
+.trips-plan { margin-bottom: 20px; }
+.lp-final-box { max-width: 620px; margin: 0 auto; text-align: left; }
+
+/* ------------------------------------------------------- planning screen -- */
+.planwrap { max-width: 560px; }
+.planning { margin-top: 40px; }
+.planning-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 4px; }
+.planning-ico {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: none;
+  border-radius: 11px; color: #fff;
+  background: linear-gradient(160deg, var(--accent), var(--cat-5));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+}
+.planning-q { margin: 2px 0 0; overflow-wrap: anywhere; }
+.planning-steps { list-style: none; margin: 18px 0 14px; padding: 0; display: flex;
+  flex-direction: column; gap: 10px; }
+.pstep { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-3); }
+.pstep-ico { display: grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.pstep-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
+.pstep.is-busy { color: var(--text-1); font-weight: 550; }
+.pstep.is-busy .pstep-ico { color: var(--accent); }
+.pstep.is-done { color: var(--text-2); }
+.pstep.is-done .pstep-ico { color: var(--good); }
+.planning-summary {
+  border-left: 2px solid var(--accent); padding-left: 11px; margin: 0 0 14px;
+}
+.planning-err {
+  display: flex; gap: 9px; align-items: flex-start; color: var(--danger);
+  font-size: 13.5px; margin-bottom: 12px;
+}
+.planning-err svg { flex: none; margin-top: 2px; }
+
+/* ---------------------------------------------------------- suggestions -- */
+.suggest { margin-top: 10px; border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.suggest-head { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.suggest-ico {
+  display: grid; place-items: center; width: 28px; height: 28px; flex: none;
+  border-radius: 9px; color: #fff;
+  background: linear-gradient(160deg, var(--accent), var(--cat-5));
+}
+.suggest-list { display: flex; flex-direction: column; gap: 7px; }
+.suggest-item {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
+}
+.suggest-item.is-done { opacity: .55; }
+.suggest-item .catico { margin-top: 1px; }
+.suggest-title { font-weight: 550; font-size: 14px; }
+.suggest-more { display: flex; gap: 7px; margin-top: 11px; }
+.suggest-more .input { flex: 1; min-width: 0; }
+.suggest-more .btn { flex: none; }
+
+.ideas-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-ink);
+}
+
+/* -------------------------------------------------------------- aurora --- */
+.aurora {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  --px: 0; --py: 0;
+}
+.aurora-blob {
+  position: absolute; border-radius: 50%; filter: blur(70px);
+  opacity: .5; will-change: transform;
+}
+.aurora-blob.b1 {
+  width: 46vw; height: 46vw; left: -8vw; top: -12vw;
+  background: radial-gradient(circle, var(--accent), transparent 68%);
+  transform: translate3d(calc(var(--px) * 26px), calc(var(--py) * 26px), 0);
+  animation: float1 26s ease-in-out infinite alternate;
+}
+.aurora-blob.b2 {
+  width: 40vw; height: 40vw; right: -6vw; top: -6vw;
+  background: radial-gradient(circle, var(--cat-3), transparent 68%);
+  transform: translate3d(calc(var(--px) * -34px), calc(var(--py) * 20px), 0);
+  animation: float2 32s ease-in-out infinite alternate;
+}
+.aurora-blob.b3 {
+  width: 52vw; height: 52vw; right: 4vw; bottom: -20vw;
+  background: radial-gradient(circle, var(--cat-5), transparent 70%);
+  transform: translate3d(calc(var(--px) * 18px), calc(var(--py) * -22px), 0);
+  animation: float3 38s ease-in-out infinite alternate;
+}
+/* Very light grain stops the gradients from banding on wide screens. */
+.aurora-grain {
+  position: absolute; inset: 0; opacity: .035;
+  background-image: radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0);
+  background-size: 4px 4px;
+  color: var(--text-1);
+}
+@keyframes float1 {
+  from { margin: 0 0 0 0; } to { margin: 5vh 0 0 4vw; }
+}
+@keyframes float2 {
+  from { margin: 0 0 0 0; } to { margin: 7vh 3vw 0 0; }
+}
+@keyframes float3 {
+  from { margin: 0 0 0 0; } to { margin: 0 0 6vh 5vw; }
+}
+
+/* The landing page has its own light, so the shared body wash would double up. */
+.lp ~ * , body:has(.lp)::before { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob { animation: none; transform: none !important; }
+  .samplechip { transition: none; }
+  .samplechip:hover { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .aurora { display: none; }
+  .planbox-field, .samplechip {
+    -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface-1);
+  }
+}
+@media print { .planbox, .aurora, .suggest, .trips-plan { display: none !important; } }
