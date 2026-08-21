@@ -1,9 +1,13 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Must carry the NEXT_PUBLIC_ prefix: Next only exposes prefixed variables to
 // the browser, and a map cannot be drawn without one there.
 const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
+
+// Advanced markers refuse to render without a Map ID. Google's demo id works
+// out of the box; set NEXT_PUBLIC_MAPS_MAP_ID for a styled one.
+const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
 
 export function googleMapsAvailable() {
   return !!KEY && !KEY.startsWith('REPLACE_WITH');
@@ -11,20 +15,56 @@ export function googleMapsAvailable() {
 
 let loader = null;
 
+/**
+ * Loads the Maps API and hands back the classes it provides.
+ *
+ * With `loading=async` the script's load event fires once the *bootstrap* has
+ * downloaded, not once the API is ready — reading google.maps.Map at that
+ * moment yields undefined, which is what "maps.Map is not a constructor" was.
+ * The documented fix is a callback plus importLibrary, which is also the only
+ * supported way to pull in the marker library.
+ */
 function loadMaps() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
-  if (window.google && window.google.maps) return Promise.resolve(window.google.maps);
   if (loader) return loader;
 
   loader = new Promise((resolve, reject) => {
+    const ready = () => {
+      // Three libraries, because the classes are split across them:
+      // core has LatLngBounds, maps has Map/InfoWindow/Polyline, marker has
+      // AdvancedMarkerElement. Taking any of them from the wrong one yields
+      // undefined rather than an error at import time.
+      Promise.all([
+        window.google.maps.importLibrary('core'),
+        window.google.maps.importLibrary('maps'),
+        window.google.maps.importLibrary('marker'),
+      ]).then(([core, maps, marker]) => resolve({
+        LatLngBounds: core.LatLngBounds,
+        Map: maps.Map,
+        InfoWindow: maps.InfoWindow,
+        Polyline: maps.Polyline,
+        AdvancedMarkerElement: marker.AdvancedMarkerElement,
+      })).catch(reject);
+    };
+
+    if (window.google && window.google.maps && window.google.maps.importLibrary) {
+      ready();
+      return;
+    }
+
+    const cbName = '__wanderMapsReady';
+    window[cbName] = ready;
+
     const s = document.createElement('script');
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY)}`
-      + '&libraries=marker&loading=async&v=weekly';
+      + `&loading=async&callback=${cbName}&v=weekly`;
     s.async = true;
-    s.addEventListener('load', () => resolve(window.google.maps));
-    s.addEventListener('error', () => reject(new Error('Google Maps failed to load')));
+    s.addEventListener('error', () => reject(new Error(
+      'Google Maps failed to load. Check the key and that Maps JavaScript API is enabled.',
+    )));
     document.head.appendChild(s);
   });
+
   return loader;
 }
 
@@ -34,76 +74,85 @@ function loadMaps() {
  * click anywhere to drop a new stop.
  */
 export default function GoogleMap({
-  stops, places, focused, dayColours, onFocus, onDropPin, onReady, onError,
+  stops, places, focused, dayColours, onFocus, onDropPin, onError,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
+  const libs = useRef(null);
   const stopMarks = useRef([]);
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const info = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  // Latest props, so drawing never closes over a stale render.
+  const latest = useRef(null);
+  latest.current = { stops, places, focused, dayColours, onFocus };
 
   useEffect(() => {
     let dead = false;
-    loadMaps().then((maps) => {
-      if (dead || !elRef.current) return;
-      if (!mapRef.current) {
-        mapRef.current = new maps.Map(elRef.current, {
-          center: { lat: 35.68, lng: 139.76 },
-          zoom: 4,
-          mapId: 'wander',
-          disableDefaultUI: true,
-          zoomControl: true,
-          clickableIcons: false,
-          gestureHandling: 'cooperative',
-        });
-        info.current = new maps.InfoWindow();
-        mapRef.current.addListener('click', (e) => {
-          if (!e.latLng || !onDropPin) return;
-          onDropPin(e.latLng.lat(), e.latLng.lng());
-        });
-        if (onReady) onReady();
-      }
-      draw(maps);
-    }).catch((e) => { if (onError) onError(e.message); });
+    loadMaps().then((L) => {
+      if (dead || !elRef.current || mapRef.current) return;
+      libs.current = L;
+      mapRef.current = new L.Map(elRef.current, {
+        center: { lat: 35.68, lng: 139.76 },
+        zoom: 4,
+        mapId: MAP_ID,
+        disableDefaultUI: true,
+        zoomControl: true,
+        clickableIcons: false,
+        gestureHandling: 'cooperative',
+      });
+      info.current = new L.InfoWindow();
+      mapRef.current.addListener('click', (e) => {
+        if (e.latLng && onDropPin) onDropPin(e.latLng.lat(), e.latLng.lng());
+      });
+      setReady(true);
+    }).catch((e) => { if (!dead && onError) onError(e.message); });
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-    draw(window.google.maps);
+    if (ready) drawStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, focused]);
+  }, [ready, stops, focused]);
 
   useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-    drawPlaces(window.google.maps);
+    if (ready) drawPlaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places]);
+  }, [ready, places]);
 
-  function clearStops() {
+  // Pan to a stop chosen from the list beside the map.
+  useEffect(() => {
+    if (!ready || !focused) return;
+    const at = stops.find((s) => s.id === focused);
+    if (!at) return;
+    mapRef.current.panTo({ lat: at.lat, lng: at.lng });
+    if (mapRef.current.getZoom() < 14) mapRef.current.setZoom(14);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focused]);
+
+  function drawStops() {
+    const L = libs.current;
+    const map = mapRef.current;
+    const { stops: list, focused: sel, dayColours: colour, onFocus: focus } = latest.current;
+
     stopMarks.current.forEach((m) => { m.map = null; });
     stopMarks.current = [];
     lines.current.forEach((l) => l.setMap(null));
     lines.current = [];
-  }
-
-  function draw(maps) {
-    const map = mapRef.current;
-    clearStops();
 
     const byDay = {};
-    const bounds = new maps.LatLngBounds();
+    const bounds = new L.LatLngBounds();
 
-    stops.forEach((a, i) => {
-      const colour = dayColours(a.category);
+    list.forEach((a, i) => {
       const el = document.createElement('div');
-      el.className = `gmk${focused === a.id ? ' gmk-focus' : ''}`;
-      el.style.setProperty('--mk', colour);
+      el.className = `gmk${sel === a.id ? ' gmk-focus' : ''}`;
+      el.style.setProperty('--mk', colour(a.category));
       el.innerHTML = `<span>${i + 1}</span>`;
 
-      const mark = new maps.marker.AdvancedMarkerElement({
+      const mark = new L.AdvancedMarkerElement({
         map, position: { lat: a.lat, lng: a.lng }, content: el, title: a.title,
       });
       mark.addListener('click', () => {
@@ -113,8 +162,9 @@ export default function GoogleMap({
           + '</div>',
         );
         info.current.open({ map, anchor: mark });
-        if (onFocus) onFocus(a.id);
+        if (focus) focus(a.id);
       });
+
       stopMarks.current.push(mark);
       bounds.extend({ lat: a.lat, lng: a.lng });
       (byDay[a.day] = byDay[a.day] || []).push({ lat: a.lat, lng: a.lng });
@@ -122,50 +172,53 @@ export default function GoogleMap({
 
     Object.keys(byDay).forEach((d) => {
       if (byDay[d].length < 2) return;
-      const line = new maps.Polyline({
+      lines.current.push(new L.Polyline({
         path: byDay[d],
         strokeOpacity: 0,
         icons: [{
-          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.6, scale: 3 },
-          offset: '0', repeat: '11px',
+          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.65, scale: 3 },
+          offset: '0',
+          repeat: '11px',
         }],
-        strokeColor: dayColours('sightseeing'),
+        strokeColor: colour('sightseeing'),
         map,
-      });
-      lines.current.push(line);
+      }));
     });
 
-    if (stops.length === 1) { map.setCenter({ lat: stops[0].lat, lng: stops[0].lng }); map.setZoom(14); }
-    else if (stops.length > 1) map.fitBounds(bounds, 48);
+    if (list.length === 1) {
+      map.setCenter({ lat: list[0].lat, lng: list[0].lng });
+      map.setZoom(14);
+    } else if (list.length > 1) {
+      map.fitBounds(bounds, 48);
+    }
   }
 
-  function drawPlaces(maps) {
+  function drawPlaces() {
+    const L = libs.current;
     const map = mapRef.current;
+    const { places: list, dayColours: colour } = latest.current;
+
     placeMarks.current.forEach((m) => { m.map = null; });
     placeMarks.current = [];
-    places.forEach((p) => {
+
+    list.forEach((p) => {
       const el = document.createElement('div');
       el.className = 'gmk-dot';
-      el.style.setProperty('--mk', dayColours(p.category || 'other'));
-      const mark = new maps.marker.AdvancedMarkerElement({
+      el.style.setProperty('--mk', colour(p.category || 'other'));
+      const mark = new L.AdvancedMarkerElement({
         map, position: { lat: p.lat, lng: p.lng }, content: el, title: p.name,
       });
       mark.addListener('click', () => {
-        info.current.setContent(`<div class="gminfo"><strong>${escapeHtml(p.name)}</strong></div>`);
+        info.current.setContent(
+          `<div class="gminfo"><strong>${escapeHtml(p.name)}</strong>`
+          + (p.detail ? `<div>${escapeHtml(p.detail)}</div>` : '')
+          + '</div>',
+        );
         info.current.open({ map, anchor: mark });
       });
       placeMarks.current.push(mark);
     });
   }
-
-  /** Pan to a stop from outside the map. */
-  useEffect(() => {
-    if (!mapRef.current || !focused) return;
-    const at = stops.find((s) => s.id === focused);
-    if (!at) return;
-    mapRef.current.panTo({ lat: at.lat, lng: at.lng });
-    if (mapRef.current.getZoom() < 14) mapRef.current.setZoom(14);
-  }, [focused, stops]);
 
   return <div className="map-el" ref={elRef} />;
 }
