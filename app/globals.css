@@ -909,7 +909,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   .mapside { max-height: min(60dvh, 520px); }
 }
 
-.map-wrap { height: min(62dvh, 560px); }
+.map-wrap { height: min(62dvh, 560px); position: relative; }
 .map-el { cursor: crosshair; }
 
 /* Numbered stop marker, coloured by activity type. */
@@ -1582,13 +1582,55 @@ body::before {
 }
 .gmk span { transform: rotate(45deg); font-size: 11.5px; font-weight: 700; color: #fff; }
 .gmk-focus { outline: 3px solid var(--accent); outline-offset: 2px; }
-.gmk-dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: var(--mk, #2a78d6); border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer;
+/*
+ * A suggestion, not a stop.
+ *
+ * Stops are numbered teardrops; these are ringed points of interest, so the
+ * two are told apart by shape at a glance rather than by reading a label. The
+ * old 12px dot was neither obvious nor distinct — at a glance it read as map
+ * furniture, and a street with twenty of them read as noise.
+ */
+.gmk-place {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--mk, #2a78d6); border: 2.5px solid #fff;
+  box-shadow: 0 2px 7px rgba(0,0,0,.45); cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform .14s var(--ease);
 }
+.gmk-place::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff;
+}
+.gmk-place:hover { transform: scale(1.25); }
+/* The one picked out of the cluster, lifted clear of the rest. */
+.gmk-place.is-on {
+  transform: scale(1.45);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent),
+              0 3px 10px rgba(0,0,0,.5);
+}
+@media (prefers-reduced-motion: reduce) { .gmk-place { transition: none; } }
+
 .gminfo { font-size: 13px; line-height: 1.45; color: #111; }
 .gminfo div { opacity: .7; }
+
+/* -------------------------------------------------- suggestion callout --- */
+.gminfo-place { min-width: 172px; max-width: 240px; }
+.gminfo-img {
+  display: block; width: 100%; height: 96px; object-fit: cover;
+  border-radius: 8px; margin-bottom: 7px;
+}
+.gminfo-meta { font-size: 12px; opacity: .72; margin-top: 2px; }
+.gminfo-add {
+  margin-top: 9px; width: 100%; padding: 7px 10px; border-radius: 8px;
+  border: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  background: #2a78d6; color: #fff;
+}
+.gminfo-add:hover { background: #1f66bc; }
+
+/* A result the map is pointing at. */
+.nearby.is-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 /* The activity row now leads with an image, so it needs a little more room. */
 .act { align-items: center; }
@@ -2182,3 +2224,11 @@ body::before {
   font-size: 13px; font-weight: 650; letter-spacing: .01em;
   color: var(--text-2); margin: 0 0 9px;
 }
+
+/* Floats over the map, where the reader is already looking when they move it. */
+.mapredo {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  z-index: 3; box-shadow: var(--lift);
+  background: var(--surface-1); border-color: var(--border-strong);
+}
+.mapredo:hover { background: var(--surface-2); }

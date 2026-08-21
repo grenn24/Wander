@@ -75,7 +75,8 @@ function loadMaps() {
  * click anywhere to drop a new stop.
  */
 export default function GoogleMap({
-  stops, places, focused, dayColours, onFocus, onDropPin, onViewport, onError,
+  stops, places, focused, focusedPlace, dayColours,
+  onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -99,7 +100,10 @@ export default function GoogleMap({
 
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
-  latest.current = { stops, places, focused, dayColours, onFocus, onViewport };
+  latest.current = {
+    stops, places, focused, focusedPlace, dayColours,
+    onFocus, onPlaceFocus, onPlaceAdd, onViewport,
+  };
 
   useEffect(() => {
     let dead = false;
@@ -159,6 +163,32 @@ export default function GoogleMap({
     if (ready) drawPlaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, places]);
+
+  /*
+   * Highlighting is a class change, not a redraw. Rebuilding the markers to
+   * move a ring would also destroy whichever one the open info window is
+   * anchored to, closing it the instant it appeared.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    placeMarks.current.forEach((m) => {
+      if (m.__el) m.__el.classList.toggle('is-on', m.__id === focusedPlace);
+    });
+  }, [ready, focusedPlace, places]);
+
+  // Picking a suggestion from the list beside the map is the way through a
+  // cluster of them: twenty restaurants on one street are indistinguishable as
+  // pins, but the list can say which one you meant.
+  useEffect(() => {
+    if (!ready || !focusedPlace) return;
+    const at = (places || []).find((p) => p.id === focusedPlace);
+    if (!at) return;
+    mapRef.current.panTo({ lat: at.lat, lng: at.lng });
+    if (mapRef.current.getZoom() < 15) mapRef.current.setZoom(15);
+    const mark = placeMarks.current.find((m) => m.__id === at.id);
+    if (mark) openPlaceInfo(at, mark);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focusedPlace]);
 
   // Pan to a stop chosen from the list beside the map.
   useEffect(() => {
@@ -245,34 +275,83 @@ export default function GoogleMap({
     applyFit();
   }
 
+  /**
+   * What a suggestion says when you click it.
+   *
+   * Built as a DOM node rather than an HTML string so the button can carry a
+   * real listener — a string would need the content re-found after the window
+   * opens, and would put a click handler somewhere it could not see the place
+   * it belongs to.
+   */
+  function openPlaceInfo(p, anchor) {
+    const map = mapRef.current;
+    const el = document.createElement('div');
+    el.className = 'gminfo gminfo-place';
+
+    const bits = [];
+    if (p.detail) bits.push(escapeHtml(p.detail));
+    if (p.rating) bits.push(`★ ${Number(p.rating).toFixed(1)}`);
+    if (p.km != null) bits.push(`${p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`} away`);
+
+    el.innerHTML = `
+      ${p.photo_ref ? `<img class="gminfo-img" alt="" src="/api/places/photo?ref=${encodeURIComponent(p.photo_ref)}&w=320">` : ''}
+      <strong>${escapeHtml(p.name)}</strong>
+      ${bits.length ? `<div class="gminfo-meta">${bits.join(' · ')}</div>` : ''}
+    `;
+
+    if (latest.current.onPlaceAdd) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'gminfo-add';
+      add.textContent = 'Add to trip';
+      add.addEventListener('click', () => {
+        info.current.close();
+        latest.current.onPlaceAdd(p);
+      });
+      el.appendChild(add);
+    }
+
+    info.current.setContent(el);
+    info.current.open({ map, anchor });
+  }
+
   function drawPlaces() {
     const L = libs.current;
     const map = mapRef.current;
-    const { places: list, dayColours: colour } = latest.current;
+    const { places: list, focusedPlace: sel, dayColours: colour } = latest.current;
 
     placeMarks.current.forEach((m) => { m.map = null; });
     placeMarks.current = [];
 
     list.forEach((p) => {
       const el = document.createElement('div');
-      el.className = 'gmk-dot';
-      el.style.setProperty('--mk', colour(p.category || 'other'));
+      // A ringed point of interest, not a numbered teardrop: a suggestion is a
+      // different kind of thing from a stop that is already in the plan, and
+      // the map should not make you read a label to tell them apart.
+      el.className = `gmk-place${sel === p.id ? ' is-on' : ''}`;
+      el.style.setProperty('--mk', colour(p.category || catForKind(p.kind)));
+
       const mark = new L.AdvancedMarkerElement({
         map, position: { lat: p.lat, lng: p.lng }, content: el, title: p.name,
       });
+      mark.__id = p.id;
+      mark.__el = el;
       mark.addListener('click', () => {
-        info.current.setContent(
-          `<div class="gminfo"><strong>${escapeHtml(p.name)}</strong>`
-          + (p.detail ? `<div>${escapeHtml(p.detail)}</div>` : '')
-          + '</div>',
-        );
-        info.current.open({ map, anchor: mark });
+        openPlaceInfo(p, mark);
+        if (latest.current.onPlaceFocus) latest.current.onPlaceFocus(p.id);
       });
       placeMarks.current.push(mark);
     });
   }
 
   return <div className="map-el" ref={elRef} />;
+}
+
+/** Nearby kinds are not categories; this is the bridge for marker colour. */
+function catForKind(kind) {
+  return ({
+    food: 'food', sights: 'sightseeing', transit: 'transport', shops: 'shopping',
+  })[kind] || 'other';
 }
 
 function escapeHtml(s) {

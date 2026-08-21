@@ -41,6 +41,10 @@ export default function MapView({
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState(null); // free-text results, null until searched
   const [searching, setSearching] = useState(false);
+  const [pickedPlace, setPickedPlace] = useState(null);
+  const [searchedAt, setSearchedAt] = useState(null); // where the results came from
+  const [epoch, setEpoch] = useState(0); // bumped to ask again
+  const viewRef = useRef(null);
 
   const inDay = useCallback(
     (a) => day === 'all' || a.day === day,
@@ -147,24 +151,48 @@ export default function MapView({
    * wrong, and panning is the natural way to say "over there instead".
    */
   const anchor = view;
+  viewRef.current = view;
 
+  /*
+   * Results are fetched when asked for, not whenever the map moves.
+   *
+   * Re-searching on every idle meant a Places call for each pan, a list that
+   * rearranged itself under the reader's hand, and — because new results
+   * rebuild the markers — an info window that closed the moment panning to it
+   * finished opening it. Maps that show results while you move them offer to
+   * search again instead, and this does the same.
+   */
   useEffect(() => {
-    if (!kind || !anchor || !mapsReady) { setPlaces([]); return undefined; }
+    if (!kind || !mapsReady) { setPlaces([]); setSearchedAt(null); return undefined; }
+    const at = viewRef.current;
+    if (!at) return undefined; // the map has not settled yet; the kick below retries
     let alive = true;
     setPlacesBusy(true);
-    nearby(anchor.lat, anchor.lng, kind, anchor.radius)
+    nearby(at.lat, at.lng, kind, at.radius)
       .then((list) => { if (alive) setPlaces(list); })
       .catch((e) => { if (alive) { setPlaces([]); setErr(e.message); } })
-      .finally(() => { if (alive) setPlacesBusy(false); });
+      .finally(() => {
+        if (!alive) return;
+        setPlacesBusy(false);
+        // Recorded even on failure, so a failed search cannot spin the retry.
+        setSearchedAt(at);
+      });
     return () => { alive = false; };
-  }, [kind, anchor, mapsReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, mapsReady, epoch]);
+
+  // A category picked before the map settled still deserves its search.
+  useEffect(() => {
+    if (kind && view && !searchedAt && !placesBusy) setEpoch((n) => n + 1);
+  }, [kind, view, searchedAt, placesBusy]);
+
 
   /** Free text: whatever they are actually after, biased to the same view. */
   async function runSearch(e) {
     if (e) e.preventDefault();
     const q = query.trim();
     if (!q || !mapsReady) return;
-    setSearching(true); setErr(''); setKind(null);
+    setSearching(true); setErr(''); setKind(null); setPickedPlace(null);
     try {
       const found = await searchPlaces(q, anchor);
       const withDistance = found.map((h, i) => ({
@@ -178,6 +206,7 @@ export default function MapView({
       }));
       setHits(withDistance);
       setPlaces(withDistance);
+      setSearchedAt(anchor);
     } catch (e2) {
       setHits([]); setPlaces([]);
       setErr('Something went wrong. Please try again later.');
@@ -186,7 +215,7 @@ export default function MapView({
   }
 
   function clearFinds() {
-    setKind(null); setHits(null); setPlaces([]); setQuery('');
+    setKind(null); setHits(null); setPlaces([]); setQuery(''); setPickedPlace(null);
   }
 
   /* ---------------------------------------------------------------- map --- */
@@ -238,6 +267,17 @@ export default function MapView({
   const finds = places;
   const showingFinds = !!kind || hits !== null;
   const findsBusy = placesBusy || searching;
+
+  /** Far enough from where these results came from to be worth asking again. */
+  const strayed = !!(showingFinds && searchedAt && view && !findsBusy
+    && haversine(view.lat, view.lng, searchedAt.lat, searchedAt.lng) * 1000
+      > searchedAt.radius * 0.6);
+
+  /** Ask again for wherever the map is now, in whichever mode is running. */
+  function redo() {
+    if (query.trim()) runSearch();
+    else if (kind) setEpoch((n) => n + 1);
+  }
   /*
    * Zoomed out to the whole trip, the centre of the view is usually farmland
    * between two cities, and "nearby" honestly means nearby that. Better to say
@@ -299,6 +339,9 @@ export default function MapView({
                   setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
                 }
               }}
+              focusedPlace={pickedPlace}
+              onPlaceFocus={setPickedPlace}
+              onPlaceAdd={addPlace}
               onViewport={setView}
               onError={(m) => setErr(m)}
             />
@@ -317,6 +360,14 @@ export default function MapView({
               </p>
             </div>
           )}
+
+          {/* Offered rather than done: results that rearrange themselves while
+              you are moving the map are worse than results that wait. */}
+          {strayed ? (
+            <button className="btn sm mapredo" type="button" onClick={redo}>
+              <Search size={14} /> Search this area
+            </button>
+          ) : null}
         </div>
 
         <aside className="mapside">
@@ -379,7 +430,7 @@ export default function MapView({
                 <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
                   disabled={!mapsReady}
                   onClick={() => {
-                    setHits(null); setQuery('');
+                    setHits(null); setQuery(''); setPickedPlace(null);
                     setKind(kind === k.id ? null : k.id);
                   }}>
                   <KindIcon size={14} aria-hidden="true" /> {k.label}
@@ -405,7 +456,10 @@ export default function MapView({
                     : 'Nothing like that around here.'}
                 </p>
               ) : finds.map((pl) => (
-                <div className="nearby" key={pl.id}>
+                <div className={`nearby${pickedPlace === pl.id ? ' is-focus' : ''}`} key={pl.id}
+                  role="button" tabIndex={0}
+                  onClick={() => setPickedPlace(pl.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setPickedPlace(pl.id); }}>
                   <PlacePhoto photoRef={pl.photo_ref} category="other" size={38} alt="" />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div className="nearby-name">{pl.name}</div>
@@ -414,7 +468,8 @@ export default function MapView({
                       {pl.km != null ? `${fmtKm(pl.km)} away` : ''}
                     </div>
                   </div>
-                  <button className="btn sm icon-btn" onClick={() => addPlace(pl)}
+                  <button className="btn sm icon-btn"
+                    onClick={(e) => { e.stopPropagation(); addPlace(pl); }}
                     aria-label={`Add ${pl.name}`}><Plus size={14} /></button>
                 </div>
               ))}
