@@ -21,19 +21,47 @@ guest sessions, and Realtime drives the live collaboration.
 
 ## Running locally
 
-1. **Start the Supabase stack** — `npx supabase start`. It boots Postgres,
-   PostgREST, GoTrue, Realtime and Studio in Docker, then prints an *API URL*
-   and an *anon key*.
-2. **Copy those into `.env.local`** (gitignored). `DATABASE_URL` is also in
-   there for `psql` and migrations; the app itself does not read it.
-3. **Run the schema** — apply `supabase/schema.sql` to the database, either via
-   Studio's SQL editor or `psql "$DATABASE_URL" -f supabase/schema.sql`. Safe to
+Local development points at the hosted Supabase project — there is no local
+stack and no Docker. A plain local Postgres will not work: `schema.sql` has
+foreign keys into `auth.users` and 14 uses of `auth.uid()`, both of which come
+from Supabase's auth service, and the browser needs PostgREST, GoTrue and
+Realtime rather than a database port.
+
+1. **Copy the credentials into `.env.local`** (gitignored) — Supabase dashboard
+   → Project Settings → API gives you the *Project URL* and the *anon public*
+   key. `DATABASE_URL` is there too, for `psql`; the app does not read it.
+2. **Run the schema** — apply `supabase/schema.sql`, either in the dashboard's
+   SQL Editor or with `psql "$DATABASE_URL" -f supabase/schema.sql`. Safe to
    re-run.
-4. **Enable anonymous sign-ins.** The app has no login screen; every visitor
-   gets a guest session automatically. Without this the app cannot start.
-5. `npm run dev`.
+3. **Enable anonymous sign-ins** — Authentication → Sign In / Providers. The app
+   has no login screen; every visitor gets a guest session automatically.
+   Without this the app cannot start.
+4. `npm run dev`.
 
 Restart the dev server after editing `.env.local` — Next reads it at startup.
+
+> Local dev therefore reads and writes **production data**. Every browser that
+> loads the app creates a real anonymous user in `auth.users`, and test trips
+> are real trips. Point `.env.local` at a second, free Supabase project when you
+> want that separation.
+
+## Authentication
+
+There is no login screen. Supabase's auth service (GoTrue) owns the `auth`
+schema, and `signInAnonymously()` creates a real row in `auth.users` with no
+email attached, returning a JWT.
+
+That JWT rides along on every request. PostgREST validates it and sets the
+session so `auth.uid()` returns the user's id, which is what every row-level
+security policy checks. So the anon key only says "this is the app"; the JWT
+says "and this is who is asking".
+
+The display name lives in `raw_user_meta_data.display_name` on the user row,
+written by `updateUser()` and read back by the `my_display_name()` helper.
+
+A session lives in one browser's local storage. Clearing site data, or opening
+another browser, triggers a fresh anonymous sign-up — a *different* user with no
+trips. The share link is the only way back into an existing trip.
 
 ## Deploying
 
@@ -43,20 +71,14 @@ than localhost, and redeploy.
 
 ## Collaboration
 
-There is no sign-in. Each visitor gets a Supabase **anonymous** session, which
-is still a real `auth.uid()` — so row-level security, membership and presence
-all work as normal.
-
 Access is by **share link**. Every trip has a `share_code`; the People tab gives
 you `?join=<code>`. Opening that URL calls `join_trip_by_code()`, which adds the
-visitor as an editor. Treat the link like a password.
+visitor as an editor. Treat the link like a password: anyone holding it can
+edit, and there is no way to revoke one short of the owner removing that member
+— who can then rejoin with the same link.
 
-Two consequences worth knowing:
-
-- A guest session lives in one browser's local storage. Clear site data or move
-  to another device and you get a *new* guest — keep the share link to get back in.
-- Anyone with the link can edit. There is no way to revoke a link short of the
-  owner removing that member (they can rejoin with the same link).
+Because an anonymous session is still a real `auth.uid()`, row-level security,
+membership and presence all work exactly as they would with real accounts.
 
 ## Security
 
