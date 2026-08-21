@@ -2124,8 +2124,8 @@ body::before {
 .map-wrap:has(+ .mapside), .maplayout > .map-wrap { height: 100%; }
 
 .mapside-where {
-  display: flex; align-items: center; gap: 5px;
-  margin: -2px 0 10px;
+  display: flex; align-items: flex-start; gap: 5px;
+  margin: 2px 0 10px;
 }
 .mapside-where svg { flex: none; color: var(--accent); }
 .mapside-head { position: relative; }

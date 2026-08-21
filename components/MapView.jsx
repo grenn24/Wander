@@ -348,12 +348,15 @@ export default function MapView({
                 onClick={clearFinds}><X size={14} /></button>
             ) : null}
           </div>
-          <p className="tiny dim mapside-where">
-            <Crosshair size={12} aria-hidden="true" />
-            {viewTooWide
-              ? 'the view is wider than search reaches — zoom into a neighbourhood'
-              : 'searching what the map is showing — pan or zoom to look elsewhere'}
-          </p>
+          {/* Only when it is actually a problem. Explaining that the search
+              follows the map is a caption on something you find out by using
+              it once; that the view has outrun the search is not. */}
+          {viewTooWide ? (
+            <p className="tiny dim mapside-where">
+              <Crosshair size={12} aria-hidden="true" />
+              the view is wider than search reaches — zoom into a neighbourhood
+            </p>
+          ) : null}
 
           <form className="mapfind" onSubmit={runSearch}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
