@@ -72,8 +72,11 @@ export default function TripsHome() {
           <div className="page-head spread">
             <div>
               <h2>Your trips</h2>
-              <div className="small muted">
-                {loading ? 'Loading…'
+              <div className="small muted trips-count">
+                {/* Nothing while loading: the skeleton cards below already say
+                    it, and saying it twice is once too many. The line keeps its
+                    height in CSS so the heading does not jump when it fills. */}
+                {loading ? null
                   : trips.length === 0 ? 'Nothing planned yet'
                     : `${trips.length} trip${trips.length === 1 ? '' : 's'}`}
               </div>

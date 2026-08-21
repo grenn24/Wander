@@ -556,6 +556,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 }
 .skel-head { height: 26px; width: 210px; margin-bottom: 18px; }
 .skel-row { height: 62px; margin-bottom: 9px; }
+.skel-crumb { height: 15px; width: 132px; border-radius: 5px; display: inline-block; }
+/* Holds its line while the count is still unknown. */
+.trips-count { min-height: 1.25em; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .skel, .toast, .pulse { animation: none; }
@@ -2011,3 +2014,86 @@ body::before {
 @media (hover: none) {
   .lp-card::after { display: none; }
 }
+
+/* ================================================================ loader -- */
+
+/*
+ * A plane flying a route it draws behind it (see Loading.jsx). One cycle:
+ * the trail draws while the plane travels it, both hold for a beat at the
+ * destination, then it clears and goes again — the pause is what stops it
+ * reading as a machine and starts it reading as a journey.
+ */
+.loader {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.loader-full {
+  display: flex; min-height: 60dvh; justify-content: center;
+}
+.loader-art { width: 132px; height: 58px; overflow: visible; }
+
+.loader-track {
+  fill: none; stroke: var(--border-strong); stroke-width: 1.5;
+  stroke-dasharray: 2 6; stroke-linecap: round; opacity: .6;
+}
+.loader-trail {
+  fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  /* Not --ease: that curve spends 80% of the movement in the first 20% of
+     the time, which is right for a control answering a click and wrong for
+     something crossing a distance. This one takes off and settles. */
+  animation: loader-trail 2s ease-in-out infinite;
+}
+.loader-pin { fill: var(--surface-0); stroke: var(--border-strong); stroke-width: 1.5; }
+.loader-pin-to { animation: loader-arrive 2s var(--ease) infinite; }
+.loader-plane {
+  fill: var(--accent); offset-rotate: auto;
+  animation: loader-fly 2s ease-in-out infinite;
+}
+
+@keyframes loader-trail {
+  0%   { stroke-dashoffset: 1; opacity: 1; }
+  60%  { stroke-dashoffset: 0; opacity: 1; }
+  85%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes loader-fly {
+  0%   { offset-distance: 0%; opacity: 0; }
+  8%   { opacity: 1; }
+  60%  { offset-distance: 100%; opacity: 1; }
+  78%  { offset-distance: 100%; opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+/* The destination lights up as the plane reaches it. */
+@keyframes loader-arrive {
+  0%, 55%   { fill: var(--surface-0); stroke: var(--border-strong); }
+  62%, 100% { fill: var(--accent); stroke: var(--accent); }
+}
+
+.loader-label {
+  font-size: 13.5px; color: var(--text-2); letter-spacing: .01em;
+}
+.loader-label::after {
+  content: '…';
+  /* Held in the layout so the label never shifts as the dots come and go. */
+  animation: loader-dots 2s steps(1) infinite;
+}
+@keyframes loader-dots {
+  0%   { content: '.'; }
+  33%  { content: '..'; }
+  66%  { content: '…'; }
+}
+
+/* offset-path is what puts the plane on the route; without it the plane would
+   sit in the corner, so hide it and let the trail carry the animation. */
+@supports not (offset-path: path('M0,0 L1,1')) {
+  .loader-plane { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-trail { animation: none; stroke-dashoffset: 0; }
+  .loader-plane { animation: none; offset-distance: 100%; }
+  .loader-pin-to { animation: none; fill: var(--accent); stroke: var(--accent); }
+  .loader-label::after { animation: none; content: '…'; }
+}
+
+@media print { .loader { display: none !important; } }

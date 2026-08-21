@@ -63,9 +63,13 @@ function TripChrome({ tripId, children }) {
           <Link href="/trips" className="crumb-back" aria-label="All trips">
             <ChevronLeft size={16} />
           </Link>
-          <span className="crumb" title={trip ? trip.name : ''}>
-            {trip ? trip.name : 'Loading…'}
-          </span>
+          {/* A shimmer the width of a trip name, rather than the word
+              "Loading" sitting where the name will be. */}
+          {trip ? (
+            <span className="crumb" title={trip.name}>{trip.name}</span>
+          ) : (
+            <span className="crumb skel skel-crumb" aria-label="Loading trip" />
+          )}
         </TopBar>
 
         <div className="body">

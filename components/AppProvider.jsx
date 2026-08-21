@@ -7,6 +7,7 @@ import { getClient, readConfig, missingEnv, configWarning } from '@/lib/supabase
 import { ensureLocalName, writeLocalName, humanError } from '@/lib/util';
 import Toasts from '@/components/Toasts';
 import ConfigError from '@/components/ConfigError';
+import Loading from '@/components/Loading';
 
 const Ctx = createContext(null);
 
@@ -107,7 +108,7 @@ export default function AppProvider({ children }) {
   }), [supabase, user, session, phase, displayName, saveDisplayName, pushToast, dismissToast, fail]);
 
   if (phase === 'boot') {
-    return <div className="gate"><div className="muted">Loading…</div></div>;
+    return <div className="gate"><Loading label="Getting your trips ready" /></div>;
   }
 
   if (phase === 'error') {

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
+import Loading from '@/components/Loading';
 import { categoryIcon } from '@/lib/icons';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
@@ -16,7 +17,7 @@ import {
 export default function PlanPage() {
   return (
     <AppProvider>
-      <Suspense fallback={<div className="gate"><div className="muted">Loading…</div></div>}>
+      <Suspense fallback={<div className="gate"><Loading label="Warming up" /></div>}>
         <Planner />
       </Suspense>
     </AppProvider>
