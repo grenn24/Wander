@@ -25,6 +25,7 @@ export default function TripTabPage({ params }) {
   const {
     trip, days, activities, packing, members, online, isOwner, setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
+    setActivityCoords, addLocatedActivity,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   } = useTrip();
 
@@ -94,7 +95,9 @@ export default function TripTabPage({ params }) {
 
       {tab === 'map' ? (
         <MapView trip={trip} days={days} activities={activities}
-          onEdit={(a) => setEditing({ ...a })} />
+          onEdit={(a) => setEditing({ ...a })}
+          onSetCoords={setActivityCoords}
+          onAddLocated={addLocatedActivity} />
       ) : null}
 
       {tab === 'budget' ? (

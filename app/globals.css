@@ -734,3 +734,86 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 @media print {
   .lp, .lp-nav { display: none !important; }
 }
+
+/* ================================================================== map --- */
+.maplayout {
+  display: grid; gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  align-items: start;
+}
+@media (max-width: 900px) { .maplayout { grid-template-columns: 1fr; } }
+
+.map-wrap { height: min(62dvh, 560px); }
+.map-el { cursor: crosshair; }
+
+/* Numbered stop marker, coloured by activity type. */
+.mk {
+  width: 28px; height: 28px; border-radius: 50% 50% 50% 3px;
+  transform: rotate(-45deg); background: var(--mk, var(--accent));
+  display: grid; place-items: center; border: 2px solid var(--surface-1);
+  box-shadow: 0 2px 7px rgba(0,0,0,.38);
+}
+.mk span { transform: rotate(45deg); font-size: 11.5px; font-weight: 700; color: #fff; }
+.mk-focus { outline: 3px solid var(--accent); outline-offset: 2px; z-index: 400; }
+
+/* side panel */
+.mapside {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-1); padding: 14px; display: flex; flex-direction: column;
+  max-height: min(62dvh, 560px);
+}
+@media (max-width: 900px) { .mapside { max-height: none; } }
+.mapside-head {
+  display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 14px;
+  margin-bottom: 10px;
+}
+.mapside-head svg { color: var(--accent); }
+.mapside-scroll { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.mapside-drop { margin-bottom: 12px; padding: 12px; }
+.mapside-busy { display: flex; align-items: center; gap: 7px; }
+
+.nearby {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface-0);
+}
+.nearby-name {
+  font-size: 13.5px; font-weight: 550; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ordered stop list, synced with the map */
+.stoplist { display: flex; flex-direction: column; }
+.stop {
+  display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1);
+  cursor: pointer;
+}
+.stop:hover { border-color: var(--border-strong); }
+.stop.is-focus { border-color: var(--accent); background: var(--accent-soft); }
+.stop-n {
+  width: 21px; height: 21px; flex: none; border-radius: 50%; display: grid;
+  place-items: center; font-size: 11px; font-weight: 700;
+  background: var(--surface-2); color: var(--text-2);
+}
+.stop.is-focus .stop-n { background: var(--accent); color: #fff; }
+.stop-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the walk between two consecutive stops */
+.leg {
+  display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3);
+  padding: 5px 0 5px 32px; position: relative;
+}
+.leg::before {
+  content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
+  border-left: 2px dotted var(--border-strong);
+}
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+@media print { .maplayout, .mapside { display: none !important; } }
+
+/* a leg that is implausible on foot */
+.leg-far { color: var(--danger); }
+.leg-far::before { border-left-color: var(--danger); opacity: .5; }

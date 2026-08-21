@@ -164,6 +164,39 @@ export default function TripProvider({ tripId, children }) {
     return data;
   }, [supabase, activities, fail]);
 
+  /** Fills in coordinates the map resolved, without touching anything else. */
+  const setActivityCoords = useCallback(async (id, lat, lng, location) => {
+    if (!supabase || !id) return;
+    const patch = { lat, lng, updated_at: new Date().toISOString() };
+    if (location) patch.location = location;
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    const { error } = await supabase.from('activities').update(patch).eq('id', id);
+    if (error) fail(error);
+  }, [supabase, fail]);
+
+  /** Adds a stop straight from the map, already located. */
+  const addLocatedActivity = useCallback(async (draft) => {
+    if (!supabase || !tripId) return null;
+    const payload = {
+      trip_id: tripId,
+      day: draft.day,
+      title: (draft.title || '').trim() || 'Untitled',
+      category: draft.category || 'sightseeing',
+      location: draft.location || '',
+      lat: Number(draft.lat),
+      lng: Number(draft.lng),
+      cost: 0,
+      sort_order: nextSortOrder(activities, draft.day),
+    };
+    const { data, error } = await supabase.from('activities').insert(payload).select().single();
+    if (error) { fail(error); return null; }
+    if (data) {
+      setActivities((prev) => [...prev, data].sort(sortActs));
+      pushToast(`Added "${data.title}".`);
+    }
+    return data;
+  }, [supabase, tripId, activities, fail, pushToast]);
+
   const deleteActivity = useCallback(async (act) => {
     if (!supabase || !act || !act.id) return;
     const snapshot = { ...act };
@@ -248,10 +281,12 @@ export default function TripProvider({ tripId, children }) {
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
+    setActivityCoords, addLocatedActivity,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
+    setActivityCoords, addLocatedActivity,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   ]);
 
