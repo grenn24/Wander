@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle } from 'lucide-react';
 
@@ -19,11 +19,25 @@ export const SAMPLE_PROMPTS = [
  * The natural-language entry point. It only collects the query — the work
  * happens on /plan, which owns the guest session and can write to the database.
  */
-export default function PlanPrompt({ autoFocus = false, compact = false }) {
+export default function PlanPrompt({ autoFocus = false, compact = false, rotate = false }) {
   const router = useRouter();
   const [value, setValue] = useState('');
   const [shown, setShown] = useState(() => SAMPLE_PROMPTS.slice(0, 3));
+  const [ghost, setGhost] = useState(0);
   const areaRef = useRef(null);
+
+  /*
+   * On the landing page the empty box suggests trips instead of asking a
+   * question. A real placeholder cannot animate, so the rotating line is a
+   * layer above the field and the textarea keeps its aria-label as the name.
+   * Under reduced motion it simply stops on the first one.
+   */
+  useEffect(() => {
+    if (!rotate) return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const t = setInterval(() => setGhost((i) => (i + 1) % SAMPLE_PROMPTS.length), 3400);
+    return () => clearInterval(t);
+  }, [rotate]);
 
   function submit(e) {
     if (e) e.preventDefault();
@@ -59,12 +73,17 @@ export default function PlanPrompt({ autoFocus = false, compact = false }) {
           rows={compact ? 1 : 2}
           autoFocus={autoFocus}
           aria-label="Describe the trip you want"
-          placeholder="Where are you going?"
+          placeholder={rotate ? '' : 'Where are you going?'}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
         />
+        {rotate && !value ? (
+          <span className="planbox-ghost" aria-hidden="true" key={ghost}>
+            {SAMPLE_PROMPTS[ghost]}
+          </span>
+        ) : null}
         <button className="btn primary planbox-go" type="submit" disabled={!value.trim()}
           aria-label="Plan this trip">
           <ArrowUp size={17} />

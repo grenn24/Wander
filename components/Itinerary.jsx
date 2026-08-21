@@ -24,6 +24,7 @@ export default function Itinerary({
   const todayIndex = days.indexOf(today);
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
+  const lastMenuAct = useRef(null);
   const [activeDay, setActiveDay] = useState(null);
   const [suggestFor, setSuggestFor] = useState(null);
   const jumpedFor = useRef(null);
@@ -139,6 +140,12 @@ export default function Itinerary({
   const byDay = {};
   days.forEach((d) => { byDay[d] = []; });
   activities.forEach((a) => { if (!byDay[a.day]) byDay[a.day] = []; byDay[a.day].push(a); });
+
+  // Keep the last one while the menu animates shut, or its contents would
+  // blink away a frame after you clicked.
+  const openAct = activities.find((a) => String(a.id) === String(menuFor));
+  if (openAct) lastMenuAct.current = openAct;
+  const menuAct = openAct || lastMenuAct.current;
 
   const stray = activities.filter((a) => !days.includes(a.day));
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
@@ -262,32 +269,6 @@ export default function Itinerary({
                           }}>
                           <MoreHorizontal size={16} />
                         </button>
-                        {menuFor === a.id ? (
-                          <Popover anchorEl={menuEl} open width={214}
-                            onClose={() => setMenuFor(null)}>
-                            <div className="act-menu">
-                              <div className="act-menu-row">
-                                <span>Move to</span>
-                                <Select
-                                  value={a.day}
-                                  label={`Move ${a.title} to another day`}
-                                  options={days.map((dd, di) => ({
-                                    value: dd, label: `Day ${di + 1}`, hint: fmtDayTiny(dd),
-                                  }))}
-                                  onChange={(dd) => { onMove(a, dd); setMenuFor(null); }}
-                                />
-                              </div>
-                              <button type="button"
-                                onClick={() => { onDuplicate(a); setMenuFor(null); }}>
-                                <Copy size={15} /> Duplicate
-                              </button>
-                              <button type="button" className="danger"
-                                onClick={() => { onDelete(a); setMenuFor(null); }}>
-                                <Trash2 size={15} /> Delete
-                              </button>
-                            </div>
-                          </Popover>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -340,6 +321,37 @@ export default function Itinerary({
           </div>
         </section>
       ) : null}
+
+      {/* One menu for the list, not one per row: it is only ever open for a
+          single activity, and rendering it inline meant twenty-odd day selects
+          built and thrown away on every pass — and no way to animate it out,
+          since the row dropped it the instant it closed. */}
+      <Popover anchorEl={menuEl} open={!!menuFor} width={214}
+        onClose={() => setMenuFor(null)}>
+        {menuAct ? (
+          <div className="act-menu">
+            <div className="act-menu-row">
+              <span>Move to</span>
+              <Select
+                value={menuAct.day}
+                label={`Move ${menuAct.title} to another day`}
+                options={days.map((dd, di) => ({
+                  value: dd, label: `Day ${di + 1}`, hint: fmtDayTiny(dd),
+                }))}
+                onChange={(dd) => { onMove(menuAct, dd); setMenuFor(null); }}
+              />
+            </div>
+            <button type="button"
+              onClick={() => { onDuplicate(menuAct); setMenuFor(null); }}>
+              <Copy size={15} /> Duplicate
+            </button>
+            <button type="button" className="danger"
+              onClick={() => { onDelete(menuAct); setMenuFor(null); }}>
+              <Trash2 size={15} /> Delete
+            </button>
+          </div>
+        ) : null}
+      </Popover>
     </div>
   );
 }

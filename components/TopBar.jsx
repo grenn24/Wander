@@ -88,30 +88,30 @@ export default function TopBar({ children, online = [], menu = null, onOpenProfi
             onClick={() => setOpen((o) => !o)}>
             <Menu size={17} />
           </button>
-          {open ? (
-            <Popover anchorEl={menuBtn.current} open width={208}
-              onClose={() => setOpen(false)}>
-              <div className="act-menu" role="menu">
-                {/* The name used to sit in the bar itself; it still belongs
-                    somewhere, and this is where the account actions are now. */}
-                <p className="menu-who">{who}</p>
-                {menu.map((m) => {
-                  const Icon = m.icon;
-                  return m.href ? (
-                    <Link key={m.id} href={m.href} role="menuitem"
-                      onClick={() => setOpen(false)}>
-                      <Icon size={15} /> {m.label}
-                    </Link>
-                  ) : (
-                    <button key={m.id} type="button" role="menuitem"
-                      onClick={() => { setOpen(false); m.onClick(); }}>
-                      <Icon size={15} /> {m.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </Popover>
-          ) : null}
+          {/* Always rendered, so closing it can be a transition rather than a
+              disappearance. */}
+          <Popover anchorEl={menuBtn.current} open={open} width={208}
+            onClose={() => setOpen(false)}>
+            <div className="act-menu" role="menu">
+              {/* The name used to sit in the bar itself; it still belongs
+                  somewhere, and this is where the account actions are now. */}
+              <p className="menu-who">{who}</p>
+              {menu.map((m) => {
+                const Icon = m.icon;
+                return m.href ? (
+                  <Link key={m.id} href={m.href} role="menuitem"
+                    onClick={() => setOpen(false)}>
+                    <Icon size={15} /> {m.label}
+                  </Link>
+                ) : (
+                  <button key={m.id} type="button" role="menuitem"
+                    onClick={() => { setOpen(false); m.onClick(); }}>
+                    <Icon size={15} /> {m.label}
+                  </button>
+                );
+              })}
+          </div>
+          </Popover>
         </>
       ) : onOpenProfile ? (
         <button className="btn ghost sm who" title="You" aria-label={`You — ${who}`}

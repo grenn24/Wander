@@ -543,6 +543,10 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 }
 .toast-x:hover { color: var(--text-1); }
 @keyframes toastin { from { opacity: 0; transform: translateY(6px); } }
+/* A toast marks itself leaving before the list drops it (see Toasts.jsx), so
+   it gets to go out the way it came in. */
+.toast[data-state="exit"] { animation: toastout .2s var(--ease) forwards; }
+@keyframes toastout { to { opacity: 0; transform: translateY(6px) scale(.97); } }
 
 /* -------------------------------------------------------------- skeleton -- */
 .skel {
@@ -555,6 +559,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .skel, .toast, .pulse { animation: none; }
+  .toast[data-state="exit"] { animation: none; opacity: 0; }
   .bar-fill, .meter > div { transition: none; }
 }
 
@@ -1587,15 +1592,22 @@ body::before {
    (80), so a select opened inside a dialog still lands on top of it. */
 .pop {
   position: fixed; z-index: 120;
-  animation: popin .13s var(--ease);
+  transition: opacity .15s var(--ease), transform .15s var(--ease);
+  transform-origin: top center;
 }
+/* Held open through the exit by usePresence, so it leaves the way it arrived
+   instead of blinking out of existence. */
+.pop[data-state="exit"] { opacity: 0; transform: translateY(-4px) scale(.98); pointer-events: none; }
+.pop[data-state="enter"] { opacity: 1; transform: none; }
 /* The panel scrolls, not the wrapper — clipping here would cut its drop
    shadow off. inherit picks up the pixel max-height set on .pop inline. */
 .pop > * {
   max-height: inherit; overflow-y: auto; overscroll-behavior: contain;
 }
-@keyframes popin { from { opacity: 0; transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .pop { transition: none; }
+  .pop[data-state="exit"] { opacity: 0; transform: none; }
+}
 
 /* The rail is as tall as the page, so its bottom actions sat ~2000px below the
    fold and could only be reached by scrolling to the very end of a trip. Pin
@@ -1885,3 +1897,100 @@ body::before {
   .cmd-pill:hover { transform: translateX(-50%); }
 }
 @media print { .cmd-pill, .cmd-wrap { display: none !important; } }
+
+/* ==================================================== motion on arrival --- */
+
+/*
+ * Scroll reveal. One-way by design (see Reveal.jsx): blocks settle when they
+ * arrive and stay settled, because content that re-animates every time you
+ * scroll back past it is a page that will not sit still.
+ *
+ * Only opacity and transform move, so each of these is a compositor job and
+ * costs nothing on the main thread while the page is scrolling.
+ */
+.reveal {
+  transition: opacity .58s var(--ease), transform .58s var(--ease);
+  will-change: opacity, transform;
+}
+.reveal[data-state="out"] { opacity: 0; }
+.reveal[data-state="in"] { opacity: 1; transform: none; }
+.reveal-up[data-state="out"] { transform: translateY(18px); }
+.reveal-right[data-state="out"] { transform: translateY(18px) translateX(22px) scale(.985); }
+
+/* Once it has arrived, stop claiming a layer for it. */
+.reveal[data-state="in"] { will-change: auto; }
+
+/* -------------------------------------------------- the hero's live day -- */
+
+/* Rows hold their space whether or not they are showing, so the card keeps one
+   height and the page never reflows under it — and it gives every row an exit
+   as well as an entrance. */
+.mock-act {
+  transition: opacity .42s var(--ease), transform .42s var(--ease);
+}
+.mock-act[data-state="out"] { opacity: 0; transform: translateY(9px) scale(.99); }
+.mock-act[data-state="in"] { opacity: 1; transform: none; }
+
+.mock-title { transition: opacity .3s var(--ease); }
+
+.mock-add { position: relative; transition: color .3s var(--ease), border-color .3s var(--ease); }
+.mock-add[data-typing="yes"] {
+  color: var(--text-1);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.mock-hint { opacity: .75; }
+
+/* The caret only blinks while something is being typed into the line. */
+.mock-caret {
+  display: inline-block; width: 1.5px; height: 1em; margin-left: 2px;
+  vertical-align: -.15em; background: var(--accent);
+  animation: caret 1.05s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+
+/* ------------------------------------------------- prompt box, rotating -- */
+.planbox-ghost {
+  position: absolute; left: 46px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; color: var(--text-3); font-size: 15px;
+  max-width: calc(100% - 110px); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: ghostin .5s var(--ease);
+}
+.planbox:not(.compact) .planbox-ghost { top: 22px; transform: none; }
+@keyframes ghostin {
+  from { opacity: 0; transform: translateY(6px); }
+}
+.planbox:not(.compact) .planbox-ghost { animation-name: ghostin-flat; }
+@keyframes ghostin-flat {
+  from { opacity: 0; }
+}
+
+/* ------------------------------------------------------ card spotlight --- */
+
+/* A soft light that follows the pointer across the feature cards. The card
+   paints it through a pseudo-element so nothing about the card's own layout
+   or text is touched by the effect. */
+.lp-card { position: relative; overflow: hidden; }
+.lp-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 0%),
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    transparent 68%
+  );
+  opacity: 0; transition: opacity .3s var(--ease);
+}
+.lp-card:hover::after { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { transition: none; }
+  .reveal[data-state="out"] { opacity: 1; transform: none; }
+  .mock-act { transition: none; }
+  .mock-caret { animation: none; }
+  .planbox-ghost { animation: none; }
+  .lp-card::after { display: none; }
+}
+
+@media (hover: none) {
+  .lp-card::after { display: none; }
+}

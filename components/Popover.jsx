@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import usePresence from '@/components/usePresence';
 
 /**
  * A layer that escapes the page.
@@ -29,6 +30,9 @@ export default function Popover({
   const ref = useRef(null);
   const [pos, setPos] = useState(null);
   const [ready, setReady] = useState(false);
+  // Held open for the length of its exit so it can animate away rather than
+  // simply cease to exist.
+  const { mounted, state } = usePresence(open, 150);
 
   // Portals need a DOM to aim at, so nothing renders during SSR.
   useEffect(() => { setReady(true); }, []);
@@ -58,13 +62,13 @@ export default function Popover({
   // first. `ready` matters: the portal only exists from the second render, so
   // the first pass here has no node to measure and has to run again after it.
   useLayoutEffect(() => {
-    if (!open || !ready) { setPos(null); return; }
+    if (!mounted || !ready) { setPos(null); return; }
     place();
-  }, [open, ready, place]);
+  }, [mounted, ready, place]);
 
   // Follow the trigger, and re-measure when the contents change size.
   useEffect(() => {
-    if (!open || !ready) return undefined;
+    if (!mounted || !ready) return undefined;
     const el = ref.current;
     const again = () => place();
     window.addEventListener('scroll', again, true);
@@ -79,7 +83,7 @@ export default function Popover({
       window.removeEventListener('resize', again);
       if (ro) ro.disconnect();
     };
-  }, [open, ready, place]);
+  }, [mounted, ready, place]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -124,12 +128,13 @@ export default function Popover({
     };
   }, [open, anchorEl, onClose]);
 
-  if (!open || !ready) return null;
+  if (!mounted || !ready) return null;
 
   return createPortal(
     <div
       ref={ref}
       className={`pop${className ? ` ${className}` : ''}`}
+      data-state={state}
       style={pos
         ? { top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }
         : { top: 0, left: 0, visibility: 'hidden' }}

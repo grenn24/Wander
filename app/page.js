@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import PlanPrompt from '@/components/PlanPrompt';
 import Aurora from '@/components/Aurora';
+import Reveal from '@/components/Reveal';
+import LiveMock from '@/components/LiveMock';
+import FeatureGrid from '@/components/FeatureGrid';
 import {
   Plane, CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -54,89 +57,91 @@ export default async function Landing({ searchParams }) {
       <main>
         <section className="lp-hero">
           <div className="lp-hero-copy">
-            <span className="lp-eyebrow"><Zap size={13} /> No accounts. No sign-ups.</span>
-            <h1>Describe the trip. Get the plan.</h1>
-            <p className="lp-lede">
+            <Reveal as="span" className="lp-eyebrow" delay={40}>
+              <Zap size={13} /> No accounts. No sign-ups.
+            </Reveal>
+            <Reveal as="h1" delay={110}>Describe the trip. Get the plan.</Reveal>
+            <Reveal as="p" className="lp-lede" delay={180}>
               Say where you are going. Wander lays out every day, maps it, and totals the cost.
-            </p>
-            <PlanPrompt autoFocus={false} />
-            <div className="lp-cta">
+            </Reveal>
+            <Reveal delay={250}><PlanPrompt autoFocus={false} rotate /></Reveal>
+            <Reveal className="lp-cta" delay={320}>
               <Link className="btn lg" href="/trips">
                 Start blank <ArrowRight size={17} />
               </Link>
-            </div>
-            <ul className="lp-ticks">
+            </Reveal>
+            <Reveal as="ul" className="lp-ticks" delay={390}>
               <li><Check size={15} /> Free and open source</li>
               <li><Check size={15} /> Your own database</li>
               <li><Check size={15} /> Works offline on paper</li>
-            </ul>
+            </Reveal>
           </div>
 
-          <div className="lp-hero-visual" aria-hidden="true">
-            <MockItinerary />
-          </div>
+          <Reveal className="lp-hero-visual" from="right" delay={220} aria-hidden="true">
+            <LiveMock />
+          </Reveal>
         </section>
 
         <section className="lp-section" id="features">
-          <div className="lp-section-head">
+          <Reveal className="lp-section-head">
             <h2>Everything the trip needs</h2>
             <p>In one place, not five apps.</p>
-          </div>
-          <div className="lp-grid">
-            {FEATURES.map((f) => (
-              <article className="lp-card" key={f.title}>
+          </Reveal>
+          <FeatureGrid>
+            {FEATURES.map((f, i) => (
+              <Reveal as="article" className="lp-card" key={f.title} delay={i * 55}>
                 <span className="lp-card-ico" aria-hidden="true"><f.icon size={19} /></span>
                 <h3>{f.title}</h3>
                 <p>{f.body}</p>
-              </article>
+              </Reveal>
             ))}
-          </div>
+          </FeatureGrid>
         </section>
 
         <section className="lp-section lp-band">
           <div className="lp-split">
-            <div>
+            <Reveal>
               <span className="lp-eyebrow"><Share2 size={13} /> Built for planning together</span>
               <h2>One link. Everyone editing the same trip.</h2>
               <p className="lp-body">
                 No sign-up to lose people at. Open the link and you are in, editing live.
               </p>
-            </div>
+            </Reveal>
             <ul className="lp-points">
-              <li>
+              <Reveal as="li" delay={60}>
                 <Users size={17} />
                 <div><strong>Live presence</strong><span>See who else is here.</span></div>
-              </li>
-              <li>
+              </Reveal>
+              <Reveal as="li" delay={130}>
                 <Zap size={17} />
                 <div><strong>Instant edits</strong><span>Changes land as they happen.</span></div>
-              </li>
-              <li>
+              </Reveal>
+              <Reveal as="li" delay={200}>
                 <ShieldCheck size={17} />
                 <div><strong>Row-level security</strong><span>The database decides who sees what.</span></div>
-              </li>
+              </Reveal>
             </ul>
           </div>
         </section>
 
         <section className="lp-section" id="how">
-          <div className="lp-section-head">
+          <Reveal className="lp-section-head">
             <h2>Three steps</h2>
-          </div>
+          </Reveal>
           <ol className="lp-steps">
-            {STEPS.map((s) => (
-              <li key={s.n}>
-                <span className="lp-step-n">{s.n}</span>
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
-              </li>
+            {STEPS.map((step, i) => (
+              <Reveal as="li" key={step.n} delay={i * 90}>
+                <span className="lp-step-n">{step.n}</span>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </Reveal>
             ))}
           </ol>
         </section>
 
         <section className="lp-final">
-          <h2>Where are you going?</h2>
-          <div className="lp-final-box"><PlanPrompt /></div>
+          <Reveal as="h2">Where are you going?</Reveal>
+          <Reveal className="lp-final-box" delay={90}><PlanPrompt rotate /></Reveal>
         </section>
       </main>
 
@@ -150,39 +155,3 @@ export default async function Landing({ searchParams }) {
   );
 }
 
-/** A stylised preview of the itinerary, built from the app's own design tokens. */
-function MockItinerary() {
-  const rows = [
-    { time: '9am', title: 'Senso-ji temple', meta: 'Sightseeing · Asakusa', cat: 'sightseeing', cost: '' },
-    { time: '1:30pm', title: 'Ichiran ramen', meta: 'Food & drink · Shibuya', cat: 'food', cost: '¥1,800' },
-    { time: '7:40pm', title: 'Shinkansen to Nagoya', meta: 'Transport · Tokyo Station', cat: 'transport', cost: '¥11,300' },
-  ];
-  return (
-    <div className="mock">
-      <div className="mock-bar">
-        <span className="mock-dot" /><span className="mock-dot" /><span className="mock-dot" />
-        <span className="mock-title">Japan, December</span>
-      </div>
-      <div className="mock-body">
-        <div className="mock-dayhead">
-          <span className="day-num">Day 3</span>
-          <span className="mock-daydate">Fri, 4 Dec</span>
-          <span className="today-badge">Today</span>
-        </div>
-        {rows.map((r) => (
-          <div className="mock-act" key={r.title}>
-            <span className="mock-time">{r.time}</span>
-            <span className="mock-main">
-              <span className="mock-name">
-                <span className={`dot cat-${r.cat}`} />{r.title}
-              </span>
-              <span className="mock-meta">{r.meta}</span>
-            </span>
-            {r.cost ? <span className="mock-cost">{r.cost}</span> : null}
-          </div>
-        ))}
-        <div className="mock-add">+ Add to Fri, 4 Dec — try &ldquo;9am Senso-ji&rdquo;</div>
-      </div>
-    </div>
-  );
-}
