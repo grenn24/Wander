@@ -86,13 +86,48 @@ body {
   margin: 0;
   background: var(--surface-0);
   color: var(--text-1);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Jakarta's default figures are proportional, which makes columns of times
+     and prices wobble. Line them up everywhere. */
+  font-variant-numeric: tabular-nums;
 }
-h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -.011em; }
+h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -.014em; }
+
+/* The serif is for things read slowly: a headline, a trip name, a day. Rows in
+   a dense list are scanned, not read, so they stay in the sans. */
+.lp-hero h1,
+.lp-section-head h2,
+.lp-split h2,
+.lp-final h2,
+.page-head h2,
+.tripcard-name,
+.planhead h2,
+.p-head h1 {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  letter-spacing: -.005em;
+  line-height: 1.12;
+}
+
+/* A display serif at 400 reads lighter than a bold sans, so the sizes step up
+   to keep the same presence on the page. */
+.lp-hero h1 { font-size: clamp(40px, 6.4vw, 68px); }
+.lp-section-head h2, .lp-split h2 { font-size: clamp(27px, 3.9vw, 38px); }
+.lp-final h2 { font-size: clamp(31px, 4.8vw, 46px); }
+.page-head h2 { font-size: 25px; }
+.tripcard-name { font-size: 19px; }
+
+.mono, .act-t, .act-t2, .act-cost, .act-ref, .day-total,
+.kpi-value, .bar-val, table.data td.num, .planact-time, .planact-cost {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
 
@@ -563,7 +598,10 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   display: inline-flex; align-items: center; gap: 9px; text-decoration: none;
   color: var(--text-1); flex: none;
 }
-.brand-word { font-weight: 680; letter-spacing: -.015em; font-size: 15.5px; }
+.brand-word {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400; letter-spacing: -.005em; font-size: 19px;
+}
 @media (max-width: 560px) { .brand-word { display: none; } }
 
 .crumb-back {
