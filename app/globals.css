@@ -88,6 +88,19 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+
+/*
+ * No grey-blue wash over whatever a finger lands on.
+ *
+ * Mobile WebKit paints that box on every tappable element, and it takes the
+ * shape of the element rather than the design — square corners over rounded
+ * buttons, the full row over a list item. The app has its own press states
+ * (see :active below), so this is replacing feedback rather than removing it.
+ *
+ * Keyboard focus rings are unaffected: this property only governs the touch
+ * flash, and :focus-visible outlines are set separately.
+ */
+html { -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0;
   background: var(--surface-0);
@@ -2237,3 +2250,22 @@ body::before {
   background: var(--surface-1); border-color: var(--border-strong);
 }
 .mapredo:hover { background: var(--surface-2); }
+
+/* -------------------------------------------------- touch press states --- */
+
+/* With the tap flash gone, every tappable surface owes the finger an answer.
+   Buttons already had one; these are the row-shaped things that did not. */
+.act:active, .stop:active, .nearby:active, .tripcard:active,
+.pack-item:active, .daychip:active, .lp-card:active {
+  transform: scale(.99);
+}
+.rail a:active, .tabbar a:active, .act-menu a:active, .act-menu button:active,
+.sel-opt:active, .samplechip:active {
+  background: var(--surface-2);
+}
+.tabbar a:active { border-radius: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .act:active, .stop:active, .nearby:active, .tripcard:active,
+  .pack-item:active, .daychip:active, .lp-card:active { transform: none; }
+}
