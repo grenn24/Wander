@@ -29,7 +29,7 @@
   --aura-1: var(--accent);
   --aura-2: var(--cat-3);
   --aura-3: var(--cat-5);
-  --aura-strength: 26%;
+  --aura-strength: 17%;
   --ease: cubic-bezier(.2,.8,.3,1);
   --spring: cubic-bezier(.34,1.4,.64,1);
 }
@@ -57,7 +57,7 @@
   --glass-line: rgba(255,255,255,.10);
   --lift: 0 12px 32px -14px rgba(0,0,0,.7);
   --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
-  --aura-strength: 30%;
+  --aura-strength: 21%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -76,7 +76,7 @@
   --glass-line: rgba(255,255,255,.10);
   --lift: 0 12px 32px -14px rgba(0,0,0,.7);
   --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
-  --aura-strength: 30%;
+  --aura-strength: 21%;
   }
 }
 
@@ -888,11 +888,13 @@ body::before {
     radial-gradient(38% 42% at 72% 92%,
       color-mix(in srgb, var(--aura-3) var(--aura-strength), transparent), transparent 70%);
   filter: blur(26px);
-  animation: drift 34s ease-in-out infinite alternate;
+  /* Deliberately near-still inside the app: the landing page is where movement
+     is worth something, and here it would only compete with the content. */
+  animation: drift 90s ease-in-out infinite alternate;
 }
 @keyframes drift {
   from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(-2.5%, 2%, 0) scale(1.08); }
+  to   { transform: translate3d(-1%, .8%, 0) scale(1.03); }
 }
 
 /* The glass recipe, applied by the surfaces below. */
@@ -1281,10 +1283,17 @@ body::before {
 }
 
 /* -------------------------------------------------------------- aurora --- */
+/*
+ * Fixed to the viewport and always in motion. Each field runs its own slow
+ * timer so the composite never repeats; --px/--py lean it towards the pointer;
+ * --sy is scroll depth in screen-heights, applied at a different rate per
+ * layer so scrolling reads as parallax rather than a flat slide.
+ */
 .aurora {
   position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
-  --px: 0; --py: 0;
+  --px: 0; --py: 0; --sy: 0;
 }
+
 .aurora-blob {
   position: absolute; border-radius: 50%; filter: blur(70px);
   opacity: .5; will-change: transform;
@@ -1292,21 +1301,62 @@ body::before {
 .aurora-blob.b1 {
   width: 46vw; height: 46vw; left: -8vw; top: -12vw;
   background: radial-gradient(circle, var(--accent), transparent 68%);
-  transform: translate3d(calc(var(--px) * 26px), calc(var(--py) * 26px), 0);
-  animation: float1 26s ease-in-out infinite alternate;
+  transform:
+    translate3d(
+      calc(var(--px) * 30px + var(--sy) * 26px),
+      calc(var(--py) * 30px + var(--sy) * -120px),
+      0);
+  animation: float1 22s ease-in-out infinite alternate;
 }
 .aurora-blob.b2 {
   width: 40vw; height: 40vw; right: -6vw; top: -6vw;
   background: radial-gradient(circle, var(--cat-3), transparent 68%);
-  transform: translate3d(calc(var(--px) * -34px), calc(var(--py) * 20px), 0);
-  animation: float2 32s ease-in-out infinite alternate;
+  transform:
+    translate3d(
+      calc(var(--px) * -38px + var(--sy) * -40px),
+      calc(var(--py) * 24px + var(--sy) * -66px),
+      0);
+  animation: float2 28s ease-in-out infinite alternate;
 }
 .aurora-blob.b3 {
   width: 52vw; height: 52vw; right: 4vw; bottom: -20vw;
   background: radial-gradient(circle, var(--cat-5), transparent 70%);
-  transform: translate3d(calc(var(--px) * 18px), calc(var(--py) * -22px), 0);
-  animation: float3 38s ease-in-out infinite alternate;
+  transform:
+    translate3d(
+      calc(var(--px) * 22px + var(--sy) * 34px),
+      calc(var(--py) * -26px + var(--sy) * -180px),
+      0);
+  animation: float3 34s ease-in-out infinite alternate;
 }
+.aurora-blob.b4 {
+  width: 34vw; height: 34vw; left: 22vw; bottom: -8vw;
+  background: radial-gradient(circle, var(--cat-4), transparent 70%);
+  opacity: .32;
+  transform:
+    translate3d(
+      calc(var(--px) * -18px + var(--sy) * -22px),
+      calc(var(--py) * -14px + var(--sy) * -230px),
+      0);
+  animation: float4 40s ease-in-out infinite alternate;
+}
+
+/* A slow pass of light across the whole field, so it drifts rather than pulses. */
+.aurora-sheen {
+  position: absolute; inset: -30%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--accent) 12%, transparent) 90deg,
+    transparent 200deg,
+    color-mix(in srgb, var(--cat-3) 10%, transparent) 300deg,
+    transparent 360deg);
+  filter: blur(60px);
+  opacity: .55;
+  rotate: calc(var(--sy) * 26deg);
+  animation: sheen 46s linear infinite;
+  will-change: transform;
+}
+
 /* Very light grain stops the gradients from banding on wide screens. */
 .aurora-grain {
   position: absolute; inset: 0; opacity: .035;
@@ -1314,21 +1364,19 @@ body::before {
   background-size: 4px 4px;
   color: var(--text-1);
 }
-@keyframes float1 {
-  from { margin: 0 0 0 0; } to { margin: 5vh 0 0 4vw; }
-}
-@keyframes float2 {
-  from { margin: 0 0 0 0; } to { margin: 7vh 3vw 0 0; }
-}
-@keyframes float3 {
-  from { margin: 0 0 0 0; } to { margin: 0 0 6vh 5vw; }
-}
+
+@keyframes float1 { from { margin: 0; } to { margin: 6vh 0 0 5vw; } }
+@keyframes float2 { from { margin: 0; } to { margin: 8vh 4vw 0 0; } }
+@keyframes float3 { from { margin: 0; } to { margin: 0 0 7vh 6vw; } }
+@keyframes float4 { from { margin: 0; } to { margin: 0 3vw 4vh 0; } }
+@keyframes sheen { to { transform: rotate(360deg); } }
 
 /* The landing page has its own light, so the shared body wash would double up. */
 .lp ~ * , body:has(.lp)::before { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob { animation: none; transform: none !important; }
+  .aurora-blob, .aurora-sheen { animation: none; transform: none !important; rotate: none; }
+  .aurora { opacity: .5; }
   .samplechip { transition: none; }
   .samplechip:hover { transform: none; }
 }
