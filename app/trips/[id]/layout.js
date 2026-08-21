@@ -2,13 +2,13 @@
 
 import { use } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ChevronLeft, Plus, Printer, Settings, Users } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import TripCommand from '@/components/TripCommand';
-import { TAB_ICONS, TRIP_TABS, isTripTab } from '@/lib/icons';
+import { TAB_ICONS, TRIP_NAV, isTripTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
   const { id } = use(params);
@@ -22,7 +22,6 @@ export default function TripLayout({ children, params }) {
 function TripChrome({ tripId, children }) {
   const { trip, online, ready, notFound, days, activities, packing, members } = useTrip();
   const pathname = usePathname();
-  const router = useRouter();
   // Read the tab off the end of the path rather than by index — a leading or
   // trailing slash shifts the positions, which is what silently pinned this to
   // "itinerary" no matter which tab was open.
@@ -53,7 +52,14 @@ function TripChrome({ tripId, children }) {
   return (
     <>
       <div className="shell">
-        <TopBar online={online} onOpenProfile={() => router.push(`/trips/${tripId}/people`)}>
+        <TopBar
+          online={online}
+          menu={[
+            { id: 'people', label: 'People', icon: Users, href: `/trips/${tripId}/people` },
+            { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
+            { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
+          ]}
+        >
           <Link href="/trips" className="crumb-back" aria-label="All trips">
             <ChevronLeft size={16} />
           </Link>
@@ -64,7 +70,7 @@ function TripChrome({ tripId, children }) {
 
         <div className="body">
           <nav className="rail" aria-label="Trip sections">
-            {TRIP_TABS.map((t) => {
+            {TRIP_NAV.map((t) => {
               const Icon = TAB_ICONS[t.id];
               return (
                 <Link key={t.id} href={`/trips/${tripId}/${t.id}`} aria-current={active === t.id}>
@@ -98,7 +104,7 @@ function TripChrome({ tripId, children }) {
         <TripCommand />
 
         <nav className="tabbar" aria-label="Trip sections">
-          {TRIP_TABS.map((t) => {
+          {TRIP_NAV.map((t) => {
             const Icon = TAB_ICONS[t.id];
             return (
               <Link key={t.id} href={`/trips/${tripId}/${t.id}`} aria-current={active === t.id}>

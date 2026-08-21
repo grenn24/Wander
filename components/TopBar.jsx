@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Plane, Sun, Moon, SunMoon } from 'lucide-react';
+import { Plane, Sun, Moon, SunMoon, Menu } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
+import Popover from '@/components/Popover';
 import { colorFor, initials } from '@/lib/util';
 
 /**
@@ -12,12 +13,18 @@ import { colorFor, initials } from '@/lib/util';
  *
  * On phones this collapses to the platform convention — back, title, and two
  * icon actions — because a row of words at 375px is a queue, not a toolbar.
+ *
+ * `menu` takes [{ id, label, icon, href | onClick }] and turns the trailing
+ * control into an overflow menu. Pages that pass nothing keep the plain
+ * identity chip.
  */
-export default function TopBar({ children, online = [], onOpenProfile }) {
+export default function TopBar({ children, online = [], menu = null, onOpenProfile }) {
   const { displayName } = useApp();
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === 'dark' ? Sun : theme === 'light' ? Moon : SunMoon;
   const ref = useRef(null);
+  const menuBtn = useRef(null);
+  const [open, setOpen] = useState(false);
   const who = displayName || 'Guest';
 
   /*
@@ -74,7 +81,39 @@ export default function TopBar({ children, online = [], onOpenProfile }) {
         <ThemeIcon size={16} />
       </button>
 
-      {onOpenProfile ? (
+      {menu ? (
+        <>
+          <button ref={menuBtn} className="btn ghost sm icon-btn" type="button"
+            title="Menu" aria-label="Trip menu" aria-haspopup="menu" aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}>
+            <Menu size={17} />
+          </button>
+          {open ? (
+            <Popover anchorEl={menuBtn.current} open width={208}
+              onClose={() => setOpen(false)}>
+              <div className="act-menu" role="menu">
+                {/* The name used to sit in the bar itself; it still belongs
+                    somewhere, and this is where the account actions are now. */}
+                <p className="menu-who">{who}</p>
+                {menu.map((m) => {
+                  const Icon = m.icon;
+                  return m.href ? (
+                    <Link key={m.id} href={m.href} role="menuitem"
+                      onClick={() => setOpen(false)}>
+                      <Icon size={15} /> {m.label}
+                    </Link>
+                  ) : (
+                    <button key={m.id} type="button" role="menuitem"
+                      onClick={() => { setOpen(false); m.onClick(); }}>
+                      <Icon size={15} /> {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Popover>
+          ) : null}
+        </>
+      ) : onOpenProfile ? (
         <button className="btn ghost sm who" title="You" aria-label={`You — ${who}`}
           onClick={onOpenProfile}>
           {badge}
