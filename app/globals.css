@@ -1591,15 +1591,20 @@ body::before {
  * furniture, and a street with twenty of them read as noise.
  */
 .gmk-place {
-  width: 20px; height: 20px; border-radius: 50%;
+  width: 22px; height: 22px; border-radius: 50%;
   background: var(--mk, #2a78d6); border: 2.5px solid #fff;
   box-shadow: 0 2px 7px rgba(0,0,0,.45); cursor: pointer;
   display: grid; place-items: center;
   transition: transform .14s var(--ease);
 }
-.gmk-place::after {
+/* The glyph says what kind of place it is; the ring says it is a suggestion. */
+.gmk-place svg { width: 11px; height: 11px; color: #fff; }
+/* Only when there is no glyph to show — a plain point still needs a middle. */
+.gmk-place:empty::after {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff;
 }
+/* The source React renders once for the marker builder to clone from. */
+.gmk-glyphs { display: none; }
 .gmk-place:hover { transform: scale(1.25); }
 /* The one picked out of the cluster, lifted clear of the rest. */
 .gmk-place.is-on {

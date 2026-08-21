@@ -1,6 +1,21 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { haversine } from '@/lib/geo';
+import { categoryIcon } from '@/lib/icons';
+
+/*
+ * Markers are plain DOM, built outside React, but their icons should be the
+ * same ones the rest of the app uses — not a second copy of the path data that
+ * can drift from the first.
+ *
+ * So React renders one hidden copy of each category glyph and the marker
+ * builder clones the node it needs. No react-dom/server in the bundle, no root
+ * per marker to mount and tear down, and changing an icon in lib/icons changes
+ * it here too.
+ */
+const MARKER_CATS = [
+  'sightseeing', 'food', 'transport', 'lodging', 'activity', 'shopping', 'other',
+];
 
 // Must carry the NEXT_PUBLIC_ prefix: Next only exposes prefixed variables to
 // the browser, and a map cannot be drawn without one there.
@@ -85,6 +100,7 @@ export default function GoogleMap({
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const info = useRef(null);
+  const glyphs = useRef(null);
   /*
    * The fit we still owe the map.
    *
@@ -328,8 +344,14 @@ export default function GoogleMap({
       // A ringed point of interest, not a numbered teardrop: a suggestion is a
       // different kind of thing from a stop that is already in the plan, and
       // the map should not make you read a label to tell them apart.
+      const cat = p.category || catForKind(p.kind);
       el.className = `gmk-place${sel === p.id ? ' is-on' : ''}`;
-      el.style.setProperty('--mk', colour(p.category || catForKind(p.kind)));
+      el.style.setProperty('--mk', colour(cat));
+
+      // What kind of place it is, readable without clicking it.
+      const glyph = glyphs.current
+        && glyphs.current.querySelector(`[data-cat="${cat}"] svg`);
+      if (glyph) el.appendChild(glyph.cloneNode(true));
 
       const mark = new L.AdvancedMarkerElement({
         map, position: { lat: p.lat, lng: p.lng }, content: el, title: p.name,
@@ -344,7 +366,17 @@ export default function GoogleMap({
     });
   }
 
-  return <div className="map-el" ref={elRef} />;
+  return (
+    <>
+      <div className="gmk-glyphs" ref={glyphs} aria-hidden="true">
+        {MARKER_CATS.map((c) => {
+          const Glyph = categoryIcon(c);
+          return <span key={c} data-cat={c}><Glyph size={12} strokeWidth={2.75} /></span>;
+        })}
+      </div>
+      <div className="map-el" ref={elRef} />
+    </>
+  );
 }
 
 /** Nearby kinds are not categories; this is the bridge for marker colour. */
