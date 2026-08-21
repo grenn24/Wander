@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import Popover from '@/components/Popover';
 
 /**
  * A select that follows the app's material instead of the platform's.
@@ -18,8 +19,7 @@ export default function Select({
   const listId = `${id || auto}-list`;
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [flip, setFlip] = useState(false);
-  const rootRef = useRef(null);
+  const btnRef = useRef(null);
   const listRef = useRef(null);
   const typed = useRef({ str: '', at: 0 });
 
@@ -29,27 +29,13 @@ export default function Select({
   const close = useCallback((restore) => {
     setOpen(false);
     if (restore != null) onChange(restore);
-    const btn = rootRef.current && rootRef.current.querySelector('button');
-    if (btn) btn.focus();
+    if (btnRef.current) btnRef.current.focus();
   }, [onChange]);
 
-  // Outside click and scroll dismiss, matching the native control.
+  // Placement, flipping and dismissal all belong to the popover layer now.
   useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
-
-  // Open upwards when there is not room below.
-  useEffect(() => {
-    if (!open || !rootRef.current) return;
-    const box = rootRef.current.getBoundingClientRect();
-    setFlip(window.innerHeight - box.bottom < Math.min(280, options.length * 38 + 16));
-    setActive(index);
-  }, [open, index, options.length]);
+    if (open) setActive(index);
+  }, [open, index]);
 
   useEffect(() => {
     if (!open || !listRef.current) return;
@@ -96,8 +82,9 @@ export default function Select({
   }
 
   return (
-    <div className={`sel${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`} ref={rootRef}>
+    <div className={`sel${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`}>
       <button
+        ref={btnRef}
         type="button"
         id={id}
         className="sel-btn"
@@ -114,9 +101,16 @@ export default function Select({
         <ChevronDown size={15} className="sel-chev" aria-hidden="true" />
       </button>
 
-      {open ? (
+      <Popover
+        anchorEl={btnRef.current}
+        open={open}
+        onClose={() => setOpen(false)}
+        align={align}
+        match
+        className="pop-sel"
+      >
         <ul
-          className={`sel-list${flip ? ' flip' : ''}${align === 'end' ? ' end' : ''}`}
+          className="sel-list"
           id={listId}
           role="listbox"
           ref={listRef}
@@ -142,7 +136,7 @@ export default function Select({
             </li>
           ))}
         </ul>
-      ) : null}
+      </Popover>
     </div>
   );
 }

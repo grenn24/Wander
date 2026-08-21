@@ -473,9 +473,8 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .day-head.is-today .day-date { color: var(--accent-ink); }
 
 /* -------------------------------------------------------- activity menu -- */
-.act-menu-wrap { position: relative; flex: none; }
+.act-menu-wrap { flex: none; }
 .act-menu {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: 214px;
   background: var(--surface-1); border: 1px solid var(--border-strong);
   border-radius: 11px; box-shadow: var(--shadow); padding: 6px;
   display: flex; flex-direction: column; gap: 2px;
@@ -1518,12 +1517,25 @@ body::before {
 .mapsetup p { margin: 0; max-width: 46ch; }
 .mapsetup code { font-size: 12.5px; }
 
-/* --------------------------------------------------- stacking repairs --- */
-/* backdrop-filter makes every .act its own stacking context, so an open menu
-   is trapped inside its row and painted under the rows below it. Lift the row
-   that owns the menu — .act is a flex item, so z-index applies directly. */
-.act:has(.act-menu) { z-index: 25; }
-.stop:has(.act-menu) { z-index: 25; }
+/* ------------------------------------------------------------ popovers --- */
+/* Menus and selects render into <body> (see Popover.jsx) because every glass
+   surface sets backdrop-filter, and backdrop-filter creates a stacking context
+   that seals an absolutely positioned panel inside its own card. Fixed
+   position here, coordinates set inline from the trigger's box.
+
+   120 clears the sticky headers (30), the mobile tab bar (40) and the modal
+   (80), so a select opened inside a dialog still lands on top of it. */
+.pop {
+  position: fixed; z-index: 120;
+  animation: popin .13s var(--ease);
+}
+/* The panel scrolls, not the wrapper — clipping here would cut its drop
+   shadow off. inherit picks up the pixel max-height set on .pop inline. */
+.pop > * {
+  max-height: inherit; overflow-y: auto; overscroll-behavior: contain;
+}
+@keyframes popin { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
 
 /* The rail is as tall as the page, so its bottom actions sat ~2000px below the
    fold and could only be reached by scrolling to the very end of a trip. Pin
@@ -1563,19 +1575,13 @@ body::before {
 .sel-ico { display: inline-grid; place-items: center; flex: none; }
 
 .sel-list {
-  position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px);
   margin: 0; padding: 6px; list-style: none;
-  max-height: 264px; overflow-y: auto; overscroll-behavior: contain;
   background: var(--glass-strong);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
   backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line); border-radius: 13px;
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
-  animation: selin .13s var(--ease);
 }
-.sel-list.flip { top: auto; bottom: calc(100% + 6px); }
-.sel-list.end { left: auto; min-width: 180px; }
-@keyframes selin { from { opacity: 0; transform: translateY(-4px); } }
 
 .sel-opt {
   display: flex; align-items: center; gap: 9px; padding: 8px 10px;

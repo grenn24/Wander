@@ -7,6 +7,7 @@ import AiSuggest from '@/components/AiSuggest';
 import QuickAdd from '@/components/QuickAdd';
 import PlacePhoto from '@/components/PlacePhoto';
 import Select from '@/components/Select';
+import Popover from '@/components/Popover';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
   shortPlace, minutesBetween, fmtDuration,
@@ -22,6 +23,7 @@ export default function Itinerary({
   const today = todayISO();
   const todayIndex = days.indexOf(today);
   const [menuFor, setMenuFor] = useState(null);
+  const [menuEl, setMenuEl] = useState(null);
   const [activeDay, setActiveDay] = useState(null);
   const [suggestFor, setSuggestFor] = useState(null);
   const jumpedFor = useRef(null);
@@ -89,20 +91,6 @@ export default function Itinerary({
       strip.scrollTo({ left: right - strip.clientWidth + 10, behavior: 'smooth' });
     }
   }, [activeDay]);
-
-  useEffect(() => {
-    if (!menuFor) return undefined;
-    const close = (e) => {
-      if (!e.target.closest || !e.target.closest('.act-menu-wrap')) setMenuFor(null);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') setMenuFor(null); };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuFor]);
 
   // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
@@ -250,31 +238,38 @@ export default function Itinerary({
                         onKeyDown={(e) => e.stopPropagation()}>
                         <button className="btn ghost sm icon-btn" type="button"
                           aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
-                          onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}>
+                          onClick={(e) => {
+                            const same = menuFor === a.id;
+                            setMenuEl(e.currentTarget);
+                            setMenuFor(same ? null : a.id);
+                          }}>
                           <MoreHorizontal size={16} />
                         </button>
                         {menuFor === a.id ? (
-                          <div className="act-menu">
-                            <div className="act-menu-row">
-                              <span>Move to</span>
-                              <Select
-                                value={a.day}
-                                label={`Move ${a.title} to another day`}
-                                options={days.map((dd, di) => ({
-                                  value: dd, label: `Day ${di + 1}`, hint: fmtDayTiny(dd),
-                                }))}
-                                onChange={(dd) => { onMove(a, dd); setMenuFor(null); }}
-                              />
+                          <Popover anchorEl={menuEl} open width={214}
+                            onClose={() => setMenuFor(null)}>
+                            <div className="act-menu">
+                              <div className="act-menu-row">
+                                <span>Move to</span>
+                                <Select
+                                  value={a.day}
+                                  label={`Move ${a.title} to another day`}
+                                  options={days.map((dd, di) => ({
+                                    value: dd, label: `Day ${di + 1}`, hint: fmtDayTiny(dd),
+                                  }))}
+                                  onChange={(dd) => { onMove(a, dd); setMenuFor(null); }}
+                                />
+                              </div>
+                              <button type="button"
+                                onClick={() => { onDuplicate(a); setMenuFor(null); }}>
+                                <Copy size={15} /> Duplicate
+                              </button>
+                              <button type="button" className="danger"
+                                onClick={() => { onDelete(a); setMenuFor(null); }}>
+                                <Trash2 size={15} /> Delete
+                              </button>
                             </div>
-                            <button type="button"
-                              onClick={() => { onDuplicate(a); setMenuFor(null); }}>
-                              <Copy size={15} /> Duplicate
-                            </button>
-                            <button type="button" className="danger"
-                              onClick={() => { onDelete(a); setMenuFor(null); }}>
-                              <Trash2 size={15} /> Delete
-                            </button>
-                          </div>
+                          </Popover>
                         ) : null}
                       </div>
                     </div>
