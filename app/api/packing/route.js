@@ -57,6 +57,7 @@ export async function POST(req) {
       schemaName: 'packing_list',
       schema: SCHEMA,
       system: SYSTEM,
+      task: 'packing',
       user: `Destination: ${destination || 'unspecified'}\n`
         + `Dates: ${dates || 'unspecified'} (${days} day${days === 1 ? '' : 's'})\n`
         + `The itinerary involves: ${themes || 'general travel'}\n`

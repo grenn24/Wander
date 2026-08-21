@@ -34,6 +34,21 @@ the key into the client bundle for every visitor.
 Without it the app works exactly as before; the planning features return a 503
 that the UI explains, and every screen stays usable by hand.
 
+The four AI call sites want different things, so each can be tuned:
+
+```
+OPENAI_MODEL_PLAN     OPENAI_EFFORT_PLAN      # streamed: latency is hidden
+OPENAI_MODEL_PARSE    OPENAI_EFFORT_PARSE     # you are mid-sentence
+OPENAI_MODEL_SUGGEST  OPENAI_EFFORT_SUGGEST
+OPENAI_MODEL_PACKING  OPENAI_EFFORT_PACKING
+```
+
+Anything unset falls back to `OPENAI_MODEL`, so one variable still configures
+everything. Effort is `minimal | low | medium | high` and is only sent when
+set, because models that do not accept the parameter reject the request. It is
+the sharper lever of the two: `OPENAI_EFFORT_PARSE=minimal` took the add field
+from about ten seconds to two without changing model.
+
 ### Maps and photos (optional)
 
 ```

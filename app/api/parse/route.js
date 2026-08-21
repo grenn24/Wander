@@ -92,6 +92,7 @@ export async function POST(req) {
       schemaName: 'parsed_activity',
       schema: SCHEMA,
       system: SYSTEM,
+      task: 'parse',
       user: prompt,
       maxTokens: 900,
     });

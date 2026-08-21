@@ -1,5 +1,5 @@
 import {
-  aiConfigured, notConfigured, aiModel, AI_CATEGORIES, cleanCategory, cleanTime,
+  aiConfigured, notConfigured, aiModel, aiEffort, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
 
@@ -103,9 +103,10 @@ export async function POST(req) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: aiModel(),
+        model: aiModel('plan'),
         stream: true,
         max_completion_tokens: 8000,
+        ...(aiEffort('plan') ? { reasoning_effort: aiEffort('plan') } : {}),
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'user', content: `Today is ${today || 'unknown'}. Plan this trip:\n\n${prompt}` },
@@ -130,7 +131,8 @@ export async function POST(req) {
     if (upstream.status === 401) msg = 'OpenAI rejected the API key. Check OPENAI_API_KEY.';
     else if (upstream.status === 429) msg = 'OpenAI is rate limiting or the account is out of quota.';
     else if (/model/i.test(detail) && /(not exist|not found|access)/i.test(detail)) {
-      msg = `Your account cannot use "${aiModel()}". Set OPENAI_MODEL to one you do have.`;
+      msg = `Your account cannot use "${aiModel('plan')}". `
+        + 'Set OPENAI_MODEL (or OPENAI_MODEL_PLAN) to one you do have.';
     }
     return Response.json({ error: msg }, { status: 502 });
   }

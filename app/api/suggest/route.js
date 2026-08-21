@@ -64,6 +64,7 @@ export async function POST(req) {
       schemaName: 'day_suggestions',
       schema: SCHEMA,
       system: SYSTEM,
+      task: 'suggest',
       user: `Trip destination: ${destination || 'unspecified'}\n`
         + `Currency: ${currency}\n`
         + `Day: ${dayLabel}\n`
