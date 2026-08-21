@@ -1,4 +1,4 @@
-import { googleKey } from '@/lib/places';
+import { placesKey } from '@/lib/places';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * gets stored rather than a URL.
  */
 export async function GET(req) {
-  const key = googleKey();
+  const key = placesKey();
   if (!key) return new Response('Place photos are not configured.', { status: 503 });
 
   const { searchParams } = new URL(req.url);

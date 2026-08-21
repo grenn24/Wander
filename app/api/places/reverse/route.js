@@ -1,10 +1,10 @@
-import { googleKey, notConfigured, explain, reverseGeocode } from '@/lib/places';
+import { placesKey, notConfigured, explain, reverseGeocode } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
-  if (!googleKey()) return notConfigured();
+  if (!placesKey()) return notConfigured();
   const { searchParams } = new URL(req.url);
   const lat = Number(searchParams.get('lat'));
   const lng = Number(searchParams.get('lng'));

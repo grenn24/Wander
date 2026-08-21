@@ -246,13 +246,13 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
               <MapPinOff size={26} aria-hidden="true" />
               <p className="empty-title">The map needs a Google Maps key</p>
               <p className="small muted">
-                Set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> to draw the map, and{' '}
-                <code>GOOGLE_MAPS_SERVER_KEY</code> for locating stops, nearby search and photos.
+                Set <code>NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY</code> to draw the map, and{' '}
+                <code>PLACES_API_KEY</code> for locating stops, nearby search and photos.
                 Both go in <code>.env.local</code>; restart the server afterwards.
               </p>
               <p className="tiny dim" style={{ marginBottom: 0 }}>
-                Enable <strong>Maps JavaScript API</strong> and <strong>Places API (New)</strong> on
-                the key in Google Cloud Console.
+                Each variable is named after the Google Cloud API it belongs to:
+                enable <strong>Maps JavaScript API</strong> and <strong>Places API (New)</strong>.
               </p>
             </div>
           )}

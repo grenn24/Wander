@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useRef } from 'react';
 
-const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+// Must carry the NEXT_PUBLIC_ prefix: Next only exposes prefixed variables to
+// the browser, and a map cannot be drawn without one there.
+const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
 
 export function googleMapsAvailable() {
   return !!KEY && !KEY.startsWith('REPLACE_WITH');

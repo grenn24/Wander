@@ -1,4 +1,4 @@
-import { resolveMany, googleKey, notConfigured, explain } from '@/lib/places';
+import { resolveMany, placesKey, notConfigured, explain } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * the first time it is opened, instead of resolving stop by stop in the client.
  */
 export async function POST(req) {
-  if (!googleKey()) return notConfigured();
+  if (!placesKey()) return notConfigured();
 
   let body;
   try {

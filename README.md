@@ -37,9 +37,17 @@ that the UI explains, and every screen stays usable by hand.
 ### Maps and photos (optional)
 
 ```
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = ...   # browser: draws the map
-GOOGLE_MAPS_SERVER_KEY          = ...   # server: geocoding, places, photos
+NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY = ...   # Maps JavaScript API  (browser)
+PLACES_API_KEY                      = ...   # Places API (New)     (server)
+GEOCODING_API_KEY                   = ...   # Geocoding API        (server, optional)
 ```
+
+Each is named after the Google Cloud API it belongs to, so it is obvious which
+console entry a value came from. `GEOCODING_API_KEY` falls back to
+`PLACES_API_KEY`, so two keys are enough unless you want one restricted per API.
+
+Note that **Places API** and **Places API (New)** are different products in the
+console. This app uses the New one.
 
 Two keys, because they have different exposure. The Maps JS key **must** reach
 the browser, so it is public by design — restrict it in Google Cloud Console by
@@ -137,9 +145,9 @@ rows.
 ## Third-party services
 
 - **Google Maps** draws the map in the browser, using the public
-  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.
+  `NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY`.
 - **Google Places** does geocoding, nearby search and photos, always through
-  `/api/places/*` so `GOOGLE_MAPS_SERVER_KEY` never leaves the server.
+  `/api/places/*` so `PLACES_API_KEY` never leaves the server.
 - **OpenAI** plans trips, suggests activities and builds packing lists, through
   `/api/plan`, `/api/suggest` and `/api/packing`.
 
