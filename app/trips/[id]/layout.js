@@ -7,6 +7,7 @@ import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
+import TripCommand from '@/components/TripCommand';
 import { TAB_ICONS, TRIP_TABS, isTripTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
@@ -93,6 +94,8 @@ function TripChrome({ tripId, children }) {
             </div>
           </main>
         </div>
+
+        <TripCommand />
 
         <nav className="tabbar" aria-label="Trip sections">
           {TRIP_TABS.map((t) => {

@@ -302,6 +302,15 @@ export default function TripProvider({ tripId, children }) {
   }, [supabase, tripId, packing, fail, load, pushToast]);
 
   /* ------------------------------------------------------ trip + people --- */
+  /** Trip-level fields, for the command bar and anything else that needs them. */
+  const updateTrip = useCallback(async (patch) => {
+    if (!supabase || !tripId) return;
+    const clean = { ...patch, updated_at: new Date().toISOString() };
+    setTrip((prev) => (prev ? { ...prev, ...clean } : prev));
+    const { error } = await supabase.from('trips').update(clean).eq('id', tripId);
+    if (error) { fail(error); load(tripId); }
+  }, [supabase, tripId, fail, load]);
+
   const saveNotes = useCallback(async (text) => {
     if (!supabase || !tripId) return;
     setTrip((prev) => (prev ? { ...prev, notes: text } : prev));
@@ -322,12 +331,12 @@ export default function TripProvider({ tripId, children }) {
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity, addActivities, addPackingItems,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity, addActivities, addPackingItems,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   ]);
 
