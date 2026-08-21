@@ -3,15 +3,16 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle } from 'lucide-react';
 
+// Short on purpose: they are a nudge, not an example of how much to write.
 export const SAMPLE_PROMPTS = [
-  'Five days in Tokyo in December, mostly food and small neighbourhoods',
-  'A week in Portugal, Lisbon and Porto, slow mornings and a lot of walking',
-  'Long weekend in Seoul with a 6-year-old, nothing too far from the hotel',
-  'Ten days across Vietnam by train, street food and coffee',
-  'Four days in Kyoto in cherry blossom season, temples but avoid the crowds',
-  'A fortnight in Iceland in summer, hiking and hot springs, driving the ring road',
-  'Three days in Singapore on a budget, hawker centres and free things',
-  'A week in Rome and Florence, art galleries booked in advance',
+  'Five days in Tokyo, food first',
+  'A week in Portugal, slow mornings',
+  'Seoul with a six-year-old',
+  'Vietnam by train, ten days',
+  'Kyoto in blossom season',
+  'Iceland ring road, two weeks',
+  'Singapore on a budget',
+  'Rome and Florence, galleries',
 ];
 
 /**
@@ -58,7 +59,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false }) {
           rows={compact ? 1 : 2}
           autoFocus={autoFocus}
           aria-label="Describe the trip you want"
-          placeholder="Describe the trip you want — where, how long, what you are into…"
+          placeholder="Where are you going?"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }

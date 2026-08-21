@@ -117,7 +117,7 @@ export default function QuickAdd({
             value={text}
             disabled={busy}
             aria-label={`Add something to ${label}`}
-            placeholder="Add to this day — “ramen near the station about 7pm, ¥2000”"
+            placeholder="Add anything — “ramen near the station, 7pm”"
             onChange={(e) => { setText(e.target.value); setError(''); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { setText(''); e.currentTarget.blur(); }

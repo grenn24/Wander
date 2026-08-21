@@ -15,42 +15,18 @@ export const metadata = {
 };
 
 const FEATURES = [
-  {
-    icon: CalendarDays,
-    title: 'A day for every date',
-    body: 'Set the dates and Wander lays out the days. Type "9am Senso-ji" into any day and it files it at nine in the morning — no forms unless you want them.',
-  },
-  {
-    icon: MapPin,
-    title: 'Everything on a map',
-    body: 'Pin activities as you add them and see the whole trip laid out. Filter to one day to check whether tomorrow actually holds together.',
-  },
-  {
-    icon: Wallet,
-    title: 'Costs as you go',
-    body: 'Give an activity a price and the budget builds itself — totals by day, by type, and how much of your budget is left.',
-  },
-  {
-    icon: Backpack,
-    title: 'Packing that stays shared',
-    body: 'One list everyone ticks off, grouped by documents, tech, clothes and the rest. Nobody brings three adapters and no charger.',
-  },
-  {
-    icon: NotebookPen,
-    title: 'Notes and booking refs',
-    body: 'Flight numbers, hotel confirmations, the restaurant someone swears by. Kept beside the plan instead of buried in a chat thread.',
-  },
-  {
-    icon: Printer,
-    title: 'Works on the plane',
-    body: 'Print the whole trip, or save it as a PDF, and carry the itinerary with you when there is no signal and no roaming.',
-  },
+  { icon: CalendarDays, title: 'A day for every date', body: 'Type "9am Senso-ji" and it files itself.' },
+  { icon: MapPin, title: 'Everything on a map', body: 'The whole trip, or one day at a time.' },
+  { icon: Wallet, title: 'Costs as you go', body: 'Price a stop and the budget builds itself.' },
+  { icon: Backpack, title: 'Packing, shared', body: 'One list everyone ticks off.' },
+  { icon: NotebookPen, title: 'Notes and refs', body: 'Confirmations beside the plan, not in a chat.' },
+  { icon: Printer, title: 'Works on the plane', body: 'Print it. No signal needed.' },
 ];
 
 const STEPS = [
-  { n: '1', title: 'Describe it', body: 'A sentence is enough. Where, roughly how long, and what you actually care about.' },
-  { n: '2', title: 'Adjust the plan', body: 'Every day arrives filled in and editable. Move things, retime them, ask for more ideas.' },
-  { n: '3', title: 'Send the link', body: 'Everyone you share with can edit immediately — no account, no invite to accept.' },
+  { n: '1', title: 'Describe it', body: 'A sentence is enough.' },
+  { n: '2', title: 'Adjust it', body: 'Every day arrives filled in and editable.' },
+  { n: '3', title: 'Send the link', body: 'Anyone with it can edit. No account.' },
 ];
 
 export default async function Landing({ searchParams }) {
@@ -81,14 +57,12 @@ export default async function Landing({ searchParams }) {
             <span className="lp-eyebrow"><Zap size={13} /> No accounts. No sign-ups.</span>
             <h1>Describe the trip. Get the plan.</h1>
             <p className="lp-lede">
-              Say where you are going and what you are into. Wander lays out every day, pins it on
-              the map, and totals the budget — then share one link and everyone edits the same
-              trip, live.
+              Say where you are going. Wander lays out every day, maps it, and totals the cost.
             </p>
             <PlanPrompt autoFocus={false} />
             <div className="lp-cta">
               <Link className="btn lg" href="/trips">
-                Or start from a blank trip <ArrowRight size={17} />
+                Start blank <ArrowRight size={17} />
               </Link>
             </div>
             <ul className="lp-ticks">
@@ -105,8 +79,8 @@ export default async function Landing({ searchParams }) {
 
         <section className="lp-section" id="features">
           <div className="lp-section-head">
-            <h2>Everything the trip needs, in one place</h2>
-            <p>Six things you would otherwise keep in five different apps and one very long group chat.</p>
+            <h2>Everything the trip needs</h2>
+            <p>In one place, not five apps.</p>
           </div>
           <div className="lp-grid">
             {FEATURES.map((f) => (
@@ -125,27 +99,21 @@ export default async function Landing({ searchParams }) {
               <span className="lp-eyebrow"><Share2 size={13} /> Built for planning together</span>
               <h2>One link. Everyone editing the same trip.</h2>
               <p className="lp-body">
-                There is no sign-up step to lose people at. Open the link and you are in the trip as
-                an editor, straight away — with everyone&apos;s changes appearing live as they type,
-                and a row of faces showing who else is looking at it right now.
-              </p>
-              <p className="lp-body">
-                Treat the link like a password: anyone holding it can edit, and the trip owner can
-                remove people at any time.
+                No sign-up to lose people at. Open the link and you are in, editing live.
               </p>
             </div>
             <ul className="lp-points">
               <li>
                 <Users size={17} />
-                <div><strong>Live presence</strong><span>See who is in the trip while you plan.</span></div>
+                <div><strong>Live presence</strong><span>See who else is here.</span></div>
               </li>
               <li>
                 <Zap size={17} />
-                <div><strong>Instant edits</strong><span>Changes land for everyone as they happen.</span></div>
+                <div><strong>Instant edits</strong><span>Changes land as they happen.</span></div>
               </li>
               <li>
                 <ShieldCheck size={17} />
-                <div><strong>Row-level security</strong><span>The database enforces who can see each trip.</span></div>
+                <div><strong>Row-level security</strong><span>The database decides who sees what.</span></div>
               </li>
             </ul>
           </div>
@@ -153,8 +121,7 @@ export default async function Landing({ searchParams }) {
 
         <section className="lp-section" id="how">
           <div className="lp-section-head">
-            <h2>Three steps to a plan</h2>
-            <p>Most trips are filled in within about ten minutes.</p>
+            <h2>Three steps</h2>
           </div>
           <ol className="lp-steps">
             {STEPS.map((s) => (
@@ -169,7 +136,6 @@ export default async function Landing({ searchParams }) {
 
         <section className="lp-final">
           <h2>Where are you going?</h2>
-          <p>One sentence is enough to get a whole itinerary back.</p>
           <div className="lp-final-box"><PlanPrompt /></div>
         </section>
       </main>
