@@ -48,8 +48,13 @@
   --accent-soft: #16283f;
   --danger: #e66767;
   --good:   #0ca30c;
-  --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
-  --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
+  /* Muted for dark. Saturated fills that look crisp on white turn into glare
+     against a dark surface, and a page with seven of them at full strength
+     reads as a chart rather than an itinerary. Same hues, less shouting —
+     enough to tell the categories apart, not enough to compete with the
+     content. */
+  --cat-1: #4f7cab; --cat-2: #b06c47; --cat-3: #3f8a6d; --cat-4: #9c8047;
+  --cat-5: #a96b83; --cat-6: #4e8259; --cat-7: #7871a3;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
   --glass: rgba(38,38,42,.55);
   --glass-strong: rgba(30,30,34,.78);
@@ -67,8 +72,9 @@
     --text-1: #ffffff; --text-2: #c3c2b7; --text-3: #918f84;
     --accent: #3987e5; --accent-ink: #86b6ef; --accent-soft: #16283f;
     --danger: #e66767;
-    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
-    --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
+    /* Same muting as the explicit dark theme above. */
+    --cat-1: #4f7cab; --cat-2: #b06c47; --cat-3: #3f8a6d; --cat-4: #9c8047;
+    --cat-5: #a96b83; --cat-6: #4e8259; --cat-7: #7871a3;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
   --glass: rgba(38,38,42,.55);
   --glass-strong: rgba(30,30,34,.78);
@@ -885,12 +891,23 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 }
 
 /* ================================================================== map --- */
+/*
+ * The map is a workspace, not an illustration: it gets the height and the
+ * width, and everything that reads against it — what is nearby, what is
+ * already planned — sits in one scrolling column beside it rather than
+ * stacked underneath where you cannot see both at once.
+ */
 .maplayout {
   display: grid; gap: 14px;
-  grid-template-columns: minmax(0, 1fr) 288px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  align-items: stretch;
+  height: min(76dvh, 820px);
 }
-@media (max-width: 900px) { .maplayout { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) {
+  .maplayout { grid-template-columns: 1fr; height: auto; }
+  .map-wrap { height: min(52dvh, 460px); }
+  .mapside { max-height: min(60dvh, 520px); }
+}
 
 .map-wrap { height: min(62dvh, 560px); }
 .map-el { cursor: crosshair; }
@@ -909,9 +926,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .mapside {
   border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface-1); padding: 14px; display: flex; flex-direction: column;
-  max-height: min(62dvh, 560px);
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
 }
-@media (max-width: 900px) { .mapside { max-height: none; } }
+
 .mapside-head {
   display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 14px;
   margin-bottom: 10px;
@@ -2097,3 +2114,60 @@ body::before {
 }
 
 @media print { .loader { display: none !important; } }
+
+/* ============================================================== map page -- */
+
+/* The map earns more width than a column of prose does, so this page opts out
+   of the reading measure the rest of the app is set in. */
+.wrap:has(.mappage) { max-width: 1480px; }
+
+.map-wrap:has(+ .mapside), .maplayout > .map-wrap { height: 100%; }
+
+.mapside-where {
+  display: flex; align-items: center; gap: 5px;
+  margin: -2px 0 10px;
+}
+.mapside-where svg { flex: none; color: var(--accent); }
+.mapside-head { position: relative; }
+.mapside-clear { margin-left: auto; }
+.mapside-hint { margin-top: 2px; }
+
+/* --------------------------------------------------------- nearby search -- */
+.mapfind { position: relative; display: flex; margin-bottom: 9px; }
+.mapfind-ico {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-3); pointer-events: none;
+}
+.mapfind-in {
+  flex: 1; min-width: 0; padding: 9px 12px 9px 34px; min-height: 38px;
+  border-radius: 10px; font-size: 13.5px;
+  border: 1px solid var(--border-strong); background: var(--surface-0);
+  color: var(--text-1);
+}
+.mapfind-in::placeholder { color: var(--text-3); }
+.mapfind-in:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.mapfind-busy {
+  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--accent);
+}
+
+.mapkinds { margin-bottom: 10px; }
+.mapkinds .btn { gap: 6px; }
+.mapkinds .btn svg { color: var(--text-3); }
+.mapkinds .btn[aria-pressed="true"] svg { color: currentColor; }
+
+.mapfinds {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;
+}
+
+/* A rule between the two things the column holds, so they read as two. */
+.mapside-sep {
+  height: 1px; background: var(--border); margin: 14px -14px 12px;
+}
+.mapside-h {
+  font-size: 13px; font-weight: 650; letter-spacing: .01em;
+  color: var(--text-2); margin: 0 0 9px;
+}

@@ -11,8 +11,12 @@ export async function POST(req) {
   }
   const q = String(body.query || '').trim().slice(0, 300);
   if (!q) return Response.json({ places: [] });
+  // Where the reader is looking, so "coffee" means coffee here.
+  const near = Number.isFinite(Number(body.lat)) && Number.isFinite(Number(body.lng))
+    ? { lat: Number(body.lat), lng: Number(body.lng), radius: Number(body.radius) || 3000 }
+    : null;
   try {
-    return Response.json({ places: await searchPlaces(q, 6) });
+    return Response.json({ places: await searchPlaces(q, 12, near) });
   } catch (e) {
     return placesFailure(e, 'search');
   }

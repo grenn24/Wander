@@ -1,12 +1,13 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Compass, MapPinOff, Loader2, Plus, Navigation, X, Footprints, TrainFront, TriangleAlert,
+  Compass, MapPinOff, Loader2, Plus, SquarePen, X, Footprints, TrainFront, TriangleAlert,
+  Search, Crosshair,
 } from 'lucide-react';
 import { categoryOf, fmtDayTiny, fmtTime, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
-  reverseGeocode, nearby, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
+  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, { googleMapsAvailable } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
@@ -24,7 +25,9 @@ function catColor(id) {
 }
 
 
-export default function MapView({ trip, days, activities, onEdit, onSetCoords, onAddLocated }) {
+export default function MapView({
+  trip, days, activities, onEdit, onSetCoords, onNewAt,
+}) {
   const mapsReady = googleMapsAvailable();
   const [err, setErr] = useState('');
   const [day, setDay] = useState('all');
@@ -34,6 +37,10 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
   const [places, setPlaces] = useState([]);
   const [placesBusy, setPlacesBusy] = useState(false);
   const [dropped, setDropped] = useState(null); // {lat,lng,label,name}
+  const [view, setView] = useState(null); // {lat,lng,radius} — what the map is showing
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState(null); // free-text results, null until searched
+  const [searching, setSearching] = useState(false);
 
   const inDay = useCallback(
     (a) => day === 'all' || a.day === day,
@@ -129,26 +136,58 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
   }, [unresolved.length, resolveAll]);
 
   /* ------------------------------------------------------------- nearby --- */
-  /**
-   * Search around a real stop, never around an average of them: the midpoint
-   * of a Tokyo stop and a Kyoto stop is open countryside, where nothing is
-   * nearby. Falls back to the first stop in view.
+  /*
+   * "Nearby" means near what is on screen.
+   *
+   * It used to mean near a chosen stop, which was a fix for an earlier bug —
+   * searching the midpoint of a Tokyo stop and a Kyoto stop landed in open
+   * countryside where nothing is nearby. But it left the reader choosing a
+   * stop from a list to search somewhere they were already looking at. The
+   * map's own centre is both closer to what they meant and impossible to get
+   * wrong, and panning is the natural way to say "over there instead".
    */
-  const anchor = useMemo(() => {
-    const at = (focused && stops.find((s) => s.id === focused)) || stops[0];
-    return at ? { lat: at.lat, lng: at.lng, title: at.title } : null;
-  }, [stops, focused]);
+  const anchor = view;
 
   useEffect(() => {
     if (!kind || !anchor || !mapsReady) { setPlaces([]); return undefined; }
     let alive = true;
     setPlacesBusy(true);
-    nearby(anchor.lat, anchor.lng, kind)
+    nearby(anchor.lat, anchor.lng, kind, anchor.radius)
       .then((list) => { if (alive) setPlaces(list); })
       .catch((e) => { if (alive) { setPlaces([]); setErr(e.message); } })
       .finally(() => { if (alive) setPlacesBusy(false); });
     return () => { alive = false; };
   }, [kind, anchor, mapsReady]);
+
+  /** Free text: whatever they are actually after, biased to the same view. */
+  async function runSearch(e) {
+    if (e) e.preventDefault();
+    const q = query.trim();
+    if (!q || !mapsReady) return;
+    setSearching(true); setErr(''); setKind(null);
+    try {
+      const found = await searchPlaces(q, anchor);
+      const withDistance = found.map((h, i) => ({
+        id: h.place_id || `${h.lat},${h.lng},${i}`,
+        name: h.name || h.label,
+        detail: h.label,
+        lat: h.lat,
+        lng: h.lng,
+        photo_ref: h.photo_ref,
+        km: anchor ? haversine(anchor.lat, anchor.lng, h.lat, h.lng) : null,
+      }));
+      setHits(withDistance);
+      setPlaces(withDistance);
+    } catch (e2) {
+      setHits([]); setPlaces([]);
+      setErr('Something went wrong. Please try again later.');
+    }
+    setSearching(false);
+  }
+
+  function clearFinds() {
+    setKind(null); setHits(null); setPlaces([]); setQuery('');
+  }
 
   /* ---------------------------------------------------------------- map --- */
 
@@ -163,34 +202,55 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
 
   const targetDay = day === 'all' ? (days[0] || null) : day;
 
-  async function addDropped(title) {
-    if (!dropped || !onAddLocated || !targetDay) return;
-    await onAddLocated({
-      day: targetDay,
-      title: title || dropped.name || 'New stop',
-      location: dropped.label,
-      lat: dropped.lat,
-      lng: dropped.lng,
-      category: 'sightseeing',
+  /*
+   * Adding from the map opens the editor with what we already know filled in,
+   * rather than writing a stop straight to the trip and leaving the reader to
+   * go and find it. A point on a map is a starting position, not a plan: the
+   * time, the day and what it is actually for are still theirs to say.
+   */
+  function newAt(seed) {
+    if (!onNewAt) return;
+    onNewAt({
+      day: targetDay || days[0] || null,
+      title: seed.title || 'New stop',
+      location: seed.location || '',
+      lat: seed.lat,
+      lng: seed.lng,
+      category: seed.category || 'sightseeing',
+      photo_ref: seed.photo_ref || null,
+      cost: 0,
     });
     setDropped(null);
   }
 
-  async function addPlace(p) {
-    if (!onAddLocated || !targetDay) return;
-    const cat = NEARBY_KINDS.find((k) => k.id === p.kind);
-    await onAddLocated({
-      day: targetDay,
-      title: p.name,
-      location: p.detail ? `${p.name} · ${p.detail}` : p.name,
-      lat: p.lat,
-      lng: p.lng,
+  function addPlace(pl) {
+    const cat = NEARBY_KINDS.find((k) => k.id === pl.kind);
+    newAt({
+      title: pl.name,
+      location: pl.detail ? `${pl.name} · ${pl.detail}` : pl.name,
+      lat: pl.lat,
+      lng: pl.lng,
       category: cat ? cat.category : 'sightseeing',
+      photo_ref: pl.photo_ref,
     });
   }
 
+  const finds = places;
+  const showingFinds = !!kind || hits !== null;
+  const findsBusy = placesBusy || searching;
+  /*
+   * Zoomed out to the whole trip, the centre of the view is usually farmland
+   * between two cities, and "nearby" honestly means nearby that. Better to say
+   * so than to return a list of places an hour's drive apart and look broken.
+   *
+   * The threshold is three times the 4km the search itself reaches, not the
+   * moment the reach is exceeded: a city-wide view is half-covered and returns
+   * things 200m away, so warning there would be crying wolf.
+   */
+  const viewTooWide = !!anchor && anchor.spanKm > 12;
+
   return (
-    <div>
+    <div className="mappage">
       <div className="page-head spread">
         <div>
           <h2>Map</h2>
@@ -239,6 +299,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
                   setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
                 }
               }}
+              onViewport={setView}
               onError={(m) => setErr(m)}
             />
           ) : (
@@ -270,8 +331,11 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
                   onClick={() => setDropped(null)}><X size={14} /></button>
               </div>
               <button className="btn primary sm" style={{ width: '100%', marginTop: 10 }}
-                disabled={!targetDay} onClick={() => addDropped(dropped.name)}>
-                <Plus size={15} /> Add here{targetDay ? ` on ${fmtDayTiny(targetDay)}` : ''}
+                onClick={() => newAt({
+                  title: dropped.name, location: dropped.label,
+                  lat: dropped.lat, lng: dropped.lng,
+                })}>
+                <Plus size={15} /> Add a stop here
               </button>
             </div>
           ) : null}
@@ -279,116 +343,138 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
           <div className="mapside-head">
             <Compass size={15} />
             <span>Explore nearby</span>
+            {showingFinds ? (
+              <button className="btn ghost sm icon-btn mapside-clear" aria-label="Clear results"
+                onClick={clearFinds}><X size={14} /></button>
+            ) : null}
           </div>
-          {anchor ? (
-            <p className="tiny dim" style={{ marginTop: -4, marginBottom: 9 }}>
-              around {anchor.title}
-            </p>
-          ) : null}
-          <div className="chiprow" style={{ marginBottom: 10 }}>
-            {NEARBY_KINDS.map((k) => (
-              <button key={k.id} className="btn sm" aria-pressed={kind === k.id} disabled={!mapsReady}
-                onClick={() => setKind(kind === k.id ? null : k.id)}>{k.label}</button>
-            ))}
+          <p className="tiny dim mapside-where">
+            <Crosshair size={12} aria-hidden="true" />
+            {viewTooWide
+              ? 'the view is wider than search reaches — zoom into a neighbourhood'
+              : 'searching what the map is showing — pan or zoom to look elsewhere'}
+          </p>
+
+          <form className="mapfind" onSubmit={runSearch}>
+            <Search size={15} className="mapfind-ico" aria-hidden="true" />
+            <input
+              className="mapfind-in"
+              value={query}
+              disabled={!mapsReady}
+              placeholder="Search for anything…"
+              aria-label="Search for places near the map view"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {searching ? <Loader2 size={15} className="spin mapfind-busy" aria-label="Searching" />
+              : null}
+          </form>
+
+          <div className="chiprow mapkinds">
+            {NEARBY_KINDS.map((k) => {
+              const KindIcon = categoryIcon(k.category);
+              return (
+                <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
+                  disabled={!mapsReady}
+                  onClick={() => {
+                    setHits(null); setQuery('');
+                    setKind(kind === k.id ? null : k.id);
+                  }}>
+                  <KindIcon size={14} aria-hidden="true" /> {k.label}
+                </button>
+              );
+            })}
           </div>
+
           {!mapsReady ? (
             <p className="small muted" style={{ marginTop: 0 }}>
               Nearby search needs the Google keys as well.
             </p>
-          ) : null}
-
-          {kind ? (
-            <div className="mapside-scroll">
-              {placesBusy ? (
+          ) : showingFinds ? (
+            <div className="mapfinds">
+              {findsBusy ? (
                 <div className="small muted mapside-busy">
-                  <Loader2 size={14} className="spin" /> Searching near{' '}
-                  {anchor ? anchor.title : 'your stops'}…
+                  <Loader2 size={14} className="spin" /> Looking around here…
                 </div>
-              ) : places.length === 0 ? (
+              ) : finds.length === 0 ? (
                 <p className="small muted">
-                  Nothing of that kind within about a kilometre of{' '}
-                  {anchor ? anchor.title : 'this stop'}.
+                  {viewTooWide
+                    ? 'Nothing near the middle of this view. Zoom into a place first.'
+                    : 'Nothing like that around here.'}
                 </p>
-              ) : places.map((p) => (
-                <div className="nearby" key={p.id}>
+              ) : finds.map((pl) => (
+                <div className="nearby" key={pl.id}>
+                  <PlacePhoto photoRef={pl.photo_ref} category="other" size={38} alt="" />
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="nearby-name">{p.name}</div>
+                    <div className="nearby-name">{pl.name}</div>
                     <div className="tiny dim">
-                      {p.detail ? `${p.detail} · ` : ''}{fmtKm(p.km)} away
+                      {pl.detail ? `${pl.detail} · ` : ''}
+                      {pl.km != null ? `${fmtKm(pl.km)} away` : ''}
                     </div>
                   </div>
-                  <button className="btn sm" disabled={!targetDay} onClick={() => addPlace(p)}
-                    aria-label={`Add ${p.name}`}><Plus size={14} /></button>
+                  <button className="btn sm icon-btn" onClick={() => addPlace(pl)}
+                    aria-label={`Add ${pl.name}`}><Plus size={14} /></button>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Pick a category to find places near{' '}
-              <strong>{anchor ? anchor.title : 'your stops'}</strong>. Select a different stop
-              below to search around that one instead, or click anywhere on the map to add a stop
+            <p className="small muted mapside-hint">
+              Search for something, pick a category, or click anywhere on the map to add a stop
               there.
+            </p>
+          )}
+
+          <div className="mapside-sep" />
+
+          <h3 className="mapside-h">
+            {day === 'all' ? 'Every stop, in order' : `Day ${days.indexOf(day) + 1}, in order`}
+          </h3>
+
+          {stops.length ? (
+            <div className="stoplist">
+              {stops.map((a, i) => {
+                const cat = categoryOf(a.category);
+                const leg = legs[a.id];
+                return (
+                  <div key={a.id}>
+                    {leg != null ? (
+                      <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
+                        {leg > 60 ? <TriangleAlert size={12} />
+                          : leg > 5 ? <TrainFront size={12} />
+                            : <Footprints size={12} />}
+                        {fmtKm(leg)}
+                        {leg > 60 ? ' — a long way for one day'
+                          : leg > 5 ? ' — too far to walk'
+                            : ` · ${walkMinutes(leg)} min walk`}
+                      </div>
+                    ) : null}
+                    <div className={`stop${focused === a.id ? ' is-focus' : ''}`}
+                      role="button" tabIndex={0}
+                      onClick={() => focus(a)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
+                      <span className="stop-n">{i + 1}</span>
+                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={38} alt={a.title} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="stop-name">{a.title}</div>
+                        <div className="tiny dim">
+                          {fmtDayTiny(a.day)}{a.start_time ? ` · ${fmtTime(a.start_time)}` : ''}
+                        </div>
+                      </div>
+                      <button className="btn ghost sm icon-btn" aria-label={`Edit ${a.title}`}
+                        onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+                        <SquarePen size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="small muted" style={{ marginTop: 0 }}>
+              Give an activity a location and it appears here — or click the map to add one.
             </p>
           )}
         </aside>
       </div>
-
-      {stops.length ? (
-        <div className="card" style={{ marginTop: 14 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>
-            {day === 'all' ? 'Every stop, in order' : `Day ${days.indexOf(day) + 1}, in order`}
-          </h3>
-          <div className="stoplist">
-            {stops.map((a, i) => {
-              const cat = categoryOf(a.category);
-              const Icon = categoryIcon(cat.id);
-              const leg = legs[a.id];
-              return (
-                <div key={a.id}>
-                  {leg != null ? (
-                    <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
-                      {leg > 60 ? <TriangleAlert size={12} />
-                        : leg > 5 ? <TrainFront size={12} />
-                          : <Footprints size={12} />}
-                      {fmtKm(leg)}
-                      {leg > 60 ? ' — a long way for one day, check how you are getting there'
-                        : leg > 5 ? ' — too far to walk'
-                          : ` · about ${walkMinutes(leg)} min walk`}
-                    </div>
-                  ) : null}
-                  <div className={`stop${focused === a.id ? ' is-focus' : ''}`}
-                    role="button" tabIndex={0}
-                    onClick={() => focus(a)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
-                    <span className="stop-n">{i + 1}</span>
-                    <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={40} alt={a.title} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="stop-name">{a.title}</div>
-                      <div className="tiny dim">
-                        {fmtDayTiny(a.day)}{a.start_time ? ` · ${fmtTime(a.start_time)}` : ''}
-                        {a.location ? ` · ${a.location}` : ''}
-                      </div>
-                    </div>
-                    <button className="btn ghost sm icon-btn" aria-label={`Edit ${a.title}`}
-                      onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-                      <Navigation size={14} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="empty" style={{ marginTop: 14 }}>
-          <MapPinOff size={26} className="empty-ico" aria-hidden="true" />
-          <p className="empty-title">Nothing on the map yet</p>
-          <p className="small muted" style={{ marginTop: 0, marginBottom: 0 }}>
-            Give an activity a location and it appears here automatically — or click anywhere on
-            the map to add a stop.
-          </p>
-        </div>
-      )}
 
       {placeless.length ? (
         <div className="card" style={{ marginTop: 14 }}>

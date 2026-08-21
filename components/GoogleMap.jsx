@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { haversine } from '@/lib/geo';
 
 // Must carry the NEXT_PUBLIC_ prefix: Next only exposes prefixed variables to
 // the browser, and a map cannot be drawn without one there.
@@ -74,7 +75,7 @@ function loadMaps() {
  * click anywhere to drop a new stop.
  */
 export default function GoogleMap({
-  stops, places, focused, dayColours, onFocus, onDropPin, onError,
+  stops, places, focused, dayColours, onFocus, onDropPin, onViewport, onError,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -83,11 +84,22 @@ export default function GoogleMap({
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const info = useRef(null);
+  /*
+   * The fit we still owe the map.
+   *
+   * fitBounds is a no-op while the map has not measured its container, and the
+   * map is built inside a promise — so on a container whose height comes from
+   * the layout rather than a fixed value, the first fit can land too early and
+   * leave the whole world on screen with every marker stacked in one pixel.
+   * Holding the intent and applying it once the element has a size fixes that
+   * without guessing at a delay.
+   */
+  const owedFit = useRef(null);
   const [ready, setReady] = useState(false);
 
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
-  latest.current = { stops, places, focused, dayColours, onFocus };
+  latest.current = { stops, places, focused, dayColours, onFocus, onViewport };
 
   useEffect(() => {
     let dead = false;
@@ -106,6 +118,31 @@ export default function GoogleMap({
       info.current = new L.InfoWindow();
       mapRef.current.addListener('click', (e) => {
         if (e.latLng && onDropPin) onDropPin(e.latLng.lat(), e.latLng.lng());
+      });
+      /*
+       * "Nearby" means near what you are looking at, so the map has to say
+       * where that is. `idle` fires once panning and zooming have settled
+       * rather than on every frame of the gesture.
+       */
+      mapRef.current.addListener('idle', () => {
+        applyFit();
+        const report = latest.current.onViewport;
+        if (!report) return;
+        const map = mapRef.current;
+        const c = map.getCenter();
+        const b = map.getBounds();
+        // Centre to corner: the radius that covers what is on screen.
+        const corner = b && b.getNorthEast();
+        const km = corner ? haversine(c.lat(), c.lng(), corner.lat(), corner.lng()) : 1;
+        report({
+          lat: c.lat(),
+          lng: c.lng(),
+          // Clamped to what the Places API will actually search...
+          radius: Math.round(Math.min(4000, Math.max(300, km * 1000))),
+          // ...and unclamped, so the page can admit when the view is wider
+          // than the search can reach.
+          spanKm: km,
+        });
       });
       setReady(true);
     }).catch((e) => { if (!dead && onError) onError(e.message); });
@@ -132,6 +169,21 @@ export default function GoogleMap({
     if (mapRef.current.getZoom() < 14) mapRef.current.setZoom(14);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focused]);
+
+  /** Apply an owed fit, but only once the map is big enough to have an opinion. */
+  function applyFit() {
+    const map = mapRef.current;
+    const el = elRef.current;
+    const want = owedFit.current;
+    if (!map || !want || !el || !el.clientHeight || !el.clientWidth) return;
+    owedFit.current = null;
+    if (want.center) {
+      map.setCenter(want.center);
+      map.setZoom(14);
+    } else {
+      map.fitBounds(want.bounds, 48);
+    }
+  }
 
   function drawStops() {
     const L = libs.current;
@@ -186,11 +238,11 @@ export default function GoogleMap({
     });
 
     if (list.length === 1) {
-      map.setCenter({ lat: list[0].lat, lng: list[0].lng });
-      map.setZoom(14);
-    } else if (list.length > 1) {
-      map.fitBounds(bounds, 48);
+      owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
+    } else if (list.length > 1 && !bounds.isEmpty()) {
+      owedFit.current = { bounds };
     }
+    applyFit();
   }
 
   function drawPlaces() {
