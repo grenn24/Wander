@@ -132,7 +132,7 @@ export async function POST(req) {
     else if (upstream.status === 429) msg = 'OpenAI is rate limiting or the account is out of quota.';
     else if (/model/i.test(detail) && /(not exist|not found|access)/i.test(detail)) {
       msg = `Your account cannot use "${aiModel('plan')}". `
-        + 'Set OPENAI_MODEL (or OPENAI_MODEL_PLAN) to one you do have.';
+        + 'Set OPENAI_MODEL to one you do have.';
     }
     return Response.json({ error: msg }, { status: 502 });
   }

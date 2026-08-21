@@ -34,20 +34,19 @@ the key into the client bundle for every visitor.
 Without it the app works exactly as before; the planning features return a 503
 that the UI explains, and every screen stays usable by hand.
 
-The four AI call sites want different things, so each can be tuned:
+The four AI call sites want different things — planning a trip is streamed, so
+latency is hidden and only quality counts, while parsing a line someone just
+typed is the reverse. That tuning lives in the `TASKS` table at the top of
+`lib/ai.js`, not in the environment: it does not vary between a laptop and
+production, so keeping it in code means it is versioned and cannot drift.
 
-```
-OPENAI_MODEL_PLAN     OPENAI_EFFORT_PLAN      # streamed: latency is hidden
-OPENAI_MODEL_PARSE    OPENAI_EFFORT_PARSE     # you are mid-sentence
-OPENAI_MODEL_SUGGEST  OPENAI_EFFORT_SUGGEST
-OPENAI_MODEL_PACKING  OPENAI_EFFORT_PACKING
-```
+`OPENAI_MODEL` stays an environment variable, because which models an account
+can actually use genuinely does vary.
 
-Anything unset falls back to `OPENAI_MODEL`, so one variable still configures
-everything. Effort is `minimal | low | medium | high` and is only sent when
-set, because models that do not accept the parameter reject the request. It is
-the sharper lever of the two: `OPENAI_EFFORT_PARSE=minimal` took the add field
-from about ten seconds to two without changing model.
+The sharper lever turned out to be reasoning effort rather than model choice.
+Reasoning tokens are worth paying for on a whole itinerary and mostly wasted
+turning one sentence into five fields, so `parse` runs at minimal effort — that
+alone took the add field from about ten seconds to under two.
 
 ### Maps and photos (optional)
 
