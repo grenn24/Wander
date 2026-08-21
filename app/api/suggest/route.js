@@ -1,4 +1,5 @@
 import {
+  aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 
@@ -70,7 +71,7 @@ export async function POST(req) {
         + `Day: ${dayLabel}\n`
         + `Already planned that day:\n${existing || '(nothing yet)'}\n`
         + (note ? `\nThe traveller asks: ${note}` : ''),
-      maxTokens: 4000,
+      maxTokens: 8000,
     });
 
     const activities = (Array.isArray(out.activities) ? out.activities : []).slice(0, 6).map((a) => ({
@@ -84,6 +85,6 @@ export async function POST(req) {
 
     return Response.json({ activities });
   } catch (e) {
-    return Response.json({ error: e.message || 'Suggestion failed.' }, { status: 502 });
+    return aiFailure(e, 'suggest');
   }
 }

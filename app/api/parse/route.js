@@ -1,4 +1,5 @@
 import {
+  aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 
@@ -94,7 +95,7 @@ export async function POST(req) {
       system: SYSTEM,
       task: 'parse',
       user: prompt,
-      maxTokens: 2000,
+      maxTokens: 4000,
     });
 
     if (!out.understood && out.question) {
@@ -115,6 +116,6 @@ export async function POST(req) {
       },
     });
   } catch (e) {
-    return Response.json({ error: e.message || 'Could not read that.' }, { status: 502 });
+    return aiFailure(e, 'parse');
   }
 }

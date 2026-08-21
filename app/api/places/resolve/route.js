@@ -1,4 +1,4 @@
-import { resolveMany, placesKey, notConfigured, explain } from '@/lib/places';
+import { resolveMany, placesKey, notConfigured, placesFailure } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +29,6 @@ export async function POST(req) {
     const results = await resolveMany(items, String(body.bias || '').slice(0, 200));
     return Response.json({ results });
   } catch (e) {
-    return Response.json({ error: explain(e) }, { status: 502 });
+    return placesFailure(e, 'resolve');
   }
 }

@@ -1,4 +1,4 @@
-import { askJson, aiConfigured, notConfigured, PACKING_GROUPS } from '@/lib/ai';
+import { aiFailure, askJson, aiConfigured, notConfigured, PACKING_GROUPS } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 
@@ -62,7 +62,7 @@ export async function POST(req) {
         + `Dates: ${dates || 'unspecified'} (${days} day${days === 1 ? '' : 's'})\n`
         + `The itinerary involves: ${themes || 'general travel'}\n`
         + `Already on the list: ${existing || '(nothing)'}`,
-      maxTokens: 4000,
+      maxTokens: 8000,
     });
 
     const seen = new Set();
@@ -81,6 +81,6 @@ export async function POST(req) {
 
     return Response.json({ items });
   } catch (e) {
-    return Response.json({ error: e.message || 'Packing list failed.' }, { status: 502 });
+    return aiFailure(e, 'packing');
   }
 }

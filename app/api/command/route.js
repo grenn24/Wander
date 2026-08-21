@@ -1,4 +1,5 @@
 import {
+  aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 
@@ -121,7 +122,7 @@ export async function POST(req) {
       system: SYSTEM,
       task: 'command',
       user: prompt,
-      maxTokens: 6000,
+      maxTokens: 12000,
     });
 
     if (!out.understood && out.question) {
@@ -161,6 +162,6 @@ export async function POST(req) {
       ops,
     });
   } catch (e) {
-    return Response.json({ error: e.message || 'Could not work that out.' }, { status: 502 });
+    return aiFailure(e, 'command');
   }
 }

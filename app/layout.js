@@ -1,4 +1,5 @@
 import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
+import ViewportInsets from '@/components/ViewportInsets';
 import './globals.css';
 
 /*
@@ -57,6 +58,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <ViewportInsets />
         {children}
       </body>
     </html>

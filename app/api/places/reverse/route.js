@@ -1,4 +1,4 @@
-import { placesKey, notConfigured, explain, reverseGeocode } from '@/lib/places';
+import { placesKey, notConfigured, placesFailure, reverseGeocode } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,6 @@ export async function GET(req) {
   try {
     return Response.json(await reverseGeocode(lat, lng));
   } catch (e) {
-    return Response.json({ error: explain(e) }, { status: 502 });
+    return placesFailure(e, 'reverse');
   }
 }

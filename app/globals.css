@@ -389,9 +389,11 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* -------------------------------------------------------------- mobile --- */
 @media (max-width: 860px) {
   .rail { display: none; }
-  .main { padding: 14px 13px 84px; }
+  .main { padding: 14px 13px 132px; }
   .tabbar {
-    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    /* Not bottom: 0 — see ViewportInsets.jsx. On iOS the layout viewport runs
+       underneath Safari's floating toolbar, which would swallow this bar. */
+    display: flex; position: fixed; bottom: var(--vv-bottom, 0px); left: 0; right: 0; z-index: 40;
     background: var(--surface-1); border-top: 1px solid var(--border);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   }
@@ -408,6 +410,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   .topbar { padding: 8px 11px; gap: 7px; }
   .trip-pick { max-width: 150px; font-size: 13px; }
 }
+
 @media (max-width: 460px) {
   .kpi-value { font-size: 21px; }
   .row > * { flex: 1 1 100%; }
@@ -441,8 +444,15 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* ------------------------------------------------------------- day strip -- */
 .daystrip {
   display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin: -2px -2px 10px;
-  scrollbar-width: thin;
+  /* No visible scrollbar: on Windows it draws a full-width classic bar with
+     arrows, and because the strip's height feeds --strip-h (which offsets the
+     sticky day headers), that bar also pushed the headers out of alignment.
+     The chips themselves are the affordance, and the active one auto-scrolls
+     into view. */
+  scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
+.daystrip::-webkit-scrollbar { display: none; }
 .daychip {
   flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px;
   padding: 6px 11px; border-radius: 10px; border: 1px solid var(--border);
@@ -499,12 +509,14 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* ---------------------------------------------------------------- toasts -- */
 .toasts {
   position: fixed; z-index: 80; left: 50%; transform: translateX(-50%);
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(16px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
   display: flex; flex-direction: column; gap: 8px;
   width: min(440px, calc(100vw - 24px)); pointer-events: none;
 }
 @media (min-width: 861px) { .toasts { left: auto; right: 20px; transform: none; } }
-@media (max-width: 860px) { .toasts { bottom: calc(78px + env(safe-area-inset-bottom)); } }
+@media (max-width: 860px) {
+  .toasts { bottom: calc(78px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px)); }
+}
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 10px;
   background: var(--surface-1); border: 1px solid var(--border-strong);
@@ -611,6 +623,45 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .crumb {
   font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; max-width: 40vw;
+}
+/* The initials stand in for the name once the bar runs out of room. */
+.who-short { display: none; }
+
+/* Phone chrome is a title bar, not a toolbar.
+   The convention on small screens is: back, title, and at most a couple of
+   icon actions. Anything that was a word here becomes an icon or steps aside,
+   and the trip name — the one thing you actually need to read — takes all the
+   slack that frees up.
+
+   This block lives below the base rules on purpose: everything it overrides is
+   a single class, so source order is what decides, and sitting up in the
+   responsive section it lost every one of these silently. */
+@media (max-width: 640px) {
+  /* Inside a trip the back chevron already leads home, so the wordmark is a
+     second navigation control competing for the same job in half the space. */
+  .topbar:has(.crumb-back) .brand-link { display: none; }
+  .topbar { gap: 6px; }
+  /* The title, not the spacer, should absorb what the hidden controls left. */
+  .topbar:has(.crumb) .grow { display: none; }
+  .live { display: none; }
+  .crumb { flex: 1; max-width: none; font-size: 15.5px; }
+  .avatars .avatar { width: 25px; height: 25px; font-size: 10.5px; }
+  .avatars .avatar:nth-child(n + 3) { display: none; }
+
+  .who { padding: 0; width: 34px; min-height: 34px; justify-content: center; flex: none; }
+  .who-full { display: none; }
+  .who-short {
+    display: grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+  }
+
+  /* Title above, actions in one full-width row under it — three buttons
+     stacked down the right edge is a column of chrome beside a column of
+     content, and neither gets the width it needs. */
+  .page-head.spread { flex-direction: column; align-items: stretch; gap: 10px; }
+  .page-head .chiprow { flex-wrap: nowrap; }
+  .page-head .chiprow > .btn { flex: 1; justify-content: center; }
 }
 
 /* The rail holds links now, not buttons, so it needs both selectors. */
@@ -962,7 +1013,7 @@ body::before {
 @media (max-width: 860px) {
   .tabbar {
     left: 10px; right: 10px;
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
     border: 1px solid var(--glass-line);
     border-radius: 18px;
     box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
@@ -972,7 +1023,9 @@ body::before {
     background: color-mix(in srgb, var(--accent) 15%, transparent);
     border-radius: 13px;
   }
-  .main { padding-bottom: 96px; }
+  /* Clear of both the floating tab bar and the command button above it, so the
+     last row of a list can still be scrolled out from under them. */
+  .main { padding-bottom: 132px; }
 }
 
 /* ---------------------------------------------------------------- atoms --- */
@@ -1601,6 +1654,13 @@ body::before {
 .trip-facts span + span::before {
   content: '·'; margin: 0 8px; color: var(--text-3); opacity: .7;
 }
+/* Wrapped onto a second line, a separator arrives as a leading dot against the
+   margin. On a narrow screen this row always wraps, so spacing carries the
+   grouping instead. */
+@media (max-width: 640px) {
+  .trip-facts { gap: 2px 14px; }
+  .trip-facts span + span::before { content: none; margin: 0; }
+}
 
 .day-head .grow { flex: 1; }
 .day-facts {
@@ -1708,10 +1768,10 @@ body::before {
 /* Floats over the workspace on every trip tab, clear of the mobile tab bar. */
 .cmd-pill, .cmd-wrap {
   position: fixed; z-index: 55; left: 50%; transform: translateX(-50%);
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  bottom: calc(20px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
 }
 @media (max-width: 860px) {
-  .cmd-pill, .cmd-wrap { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .cmd-pill, .cmd-wrap { bottom: calc(78px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px)); }
 }
 
 .cmd-pill {
@@ -1736,6 +1796,21 @@ body::before {
   background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border);
 }
 @media (max-width: 520px) { .cmd-pill kbd { display: none; } }
+
+/* On a phone this becomes a floating action button. A full-width bar of text
+   parked over the list is a lot of furniture for a shortcut, and there is no
+   keyboard to press the shortcut with — the icon carries it, and the label
+   goes to the accessible name instead. */
+@media (max-width: 640px) {
+  .cmd-pill {
+    left: auto; right: 14px; transform: none;
+    width: 52px; height: 52px; padding: 0; border-radius: 50%;
+    justify-content: center; box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
+  }
+  .cmd-pill:hover { transform: none; }
+  .cmd-pill span { display: none; }
+  .cmd-pill svg { width: 21px; height: 21px; }
+}
 
 .cmd-wrap { width: min(620px, calc(100vw - 24px)); }
 .cmd {

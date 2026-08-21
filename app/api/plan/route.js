@@ -1,5 +1,6 @@
 import {
-  aiConfigured, notConfigured, aiModel, aiEffort, AI_CATEGORIES, cleanCategory, cleanTime,
+  aiConfigured, notConfigured, aiFailure, aiModel, aiEffort, AI_CATEGORIES,
+  cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
 
@@ -105,7 +106,7 @@ export async function POST(req) {
       body: JSON.stringify({
         model: aiModel('plan'),
         stream: true,
-        max_completion_tokens: 16000,
+        max_completion_tokens: 32000,
         ...(aiEffort('plan') ? { reasoning_effort: aiEffort('plan') } : {}),
         messages: [
           { role: 'system', content: SYSTEM },
@@ -118,7 +119,7 @@ export async function POST(req) {
       }),
     });
   } catch (e) {
-    return Response.json({ error: 'Could not reach OpenAI.' }, { status: 502 });
+    return aiFailure(e, 'plan');
   }
 
   if (!upstream.ok) {
@@ -127,14 +128,11 @@ export async function POST(req) {
       const body = await upstream.json();
       detail = (body.error && body.error.message) || '';
     } catch (e) { /* non-JSON body */ }
-    let msg = detail || `OpenAI returned ${upstream.status}.`;
-    if (upstream.status === 401) msg = 'OpenAI rejected the API key. Check OPENAI_API_KEY.';
-    else if (upstream.status === 429) msg = 'OpenAI is rate limiting or the account is out of quota.';
-    else if (/model/i.test(detail) && /(not exist|not found|access)/i.test(detail)) {
-      msg = `Your account cannot use "${aiModel('plan')}". `
-        + 'Set OPENAI_MODEL to one you do have.';
-    }
-    return Response.json({ error: msg }, { status: 502 });
+    // Named in the log, where it is useful; never in the reply, where it is not.
+    return aiFailure(
+      new Error(`${upstream.status} ${detail || 'no detail'} (model ${aiModel('plan')})`),
+      'plan',
+    );
   }
 
   const encoder = new TextEncoder();
@@ -240,7 +238,8 @@ export async function POST(req) {
           },
         });
       } catch (e) {
-        send({ t: 'error', error: e.message || 'The plan did not finish.' });
+        console.error('[ai] plan stream failed:', (e && e.message) || e);
+        send({ t: 'error', error: 'Something went wrong on our end. Please try again.' });
       } finally {
         controller.close();
       }

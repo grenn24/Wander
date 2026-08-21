@@ -1,4 +1,4 @@
-import { placesKey, notConfigured, explain, searchPlaces } from '@/lib/places';
+import { placesKey, notConfigured, placesFailure, searchPlaces } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,6 @@ export async function POST(req) {
   try {
     return Response.json({ places: await searchPlaces(q, 6) });
   } catch (e) {
-    return Response.json({ error: explain(e) }, { status: 502 });
+    return placesFailure(e, 'search');
   }
 }

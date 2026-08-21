@@ -1,4 +1,4 @@
-import { placesKey, notConfigured, explain, nearbyPlaces } from '@/lib/places';
+import { placesKey, notConfigured, placesFailure, nearbyPlaces } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,6 @@ export async function POST(req) {
     const places = await nearbyPlaces(lat, lng, String(body.kind || ''), Number(body.radius) || 900);
     return Response.json({ places });
   } catch (e) {
-    return Response.json({ error: explain(e) }, { status: 502 });
+    return placesFailure(e, 'nearby');
   }
 }

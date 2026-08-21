@@ -187,11 +187,14 @@ export default function TripCommand() {
   if (!trip) return null;
 
   if (!open) {
+    // At phone widths this is a round icon button and the label is hidden, so
+    // the accessible name has to be stated rather than read off the text.
     return (
-      <button className="cmd-pill" type="button" onClick={() => {
-        setOpen(true);
-        setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
-      }}>
+      <button className="cmd-pill" type="button" aria-label="Change anything in this trip"
+        onClick={() => {
+          setOpen(true);
+          setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
+        }}>
         <Sparkles size={15} />
         <span>Change anything…</span>
         <kbd>⌘K</kbd>

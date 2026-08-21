@@ -92,6 +92,23 @@ export default function Itinerary({
     }
   }, [activeDay]);
 
+  /*
+   * The strip's real height drives where the day headers stick and where a
+   * jumped-to day lands. A hard-coded constant drifts the moment anything
+   * changes that row — a wrapped chip, a different font, or the scrollbar this
+   * used to draw — and the symptom is a header sitting over the card below it.
+   */
+  useEffect(() => {
+    const strip = stripRef.current;
+    const root = strip && strip.parentElement;
+    if (!strip || !root || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      root.style.setProperty('--strip-h', `${Math.round(strip.getBoundingClientRect().height)}px`);
+    });
+    ro.observe(strip);
+    return () => ro.disconnect();
+  }, [hasStrip]);
+
   // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
     if (jumpedFor.current === trip.id) return;
