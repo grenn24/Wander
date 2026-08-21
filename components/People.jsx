@@ -113,8 +113,7 @@ export default function People({
             {confirmDelete ? (
               <div className="chiprow">
                 <button className="btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-                <button className="btn primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}
-                  onClick={onDeleteTrip}>Yes, delete this trip</button>
+                <button className="btn danger-solid" onClick={onDeleteTrip}>Yes, delete this trip</button>
               </div>
             ) : (
               <button className="btn danger" onClick={() => setConfirmDelete(true)}>Delete trip</button>

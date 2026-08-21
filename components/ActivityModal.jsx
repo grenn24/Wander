@@ -1,37 +1,49 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
+import { useModalChrome } from '@/lib/useModal';
 
 export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose }) {
-  const [q, setQ] = useState('');
   const [hits, setHits] = useState([]);
   const [searching, setSearching] = useState(false);
   const [geoErr, setGeoErr] = useState('');
-  const set = (patch) => onChange({ ...draft, ...patch });
+  const [confirm, setConfirm] = useState(''); // '' | 'delete' | 'discard'
+  const pristine = useRef(JSON.stringify(draft));
 
-  async function search(e) {
-    e.preventDefault();
-    const term = (q || draft.location || draft.title || '').trim();
-    if (!term) return;
+  const set = (patch) => onChange({ ...draft, ...patch });
+  const dirty = JSON.stringify(draft) !== pristine.current;
+
+  const attemptClose = useCallback(() => {
+    if (dirty) setConfirm('discard'); else onClose();
+  }, [dirty, onClose]);
+
+  useModalChrome({ onEscape: attemptClose, onSubmit: () => onSave(draft) });
+
+  // Searches whatever is already typed — no retyping the name into a second box.
+  async function search() {
+    const term = (draft.location || draft.title || '').trim();
+    if (!term) { setGeoErr('Type a place name or address above first.'); return; }
     setSearching(true); setGeoErr(''); setHits([]);
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(term)}`;
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
       const json = await res.json();
-      if (!Array.isArray(json) || json.length === 0) setGeoErr('No places matched that search.');
+      if (!Array.isArray(json) || json.length === 0) setGeoErr(`Nothing matched "${term}".`);
       setHits(Array.isArray(json) ? json : []);
     } catch (err) {
-      setGeoErr('Place search is unavailable right now — you can paste coordinates instead.');
+      setGeoErr('Place search is unavailable right now — you can still save without a pin.');
     }
     setSearching(false);
   }
 
+  const pinned = draft.lat != null && draft.lng != null && draft.lat !== '';
+
   return (
-    <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
-          <button className="btn ghost sm" onClick={onClose}>✕</button>
+          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close">✕</button>
         </div>
 
         <div className="modal-body">
@@ -79,13 +91,18 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
           <div className="field">
             <label className="label" htmlFor="al">Location</label>
-            <input id="al" className="input" value={draft.location || ''}
-              placeholder="2-3-1 Asakusa, Taito City" onChange={(e) => set({ location: e.target.value })} />
-            <form onSubmit={search} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input className="input" value={q} placeholder="Search a place to pin it on the map"
-                onChange={(e) => setQ(e.target.value)} />
-              <button className="btn" disabled={searching}>{searching ? '…' : 'Find'}</button>
-            </form>
+            <div className="withbtn">
+              <input id="al" className="input" value={draft.location || ''}
+                placeholder="Senso-ji, Asakusa"
+                onChange={(e) => set({ location: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} />
+              <button className="btn" type="button" disabled={searching} onClick={search}>
+                {searching ? '…' : 'Find on map'}
+              </button>
+            </div>
+            <div className="tiny dim" style={{ marginTop: 6 }}>
+              Searches what you typed above, or the activity name if this is blank.
+            </div>
             {geoErr ? <div className="err">{geoErr}</div> : null}
             {hits.length ? (
               <div className="geo-list">
@@ -93,12 +110,12 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                   <button type="button" key={`${h.place_id}`}
                     onClick={() => {
                       set({ location: h.display_name, lat: Number(h.lat), lng: Number(h.lon) });
-                      setHits([]); setQ('');
+                      setHits([]); setGeoErr('');
                     }}>{h.display_name}</button>
                 ))}
               </div>
             ) : null}
-            {draft.lat != null && draft.lng != null && draft.lat !== '' ? (
+            {pinned ? (
               <div className="tiny dim" style={{ marginTop: 6 }}>
                 Pinned at {Number(draft.lat).toFixed(4)}, {Number(draft.lng).toFixed(4)}{' '}
                 <button className="btn ghost sm" type="button"
@@ -122,12 +139,31 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
         </div>
 
         <div className="modal-foot">
-          {draft.id ? (
-            <button className="btn danger" style={{ marginRight: 'auto' }}
-              onClick={() => onDelete(draft.id)}>Delete</button>
-          ) : null}
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave(draft)}>Save</button>
+          {confirm === 'discard' ? (
+            <>
+              <span className="small muted" style={{ marginRight: 'auto' }}>Discard your changes?</span>
+              <button className="btn" onClick={() => setConfirm('')}>Keep editing</button>
+              <button className="btn danger-solid" onClick={onClose}>Discard</button>
+            </>
+          ) : confirm === 'delete' ? (
+            <>
+              <span className="small muted" style={{ marginRight: 'auto' }}>Delete this activity?</span>
+              <button className="btn" onClick={() => setConfirm('')}>Cancel</button>
+              <button className="btn danger-solid" onClick={() => onDelete(draft)}>Delete</button>
+            </>
+          ) : (
+            <>
+              {draft.id ? (
+                <button className="btn danger" style={{ marginRight: 'auto' }}
+                  onClick={() => setConfirm('delete')}>Delete</button>
+              ) : null}
+              <span className="kbd-hint">⌘↵ to save · Esc to close</span>
+              <button className="btn" onClick={attemptClose}>Cancel</button>
+              <button className="btn primary" onClick={() => onSave(draft)}>
+                {draft.id ? 'Save' : 'Add activity'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

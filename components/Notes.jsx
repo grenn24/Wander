@@ -5,10 +5,33 @@ import { fmtDay } from '@/lib/util';
 export default function Notes({ trip, activities, onSave }) {
   const [text, setText] = useState(trip.notes || '');
   const [status, setStatus] = useState('');
+  const [incoming, setIncoming] = useState(null); // a remote edit we did not apply
   const timer = useRef(null);
+  const base = useRef(trip.notes || ''); // last value we know the server holds
   const tripId = trip.id;
 
-  useEffect(() => { setText(trip.notes || ''); }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    base.current = trip.notes || '';
+    setText(trip.notes || '');
+    setIncoming(null);
+    setStatus('');
+  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime edits from other people used to be invisible until you switched
+  // trips. Apply them when the box is untouched; otherwise offer the choice
+  // rather than clobbering either side.
+  useEffect(() => {
+    const remote = trip.notes || '';
+    if (remote === base.current) return;
+    const localDirty = text !== base.current || timer.current;
+    if (localDirty) {
+      setIncoming(remote);
+    } else {
+      base.current = remote;
+      setText(remote);
+      setIncoming(null);
+    }
+  }, [trip.notes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function change(v) {
     setText(v);
@@ -16,6 +39,8 @@ export default function Notes({ trip, activities, onSave }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       await onSave(v);
+      base.current = v;
+      timer.current = null;
       setStatus('Saved');
       setTimeout(() => setStatus(''), 1500);
     }, 700);
@@ -35,6 +60,22 @@ export default function Notes({ trip, activities, onSave }) {
         </div>
         <span className="small dim">{status}</span>
       </div>
+
+      {incoming !== null ? (
+        <div className="card notice" style={{ marginBottom: 12 }}>
+          <div className="spread">
+            <span className="small">Someone else edited these notes while you were typing.</span>
+            <div className="chiprow">
+              <button className="btn sm" onClick={() => {
+                base.current = incoming; setText(incoming); setIncoming(null);
+              }}>Use theirs</button>
+              <button className="btn sm" onClick={() => {
+                base.current = incoming; setIncoming(null);
+              }}>Keep mine</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <textarea className="textarea" style={{ minHeight: 220 }} value={text}
         placeholder="Visa notes, transit passes, restaurant shortlist, who is paying for what…"
