@@ -164,11 +164,13 @@ export default function TripProvider({ tripId, children }) {
     return data;
   }, [supabase, activities, fail]);
 
-  /** Fills in coordinates the map resolved, without touching anything else. */
-  const setActivityCoords = useCallback(async (id, lat, lng, location) => {
+  /** Fills in what the place lookup returned, without touching anything else. */
+  const setActivityCoords = useCallback(async (id, lat, lng, location, placeId, photoRef) => {
     if (!supabase || !id) return;
     const patch = { lat, lng, updated_at: new Date().toISOString() };
     if (location) patch.location = location;
+    if (placeId) patch.place_id = placeId;
+    if (photoRef) patch.photo_ref = photoRef;
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
     const { error } = await supabase.from('activities').update(patch).eq('id', id);
     if (error) fail(error);
@@ -211,6 +213,8 @@ export default function TripProvider({ tripId, children }) {
         location: d.location || '',
         cost: Number(d.cost || 0),
         notes: d.notes || '',
+        place_id: d.place_id || null,
+        photo_ref: d.photo_ref || null,
         sort_order: nextSortOrder([...activities, ...rows], d.day),
       });
     });

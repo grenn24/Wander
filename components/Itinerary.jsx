@@ -4,6 +4,7 @@ import { MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, S
 import AiSuggest from '@/components/AiSuggest';
 import { categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
+import PlacePhoto from '@/components/PlacePhoto';
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
@@ -197,11 +198,9 @@ export default function Itinerary({
                       {a.start_time ? fmtTime(a.start_time) : <span className="dim">—</span>}
                       {a.end_time ? <div className="dim tiny">{fmtTime(a.end_time)}</div> : null}
                     </div>
+                    <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={42} alt="" />
                     <div className="act-body">
                       <div className="act-title">
-                        <span className={`catico cat-${cat.id}`} aria-hidden="true">
-                          <CatIcon size={14} />
-                        </span>
                         <span>{a.title}</span>
                       </div>
                       <div className="act-meta">

@@ -34,6 +34,33 @@ the key into the client bundle for every visitor.
 Without it the app works exactly as before; the planning features return a 503
 that the UI explains, and every screen stays usable by hand.
 
+### Maps and photos (optional)
+
+```
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = ...   # browser: draws the map
+GOOGLE_MAPS_SERVER_KEY          = ...   # server: geocoding, places, photos
+```
+
+Two keys, because they have different exposure. The Maps JS key **must** reach
+the browser, so it is public by design — restrict it in Google Cloud Console by
+HTTP referrer and to the Maps JavaScript API alone. The server key does
+geocoding and photo fetches, where referrer restrictions cannot protect
+anything; restrict it by API instead and never give it a `NEXT_PUBLIC_` prefix.
+
+With neither set, the map falls back to Leaflet and OpenStreetMap and stops are
+geocoded through Nominatim. That works, but Nominatim permits one request per
+second, so a freshly planned trip resolves its stops one at a time. Google has
+no such cap and resolves a whole trip in parallel, and returns a photo for each
+place.
+
+### If server-side lookups fail locally
+
+`npm run dev` runs Node with `--use-system-ca`. Without it, on a machine that
+intercepts HTTPS (corporate proxy, some antivirus), every server-side call
+fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, because Node does not read the OS
+certificate store by default. `npm run dev:plain` is the unmodified command if
+you ever need it.
+
 ## Running locally
 
 Local development points at the hosted Supabase project — there is no local

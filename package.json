@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "dev:plain": "next dev"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

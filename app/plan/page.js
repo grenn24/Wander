@@ -31,7 +31,7 @@ function Planner() {
 
   const [meta, setMeta] = useState(null);
   const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
-  const [phase, setPhase] = useState('start'); // start | streaming | saving | error
+  const [phase, setPhase] = useState('start'); // start | streaming | locating | saving | error
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
   const started = useRef(false);
@@ -106,7 +106,6 @@ function Planner() {
 
     if (!plan) { setError('The plan did not finish. Try again.'); setPhase('error'); return; }
 
-    setPhase('saving');
     const start = plan.start_date || addDays(todayISO(), 21);
     const end = addDays(start, Math.max(0, plan.duration_days - 1));
 
@@ -146,7 +145,36 @@ function Planner() {
       });
     });
 
+    // Resolve every stop in one batch before writing, so the map is already
+    // populated the first time it is opened rather than filling in stop by stop.
     if (rows.length) {
+      setPhase('locating');
+      const targets = rows
+        .map((r, i) => ({ id: String(i), query: r.location }))
+        .filter((t) => t.query);
+      if (targets.length) {
+        try {
+          const res = await fetch('/api/places/resolve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: targets, bias: plan.destination }),
+          });
+          if (res.ok) {
+            const { results } = await res.json();
+            (results || []).forEach((r) => {
+              if (!r.found) return;
+              const row = rows[Number(r.id)];
+              if (!row) return;
+              row.lat = r.lat;
+              row.lng = r.lng;
+              if (r.place_id) row.place_id = r.place_id;
+              if (r.photo_ref) row.photo_ref = r.photo_ref;
+              if (r.label) row.location = r.label;
+            });
+          }
+        } catch (e) { /* the map can still resolve these later */ }
+      }
+      setPhase('saving');
       const { error: actErr } = await supabase.from('activities').insert(rows);
       if (actErr) fail(actErr); // a trip with no activities still beats losing it
     }
@@ -292,7 +320,12 @@ function Planner() {
               </div>
 
               <div className="planfoot">
-                {phase === 'saving' ? (
+                {phase === 'locating' ? (
+                  <>
+                    <Loader2 size={15} className="spin" />
+                    Finding {totalActs} stop{totalActs === 1 ? '' : 's'} on the map…
+                  </>
+                ) : phase === 'saving' ? (
                   <>
                     <Check size={15} /> {totalActs} activit{totalActs === 1 ? 'y' : 'ies'} planned
                     {' '}— saving your trip…

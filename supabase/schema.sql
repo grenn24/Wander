@@ -67,6 +67,13 @@ create table if not exists public.packing_items (
 alter table public.trip_members add column if not exists display_name text;
 alter table public.trips        add column if not exists share_code   text;
 
+-- Place identity, so a stop can be re-resolved and illustrated without asking
+-- the geocoder again. photo_ref is a provider photo handle, not a URL: photo
+-- URLs are short-lived and are built on demand by /api/places/photo.
+alter table public.activities add column if not exists place_id  text;
+alter table public.activities add column if not exists photo_ref text;
+alter table public.trips      add column if not exists cover_ref text;
+
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);
 create index if not exists packing_trip_idx        on public.packing_items (trip_id);
 create index if not exists members_user_idx        on public.trip_members (user_id);

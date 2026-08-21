@@ -6,8 +6,10 @@ import {
 import { categoryOf, fmtDayTiny, fmtTime, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
-  geocodeBest, reverseGeocode, nearby, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
+  reverseGeocode, nearby, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
 } from '@/lib/geo';
+import GoogleMap, { googleMapsAvailable } from '@/components/GoogleMap';
+import PlacePhoto from '@/components/PlacePhoto';
 
 const CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -113,21 +115,40 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
   /* ------------------------------------------------- resolve locations --- */
   const resolving = useRef(false);
 
+  /**
+   * One request for every outstanding stop, rather than one request per stop.
+   * The server picks the provider; with Google they resolve in parallel, so a
+   * whole trip lands at once instead of appearing one pin at a time.
+   */
   const resolveAll = useCallback(async () => {
     if (resolving.current || !onSetCoords) return;
     const todo = activities.filter((a) => (a.location || '').trim() && a.lat == null);
     if (!todo.length) return;
     resolving.current = true;
     setLocating({ done: 0, total: todo.length });
-    for (let i = 0; i < todo.length; i += 1) {
-      const a = todo[i];
-      try {
-        // Sequential on purpose: Nominatim allows one request per second.
-        // eslint-disable-next-line no-await-in-loop
-        const hit = await geocodeBest(a.location, trip.destination);
-        if (hit) await onSetCoords(a.id, hit.lat, hit.lng); // eslint-disable-line no-await-in-loop
-      } catch (e) { /* one failure should not stop the rest */ }
-      setLocating({ done: i + 1, total: todo.length });
+    try {
+      const res = await fetch('/api/places/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: todo.map((a) => ({ id: a.id, query: a.location })),
+          bias: trip.destination || '',
+        }),
+      });
+      if (res.ok) {
+        const { results } = await res.json();
+        let done = 0;
+        await Promise.all((results || []).map(async (r) => {
+          done += 1;
+          setLocating({ done, total: todo.length });
+          if (!r.found) return;
+          await onSetCoords(r.id, r.lat, r.lng, r.label, r.place_id, r.photo_ref);
+        }));
+      } else {
+        setErr('Could not look those places up. Try again in a moment.');
+      }
+    } catch (e) {
+      setErr('Could not reach the place lookup.');
     }
     setLocating(null);
     resolving.current = false;
@@ -164,7 +185,10 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
   }, [kind, anchor]);
 
   /* ---------------------------------------------------------------- map --- */
+  const useGoogle = googleMapsAvailable();
+
   useEffect(() => {
+    if (useGoogle) return undefined;
     let cancelled = false;
     loadLeaflet().then((L) => {
       if (cancelled || !elRef.current) return;
@@ -240,10 +264,11 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
       setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 60);
     }).catch(() => setErr('The map could not be loaded. Check your connection and reload.'));
     return () => { cancelled = true; };
-  }, [stops, focused]);
+  }, [stops, focused, useGoogle]);
 
   // Nearby results are a separate layer so they never disturb the stops.
   useEffect(() => {
+    if (useGoogle) return;
     if (!mapRef.current || !nearbyLayer.current || !window.L) return;
     const L = window.L;
     nearbyLayer.current.clearLayers();
@@ -256,7 +281,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
       }).addTo(nearbyLayer.current);
       m.bindPopup(`<strong>${escapeHtml(p.name)}</strong><br><span style="opacity:.7">${escapeHtml(p.detail)} · ${fmtKm(p.km)} away</span>`);
     });
-  }, [places]);
+  }, [places, useGoogle]);
 
   useEffect(() => () => {
     if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
@@ -332,7 +357,29 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
       {err ? <div className="err" style={{ marginBottom: 10 }}>{err}</div> : null}
 
       <div className="maplayout">
-        <div className="map-wrap"><div className="map-el" ref={elRef} /></div>
+        <div className="map-wrap">
+          {useGoogle ? (
+            <GoogleMap
+              stops={stops}
+              places={places}
+              focused={focused}
+              dayColours={catColor}
+              onFocus={setFocused}
+              onDropPin={async (lat, lng) => {
+                setDropped({ lat, lng, label: 'Looking up…', name: '' });
+                try {
+                  const r = await reverseGeocode(lat, lng);
+                  setDropped({ lat, lng, label: r.label, name: r.name });
+                } catch (e) {
+                  setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
+                }
+              }}
+              onError={(m) => setErr(m)}
+            />
+          ) : (
+            <div className="map-el" ref={elRef} />
+          )}
+        </div>
 
         <aside className="mapside">
           {dropped ? (
@@ -432,7 +479,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
                     onClick={() => focus(a)}
                     onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
                     <span className="stop-n">{i + 1}</span>
-                    <span className={`catico cat-${cat.id}`} aria-hidden="true"><Icon size={13} /></span>
+                    <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={40} alt={a.title} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="stop-name">{a.title}</div>
                       <div className="tiny dim">
