@@ -2157,7 +2157,18 @@ body::before {
 .mapkinds { margin-bottom: 10px; }
 .mapkinds .btn { gap: 6px; }
 .mapkinds .btn svg { color: var(--text-3); }
+
+/* A chosen category has to look chosen. aria-pressed was carrying the whole
+   state for screen readers while the button looked identical to the three
+   nobody had picked — the same treatment the sidebar gives the open tab. */
+.mapkinds .btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
 .mapkinds .btn[aria-pressed="true"] svg { color: currentColor; }
+.mapkinds .btn[aria-pressed="true"]:hover { background: var(--accent-soft); }
 
 .mapfinds {
   display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;
