@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
+import Select from '@/components/Select';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
@@ -95,9 +96,12 @@ export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, 
           </div>
           <div style={{ flex: '1 1 120px' }}>
             <label className="label" htmlFor="pc">Group</label>
-            <select id="pc" className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
-              {GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
+            <Select
+              id="pc" label="Group"
+              value={category}
+              onChange={setCategory}
+              options={GROUPS.map((g) => ({ value: g, label: g }))}
+            />
           </div>
           <div style={{ flex: '0 1 90px' }}>
             <label className="label" htmlFor="pq">Qty</label>

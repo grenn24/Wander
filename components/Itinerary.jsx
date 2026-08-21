@@ -1,14 +1,23 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Sparkles } from 'lucide-react';
+import {
+  MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
+} from 'lucide-react';
 import AiSuggest from '@/components/AiSuggest';
-import { categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO } from '@/lib/util';
-import { categoryIcon } from '@/lib/icons';
+import QuickAdd from '@/components/QuickAdd';
 import PlacePhoto from '@/components/PlacePhoto';
+import Select from '@/components/Select';
+import {
+  categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
+  shortPlace, minutesBetween, fmtDuration,
+} from '@/lib/util';
+
+/** Structural stops anchor a day; everything else sits between them. */
+const ANCHORS = new Set(['transport', 'lodging']);
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
-  onQuickAdd, onEditTrip, onPrint, onAddMany,
+  onEditTrip, onPrint, onAddMany,
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
@@ -18,21 +27,17 @@ export default function Itinerary({
   const jumpedFor = useRef(null);
   const stripRef = useRef(null);
   // A click picks a day deliberately; the spy must not argue with it until the
-  // reader scrolls for themselves. Near the page bottom several short days are
-  // on screen at once, so without this the choice gets overridden immediately.
+  // reader scrolls for themselves.
   const pinned = useRef(false);
 
   const hasStrip = days.length > 3;
 
-  /** Where content stops being hidden behind the sticky topbar and day strip. */
   function stickyOffset() {
     const bar = document.querySelector('.topbar');
     return (bar ? bar.getBoundingClientRect().height : 0)
       + (stripRef.current ? stripRef.current.getBoundingClientRect().height : 0);
   }
 
-  // Follow the scroll position: whichever day has passed under the strip is
-  // the one you are looking at.
   useEffect(() => {
     if (!days.length) return undefined;
     let raf = 0;
@@ -40,8 +45,6 @@ export default function Itinerary({
       raf = 0;
       if (pinned.current) return;
       const doc = document.documentElement;
-      // The last days are too short to ever reach the top of the viewport, so
-      // once the page bottoms out, credit the final day.
       if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
         setActiveDay(days[days.length - 1]);
         return;
@@ -57,7 +60,6 @@ export default function Itinerary({
       setActiveDay(current);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
-    // Only genuine input releases the pin — a programmatic scroll must not.
     const release = () => { pinned.current = false; };
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -75,7 +77,6 @@ export default function Itinerary({
     };
   }, [days]);
 
-  // Keep the highlighted chip within the strip, without nudging the page.
   useEffect(() => {
     const strip = stripRef.current;
     if (!strip || !activeDay) return;
@@ -83,11 +84,9 @@ export default function Itinerary({
     if (!chip) return;
     const left = chip.offsetLeft;
     const right = left + chip.offsetWidth;
-    const pad = 10;
-    if (left < strip.scrollLeft + pad) {
-      strip.scrollTo({ left: left - pad, behavior: 'smooth' });
-    } else if (right > strip.scrollLeft + strip.clientWidth - pad) {
-      strip.scrollTo({ left: right - strip.clientWidth + pad, behavior: 'smooth' });
+    if (left < strip.scrollLeft + 10) strip.scrollTo({ left: left - 10, behavior: 'smooth' });
+    else if (right > strip.scrollLeft + strip.clientWidth - 10) {
+      strip.scrollTo({ left: right - strip.clientWidth + 10, behavior: 'smooth' });
     }
   }, [activeDay]);
 
@@ -105,7 +104,7 @@ export default function Itinerary({
     };
   }, [menuFor]);
 
-  // Opening a trip that is already under way should land on today, not on day 1.
+  // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
     if (jumpedFor.current === trip.id) return;
     jumpedFor.current = trip.id;
@@ -138,22 +137,25 @@ export default function Itinerary({
 
   const stray = activities.filter((a) => !days.includes(a.day));
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
+  const planned = days.filter((d) => (byDay[d] || []).length).length;
 
   return (
     <div className={`itin${hasStrip ? ' has-strip' : ''}`}>
       <div className="page-head spread">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2>{trip.name}</h2>
-          <div className="small muted">
-            {trip.destination ? `${trip.destination} · ` : ''}{days.length} day{days.length === 1 ? '' : 's'}
-            {' · '}{activities.length} activit{activities.length === 1 ? 'y' : 'ies'}
-            {' · '}{money(total, trip.currency)} planned
+          <div className="small muted trip-facts">
+            {trip.destination ? <span>{trip.destination}</span> : null}
+            <span>{days.length} days</span>
+            <span>{planned} planned</span>
+            <span>{activities.length} activities</span>
+            {total > 0 ? <span>{money(total, trip.currency)}</span> : null}
           </div>
         </div>
         <div className="chiprow">
           {todayIndex >= 0 ? (
             <button className="btn sm primary" onClick={() => jumpTo(today)}>
-              <LocateFixed size={15} /> Today · Day {todayIndex + 1}
+              <LocateFixed size={15} /> Today
             </button>
           ) : null}
           <button className="btn sm" onClick={onPrint}><Printer size={15} /> Print</button>
@@ -167,7 +169,8 @@ export default function Itinerary({
             <button key={d} type="button" data-day={d} onClick={() => jumpTo(d)}
               aria-current={activeDay === d}
               className={`daychip${activeDay === d ? ' active' : ''}`
-                + `${d === today ? ' today' : ''}${d < today ? ' done' : ''}`}>
+                + `${d === today ? ' today' : ''}${d < today ? ' done' : ''}`
+                + `${(byDay[d] || []).length ? '' : ' bare'}`}>
               <span className="daychip-n">Day {i + 1}</span>
               <span className="daychip-d">{fmtDayTiny(d)}</span>
             </button>
@@ -178,80 +181,119 @@ export default function Itinerary({
       {days.map((d, i) => {
         const list = (byDay[d] || []).slice().sort(sortActs);
         const dayTotal = list.reduce((s, a) => s + Number(a.cost || 0), 0);
+        const timed = list.filter((a) => a.start_time);
+        const span = timed.length >= 2
+          ? `${fmtTime(timed[0].start_time)} – ${fmtTime(timed[timed.length - 1].start_time)}`
+          : timed.length === 1 ? `from ${fmtTime(timed[0].start_time)}` : '';
+
         return (
           <section className="day" key={d} id={`day-${d}`}>
             <div className={`day-head${d === today ? ' is-today' : ''}`}>
               <span className="day-num">Day {i + 1}</span>
               <span className="day-date">{fmtDay(d)}</span>
               {d === today ? <span className="today-badge">Today</span> : null}
-              {dayTotal > 0 ? <span className="day-total mono">{money(dayTotal, trip.currency)}</span> : null}
+              <span className="grow" />
+              <span className="day-facts">
+                {span ? <span><Clock size={12} /> {span}</span> : null}
+                {list.length ? <span>{list.length} stop{list.length === 1 ? '' : 's'}</span> : null}
+                {dayTotal > 0 ? <span className="mono">{money(dayTotal, trip.currency)}</span> : null}
+              </span>
             </div>
+
             <div className="acts">
-              {list.map((a) => {
+              {list.map((a, k) => {
                 const cat = categoryOf(a.category);
-                const CatIcon = categoryIcon(cat.id);
+                const prev = list[k - 1];
+                const gapMins = prev && prev.start_time && a.start_time
+                  ? minutesBetween(prev.end_time || prev.start_time, a.start_time)
+                  : null;
+                const place = shortPlace(a.location);
+
                 return (
-                  <div className="act" key={a.id} role="button" tabIndex={0}
-                    onClick={() => onEdit(a)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
-                    <div className="act-time mono">
-                      {a.start_time ? fmtTime(a.start_time) : <span className="dim">—</span>}
-                      {a.end_time ? <div className="dim tiny">{fmtTime(a.end_time)}</div> : null}
-                    </div>
-                    <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={42} alt="" />
-                    <div className="act-body">
-                      <div className="act-title">
-                        <span>{a.title}</span>
-                      </div>
-                      <div className="act-meta">
-                        {cat.label}
-                        {a.location ? ` · ${a.location}` : ''}
-                        {a.booking_ref ? ` · ref ${a.booking_ref}` : ''}
-                        {a.lat != null && a.lng != null ? (
-                          <MapPin size={12} className="meta-ico" aria-label="Pinned on the map" />
+                  <div key={a.id}>
+                    {gapMins != null && gapMins >= 90 ? (
+                      <div className="gap">{fmtDuration(gapMins)} free</div>
+                    ) : null}
+
+                    <div className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`}
+                      role="button" tabIndex={0}
+                      onClick={() => onEdit(a)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
+                      <div className="act-when">
+                        {a.start_time ? (
+                          <span className="act-t mono">{fmtTime(a.start_time)}</span>
+                        ) : <span className="act-t dim">—</span>}
+                        {a.end_time ? (
+                          <span className="act-t2 mono">{fmtTime(a.end_time)}</span>
                         ) : null}
                       </div>
-                    </div>
-                    {Number(a.cost) > 0 ? (
-                      <div className="act-cost mono">{money(a.cost, trip.currency)}</div>
-                    ) : null}
-                    <div className="act-menu-wrap"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}>
-                      <button className="btn ghost sm" type="button"
-                        aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
-                        onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}>
-                        <MoreHorizontal size={16} />
-                      </button>
-                      {menuFor === a.id ? (
-                        <div className="act-menu">
-                          <label className="act-menu-row">
-                            <span>Move to</span>
-                            <select value={a.day} aria-label={`Move ${a.title} to another day`}
-                              onChange={(e) => { onMove(a, e.target.value); setMenuFor(null); }}>
-                              {days.map((dd, di) => (
-                                <option key={dd} value={dd}>Day {di + 1} — {fmtDayTiny(dd)}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <button type="button"
-                            onClick={() => { onDuplicate(a); setMenuFor(null); }}>
-                            <Copy size={15} /> Duplicate
-                          </button>
-                          <button type="button" className="danger"
-                            onClick={() => { onDelete(a); setMenuFor(null); }}>
-                            <Trash2 size={15} /> Delete
-                          </button>
+
+                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={44} alt="" />
+
+                      <div className="act-body">
+                        <div className="act-title">{a.title}</div>
+                        <div className="act-meta">
+                          <span className={`cattag cat-${cat.id}`}>{cat.label}</span>
+                          {place ? (
+                            <span className="act-place"><MapPin size={11} />{place}</span>
+                          ) : null}
+                          {a.booking_ref ? <span className="act-ref mono">{a.booking_ref}</span> : null}
                         </div>
+                      </div>
+
+                      {Number(a.cost) > 0 ? (
+                        <div className="act-cost mono">{money(a.cost, trip.currency)}</div>
                       ) : null}
+
+                      <div className="act-menu-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}>
+                        <button className="btn ghost sm icon-btn" type="button"
+                          aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
+                          onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}>
+                          <MoreHorizontal size={16} />
+                        </button>
+                        {menuFor === a.id ? (
+                          <div className="act-menu">
+                            <div className="act-menu-row">
+                              <span>Move to</span>
+                              <Select
+                                value={a.day}
+                                label={`Move ${a.title} to another day`}
+                                options={days.map((dd, di) => ({
+                                  value: dd, label: `Day ${di + 1}`, hint: fmtDayTiny(dd),
+                                }))}
+                                onChange={(dd) => { onMove(a, dd); setMenuFor(null); }}
+                              />
+                            </div>
+                            <button type="button"
+                              onClick={() => { onDuplicate(a); setMenuFor(null); }}>
+                              <Copy size={15} /> Duplicate
+                            </button>
+                            <button type="button" className="danger"
+                              onClick={() => { onDelete(a); setMenuFor(null); }}>
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <QuickAdd day={d} label={fmtDay(d)} onQuickAdd={onQuickAdd} onDetails={onAdd}
-              onIdeas={onAddMany ? () => setSuggestFor(suggestFor === d ? null : d) : null}
-              ideasOpen={suggestFor === d} />
+
+            <QuickAdd
+              day={d}
+              label={`Day ${i + 1}, ${fmtDay(d)}`}
+              trip={trip}
+              existing={list}
+              onCreate={(draft) => onAddMany([draft])}
+              onManual={onAdd}
+              onSuggest={() => setSuggestFor(suggestFor === d ? null : d)}
+              suggestOpen={suggestFor === d}
+            />
+
             {suggestFor === d ? (
               <AiSuggest trip={trip} day={d} dayLabel={`Day ${i + 1}, ${fmtDay(d)}`}
                 existing={list} onAdd={onAddMany} onClose={() => setSuggestFor(null)} />
@@ -271,7 +313,7 @@ export default function Itinerary({
             {stray.map((a) => (
               <div className="act" key={a.id} role="button" tabIndex={0} onClick={() => onEdit(a)}
                 onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
-                <div className="act-time mono small">{fmtDayTiny(a.day)}</div>
+                <div className="act-when"><span className="act-t mono">{fmtDayTiny(a.day)}</span></div>
                 <div className="act-body">
                   <div className="act-title">{a.title}</div>
                   <div className="act-meta">{fmtDay(a.day)}</div>
@@ -287,38 +329,5 @@ export default function Itinerary({
         </section>
       ) : null}
     </div>
-  );
-}
-
-function QuickAdd({ day, label, onQuickAdd, onDetails, onIdeas, ideasOpen }) {
-  const [text, setText] = useState('');
-  const inputRef = useRef(null);
-
-  async function submit(e) {
-    e.preventDefault();
-    const t = text.trim();
-    if (!t) return;
-    setText('');
-    await onQuickAdd(day, t);
-    if (inputRef.current) inputRef.current.focus(); // keep going down the day
-  }
-
-  return (
-    <form className="quickadd" onSubmit={submit}>
-      <input ref={inputRef} className="quickadd-in" value={text}
-        aria-label={`Add an activity to ${label}`}
-        placeholder={`Add to ${label} — try "9am Senso-ji"`}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); e.currentTarget.blur(); } }} />
-      <button className="btn sm" type="submit" disabled={!text.trim()}>Add</button>
-      <button className="btn ghost sm" type="button" title="Add with times, cost and a map pin"
-        onClick={() => { onDetails(day, text.trim()); setText(''); }}>Details…</button>
-      {onIdeas ? (
-        <button className="btn ghost sm icon-btn ideas-btn" type="button" aria-pressed={ideasOpen}
-          title={`Suggest activities for ${label}`} onClick={onIdeas}>
-          <Sparkles size={15} />
-        </button>
-      ) : null}
-    </form>
   );
 }

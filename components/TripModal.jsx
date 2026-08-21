@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CURRENCIES, dayRange } from '@/lib/util';
+import Select from '@/components/Select';
 import { useModalChrome } from '@/lib/useModal';
 
 export default function TripModal({ draft, onChange, onSave, onClose }) {
@@ -77,10 +78,12 @@ export default function TripModal({ draft, onChange, onSave, onClose }) {
           <div className="row">
             <div className="field">
               <label className="label" htmlFor="tc">Currency</label>
-              <select id="tc" className="select" value={draft.currency || 'SGD'}
-                onChange={(e) => set({ currency: e.target.value })}>
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <Select
+                id="tc" label="Currency"
+                value={draft.currency || 'SGD'}
+                onChange={(v) => set({ currency: v })}
+                options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+              />
             </div>
             <div className="field">
               <label className="label" htmlFor="tb">Budget (optional)</label>

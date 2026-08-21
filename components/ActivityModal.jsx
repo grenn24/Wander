@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
 import { searchPlaces } from '@/lib/geo';
+import Select from '@/components/Select';
 import { useModalChrome } from '@/lib/useModal';
 
 export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose }) {
@@ -56,18 +57,32 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
           <div className="row">
             <div className="field">
               <label className="label" htmlFor="ad">Day</label>
-              <select id="ad" className="select" value={draft.day || (days[0] || '')}
-                onChange={(e) => set({ day: e.target.value })}>
-                {days.map((d, i) => <option key={d} value={d}>Day {i + 1} — {fmtDay(d)}</option>)}
-                {draft.day && !days.includes(draft.day) ? <option value={draft.day}>{draft.day}</option> : null}
-              </select>
+              <Select
+                id="ad" label="Day"
+                value={draft.day || (days[0] || '')}
+                onChange={(v) => set({ day: v })}
+                options={(days.includes(draft.day) || !draft.day
+                  ? days
+                  : [draft.day, ...days]
+                ).map((d) => ({
+                  value: d,
+                  label: days.includes(d) ? `Day ${days.indexOf(d) + 1}` : 'Outside the trip',
+                  hint: fmtDay(d),
+                }))}
+              />
             </div>
             <div className="field">
               <label className="label" htmlFor="ac">Type</label>
-              <select id="ac" className="select" value={draft.category || 'sightseeing'}
-                onChange={(e) => set({ category: e.target.value })}>
-                {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              <Select
+                id="ac" label="Type"
+                value={draft.category || 'sightseeing'}
+                onChange={(v) => set({ category: v })}
+                options={CATEGORIES.map((c) => ({
+                  value: c.id,
+                  label: c.label,
+                  icon: <span className={`catdot cat-${c.id}`} aria-hidden="true" />,
+                }))}
+              />
             </div>
           </div>
 
