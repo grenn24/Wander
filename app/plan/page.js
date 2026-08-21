@@ -3,10 +3,15 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Loader2, Check, TriangleAlert, RotateCw } from 'lucide-react';
+import {
+  Sparkles, Loader2, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays, Check,
+} from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
-import { addDays, todayISO, nextSortOrder } from '@/lib/util';
+import { categoryIcon } from '@/lib/icons';
+import {
+  addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
+} from '@/lib/util';
 
 export default function PlanPage() {
   return (
@@ -18,51 +23,90 @@ export default function PlanPage() {
   );
 }
 
-const STEPS = [
-  { id: 'think', label: 'Reading your request' },
-  { id: 'plan', label: 'Building the day-by-day plan' },
-  { id: 'save', label: 'Saving it to your trips' },
-];
-
 function Planner() {
   const params = useSearchParams();
   const router = useRouter();
   const { supabase, user, fail } = useApp();
   const query = (params.get('q') || '').trim();
 
-  const [step, setStep] = useState('think');
+  const [meta, setMeta] = useState(null);
+  const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
+  const [phase, setPhase] = useState('start'); // start | streaming | saving | error
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
-  const [summary, setSummary] = useState('');
   const started = useRef(false);
+  const liveRef = useRef(null);
+
+  const upsertDay = useCallback((i, patch) => {
+    setDays((prev) => {
+      const next = prev.slice();
+      const at = next.findIndex((d) => d.index === i);
+      if (at === -1) next.push({ index: i, theme: '', activities: [], ...patch });
+      else next[at] = { ...next[at], ...patch };
+      next.sort((a, b) => a.index - b.index);
+      return next;
+    });
+  }, []);
 
   const run = useCallback(async () => {
     if (!supabase || !user || !query) return;
-    setError(''); setNoKey(false); setStep('think');
+    setError(''); setNoKey(false); setMeta(null); setDays([]); setPhase('streaming');
 
-    let plan;
+    let plan = null;
     try {
-      setStep('plan');
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: query, today: todayISO() }),
       });
-      const body = await res.json();
+
       if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
         if (body.code === 'no_key') setNoKey(true);
         setError(body.error || 'Planning failed.');
+        setPhase('error');
         return;
       }
-      plan = body;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let evt;
+          try { evt = JSON.parse(line); } catch (e) { continue; }
+          if (evt.t === 'meta') setMeta(evt);
+          else if (evt.t === 'day') upsertDay(evt.i, { theme: evt.theme });
+          else if (evt.t === 'act') {
+            setDays((prev) => {
+              const next = prev.slice();
+              const at = next.findIndex((d) => d.index === evt.d);
+              if (at === -1) next.push({ index: evt.d, theme: '', activities: [evt.a] });
+              else next[at] = { ...next[at], activities: [...next[at].activities, evt.a] };
+              next.sort((a, b) => a.index - b.index);
+              return next;
+            });
+          } else if (evt.t === 'error') { setError(evt.error); setPhase('error'); return; }
+          else if (evt.t === 'done') plan = evt.plan;
+        }
+      }
     } catch (e) {
-      setError('Could not reach the planner. Check your connection and try again.');
+      setError('The connection dropped while planning. Try again.');
+      setPhase('error');
       return;
     }
 
-    setSummary(plan.summary || '');
-    setStep('save');
+    if (!plan) { setError('The plan did not finish. Try again.'); setPhase('error'); return; }
 
+    setPhase('saving');
     const start = plan.start_date || addDays(todayISO(), 21);
     const end = addDays(start, Math.max(0, plan.duration_days - 1));
 
@@ -76,7 +120,12 @@ function Planner() {
       notes: plan.summary ? `Planned from: "${query}"\n\n${plan.summary}` : '',
     }).select().single();
 
-    if (tripErr || !trip) { fail(tripErr || new Error('Could not create the trip.')); setError('Could not save the trip.'); return; }
+    if (tripErr || !trip) {
+      fail(tripErr || new Error('Could not create the trip.'));
+      setError('Could not save the trip.');
+      setPhase('error');
+      return;
+    }
 
     const rows = [];
     plan.days.forEach((d) => {
@@ -99,18 +148,24 @@ function Planner() {
 
     if (rows.length) {
       const { error: actErr } = await supabase.from('activities').insert(rows);
-      // A trip with no activities still beats losing the whole thing.
-      if (actErr) fail(actErr);
+      if (actErr) fail(actErr); // a trip with no activities still beats losing it
     }
 
     router.replace(`/trips/${trip.id}/itinerary`);
-  }, [supabase, user, query, router, fail]);
+  }, [supabase, user, query, router, fail, upsertDay]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
     started.current = true;
     run();
   }, [supabase, user, run]);
+
+  // Follow the newest day as it lands, without yanking the whole page.
+  useEffect(() => {
+    const el = liveRef.current;
+    if (!el || phase !== 'streaming') return;
+    el.scrollTop = el.scrollHeight;
+  }, [days, phase]);
 
   if (!query) {
     return (
@@ -131,68 +186,128 @@ function Planner() {
     );
   }
 
+  const totalActs = days.reduce((s, d) => s + d.activities.length, 0);
+  const expected = meta && meta.duration_days ? meta.duration_days : 0;
+
   return (
     <div className="shell">
       <TopBar />
       <main className="main main-plain">
         <div className="wrap planwrap">
-          <div className="planning card">
-            <div className="planning-head">
-              <span className="planning-ico" aria-hidden="true"><Sparkles size={18} /></span>
-              <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: 17 }}>{error ? 'That did not work' : 'Planning your trip'}</h2>
-                <p className="small muted planning-q">&ldquo;{query}&rdquo;</p>
+
+          <div className="planhead">
+            <span className="planning-ico" aria-hidden="true">
+              {phase === 'error' ? <TriangleAlert size={18} /> : <Sparkles size={18} />}
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2 style={{ fontSize: 18 }}>
+                {phase === 'error' ? 'That did not work'
+                  : meta && meta.name ? meta.name
+                    : 'Planning your trip'}
+              </h2>
+              <p className="small muted planning-q">&ldquo;{query}&rdquo;</p>
+            </div>
+          </div>
+
+          {phase === 'error' ? (
+            <div className="card">
+              <div className="planning-err">
+                <TriangleAlert size={16} />
+                <span>{error}</span>
+              </div>
+              {noKey ? (
+                <p className="small muted">
+                  Add <code>OPENAI_API_KEY</code> to <code>.env.local</code> and restart the dev
+                  server. Everything else in Wander works without it — you can still build this
+                  trip by hand.
+                </p>
+              ) : null}
+              <div className="chiprow" style={{ marginTop: 14 }}>
+                {!noKey ? (
+                  <button className="btn primary" onClick={() => run()}>
+                    <RotateCw size={15} /> Try again
+                  </button>
+                ) : null}
+                <Link className="btn" href="/trips">Build it by hand instead</Link>
               </div>
             </div>
-
-            {error ? (
-              <>
-                <div className="planning-err">
-                  <TriangleAlert size={16} />
-                  <span>{error}</span>
-                </div>
-                {noKey ? (
-                  <p className="small muted">
-                    Add <code>OPENAI_API_KEY</code> to <code>.env.local</code> and restart the dev
-                    server. Everything else in Wander works without it — you can still build this
-                    trip by hand.
-                  </p>
-                ) : null}
-                <div className="chiprow" style={{ marginTop: 14 }}>
-                  {!noKey ? (
-                    <button className="btn primary" onClick={() => { started.current = true; run(); }}>
-                      <RotateCw size={15} /> Try again
-                    </button>
+          ) : (
+            <>
+              {meta && (meta.destination || meta.currency || expected) ? (
+                <div className="planmeta">
+                  {meta.destination ? (
+                    <span><MapPin size={13} /> {meta.destination}</span>
                   ) : null}
-                  <Link className="btn" href="/trips">Build it by hand instead</Link>
+                  {expected ? (
+                    <span><CalendarDays size={13} /> {expected} day{expected === 1 ? '' : 's'}</span>
+                  ) : null}
+                  {meta.currency ? <span><Wallet size={13} /> {meta.currency}</span> : null}
                 </div>
-              </>
-            ) : (
-              <>
-                <ol className="planning-steps">
-                  {STEPS.map((s) => {
-                    const idx = STEPS.findIndex((x) => x.id === step);
-                    const mine = STEPS.findIndex((x) => x.id === s.id);
-                    const state = mine < idx ? 'done' : mine === idx ? 'busy' : 'todo';
-                    return (
-                      <li key={s.id} className={`pstep is-${state}`}>
-                        <span className="pstep-ico" aria-hidden="true">
-                          {state === 'done' ? <Check size={14} />
-                            : state === 'busy' ? <Loader2 size={14} className="spin" />
-                              : <span className="pstep-dot" />}
-                        </span>
-                        {s.label}
-                      </li>
-                    );
-                  })}
-                </ol>
-                {summary ? <p className="small muted planning-summary">{summary}</p> : null}
-                <p className="tiny dim" style={{ marginBottom: 0 }}>
-                  This usually takes a few seconds. You can edit everything afterwards.
-                </p>
-              </>
-            )}
-          </div>
+              ) : null}
+
+              {meta && meta.summary ? (
+                <p className="small muted planning-summary">{meta.summary}</p>
+              ) : null}
+
+              <div className="planlive" ref={liveRef}>
+                {days.length === 0 ? (
+                  <div className="planskel">
+                    <div className="skel skel-head" />
+                    <div className="skel skel-row" />
+                    <div className="skel skel-row" />
+                  </div>
+                ) : null}
+
+                {days.map((d) => (
+                  <section className="planday" key={d.index}>
+                    <div className="planday-head">
+                      <span className="day-num">Day {d.index}</span>
+                      <span className="planday-theme">{d.theme}</span>
+                    </div>
+                    {d.activities.map((a, k) => {
+                      const cat = categoryOf(a.category);
+                      const Icon = categoryIcon(cat.id);
+                      return (
+                        <div className="planact" key={`${d.index}-${k}`}>
+                          <span className="planact-time mono">
+                            {a.start_time ? fmtTime(a.start_time) : '—'}
+                          </span>
+                          <span className={`catico cat-${cat.id}`} aria-hidden="true">
+                            <Icon size={13} />
+                          </span>
+                          <span className="planact-body">
+                            <span className="planact-title">{a.title}</span>
+                            {a.location ? <span className="tiny dim">{a.location}</span> : null}
+                          </span>
+                          {a.cost > 0 ? (
+                            <span className="planact-cost mono">
+                              {money(a.cost, meta ? meta.currency : '')}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </section>
+                ))}
+              </div>
+
+              <div className="planfoot">
+                {phase === 'saving' ? (
+                  <>
+                    <Check size={15} /> {totalActs} activit{totalActs === 1 ? 'y' : 'ies'} planned
+                    {' '}— saving your trip…
+                  </>
+                ) : (
+                  <>
+                    <Loader2 size={15} className="spin" />
+                    {days.length === 0 ? 'Thinking about where to send you…'
+                      : `Day ${days[days.length - 1].index}${expected ? ` of ${expected}` : ''}`
+                        + ` · ${totalActs} activit${totalActs === 1 ? 'y' : 'ies'} so far`}
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>
