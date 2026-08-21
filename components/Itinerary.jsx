@@ -11,7 +11,82 @@ export default function Itinerary({
   const today = todayISO();
   const todayIndex = days.indexOf(today);
   const [menuFor, setMenuFor] = useState(null);
+  const [activeDay, setActiveDay] = useState(null);
   const jumpedFor = useRef(null);
+  const stripRef = useRef(null);
+  // A click picks a day deliberately; the spy must not argue with it until the
+  // reader scrolls for themselves. Near the page bottom several short days are
+  // on screen at once, so without this the choice gets overridden immediately.
+  const pinned = useRef(false);
+
+  const hasStrip = days.length > 3;
+
+  /** Where content stops being hidden behind the sticky topbar and day strip. */
+  function stickyOffset() {
+    const bar = document.querySelector('.topbar');
+    return (bar ? bar.getBoundingClientRect().height : 0)
+      + (stripRef.current ? stripRef.current.getBoundingClientRect().height : 0);
+  }
+
+  // Follow the scroll position: whichever day has passed under the strip is
+  // the one you are looking at.
+  useEffect(() => {
+    if (!days.length) return undefined;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      if (pinned.current) return;
+      const doc = document.documentElement;
+      // The last days are too short to ever reach the top of the viewport, so
+      // once the page bottoms out, credit the final day.
+      if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
+        setActiveDay(days[days.length - 1]);
+        return;
+      }
+      const line = stickyOffset() + 16;
+      let current = days[0];
+      for (let i = 0; i < days.length; i += 1) {
+        const el = document.getElementById(`day-${days[i]}`);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top - line > 0) break;
+        current = days[i];
+      }
+      setActiveDay(current);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    // Only genuine input releases the pin — a programmatic scroll must not.
+    const release = () => { pinned.current = false; };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    window.addEventListener('wheel', release, { passive: true });
+    window.addEventListener('touchmove', release, { passive: true });
+    window.addEventListener('keydown', release);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('wheel', release);
+      window.removeEventListener('touchmove', release);
+      window.removeEventListener('keydown', release);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [days]);
+
+  // Keep the highlighted chip within the strip, without nudging the page.
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip || !activeDay) return;
+    const chip = strip.querySelector(`[data-day="${activeDay}"]`);
+    if (!chip) return;
+    const left = chip.offsetLeft;
+    const right = left + chip.offsetWidth;
+    const pad = 10;
+    if (left < strip.scrollLeft + pad) {
+      strip.scrollTo({ left: left - pad, behavior: 'smooth' });
+    } else if (right > strip.scrollLeft + strip.clientWidth - pad) {
+      strip.scrollTo({ left: right - strip.clientWidth + pad, behavior: 'smooth' });
+    }
+  }, [activeDay]);
 
   useEffect(() => {
     if (!menuFor) return undefined;
@@ -39,7 +114,10 @@ export default function Itinerary({
 
   function jumpTo(day) {
     const el = document.getElementById(`day-${day}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!el) return;
+    pinned.current = true;
+    setActiveDay(day);
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   if (!days.length) {
@@ -59,7 +137,7 @@ export default function Itinerary({
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
 
   return (
-    <div>
+    <div className={`itin${hasStrip ? ' has-strip' : ''}`}>
       <div className="page-head spread">
         <div>
           <h2>{trip.name}</h2>
@@ -80,11 +158,13 @@ export default function Itinerary({
         </div>
       </div>
 
-      {days.length > 3 ? (
-        <div className="daystrip" role="navigation" aria-label="Jump to a day">
+      {hasStrip ? (
+        <div className="daystrip" ref={stripRef} role="navigation" aria-label="Jump to a day">
           {days.map((d, i) => (
-            <button key={d} type="button" onClick={() => jumpTo(d)}
-              className={`daychip${d === today ? ' today' : ''}${d < today ? ' done' : ''}`}>
+            <button key={d} type="button" data-day={d} onClick={() => jumpTo(d)}
+              aria-current={activeDay === d}
+              className={`daychip${activeDay === d ? ' active' : ''}`
+                + `${d === today ? ' today' : ''}${d < today ? ' done' : ''}`}>
               <span className="daychip-n">Day {i + 1}</span>
               <span className="daychip-d">{fmtDayTiny(d)}</span>
             </button>

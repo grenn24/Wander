@@ -314,13 +314,13 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
 
       {days.length > 1 ? (
         <div className="daystrip">
-          <button type="button" className={`daychip${day === 'all' ? ' today' : ''}`}
+          <button type="button" className={`daychip${day === 'all' ? ' active' : ''}`}
             onClick={() => { setDay('all'); setFocused(null); }}>
             <span className="daychip-n">All</span>
             <span className="daychip-d">{days.length} days</span>
           </button>
           {days.map((d, i) => (
-            <button key={d} type="button" className={`daychip${day === d ? ' today' : ''}`}
+            <button key={d} type="button" className={`daychip${day === d ? ' active' : ''}`}
               onClick={() => { setDay(d); setFocused(null); }}>
               <span className="daychip-n">Day {i + 1}</span>
               <span className="daychip-d">{fmtDayTiny(d)}</span>
