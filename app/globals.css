@@ -17,6 +17,21 @@
   --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.18);
   --radius: 12px;
+  /* --- glass ------------------------------------------------------------ */
+  --glass: rgba(255,255,255,.58);
+  --glass-strong: rgba(255,255,255,.76);
+  --glass-edge: rgba(255,255,255,.85);
+  --glass-line: rgba(255,255,255,.72);
+  --glass-blur: 20px;
+  --glass-sat: 175%;
+  --lift: 0 12px 32px -14px rgba(20,20,30,.42);
+  --lift-lg: 0 26px 60px -22px rgba(20,20,30,.5);
+  --aura-1: var(--accent);
+  --aura-2: var(--cat-3);
+  --aura-3: var(--cat-5);
+  --aura-strength: 26%;
+  --ease: cubic-bezier(.2,.8,.3,1);
+  --spring: cubic-bezier(.34,1.4,.64,1);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -36,6 +51,13 @@
   --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
   --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --glass: rgba(38,38,42,.55);
+  --glass-strong: rgba(30,30,34,.78);
+  --glass-edge: rgba(255,255,255,.14);
+  --glass-line: rgba(255,255,255,.10);
+  --lift: 0 12px 32px -14px rgba(0,0,0,.7);
+  --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
+  --aura-strength: 30%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -48,6 +70,13 @@
     --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
     --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --glass: rgba(38,38,42,.55);
+  --glass-strong: rgba(30,30,34,.78);
+  --glass-edge: rgba(255,255,255,.14);
+  --glass-line: rgba(255,255,255,.10);
+  --lift: 0 12px 32px -14px rgba(0,0,0,.7);
+  --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
+  --aura-strength: 30%;
   }
 }
 
@@ -123,12 +152,12 @@ a { color: var(--accent); }
 
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
 .catico.cat-sightseeing, .cat-sightseeing { background: var(--cat-1); }
-.catico.cat-food, .cat-food{ background: var(--cat-2); }
-.catico.cat-transport, .cat-transport{ background: var(--cat-3); }
-.catico.cat-lodging, .cat-lodging{ background: var(--cat-4); }
-.catico.cat-activity, .cat-activity{ background: var(--cat-5); }
-.catico.cat-shopping, .cat-shopping{ background: var(--cat-6); }
-.catico.cat-other, .cat-other{ background: var(--cat-7); }
+.catico.cat-food, .cat-food { background: var(--cat-2); }
+.catico.cat-transport, .cat-transport { background: var(--cat-3); }
+.catico.cat-lodging, .cat-lodging { background: var(--cat-4); }
+.catico.cat-activity, .cat-activity { background: var(--cat-5); }
+.catico.cat-shopping, .cat-shopping { background: var(--cat-6); }
+.catico.cat-other, .cat-other { background: var(--cat-7); }
 
 .tag {
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px;
@@ -817,3 +846,283 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* a leg that is implausible on foot */
 .leg-far { color: var(--danger); }
 .leg-far::before { border-left-color: var(--danger); opacity: .5; }
+
+/* ============================================================================
+   Liquid glass
+   Chrome becomes translucent material rather than flat panels: blurred and
+   saturated so colour bleeds through from behind, with a specular highlight
+   along the top edge and a soft lift shadow so it reads as floating.
+   Glass needs something to refract, so the page carries ambient colour.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- ambience --- */
+html { background: var(--surface-0); }
+body { background: transparent; }
+
+/* Slow-drifting colour behind everything, so the glass has light to catch. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(34% 40% at 14% 6%,
+      color-mix(in srgb, var(--aura-1) var(--aura-strength), transparent), transparent 68%),
+    radial-gradient(30% 36% at 86% 10%,
+      color-mix(in srgb, var(--aura-2) var(--aura-strength), transparent), transparent 68%),
+    radial-gradient(38% 42% at 72% 92%,
+      color-mix(in srgb, var(--aura-3) var(--aura-strength), transparent), transparent 70%);
+  filter: blur(26px);
+  animation: drift 34s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-2.5%, 2%, 0) scale(1.08); }
+}
+
+/* The glass recipe, applied by the surfaces below. */
+.topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .lp-nav {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+
+/* ---------------------------------------------------------------- shell --- */
+.topbar {
+  border-bottom: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), 0 1px 24px -10px rgba(0,0,0,.3);
+}
+
+.rail {
+  border-right: 1px solid var(--glass-line);
+  box-shadow: inset 1px 0 0 var(--glass-edge);
+}
+.rail a, .rail button { transition: background .16s var(--ease), transform .16s var(--spring); }
+.rail a:hover, .rail button:hover { transform: translateX(2px); }
+.rail a[aria-current="true"] {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* On mobile the bar floats clear of the edge, like a control pill. */
+@media (max-width: 860px) {
+  .tabbar {
+    left: 10px; right: 10px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    border: 1px solid var(--glass-line);
+    border-radius: 18px;
+    box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+    padding: 5px 5px;
+  }
+  .tabbar a[aria-current="true"] {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border-radius: 13px;
+  }
+  .main { padding-bottom: 96px; }
+}
+
+/* ---------------------------------------------------------------- atoms --- */
+.card {
+  background: color-mix(in srgb, var(--surface-1) 72%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  border-color: var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+}
+
+.btn {
+  border-radius: 11px;
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+  transition: background .16s var(--ease), border-color .16s var(--ease),
+              transform .14s var(--spring), box-shadow .16s var(--ease);
+}
+.btn:active { transform: scale(.965); }
+.btn.ghost { box-shadow: none; }
+
+/* Primary picks up a gradient and a gloss, so it reads as a lit surface. */
+.btn.primary {
+  background-image: linear-gradient(180deg,
+    color-mix(in srgb, #fff 22%, var(--accent)), var(--accent));
+  border-color: color-mix(in srgb, #000 8%, var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45),
+              0 6px 18px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.btn.primary:hover {
+  background-image: linear-gradient(180deg,
+    color-mix(in srgb, #fff 12%, var(--accent)), var(--accent-ink));
+}
+.btn.lg { border-radius: 13px; }
+.btn.sm { border-radius: 9px; }
+
+.input, .select, .textarea, .quickadd-in {
+  background: color-mix(in srgb, var(--surface-1) 66%, transparent);
+  border-radius: 11px;
+  transition: border-color .16s var(--ease), box-shadow .16s var(--ease),
+              background .16s var(--ease);
+}
+.input:focus, .select:focus, .textarea:focus {
+  background: var(--surface-1);
+}
+
+.brand-mark {
+  background: linear-gradient(150deg, var(--accent), var(--cat-3) 55%, var(--cat-5));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5),
+              0 4px 14px -6px color-mix(in srgb, var(--accent) 85%, transparent);
+}
+
+.tag, .statuspill, .live, .daychip, .today-badge {
+  -webkit-backdrop-filter: blur(9px) saturate(150%);
+  backdrop-filter: blur(9px) saturate(150%);
+}
+
+/* ------------------------------------------------------------- surfaces --- */
+.act, .stop, .pack-item, .person, .nearby, .tripcard, .lp-card, .lp-steps li, .lp-points li {
+  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  border-color: var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.act, .stop, .tripcard {
+  transition: transform .18s var(--spring), border-color .16s var(--ease),
+              box-shadow .18s var(--ease);
+}
+.act:hover, .stop:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+}
+.tripcard:hover {
+  transform: translateY(-4px);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
+}
+
+.daychip { border-color: var(--glass-line); transition: transform .16s var(--spring); }
+.daychip:hover { transform: translateY(-2px); }
+
+.catico { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 6px -2px rgba(0,0,0,.4); }
+
+/* --------------------------------------------------------------- modals --- */
+.backdrop {
+  background: color-mix(in srgb, #0a0a0f 46%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.modal {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  border-radius: 22px 22px 0 0;
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
+}
+@media (min-width: 700px) { .modal { border-radius: 22px; } }
+.modal-head, .modal-foot { background: transparent; border-color: var(--glass-line); }
+
+.act-menu, .mapside {
+  border-color: var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+}
+.act-menu { border-radius: 14px; }
+
+.toast {
+  border-color: var(--glass-line);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+}
+
+.geo-list {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  border-color: var(--glass-line);
+  border-radius: 12px;
+}
+
+/* Sticky day headers ride over content, so they need the material too. */
+.day-head {
+  background: color-mix(in srgb, var(--surface-0) 72%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  border-radius: 10px;
+  padding-inline: 8px;
+  margin-inline: -8px;
+}
+
+/* --------------------------------------------------------------- map ------ */
+.map-wrap {
+  border-color: var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+}
+.mk { border-color: color-mix(in srgb, #fff 70%, transparent); }
+
+/* -------------------------------------------------------------- landing --- */
+.lp-nav {
+  border-bottom: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.lp-eyebrow {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: blur(9px);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.lp-hero h1 {
+  background: linear-gradient(170deg, var(--text-1), color-mix(in srgb, var(--text-1) 62%, var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lp-card-ico {
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--accent) 24%, transparent),
+    color-mix(in srgb, var(--cat-3) 20%, transparent));
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.lp-card { transition: transform .18s var(--spring), box-shadow .18s var(--ease); }
+.lp-card:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift); }
+.lp-step-n {
+  background-image: linear-gradient(160deg, var(--accent), var(--cat-3));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 5px 14px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.lp-band { background: color-mix(in srgb, var(--surface-1) 55%, transparent); }
+.mock {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  border-color: var(--glass-line);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
+}
+.mock-bar { background: transparent; border-color: var(--glass-line); }
+.gate-card { box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg); }
+
+/* ------------------------------------------------------ opt-out + print --- */
+/* Some people find translucency hard to read; give them flat surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  body::before { display: none; }
+  .topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .lp-nav, .card,
+  .act, .stop, .pack-item, .person, .nearby, .tripcard, .lp-card, .lp-steps li,
+  .lp-points li, .geo-list, .day-head, .mock, .input, .select, .textarea, .quickadd-in {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-1);
+  }
+  .day-head { background: var(--surface-0); }
+  .lp-hero h1 { color: var(--text-1); background: none; -webkit-text-fill-color: currentColor; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+  .act, .stop, .tripcard, .daychip, .btn, .lp-card, .rail a, .rail button { transition: none; }
+  .act:hover, .stop:hover, .tripcard:hover, .daychip:hover, .lp-card:hover,
+  .rail a:hover, .rail button:hover, .btn:active { transform: none; }
+}
+
+@media print {
+  body::before { display: none !important; }
+  .card, .act, .stop, .pack-item, .person, .day-head {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+}
