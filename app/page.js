@@ -1,12 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getClient, readConfig, clearConfig } from '@/lib/supabase';
+import { getClient, readConfig, missingEnv, configWarning } from '@/lib/supabase';
 import {
   colorFor, dayRange, initials, sortActs, todayISO, addDays,
   ensureLocalName, writeLocalName, humanError, parseQuickAdd, nextSortOrder, fmtRange,
 } from '@/lib/util';
-import Setup from '@/components/Setup';
 import Itinerary from '@/components/Itinerary';
 import ActivityModal from '@/components/ActivityModal';
 import MapView from '@/components/MapView';
@@ -40,10 +39,11 @@ function newTripDraft() {
 }
 
 export default function Page() {
-  const [phase, setPhase] = useState('boot'); // boot | setup | error | app
+  const [phase, setPhase] = useState('boot'); // boot | error | app
   const [supabase, setSupabase] = useState(null);
   const [session, setSession] = useState(null);
   const [fatal, setFatal] = useState('');
+  const [fatalKind, setFatalKind] = useState('session'); // config | session
 
   const [displayName, setDisplayName] = useState('');
   const [trips, setTrips] = useState([]);
@@ -85,7 +85,7 @@ export default function Page() {
       if (saved) setTheme(saved);
     } catch (e) { /* ignore */ }
 
-    if (!readConfig()) { setPhase('setup'); return undefined; }
+    if (!readConfig()) { setFatalKind('config'); setPhase('error'); return undefined; }
     const client = getClient();
     setSupabase(client);
 
@@ -107,6 +107,7 @@ export default function Page() {
       } catch (e) {
         if (!alive) return;
         setFatal(e && e.message ? e.message : 'Could not start a session.');
+        setFatalKind('session');
         setPhase('error');
         return;
       }
@@ -486,11 +487,14 @@ export default function Page() {
     return <div className="gate"><div className="muted">Loading…</div></div>;
   }
 
-  if (phase === 'setup') {
-    return <Setup onDone={() => { window.location.reload(); }} />;
-  }
-
   if (phase === 'error') {
+    const missing = missingEnv();
+    const warning = configWarning();
+    const cfg = readConfig();
+    const apiUrl = cfg ? cfg.url : '';
+    // "Failed to fetch" means nothing answered at that URL — a different
+    // problem from the API answering and refusing the sign-in.
+    const unreachable = /failed to fetch|networkerror|load failed|fetch failed/i.test(fatal);
     return (
       <div className="gate">
         <div className="gate-card card">
@@ -498,19 +502,49 @@ export default function Page() {
             <div className="brand-mark">✈</div>
             <h1>Wander</h1>
           </div>
-          <p className="small" style={{ marginTop: 0 }}>Could not start a guest session.</p>
-          <p className="err" style={{ marginTop: 0 }}>{fatal}</p>
-          <p className="small muted">
-            This usually means anonymous sign-ins are off. In Supabase go to{' '}
-            <strong>Authentication → Sign In / Providers</strong> and enable{' '}
-            <strong>Anonymous sign-ins</strong>, then reload. If you have not run{' '}
-            <code>schema.sql</code> yet, do that first.
-          </p>
+          {fatalKind === 'config' ? (
+            <>
+              <p className="small" style={{ marginTop: 0 }}>This app is not configured yet.</p>
+              <p className="err" style={{ marginTop: 0 }}>
+                {missing.length === 1
+                  ? `Missing ${missing[0]}.`
+                  : `Missing ${missing.join(' and ')}.`}
+              </p>
+              <p className="small muted">
+                Set {missing.length > 1 ? 'them' : 'it'} in <code>.env.local</code> when running
+                locally, or in your host&apos;s environment variables when deployed, then restart
+                the server.
+              </p>
+              <p className="small muted">
+                The URL is the Supabase <strong>API</strong> endpoint — <code>http://…</code>, not
+                a <code>postgres://</code> connection string. Running{' '}
+                <code>npx supabase start</code> prints both values.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="small" style={{ marginTop: 0 }}>Could not start a guest session.</p>
+              <p className="err" style={{ marginTop: 0 }}>{fatal}</p>
+              {warning ? <p className="err" style={{ marginTop: 0 }}>{warning}</p> : null}
+              {unreachable ? (
+                <p className="small muted">
+                  Nothing answered at <code>{apiUrl}</code>. Start the Supabase stack with{' '}
+                  <code>npx supabase start</code>, or point{' '}
+                  <code>NEXT_PUBLIC_SUPABASE_URL</code> at a hosted project — then restart the
+                  dev server.
+                </p>
+              ) : (
+                <p className="small muted">
+                  This usually means anonymous sign-ins are off. In Supabase go to{' '}
+                  <strong>Authentication → Sign In / Providers</strong> and enable{' '}
+                  <strong>Anonymous sign-ins</strong>, then reload. If you have not run{' '}
+                  <code>schema.sql</code> against the database yet, do that first.
+                </p>
+              )}
+            </>
+          )}
           <div className="chiprow">
             <button className="btn primary" onClick={() => window.location.reload()}>Reload</button>
-            <button className="btn" onClick={() => { clearConfig(); window.location.reload(); }}>
-              Change Supabase project
-            </button>
           </div>
         </div>
       </div>

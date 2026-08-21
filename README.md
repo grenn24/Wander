@@ -3,29 +3,43 @@
 Day-by-day trips with a map, budget, packing list, shared notes and live
 multi-user editing. Next.js on Vercel, Supabase for data + auth + realtime.
 
-## Setup (5 minutes)
+## Configuration
 
-1. **Create a Supabase project** — https://supabase.com/dashboard → *New project* (free tier is fine).
-2. **Run the schema** — Supabase → *SQL Editor* → *New query* → paste all of
-   `supabase/schema.sql` → *Run*. It is safe to re-run.
-3. **Enable anonymous sign-ins** — Supabase → *Authentication* → *Sign In / Providers*
-   → turn on **Anonymous sign-ins**. The app has no login screen; every visitor
+The app reads its Supabase connection from two environment variables. There is
+no in-app setup screen — if either is missing, the app shows an error page
+naming what to set.
+
+```
+NEXT_PUBLIC_SUPABASE_URL       = http://127.0.0.1:54321      # the API endpoint
+NEXT_PUBLIC_SUPABASE_ANON_KEY  = eyJhbGciOi...
+```
+
+`NEXT_PUBLIC_SUPABASE_URL` is the Supabase **HTTP API** endpoint, not a
+`postgres://` connection string and not port 5432. The browser never speaks to
+Postgres directly: PostgREST serves the queries, GoTrue issues the anonymous
+guest sessions, and Realtime drives the live collaboration.
+
+## Running locally
+
+1. **Start the Supabase stack** — `npx supabase start`. It boots Postgres,
+   PostgREST, GoTrue, Realtime and Studio in Docker, then prints an *API URL*
+   and an *anon key*.
+2. **Copy those into `.env.local`** (gitignored). `DATABASE_URL` is also in
+   there for `psql` and migrations; the app itself does not read it.
+3. **Run the schema** — apply `supabase/schema.sql` to the database, either via
+   Studio's SQL editor or `psql "$DATABASE_URL" -f supabase/schema.sql`. Safe to
+   re-run.
+4. **Enable anonymous sign-ins.** The app has no login screen; every visitor
    gets a guest session automatically. Without this the app cannot start.
-4. **Connect the app** — open the deployed URL. The setup screen asks for your
-   *Project URL* and *anon public* key (Supabase → Project Settings → API).
-   These are stored in your browser only.
+5. `npm run dev`.
 
-### Optional: skip the setup screen for everyone
+Restart the dev server after editing `.env.local` — Next reads it at startup.
 
-In Vercel → Project → Settings → Environment Variables, add:
+## Deploying
 
-```
-NEXT_PUBLIC_SUPABASE_URL   = https://xxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGciOi...
-```
-
-Redeploy. The app then uses those and never shows the setup screen — better for
-collaborators.
+Set the same two variables in your host's environment (Vercel → Project →
+Settings → Environment Variables), pointing at a hosted Supabase project rather
+than localhost, and redeploy.
 
 ## Collaboration
 
