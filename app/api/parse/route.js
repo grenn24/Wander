@@ -94,7 +94,7 @@ export async function POST(req) {
       system: SYSTEM,
       task: 'parse',
       user: prompt,
-      maxTokens: 900,
+      maxTokens: 2000,
     });
 
     if (!out.understood && out.question) {

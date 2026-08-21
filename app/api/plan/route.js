@@ -105,7 +105,7 @@ export async function POST(req) {
       body: JSON.stringify({
         model: aiModel('plan'),
         stream: true,
-        max_completion_tokens: 8000,
+        max_completion_tokens: 16000,
         ...(aiEffort('plan') ? { reasoning_effort: aiEffort('plan') } : {}),
         messages: [
           { role: 'system', content: SYSTEM },
@@ -211,6 +211,12 @@ export async function POST(req) {
           flush();
         }
 
+        if (!text.trim()) {
+          // Same trap as the blocking routes: the budget can be spent entirely
+          // on reasoning, leaving no itinerary behind.
+          throw new Error('The model produced no itinerary — it may have spent its '
+            + 'budget reasoning. Try again, or lower the plan effort in TASKS.');
+        }
         const final = JSON.parse(text);
         const duration = Math.min(30, Math.max(1, Number(final.duration_days) || 1));
         const days = (Array.isArray(final.days) ? final.days : [])

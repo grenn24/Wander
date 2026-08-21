@@ -62,7 +62,7 @@ export async function POST(req) {
         + `Dates: ${dates || 'unspecified'} (${days} day${days === 1 ? '' : 's'})\n`
         + `The itinerary involves: ${themes || 'general travel'}\n`
         + `Already on the list: ${existing || '(nothing)'}`,
-      maxTokens: 2000,
+      maxTokens: 4000,
     });
 
     const seen = new Set();

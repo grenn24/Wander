@@ -70,7 +70,7 @@ export async function POST(req) {
         + `Day: ${dayLabel}\n`
         + `Already planned that day:\n${existing || '(nothing yet)'}\n`
         + (note ? `\nThe traveller asks: ${note}` : ''),
-      maxTokens: 2000,
+      maxTokens: 4000,
     });
 
     const activities = (Array.isArray(out.activities) ? out.activities : []).slice(0, 6).map((a) => ({
