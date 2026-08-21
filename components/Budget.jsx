@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
+import { BarChart3, Table2, Settings } from 'lucide-react';
 import { CATEGORIES, categoryOf, fmtDay, money } from '@/lib/util';
+import { categoryIcon } from '@/lib/icons';
 
-export default function Budget({ trip, days, activities }) {
+export default function Budget({ trip, days, activities, onEditTrip }) {
   const [view, setView] = useState('chart');
   const currency = trip.currency || 'SGD';
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
@@ -34,14 +36,17 @@ export default function Budget({ trip, days, activities }) {
           <h2>Budget</h2>
           <div className="small muted">
             {priced} of {activities.length} activities have a cost
-            {budget == null ? ' · no budget set (add one in trip settings)' : ''}
+            {budget == null ? ' · no budget set' : ''}
           </div>
         </div>
         <div className="chiprow">
+          {budget == null && onEditTrip ? (
+            <button className="btn sm" onClick={onEditTrip}><Settings size={15} /> Set a budget</button>
+          ) : null}
           <button className="btn sm" aria-pressed={view === 'chart'}
-            onClick={() => setView('chart')}>Chart</button>
+            onClick={() => setView('chart')}><BarChart3 size={15} /> Chart</button>
           <button className="btn sm" aria-pressed={view === 'table'}
-            onClick={() => setView('table')}>Table</button>
+            onClick={() => setView('table')}><Table2 size={15} /> Table</button>
         </div>
       </div>
 
@@ -63,7 +68,7 @@ export default function Budget({ trip, days, activities }) {
             {budget == null ? '—' : money(Math.abs(remaining), currency)}
           </div>
           <div className="kpi-sub">
-            {budget == null ? 'set one in trip settings' : `of ${money(budget, currency)}`}
+            {budget == null ? 'add one in trip settings' : `of ${money(budget, currency)}`}
           </div>
         </div>
       </div>
@@ -94,7 +99,9 @@ export default function Budget({ trip, days, activities }) {
                 {byCat.map((r) => (
                   <div className="bar-row" key={r.id}>
                     <div className="bar-label">
-                      <span className={`dot cat-${r.id}`} aria-hidden="true" />{r.label}
+                      <span className={`catico sm cat-${r.id}`} aria-hidden="true">
+                        {(() => { const I = categoryIcon(r.id); return <I size={12} />; })()}
+                      </span>{r.label}
                     </div>
                     <div className="bar-track">
                       <div className="bar-fill" style={{ width: `${(r.value / maxCat) * 100}%` }} />

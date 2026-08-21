@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useRef, useState } from 'react';
+import { X, Search } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
 import { useModalChrome } from '@/lib/useModal';
 
@@ -43,7 +44,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
       <div className="modal" role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
-          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close">✕</button>
+          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
         </div>
 
         <div className="modal-body">
@@ -66,7 +67,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
               <label className="label" htmlFor="ac">Type</label>
               <select id="ac" className="select" value={draft.category || 'sightseeing'}
                 onChange={(e) => set({ category: e.target.value })}>
-                {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
           </div>
@@ -97,7 +98,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 onChange={(e) => set({ location: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} />
               <button className="btn" type="button" disabled={searching} onClick={search}>
-                {searching ? '…' : 'Find on map'}
+                {searching ? '…' : <><Search size={15} /> Find</>}
               </button>
             </div>
             <div className="tiny dim" style={{ marginTop: 6 }}>

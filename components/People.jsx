@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { Copy, Check, Trash2, LogOut } from 'lucide-react';
 import { colorFor, initials } from '@/lib/util';
 
 export default function People({
@@ -46,7 +47,7 @@ export default function People({
           <input id="shareurl" className="input mono small" readOnly value={shareUrl}
             onFocus={(e) => e.target.select()} />
           <button className="btn primary" type="button" onClick={copy}>
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}
           </button>
         </div>
         <p className="tiny dim" style={{ marginBottom: 0 }}>
@@ -116,7 +117,7 @@ export default function People({
                 <button className="btn danger-solid" onClick={onDeleteTrip}>Yes, delete this trip</button>
               </div>
             ) : (
-              <button className="btn danger" onClick={() => setConfirmDelete(true)}>Delete trip</button>
+              <button className="btn danger" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Delete trip</button>
             )}
           </>
         ) : (
@@ -124,7 +125,7 @@ export default function People({
             <p className="small muted" style={{ marginTop: 0 }}>
               Leaving hides this trip from you. Others keep it, and the share link still works.
             </p>
-            <button className="btn danger" onClick={onLeaveTrip}>Leave trip</button>
+            <button className="btn danger" onClick={onLeaveTrip}><LogOut size={15} /> Leave trip</button>
           </>
         )}
       </div>

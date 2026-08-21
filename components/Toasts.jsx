@@ -1,5 +1,6 @@
 'use client';
 import { useEffect } from 'react';
+import { X } from 'lucide-react';
 
 export default function Toasts({ items, onDismiss }) {
   if (!items.length) return null;
@@ -28,7 +29,7 @@ function Toast({ toast, onDismiss }) {
           onClick={() => { action.run(); onDismiss(id); }}>{action.label}</button>
       ) : null}
       <button className="toast-x" type="button" aria-label="Dismiss"
-        onClick={() => onDismiss(id)}>✕</button>
+        onClick={() => onDismiss(id)}><X size={14} /></button>
     </div>
   );
 }

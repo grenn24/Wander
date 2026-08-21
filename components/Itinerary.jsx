@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2 } from 'lucide-react';
 import { categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO } from '@/lib/util';
+import { categoryIcon } from '@/lib/icons';
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
@@ -70,11 +72,11 @@ export default function Itinerary({
         <div className="chiprow">
           {todayIndex >= 0 ? (
             <button className="btn sm primary" onClick={() => jumpTo(today)}>
-              Today · Day {todayIndex + 1}
+              <LocateFixed size={15} /> Today · Day {todayIndex + 1}
             </button>
           ) : null}
-          <button className="btn sm" onClick={onPrint}>Print</button>
-          <button className="btn sm" onClick={onEditTrip}>Edit trip</button>
+          <button className="btn sm" onClick={onPrint}><Printer size={15} /> Print</button>
+          <button className="btn sm" onClick={onEditTrip}><Settings size={15} /> Edit trip</button>
         </div>
       </div>
 
@@ -104,6 +106,7 @@ export default function Itinerary({
             <div className="acts">
               {list.map((a) => {
                 const cat = categoryOf(a.category);
+                const CatIcon = categoryIcon(cat.id);
                 return (
                   <div className="act" key={a.id} role="button" tabIndex={0}
                     onClick={() => onEdit(a)}
@@ -114,14 +117,18 @@ export default function Itinerary({
                     </div>
                     <div className="act-body">
                       <div className="act-title">
-                        <span className={`dot cat-${cat.id}`} aria-hidden="true" />
+                        <span className={`catico cat-${cat.id}`} aria-hidden="true">
+                          <CatIcon size={14} />
+                        </span>
                         <span>{a.title}</span>
                       </div>
                       <div className="act-meta">
                         {cat.label}
                         {a.location ? ` · ${a.location}` : ''}
                         {a.booking_ref ? ` · ref ${a.booking_ref}` : ''}
-                        {a.lat != null && a.lng != null ? ' · 📍' : ''}
+                        {a.lat != null && a.lng != null ? (
+                          <MapPin size={12} className="meta-ico" aria-label="Pinned on the map" />
+                        ) : null}
                       </div>
                     </div>
                     {Number(a.cost) > 0 ? (
@@ -132,7 +139,9 @@ export default function Itinerary({
                       onKeyDown={(e) => e.stopPropagation()}>
                       <button className="btn ghost sm" type="button"
                         aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
-                        onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}>⋯</button>
+                        onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}>
+                        <MoreHorizontal size={16} />
+                      </button>
                       {menuFor === a.id ? (
                         <div className="act-menu">
                           <label className="act-menu-row">
@@ -145,9 +154,13 @@ export default function Itinerary({
                             </select>
                           </label>
                           <button type="button"
-                            onClick={() => { onDuplicate(a); setMenuFor(null); }}>Duplicate</button>
+                            onClick={() => { onDuplicate(a); setMenuFor(null); }}>
+                            <Copy size={15} /> Duplicate
+                          </button>
                           <button type="button" className="danger"
-                            onClick={() => { onDelete(a); setMenuFor(null); }}>Delete</button>
+                            onClick={() => { onDelete(a); setMenuFor(null); }}>
+                            <Trash2 size={15} /> Delete
+                          </button>
                         </div>
                       ) : null}
                     </div>

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { CURRENCIES, dayRange } from '@/lib/util';
 import { useModalChrome } from '@/lib/useModal';
 
@@ -37,7 +38,7 @@ export default function TripModal({ draft, onChange, onSave, onClose }) {
       <div className="modal" role="dialog" aria-modal="true" aria-label="Trip settings">
         <div className="modal-head">
           <h3>{draft.id ? 'Trip settings' : 'New trip'}</h3>
-          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close">✕</button>
+          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
         </div>
         <div className="modal-body">
           <div className="field">

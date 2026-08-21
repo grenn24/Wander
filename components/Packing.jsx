@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { X, Plus } from 'lucide-react';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
@@ -64,7 +65,7 @@ export default function Packing({ items, onAdd, onUpdate, onDelete }) {
               onChange={(e) => setQty(e.target.value)} />
           </div>
           <div style={{ flex: '0 1 100px', display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn primary" style={{ width: '100%' }}>Add</button>
+            <button className="btn primary" style={{ width: '100%' }}><Plus size={16} /> Add</button>
           </div>
         </div>
       </form>
@@ -83,8 +84,8 @@ export default function Packing({ items, onAdd, onUpdate, onDelete }) {
                     onChange={(e) => onUpdate(i.id, { packed: e.target.checked })} />
                   <span className="pack-label">{i.label}</span>
                   {i.qty > 1 ? <span className="tag mono">×{i.qty}</span> : null}
-                  <button className="btn ghost sm" aria-label={`Remove ${i.label}`}
-                    onClick={() => onDelete(i.id)}>✕</button>
+                  <button className="btn ghost sm icon-btn" aria-label={`Remove ${i.label}`}
+                    onClick={() => onDelete(i.id)}><X size={15} /></button>
                 </div>
               ))}
             </div>
