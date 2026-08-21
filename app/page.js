@@ -178,7 +178,7 @@ export default async function Landing({ searchParams }) {
         <span className="brand-mark" aria-hidden="true"><Plane size={14} /></span>
         <span>Wander — travel itinerary planner</span>
         <div className="grow" />
-        <span className="dim">Maps by OpenStreetMap contributors</span>
+        <span className="dim">Maps and places by Google</span>
       </footer>
     </div>
   );

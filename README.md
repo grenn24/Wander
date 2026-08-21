@@ -47,11 +47,16 @@ HTTP referrer and to the Maps JavaScript API alone. The server key does
 geocoding and photo fetches, where referrer restrictions cannot protect
 anything; restrict it by API instead and never give it a `NEXT_PUBLIC_` prefix.
 
-With neither set, the map falls back to Leaflet and OpenStreetMap and stops are
-geocoded through Nominatim. That works, but Nominatim permits one request per
-second, so a freshly planned trip resolves its stops one at a time. Google has
-no such cap and resolves a whole trip in parallel, and returns a photo for each
-place.
+There is no fallback provider. Without these keys the map is replaced by a
+panel naming exactly what to set, stops are not located, and nearby search is
+disabled — one source keeps geocoding, the map and nearby results consistent
+with each other, and makes a missing key an obvious configuration problem
+rather than a quietly degraded experience.
+
+Enable **Maps JavaScript API**, **Places API (New)** and **Geocoding API** on
+the keys, with billing active. Text search, nearby search and photos all bill
+per request, so `lib/places.js` asks for the narrowest field mask that works
+and stores each place's id and photo handle to avoid looking it up twice.
 
 ### If server-side lookups fail locally
 
@@ -129,7 +134,15 @@ Row-level security is on for every table. `SECURITY DEFINER` helpers
 recursing. The anon key is a public client key by design; RLS is what protects
 rows.
 
-## Third-party services used from the browser
+## Third-party services
 
-- OpenStreetMap tiles + Leaflet (unpkg CDN) for the map
-- Nominatim for place search
+- **Google Maps** draws the map in the browser, using the public
+  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.
+- **Google Places** does geocoding, nearby search and photos, always through
+  `/api/places/*` so `GOOGLE_MAPS_SERVER_KEY` never leaves the server.
+- **OpenAI** plans trips, suggests activities and builds packing lists, through
+  `/api/plan`, `/api/suggest` and `/api/packing`.
+
+Without the Google keys the map is replaced by a panel naming what to set, and
+stops are not located. Without the OpenAI key the planning features return a
+503 the UI explains. Everything else works regardless.

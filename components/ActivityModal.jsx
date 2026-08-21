@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
+import { searchPlaces } from '@/lib/geo';
 import { useModalChrome } from '@/lib/useModal';
 
 export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose }) {
@@ -26,13 +27,11 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
     if (!term) { setGeoErr('Type a place name or address above first.'); return; }
     setSearching(true); setGeoErr(''); setHits([]);
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(term)}`;
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
-      const json = await res.json();
-      if (!Array.isArray(json) || json.length === 0) setGeoErr(`Nothing matched "${term}".`);
-      setHits(Array.isArray(json) ? json : []);
+      const places = await searchPlaces(term);
+      if (!places.length) setGeoErr(`Nothing matched "${term}".`);
+      setHits(places);
     } catch (err) {
-      setGeoErr('Place search is unavailable right now — you can still save without a pin.');
+      setGeoErr(err.message || 'Place search is unavailable — you can still save without a pin.');
     }
     setSearching(false);
   }
@@ -108,11 +107,17 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
             {hits.length ? (
               <div className="geo-list">
                 {hits.map((h) => (
-                  <button type="button" key={`${h.place_id}`}
+                  <button type="button" key={h.place_id || h.label}
                     onClick={() => {
-                      set({ location: h.display_name, lat: Number(h.lat), lng: Number(h.lon) });
+                      set({
+                        location: h.label,
+                        lat: h.lat,
+                        lng: h.lng,
+                        place_id: h.place_id || null,
+                        photo_ref: h.photo_ref || null,
+                      });
                       setHits([]); setGeoErr('');
-                    }}>{h.display_name}</button>
+                    }}>{h.label}</button>
                 ))}
               </div>
             ) : null}

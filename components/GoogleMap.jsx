@@ -27,9 +27,9 @@ function loadMaps() {
 }
 
 /**
- * Google Maps rendering of the trip. Same contract as the Leaflet fallback:
- * numbered, category-coloured stops in time order, a dashed route per day, a
- * separate layer for nearby results, and a click anywhere to drop a new stop.
+ * The trip drawn on Google Maps: numbered, category-coloured stops in time
+ * order, a dashed route per day, a separate layer for nearby results, and a
+ * click anywhere to drop a new stop.
  */
 export default function GoogleMap({
   stops, places, focused, dayColours, onFocus, onDropPin, onReady, onError,

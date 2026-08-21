@@ -1,4 +1,4 @@
-import { resolveMany, placesProvider } from '@/lib/places';
+import { resolveMany, googleKey, notConfigured, explain } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
  * the first time it is opened, instead of resolving stop by stop in the client.
  */
 export async function POST(req) {
+  if (!googleKey()) return notConfigured();
+
   let body;
   try {
     body = await req.json();
@@ -21,12 +23,12 @@ export async function POST(req) {
     .map((i) => ({ id: String(i.id || ''), query: String(i.query || '').trim().slice(0, 300) }))
     .filter((i) => i.id && i.query);
 
-  if (!items.length) return Response.json({ provider: placesProvider(), results: [] });
+  if (!items.length) return Response.json({ results: [] });
 
   try {
     const results = await resolveMany(items, String(body.bias || '').slice(0, 200));
-    return Response.json({ provider: placesProvider(), results });
+    return Response.json({ results });
   } catch (e) {
-    return Response.json({ error: e.message || 'Lookup failed.' }, { status: 502 });
+    return Response.json({ error: explain(e) }, { status: 502 });
   }
 }

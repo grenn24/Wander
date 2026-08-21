@@ -11,8 +11,6 @@ import {
 import GoogleMap, { googleMapsAvailable } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 
-const CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-const JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 
 const CAT_VAR = {
   sightseeing: 1, food: 2, transport: 3, lodging: 4, activity: 5, shopping: 6, other: 7,
@@ -25,41 +23,9 @@ function catColor(id) {
   return v || '#2a78d6';
 }
 
-function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') { reject(new Error('no window')); return; }
-    if (window.L) { resolve(window.L); return; }
-    if (!document.querySelector('link[data-leaflet]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet'; link.href = CSS_URL; link.setAttribute('data-leaflet', '1');
-      document.head.appendChild(link);
-    }
-    let s = document.querySelector('script[data-leaflet]');
-    if (!s) {
-      s = document.createElement('script');
-      s.src = JS_URL; s.async = true; s.setAttribute('data-leaflet', '1');
-      document.head.appendChild(s);
-    }
-    s.addEventListener('load', () => resolve(window.L));
-    s.addEventListener('error', () => reject(new Error('leaflet failed to load')));
-    if (window.L) resolve(window.L);
-  });
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-}
 
 export default function MapView({ trip, days, activities, onEdit, onSetCoords, onAddLocated }) {
-  const elRef = useRef(null);
-  const mapRef = useRef(null);
-  const stopLayer = useRef(null);
-  const routeLayer = useRef(null);
-  const nearbyLayer = useRef(null);
-  const markers = useRef({});
-
+  const mapsReady = googleMapsAvailable();
   const [err, setErr] = useState('');
   const [day, setDay] = useState('all');
   const [focused, setFocused] = useState(null);
@@ -121,7 +87,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
    * whole trip lands at once instead of appearing one pin at a time.
    */
   const resolveAll = useCallback(async () => {
-    if (resolving.current || !onSetCoords) return;
+    if (resolving.current || !onSetCoords || !mapsReady) return;
     const todo = activities.filter((a) => (a.location || '').trim() && a.lat == null);
     if (!todo.length) return;
     resolving.current = true;
@@ -152,7 +118,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
     }
     setLocating(null);
     resolving.current = false;
-  }, [activities, trip, onSetCoords]);
+  }, [activities, trip, onSetCoords, mapsReady]);
 
   // Resolve whatever is outstanding when the map opens.
   const kicked = useRef(false);
@@ -174,118 +140,17 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
   }, [stops, focused]);
 
   useEffect(() => {
-    if (!kind || !anchor) { setPlaces([]); return undefined; }
+    if (!kind || !anchor || !mapsReady) { setPlaces([]); return undefined; }
     let alive = true;
     setPlacesBusy(true);
     nearby(anchor.lat, anchor.lng, kind)
       .then((list) => { if (alive) setPlaces(list); })
-      .catch(() => { if (alive) { setPlaces([]); setErr('Nearby search is busy right now — try again in a moment.'); } })
+      .catch((e) => { if (alive) { setPlaces([]); setErr(e.message); } })
       .finally(() => { if (alive) setPlacesBusy(false); });
     return () => { alive = false; };
-  }, [kind, anchor]);
+  }, [kind, anchor, mapsReady]);
 
   /* ---------------------------------------------------------------- map --- */
-  const useGoogle = googleMapsAvailable();
-
-  useEffect(() => {
-    if (useGoogle) return undefined;
-    let cancelled = false;
-    loadLeaflet().then((L) => {
-      if (cancelled || !elRef.current) return;
-      if (!mapRef.current) {
-        if (elRef.current._leaflet_id) delete elRef.current._leaflet_id;
-        mapRef.current = L.map(elRef.current, { scrollWheelZoom: false })
-          .setView([35.68, 139.76], 4);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(mapRef.current);
-        routeLayer.current = L.layerGroup().addTo(mapRef.current);
-        stopLayer.current = L.layerGroup().addTo(mapRef.current);
-        nearbyLayer.current = L.layerGroup().addTo(mapRef.current);
-
-        // Clicking empty map is how you add a stop somewhere you spotted.
-        mapRef.current.on('click', async (e) => {
-          const { lat, lng } = e.latlng;
-          setDropped({ lat, lng, label: 'Looking up…', name: '' });
-          try {
-            const r = await reverseGeocode(lat, lng);
-            setDropped({ lat, lng, label: r.label, name: r.name });
-          } catch (e2) {
-            setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
-          }
-        });
-      }
-
-      const map = mapRef.current;
-      stopLayer.current.clearLayers();
-      routeLayer.current.clearLayers();
-      markers.current = {};
-
-      const pts = [];
-      const byDay = {};
-      stops.forEach((a, i) => {
-        const cat = categoryOf(a.category);
-        const colour = catColor(cat.id);
-        const isFocus = focused === a.id;
-        const icon = L.divIcon({
-          className: '',
-          html: `<div class="mk${isFocus ? ' mk-focus' : ''}" style="--mk:${colour}">
-                   <span>${i + 1}</span>
-                 </div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 28],
-        });
-        const m = L.marker([a.lat, a.lng], { icon }).addTo(stopLayer.current);
-        const when = `${fmtDayTiny(a.day)}${a.start_time ? ` · ${fmtTime(a.start_time)}` : ''}`;
-        m.bindPopup(
-          `<strong>${escapeHtml(a.title)}</strong><br>${escapeHtml(when)}`
-          + (a.location ? `<br><span style="opacity:.7">${escapeHtml(a.location)}</span>` : ''),
-        );
-        m.on('click', () => { setFocused(a.id); m.openPopup(); });
-        markers.current[a.id] = m;
-        pts.push([a.lat, a.lng]);
-        (byDay[a.day] = byDay[a.day] || []).push([a.lat, a.lng]);
-      });
-
-      // One dashed line per day, in time order — the shape of that day.
-      Object.keys(byDay).forEach((d) => {
-        if (byDay[d].length < 2) return;
-        L.polyline(byDay[d], {
-          color: catColor('sightseeing'),
-          weight: 2.5,
-          opacity: .55,
-          dashArray: '5 6',
-        }).addTo(routeLayer.current);
-      });
-
-      if (pts.length === 1) map.setView(pts[0], 14);
-      else if (pts.length > 1) map.fitBounds(pts, { padding: [44, 44] });
-      setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 60);
-    }).catch(() => setErr('The map could not be loaded. Check your connection and reload.'));
-    return () => { cancelled = true; };
-  }, [stops, focused, useGoogle]);
-
-  // Nearby results are a separate layer so they never disturb the stops.
-  useEffect(() => {
-    if (useGoogle) return;
-    if (!mapRef.current || !nearbyLayer.current || !window.L) return;
-    const L = window.L;
-    nearbyLayer.current.clearLayers();
-    places.forEach((p) => {
-      const m = L.circleMarker([p.lat, p.lng], {
-        radius: 6,
-        color: catColor(NEARBY_KINDS.find((k) => k.id === p.kind)?.category || 'other'),
-        weight: 2,
-        fillOpacity: .55,
-      }).addTo(nearbyLayer.current);
-      m.bindPopup(`<strong>${escapeHtml(p.name)}</strong><br><span style="opacity:.7">${escapeHtml(p.detail)} · ${fmtKm(p.km)} away</span>`);
-    });
-  }, [places, useGoogle]);
-
-  useEffect(() => () => {
-    if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
-  }, []);
 
   function focus(a) {
     setFocused(a.id);
@@ -358,7 +223,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
 
       <div className="maplayout">
         <div className="map-wrap">
-          {useGoogle ? (
+          {mapsReady ? (
             <GoogleMap
               stops={stops}
               places={places}
@@ -377,7 +242,19 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
               onError={(m) => setErr(m)}
             />
           ) : (
-            <div className="map-el" ref={elRef} />
+            <div className="mapsetup">
+              <MapPinOff size={26} aria-hidden="true" />
+              <p className="empty-title">The map needs a Google Maps key</p>
+              <p className="small muted">
+                Set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> to draw the map, and{' '}
+                <code>GOOGLE_MAPS_SERVER_KEY</code> for locating stops, nearby search and photos.
+                Both go in <code>.env.local</code>; restart the server afterwards.
+              </p>
+              <p className="tiny dim" style={{ marginBottom: 0 }}>
+                Enable <strong>Maps JavaScript API</strong> and <strong>Places API (New)</strong> on
+                the key in Google Cloud Console.
+              </p>
+            </div>
           )}
         </div>
 
@@ -410,10 +287,15 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
           ) : null}
           <div className="chiprow" style={{ marginBottom: 10 }}>
             {NEARBY_KINDS.map((k) => (
-              <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
+              <button key={k.id} className="btn sm" aria-pressed={kind === k.id} disabled={!mapsReady}
                 onClick={() => setKind(kind === k.id ? null : k.id)}>{k.label}</button>
             ))}
           </div>
+          {!mapsReady ? (
+            <p className="small muted" style={{ marginTop: 0 }}>
+              Nearby search needs the Google keys as well.
+            </p>
+          ) : null}
 
           {kind ? (
             <div className="mapside-scroll">
