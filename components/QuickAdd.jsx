@@ -101,7 +101,7 @@ export default function QuickAdd({
       await onCreate({ ...(await withPlace(body.activity)), day });
       reset();
     } catch (err) {
-      setError('Could not reach the planner.');
+      setError('Something went wrong. Please try again later.');
     } finally {
       setBusy(false);
     }

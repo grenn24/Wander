@@ -37,7 +37,7 @@ export default function AiSuggest({ trip, day, dayLabel, existing, onAdd, onClos
       if (!res.ok) { setError(body.error || 'Could not get suggestions.'); return; }
       setIdeas(body.activities || []);
     } catch (e) {
-      setError('Could not reach the planner.');
+      setError('Something went wrong. Please try again later.');
     } finally {
       setBusy(false);
     }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { useApp } from '@/components/AppProvider';
 import { useTrip } from '@/components/TripProvider';
-import { isTripTab } from '@/lib/icons';
+import { isTripTab, resolveTab } from '@/lib/icons';
 import Itinerary from '@/components/Itinerary';
 import MapView from '@/components/MapView';
 import Budget from '@/components/Budget';
@@ -17,8 +17,11 @@ import TripModal from '@/components/TripModal';
 import { todayISO } from '@/lib/util';
 
 export default function TripTabPage({ params }) {
-  const { id, tab } = use(params);
-  if (!isTripTab(tab)) notFound();
+  const { id, tab: segment } = use(params);
+  if (!isTripTab(segment)) notFound();
+  // /people is where Settings used to live, and those links are already out
+  // in the world on shared trips.
+  const tab = resolveTab(segment);
 
   const router = useRouter();
   const { supabase, user, displayName, saveDisplayName, fail, pushToast } = useApp();
@@ -115,7 +118,7 @@ export default function TripTabPage({ params }) {
         <Notes trip={trip} activities={activities} onSave={saveNotes} />
       ) : null}
 
-      {tab === 'people' ? (
+      {tab === 'settings' ? (
         <People members={members} online={online} user={user} isOwner={isOwner}
           displayName={displayName} onRename={saveDisplayName}
           shareUrl={shareUrl} onRemove={removeMember}

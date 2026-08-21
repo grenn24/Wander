@@ -114,7 +114,7 @@ export default function MapView({ trip, days, activities, onEdit, onSetCoords, o
         setErr('Could not look those places up. Try again in a moment.');
       }
     } catch (e) {
-      setErr('Could not reach the place lookup.');
+      setErr('Something went wrong. Please try again later.');
     }
     setLocating(null);
     resolving.current = false;

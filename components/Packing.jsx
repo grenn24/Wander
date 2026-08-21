@@ -31,7 +31,7 @@ export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, 
       if (!fresh.length) { setAiErr('Nothing new to add — your list already covers it.'); return; }
       await onAddMany(fresh);
     } catch (e) {
-      setAiErr('Could not reach the planner.');
+      setAiErr('Something went wrong. Please try again later.');
     } finally {
       setAiBusy(false);
     }

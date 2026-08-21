@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Sparkles, Loader2, X, Check, ArrowUp, Trash2, CalendarDays, Pencil, Plus, Settings,
+  Sparkles, Loader2, X, Check, ArrowUp, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
 } from 'lucide-react';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
@@ -13,7 +13,60 @@ const ICONS = {
   move_activity: CalendarDays,
   delete_activity: Trash2,
   update_trip: Settings,
+  shift_times: Clock,
+  clear_day: Trash2,
+  move_day: CalendarDays,
 };
+
+const DESTRUCTIVE = new Set(['delete_activity', 'clear_day']);
+
+/** Nudge a HH:MM by some minutes, staying inside the day. */
+function shiftTime(t, minutes) {
+  if (!t) return null;
+  const [h, m] = String(t).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  // Clamped rather than rolled over: a stop that silently moves to tomorrow is
+  // a worse surprise than one pinned to the end of today.
+  const total = Math.max(0, Math.min(23 * 60 + 59, (h * 60) + m + minutes));
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+}
+
+/**
+ * Bulk operations name an intent; this turns one into the edits that carry it
+ * out. Doing the expansion here rather than asking the model to enumerate it
+ * is the difference between one operation and fifty — and fifty was what kept
+ * running long requests out of room.
+ */
+function expand(op, activities) {
+  const onDay = (day) => activities.filter((a) => a.day === day);
+
+  if (op.kind === 'shift_times') {
+    const scope = op.day ? onDay(op.day) : activities;
+    const by = op.minutes || 0;
+    if (!by) return [];
+    return scope
+      .filter((a) => a.start_time || a.end_time)
+      .map((a) => ({
+        kind: 'update_activity',
+        activity_id: a.id,
+        start_time: shiftTime(a.start_time, by),
+        end_time: shiftTime(a.end_time, by),
+      }));
+  }
+
+  if (op.kind === 'clear_day') {
+    return onDay(op.day).map((a) => ({ kind: 'delete_activity', activity_id: a.id }));
+  }
+
+  if (op.kind === 'move_day') {
+    if (!op.to_day) return [];
+    return onDay(op.day)
+      .map((a) => ({ kind: 'move_activity', activity_id: a.id, day: op.to_day }));
+  }
+
+  return [op];
+}
 
 const EXAMPLES = [
   'Move everything on day 3 to day 5',
@@ -111,7 +164,7 @@ export default function TripCommand() {
       }
       setPlan({ summary: body.summary, ops: body.ops });
     } catch (e) {
-      setError('Could not reach the planner.');
+      setError('Something went wrong. Please try again later.');
     } finally {
       setBusy(false);
     }
@@ -125,7 +178,7 @@ export default function TripCommand() {
     let done = 0;
 
     try {
-      for (const op of plan.ops) {
+      for (const op of plan.ops.flatMap((o) => expand(o, activities))) {
         if (op.kind === 'add_activity') {
           additions.push({
             day: op.day || trip.start_date,
@@ -183,6 +236,9 @@ export default function TripCommand() {
       setBusy(false);
     }
   }
+
+  // The preview lists intents; this is how many activities they land on.
+  const edits = plan ? plan.ops.flatMap((o) => expand(o, activities)).length : 0;
 
   if (!trip) return null;
 
@@ -257,19 +313,23 @@ export default function TripCommand() {
             <ul className="cmd-ops">
               {plan.ops.map((op, i) => {
                 const Icon = ICONS[op.kind] || Pencil;
+                const touches = expand(op, activities).length;
                 return (
                   <li key={`${op.kind}-${i}`}
-                    className={op.kind === 'delete_activity' ? 'is-destructive' : ''}>
+                    className={DESTRUCTIVE.has(op.kind) ? 'is-destructive' : ''}>
                     <Icon size={14} />
                     <span>{op.describe}</span>
-                    {op.day ? <span className="cmd-day">{fmtDayTiny(op.day)}</span> : null}
+                    {/* A bulk line stands for many edits — say how many, or
+                        "clear day 4" reads like a single small change. */}
+                    {touches > 1 ? <span className="cmd-day">{touches} stops</span>
+                      : op.day ? <span className="cmd-day">{fmtDayTiny(op.day)}</span> : null}
                   </li>
                 );
               })}
             </ul>
             <div className="cmd-actions">
               <span className="tiny dim">
-                {plan.ops.length} change{plan.ops.length === 1 ? '' : 's'} · nothing saved yet
+                {edits} change{edits === 1 ? '' : 's'} · nothing saved yet
               </span>
               <button className="btn sm" onClick={() => setPlan(null)} disabled={busy}>Discard</button>
               <button className="btn sm primary" onClick={apply} disabled={busy}>

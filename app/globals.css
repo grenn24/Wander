@@ -576,6 +576,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   @page { margin: 14mm; }
   html, body { height: auto; background: #fff; color: #000; font-size: 11pt; }
   .shell { display: none !important; }
+  /* Popovers portal into <body> and toasts render beside the shell, so hiding
+     .shell alone leaves an open menu sitting on top of the printed page. */
+  .pop, .toasts { display: none !important; }
   .printonly { display: block; }
 
   .p-head { border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px; }
@@ -1709,6 +1712,20 @@ body::before {
   }
   /* Side by side the two times need to read as a range, not as two facts. */
   .act-t2::before { content: '–'; margin-right: 5px; color: var(--text-3); }
+}
+
+/* On a wide screen the time belongs to the day's spine rather than to the
+   card. Lifted out into its own gutter, the times form one unbroken column you
+   can run your eye down, and the card holds only what is on at that time.
+   The card gives up 70px of outer width and gets the same 70px back inside,
+   so nothing in it actually gets narrower. */
+@media (min-width: 641px) {
+  .acts, .day .qa { padding-left: 70px; }
+  .act { position: relative; }
+  .act-when {
+    position: absolute; left: -70px; top: 0; bottom: 0; width: 58px;
+    justify-content: center; padding-top: 0;
+  }
 }
 .act-t { font-size: 13px; font-weight: 600; color: var(--text-1); }
 .act-t.dim { font-weight: 400; color: var(--text-3); }

@@ -3,12 +3,12 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings, Users } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import TripCommand from '@/components/TripCommand';
-import { TAB_ICONS, TRIP_NAV, isTripTab } from '@/lib/icons';
+import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
   const { id } = use(params);
@@ -27,7 +27,7 @@ function TripChrome({ tripId, children }) {
   // "itinerary" no matter which tab was open.
   const segments = pathname.split('/').filter(Boolean);
   const last = segments[segments.length - 1];
-  const active = isTripTab(last) ? last : 'itinerary';
+  const active = isTripTab(last) ? resolveTab(last) : 'itinerary';
 
   if (notFound) {
     return (
@@ -55,7 +55,7 @@ function TripChrome({ tripId, children }) {
         <TopBar
           online={online}
           menu={[
-            { id: 'people', label: 'People', icon: Users, href: `/trips/${tripId}/people` },
+            { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
             { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
           ]}

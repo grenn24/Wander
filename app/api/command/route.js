@@ -5,12 +5,24 @@ import {
 
 export const runtime = 'nodejs';
 
-const KINDS = ['update_trip', 'add_activity', 'update_activity', 'move_activity', 'delete_activity'];
+const KINDS = [
+  'update_trip', 'add_activity', 'update_activity', 'move_activity', 'delete_activity',
+  // Bulk kinds. One of these stands in for a whole run of single edits — see
+  // the note on the schema below.
+  'shift_times', 'clear_day', 'move_day',
+];
 
 /**
  * Strict mode requires every property on every object, so one flat operation
  * shape carries all of them and leaves the irrelevant ones null. A union per
  * operation kind would be cleaner to read and is not expressible here.
+ *
+ * That makes each operation expensive: every one spends tokens on twenty keys
+ * whether or not it uses them. "Push everything back an hour" over a fortnight
+ * is fifty of those, which is what kept running the answer out of room — and
+ * the length of the reply had nothing to do with the difficulty of the
+ * request. So the bulk kinds exist to let one operation say what was actually
+ * meant, and the app works out which activities that lands on.
  */
 const OP = {
   type: 'object',
@@ -19,6 +31,7 @@ const OP = {
     'kind', 'describe', 'activity_id', 'day', 'title', 'start_time', 'end_time',
     'category', 'location', 'cost', 'notes',
     'trip_name', 'destination', 'start_date', 'end_date', 'currency', 'budget',
+    'minutes', 'to_day',
   ],
   properties: {
     kind: { type: 'string', enum: KINDS },
@@ -38,6 +51,11 @@ const OP = {
     end_date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
     currency: { type: ['string', 'null'], description: 'ISO 4217' },
     budget: { type: ['number', 'null'] },
+    minutes: {
+      type: ['integer', 'null'],
+      description: 'shift_times only: minutes to move every start and end time. Negative is earlier.',
+    },
+    to_day: { type: ['string', 'null'], description: 'move_day only: YYYY-MM-DD to move the day to' },
   },
 };
 
@@ -57,6 +75,14 @@ const SYSTEM = `You turn an instruction about a trip into a list of concrete edi
 
 You are given the trip and every activity in it, each with an id. Reference
 activities by that exact id — never invent one.
+
+Prefer one bulk operation to a run of single ones. They are exact, not
+approximations, and the app expands them:
+- shift_times: move every time on a day by "minutes" (day null = the whole
+  trip). Use this for "push everything back an hour", never a list of
+  update_activity.
+- clear_day: remove everything on a day.
+- move_day: move everything on a day to another date.
 
 Rules:
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
@@ -153,6 +179,10 @@ export async function POST(req) {
         end_date: /^\d{4}-\d{2}-\d{2}$/.test(o.end_date || '') ? o.end_date : null,
         currency: /^[A-Z]{3}$/.test(o.currency || '') ? o.currency : null,
         budget: o.budget == null ? null : Math.max(0, Number(o.budget) || 0),
+        // A day either way is as far as a shift can sensibly reach.
+        minutes: Number.isFinite(Number(o.minutes))
+          ? Math.max(-1440, Math.min(1440, Math.trunc(Number(o.minutes)))) : null,
+        to_day: /^\d{4}-\d{2}-\d{2}$/.test(o.to_day || '') ? o.to_day : null,
       };
     }).filter(Boolean);
 
