@@ -167,6 +167,22 @@ grant execute on function public.my_display_name() to authenticated, anon;
 drop function if exists public.claim_my_invites();
 drop table if exists public.trip_invites cascade;
 
+-- -------------------------------------------------------------- privileges ---
+-- Grants and RLS are two separate gates: a policy can only permit what the
+-- role has also been granted, so without these every request comes back 403
+-- "permission denied" no matter how permissive the policies are. Newer
+-- Supabase versions stopped handing new public tables to anon/authenticated by
+-- default, so grant explicitly rather than relying on default privileges.
+--
+-- Only `authenticated` needs them: an anonymous sign-in still yields a real
+-- session whose JWT carries role=authenticated (with is_anonymous=true), which
+-- is the role every policy below is written for. `anon` — a visitor with no
+-- session at all — deliberately gets nothing.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete
+  on public.trips, public.trip_members, public.activities, public.packing_items
+  to authenticated;
+
 -- --------------------------------------------------------------- row-level ---
 alter table public.trips         enable row level security;
 alter table public.trip_members  enable row level security;
