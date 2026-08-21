@@ -7,7 +7,7 @@ import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
-import { TAB_ICONS, TRIP_TABS } from '@/lib/icons';
+import { TAB_ICONS, TRIP_TABS, isTripTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
   const { id } = use(params);
@@ -22,7 +22,12 @@ function TripChrome({ tripId, children }) {
   const { trip, online, ready, notFound, days, activities, packing, members } = useTrip();
   const pathname = usePathname();
   const router = useRouter();
-  const active = pathname.split('/')[4] || 'itinerary';
+  // Read the tab off the end of the path rather than by index — a leading or
+  // trailing slash shifts the positions, which is what silently pinned this to
+  // "itinerary" no matter which tab was open.
+  const segments = pathname.split('/').filter(Boolean);
+  const last = segments[segments.length - 1];
+  const active = isTripTab(last) ? last : 'itinerary';
 
   if (notFound) {
     return (
