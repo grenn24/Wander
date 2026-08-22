@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
 } from 'lucide-react';
@@ -22,6 +23,9 @@ export default function Itinerary({
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
+  const params = useSearchParams();
+  const focusId = params.get('focus');
+  const [flash, setFlash] = useState(null);
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
   const lastMenuAct = useRef(null);
@@ -110,6 +114,27 @@ export default function Itinerary({
     ro.observe(strip);
     return () => ro.disconnect();
   }, [hasStrip]);
+
+  /*
+   * Arriving from search. The id travels in the address rather than in memory,
+   * so it survives the tab change and a reload of the page it lands on — and
+   * the row says so for a moment, because scrolling somewhere without marking
+   * what you came for leaves the reader to guess which one it was.
+   */
+  useEffect(() => {
+    if (!focusId) return undefined;
+    let tries = 0;
+    const find = () => {
+      const el = document.getElementById(`act-${focusId}`);
+      if (!el) { tries += 1; if (tries < 20) setTimeout(find, 120); return; }
+      pinned.current = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setFlash(focusId);
+      setTimeout(() => setFlash(null), 2200);
+    };
+    find();
+    return undefined;
+  }, [focusId]);
 
   // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
@@ -228,7 +253,9 @@ export default function Itinerary({
                       <div className="gap">{fmtDuration(gapMins)} free</div>
                     ) : null}
 
-                    <div className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`}
+                    <div id={`act-${a.id}`}
+                      className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`
+                        + `${flash === String(a.id) ? ' is-found' : ''}`}
                       role="button" tabIndex={0}
                       onClick={() => onEdit(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>

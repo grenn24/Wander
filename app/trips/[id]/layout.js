@@ -8,6 +8,7 @@ import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import TripCommand from '@/components/TripCommand';
+import TripSearch from '@/components/TripSearch';
 import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
@@ -54,6 +55,7 @@ function TripChrome({ tripId, children }) {
       <div className="shell">
         <TopBar
           online={online}
+          tools={<TripSearch />}
           menu={[
             { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },

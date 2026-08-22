@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { Plane, Sun, Moon, SunMoon, ChevronDown, LogOut } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
 import Popover from '@/components/Popover';
-import { colorFor, initials } from '@/lib/util';
+import Presence from '@/components/Presence';
+import { initials } from '@/lib/util';
 
 /**
  * Global chrome. `children` slots into the middle for page-specific context
@@ -19,7 +20,7 @@ import { colorFor, initials } from '@/lib/util';
  * `menu` adds page-specific items above the account ones — [{ id, label,
  * icon, href | onClick }].
  */
-export default function TopBar({ children, online = [], menu = [] }) {
+export default function TopBar({ children, online = [], menu = [], tools = null }) {
   const { displayName, user, signOut } = useApp();
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === 'dark' ? Sun : theme === 'light' ? Moon : SunMoon;
@@ -56,19 +57,9 @@ export default function TopBar({ children, online = [], menu = [] }) {
 
       <div className="grow" />
 
-      {online.length > 0 ? (
-        <span className="live" title={online.map((o) => o.name).join(', ')}>
-          <span className="pulse" /> {online.length} here
-        </span>
-      ) : null}
-      {online.length > 0 ? (
-        <div className="avatars">
-          {online.slice(0, 4).map((o) => (
-            <span key={o.id} className="avatar" title={o.name}
-              style={{ background: colorFor(o.name) }}>{initials(o.name)}</span>
-          ))}
-        </div>
-      ) : null}
+      {tools}
+
+      <Presence online={online} meId={user ? user.id : null} />
 
       <button className="btn ghost sm icon-btn" onClick={toggle}
         title="Switch light / dark" aria-label="Switch light or dark theme">

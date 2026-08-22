@@ -2442,3 +2442,94 @@ body:has(.lp)::before { display: none; }
   .tset-row .input { flex: 1 1 100%; }
   .tset-row .btn { flex: 1; justify-content: center; }
 }
+
+/* ============================================================== presence -- */
+
+/* One control where the count and the faces used to sit separately saying the
+   same thing. */
+.presence {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  padding: 3px 9px 3px 8px; border-radius: 999px; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); font: inherit; font-size: 12px;
+}
+.presence:hover { border-color: var(--border-strong); color: var(--text-1); }
+.presence-n { font-weight: 650; }
+.presence .avatars { margin-left: 1px; }
+.presence .avatar { width: 22px; height: 22px; font-size: 9.5px; }
+.presence-row {
+  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  font-size: 13.5px; color: var(--text-1);
+}
+.presence-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* At phone widths the number carries it; three faces is more chrome than a
+   375px bar can spare next to a title. */
+@media (max-width: 640px) {
+  .presence { padding: 3px 8px; gap: 5px; }
+  .presence .avatars { display: none; }
+}
+
+/* ================================================================ search -- */
+
+/* One layout at both sizes: a list of results wants the screen on a phone and
+   reads well centred on a desktop, so there is no second design to maintain. */
+.tsearch-back {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(10,10,10,.5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  display: flex; justify-content: center;
+  padding: max(10vh, 48px) 16px 24px;
+  animation: fadein .14s var(--ease);
+}
+@keyframes fadein { from { opacity: 0; } }
+
+.tsearch {
+  width: min(560px, 100%); max-height: min(70vh, 620px);
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  animation: cmdin .16s var(--ease);
+}
+.tsearch-top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 13px 13px 15px; border-bottom: 1px solid var(--border);
+}
+.tsearch-ico { color: var(--text-3); flex: none; }
+.tsearch-in {
+  flex: 1; min-width: 0; border: none; background: none; outline: none;
+  font: inherit; font-size: 16px; color: var(--text-1);
+}
+.tsearch-in::placeholder { color: var(--text-3); }
+
+.tsearch-empty { margin: 0; padding: 16px 15px; font-size: 13.5px; color: var(--text-3); }
+.tsearch-none { padding: 4px 15px 16px; }
+
+.tsearch-list {
+  list-style: none; margin: 0; padding: 6px; overflow-y: auto;
+  overscroll-behavior: contain; min-height: 0;
+}
+.tsearch-hit {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 9px; cursor: pointer;
+}
+.tsearch-hit.is-active { background: var(--surface-2); }
+.tsearch-main { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.tsearch-title {
+  font-weight: 550; font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tsearch-foot {
+  display: flex; align-items: center; gap: 6px; margin: 0;
+  padding: 9px 15px; border-top: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-3);
+}
+
+/* The row you came for, marked long enough to find and no longer. */
+.act.is-found {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tsearch-back, .tsearch { animation: none; }
+}
+@media print { .tsearch-back { display: none !important; } }

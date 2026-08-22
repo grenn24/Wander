@@ -200,8 +200,9 @@ export default function TripProvider({ tripId, children }) {
   }, [supabase, tripId, activities, fail, pushToast]);
 
   /** Bulk insert, for anything that produces several rows at once. */
+  /** Returns the rows it created, so a caller can point at what it just made. */
   const addActivities = useCallback(async (drafts) => {
-    if (!supabase || !tripId || !drafts.length) return 0;
+    if (!supabase || !tripId || !drafts.length) return [];
     const rows = [];
     drafts.forEach((d) => {
       rows.push({
@@ -219,9 +220,9 @@ export default function TripProvider({ tripId, children }) {
       });
     });
     const { data, error } = await supabase.from('activities').insert(rows).select();
-    if (error) { fail(error); return 0; }
+    if (error) { fail(error); return []; }
     if (data) setActivities((prev) => [...prev, ...data].sort(sortActs));
-    return data ? data.length : 0;
+    return data || [];
   }, [supabase, tripId, activities, fail]);
 
   const addPackingItems = useCallback(async (items) => {
