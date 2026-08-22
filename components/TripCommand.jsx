@@ -16,6 +16,7 @@ const ICONS = {
   shift_times: Clock,
   clear_day: Trash2,
   move_day: CalendarDays,
+  edit_many: Pencil,
 };
 
 const DESTRUCTIVE = new Set(['delete_activity', 'clear_day']);
@@ -57,6 +58,33 @@ function expand(op, activities) {
 
   if (op.kind === 'clear_day') {
     return onDay(op.day).map((a) => ({ kind: 'delete_activity', activity_id: a.id }));
+  }
+
+  if (op.kind === 'edit_many') {
+    return (op.items || []).map((it) => {
+      const target = activities.find((a) => String(a.id) === String(it.activity_id));
+      if (!target) return null;
+      let notes = null;
+      if (it.note_add) {
+        /*
+         * Appended, never substituted. The model is not told what an activity
+         * already says, so letting it write the notes field outright would
+         * quietly replace whatever was there — and "add the train line" is not
+         * a request to delete the booking reference someone typed last week.
+         */
+        const had = (target.notes || '').trim();
+        const line = it.note_add.trim();
+        notes = !had ? line : had.includes(line) ? had : [had, line].join('\n');
+      }
+      return {
+        kind: 'update_activity',
+        activity_id: it.activity_id,
+        notes,
+        start_time: it.start_time || null,
+        end_time: it.end_time || null,
+        cost: it.cost == null ? null : it.cost,
+      };
+    }).filter(Boolean);
   }
 
   if (op.kind === 'move_day') {
@@ -125,9 +153,18 @@ export default function TripCommand() {
     const instruction = clarification ? pending.current : text.trim();
     if (!instruction) return;
     setBusy(true); setError(''); setQuestion('');
+    /*
+     * A trip-wide edit genuinely takes a minute or two. Left to the default,
+     * a stalled request hangs forever and then reports the same shrug as a
+     * server fault — this gives up deliberately and says something you can
+     * act on.
+     */
+    const stop = new AbortController();
+    const gaveUp = setTimeout(() => stop.abort(), 180000);
     try {
       const res = await fetch('/api/command', {
         method: 'POST',
+        signal: stop.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instruction,
@@ -164,8 +201,11 @@ export default function TripCommand() {
       }
       setPlan({ summary: body.summary, ops: body.ops });
     } catch (e) {
-      setError('Something went wrong. Please try again later.');
+      setError(e.name === 'AbortError'
+        ? 'That took too long to work out. Try asking for a few days at a time.'
+        : 'Something went wrong. Please try again later.');
     } finally {
+      clearTimeout(gaveUp);
       setBusy(false);
     }
   }

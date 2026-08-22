@@ -4,12 +4,18 @@ import {
 } from '@/lib/ai';
 
 export const runtime = 'nodejs';
+/*
+ * Editing a whole trip is a minute of work for the model on a long itinerary.
+ * Without this a host cuts the request off at its default and the reader sees
+ * a failure that was really a deadline.
+ */
+export const maxDuration = 300;
 
 const KINDS = [
   'update_trip', 'add_activity', 'update_activity', 'move_activity', 'delete_activity',
   // Bulk kinds. One of these stands in for a whole run of single edits — see
   // the note on the schema below.
-  'shift_times', 'clear_day', 'move_day',
+  'shift_times', 'clear_day', 'move_day', 'edit_many',
 ];
 
 /**
@@ -31,7 +37,7 @@ const OP = {
     'kind', 'describe', 'activity_id', 'day', 'title', 'start_time', 'end_time',
     'category', 'location', 'cost', 'notes',
     'trip_name', 'destination', 'start_date', 'end_date', 'currency', 'budget',
-    'minutes', 'to_day',
+    'minutes', 'to_day', 'items',
   ],
   properties: {
     kind: { type: 'string', enum: KINDS },
@@ -56,6 +62,25 @@ const OP = {
       description: 'shift_times only: minutes to move every start and end time. Negative is earlier.',
     },
     to_day: { type: ['string', 'null'], description: 'move_day only: YYYY-MM-DD to move the day to' },
+    items: {
+      type: ['array', 'null'],
+      description: 'edit_many only: one small entry per activity being changed',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['activity_id', 'note_add', 'start_time', 'end_time', 'cost'],
+        properties: {
+          activity_id: { type: 'string', description: 'Exactly as given in the trip listing' },
+          note_add: {
+            type: ['string', 'null'],
+            description: 'One short line to append to the existing notes. Never a rewrite.',
+          },
+          start_time: { type: ['string', 'null'], description: '24h HH:MM' },
+          end_time: { type: ['string', 'null'] },
+          cost: { type: ['number', 'null'] },
+        },
+      },
+    },
   },
 };
 
@@ -83,6 +108,12 @@ approximations, and the app expands them:
   update_activity.
 - clear_day: remove everything on a day.
 - move_day: move everything on a day to another date.
+- edit_many: the same kind of small change across many activities — a line of
+  advice, a time, a price. One edit_many with an entry per activity, NOT one
+  update_activity each: an update_activity carries every field of an activity
+  whether or not it uses them, so twenty of them is a very long answer to a
+  short request and is the usual reason a large edit fails to finish.
+  note_add is appended to what the activity already says; it never replaces it.
 
 Rules:
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
@@ -183,6 +214,15 @@ export async function POST(req) {
         minutes: Number.isFinite(Number(o.minutes))
           ? Math.max(-1440, Math.min(1440, Math.trunc(Number(o.minutes)))) : null,
         to_day: /^\d{4}-\d{2}-\d{2}$/.test(o.to_day || '') ? o.to_day : null,
+        items: Array.isArray(o.items) ? o.items.slice(0, 80).map((it) => (
+          known.has(String(it.activity_id)) ? {
+            activity_id: it.activity_id,
+            note_add: it.note_add == null ? null : String(it.note_add).slice(0, 400),
+            start_time: cleanTime(it.start_time),
+            end_time: cleanTime(it.end_time),
+            cost: it.cost == null ? null : Math.max(0, Number(it.cost) || 0),
+          } : null
+        )).filter(Boolean) : null,
       };
     }).filter(Boolean);
 
