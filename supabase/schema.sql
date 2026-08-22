@@ -112,10 +112,15 @@ $fn$;
 create or replace function public.my_display_name()
 returns text language sql security definer stable
 set search_path = public as $fn$
+  -- Their own answer, then whatever the provider supplied (Google sends
+  -- full_name), then the address itself. Everyone has an account now, so there
+  -- is always something better than a placeholder.
   select coalesce(
     nullif(u.raw_user_meta_data ->> 'display_name', ''),
-    nullif(u.email, ''),
-    'Guest'
+    nullif(u.raw_user_meta_data ->> 'full_name', ''),
+    nullif(u.raw_user_meta_data ->> 'name', ''),
+    nullif(split_part(u.email, '@', 1), ''),
+    'Traveller'
   )
   from auth.users u where u.id = auth.uid();
 $fn$;
@@ -127,8 +132,13 @@ set search_path = public as $fn$
 begin
   insert into public.trip_members (trip_id, user_id, display_name, email, role)
   values (new.id, new.owner_id,
-          coalesce(nullif((select u.raw_user_meta_data ->> 'display_name'
-                           from auth.users u where u.id = new.owner_id), ''), 'Guest'),
+          (select coalesce(
+             nullif(u.raw_user_meta_data ->> 'display_name', ''),
+             nullif(u.raw_user_meta_data ->> 'full_name', ''),
+             nullif(u.raw_user_meta_data ->> 'name', ''),
+             nullif(split_part(u.email, '@', 1), ''),
+             'Traveller')
+           from auth.users u where u.id = new.owner_id),
           (select u.email from auth.users u where u.id = new.owner_id),
           'owner')
   on conflict (trip_id, user_id) do nothing;
@@ -159,8 +169,11 @@ begin
     raise exception 'That share link is not valid.';
   end if;
 
-  insert into public.trip_members (trip_id, user_id, display_name, role)
-  values (v_trip, auth.uid(), public.my_display_name(), 'editor')
+  -- Email too: everyone has an account now, so a member list can say who
+  -- someone actually is rather than showing a name with nothing behind it.
+  insert into public.trip_members (trip_id, user_id, display_name, email, role)
+  values (v_trip, auth.uid(), public.my_display_name(),
+          (select u.email from auth.users u where u.id = auth.uid()), 'editor')
   on conflict (trip_id, user_id) do nothing;
 
   return v_trip;

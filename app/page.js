@@ -14,7 +14,7 @@ export const metadata = {
   title: 'Wander — plan trips together, day by day',
   description:
     'A day-by-day travel itinerary planner with a map, budget, packing list and shared notes. '
-    + 'Share one link and plan together live — no accounts, no sign-ups.',
+    + 'Share one link and plan together live.',
 };
 
 const FEATURES = [
@@ -29,7 +29,7 @@ const FEATURES = [
 const STEPS = [
   { n: '1', title: 'Describe it', body: 'A sentence is enough.' },
   { n: '2', title: 'Adjust it', body: 'Every day arrives filled in and editable.' },
-  { n: '3', title: 'Send the link', body: 'Anyone with it can edit. No account.' },
+  { n: '3', title: 'Send the link', body: 'They sign in and can edit with you.' },
 ];
 
 export default async function Landing({ searchParams }) {
@@ -58,7 +58,7 @@ export default async function Landing({ searchParams }) {
         <section className="lp-hero">
           <div className="lp-hero-copy">
             <Reveal as="span" className="lp-eyebrow" delay={40}>
-              <Zap size={13} /> No accounts. No sign-ups.
+              <Zap size={13} /> Free. Yours. Shareable.
             </Reveal>
             <Reveal as="h1" delay={110}>Describe the trip. Get the plan.</Reveal>
             <Reveal as="p" className="lp-lede" delay={180}>
@@ -104,7 +104,7 @@ export default async function Landing({ searchParams }) {
               <span className="lp-eyebrow"><Share2 size={13} /> Built for planning together</span>
               <h2>One link. Everyone editing the same trip.</h2>
               <p className="lp-body">
-                No sign-up to lose people at. Open the link and you are in, editing live.
+                Send the link, they sign in, and you are both editing the same trip.
               </p>
             </Reveal>
             <ul className="lp-points">

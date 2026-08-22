@@ -2354,3 +2354,48 @@ body::before {
 .pinstate.is-idle { color: var(--text-3); }
 .pinstate svg { color: var(--text-3); }
 .pinstate .btn { margin-left: 2px; }
+
+/* ================================================================== auth -- */
+
+.authgate { padding: 24px 18px; }
+.auth { width: min(400px, 100%); padding: 26px 24px 22px; }
+.auth-brand {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 18px;
+}
+.auth-title { font-size: 21px; margin: 0 0 4px; letter-spacing: -.01em; }
+.auth-sub { margin: 0 0 16px; font-size: 13.5px; color: var(--text-2); }
+.auth-title + form, .auth-title + .btn { margin-top: 16px; }
+
+.auth-google {
+  width: 100%; justify-content: center; gap: 10px; margin-top: 16px;
+  background: var(--surface-1); border-color: var(--border-strong);
+}
+.auth-google:hover { background: var(--surface-2); }
+
+/* A rule with a word in it, rather than a word floating between two buttons. */
+.auth-or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0; color: var(--text-3); font-size: 12px;
+}
+.auth-or::before, .auth-or::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.auth-hint { margin: 5px 0 0; }
+.auth-go { width: 100%; justify-content: center; gap: 8px; margin-top: 4px; }
+.auth-said {
+  display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 0;
+  font-size: 13px; color: var(--good);
+}
+.auth-said svg { flex: none; margin-top: 2px; }
+
+.auth-alt {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.linkbtn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--accent-ink);
+}
+.linkbtn:hover { text-decoration: underline; }

@@ -3,8 +3,9 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Settings, LogOut } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
+import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import TripCommand from '@/components/TripCommand';
@@ -21,6 +22,7 @@ export default function TripLayout({ children, params }) {
 
 function TripChrome({ tripId, children }) {
   const { trip, online, ready, notFound, days, activities, packing, members } = useTrip();
+  const { signOut } = useApp();
   const pathname = usePathname();
   // Read the tab off the end of the path rather than by index — a leading or
   // trailing slash shifts the positions, which is what silently pinned this to
@@ -58,6 +60,7 @@ function TripChrome({ tripId, children }) {
             { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
             { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
+            { id: 'out', label: 'Sign out', icon: LogOut, onClick: signOut },
           ]}
         >
           {/* Back should undo the last step, not the last two: from a section
