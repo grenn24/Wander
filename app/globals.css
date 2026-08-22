@@ -2418,3 +2418,27 @@ body:has(.lp)::before { display: none; }
 /* Holds the nav's shape while the session is still being read, so the bar does
    not jump when the answer arrives. */
 .lp-account-hold { display: inline-block; width: 104px; height: 32px; }
+
+/* ========================================================= trip settings -- */
+
+/* Every block on this page is the same shape, so the page reads as a list of
+   settings rather than a pile of differently-built cards. */
+.tset { margin-bottom: 14px; }
+.tset-h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; margin: 0 0 5px;
+}
+.tset-h svg { color: var(--text-3); flex: none; }
+.tset-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-2); max-width: 60ch; }
+.tset-foot { margin: 9px 0 0; max-width: 60ch; }
+.tset-row { display: flex; gap: 8px; align-items: stretch; }
+.tset-row .input { flex: 1; min-width: 0; }
+.tset-row .btn { flex: none; }
+.tset-people { display: flex; flex-direction: column; gap: 8px; }
+.person-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .tset-row { flex-wrap: wrap; }
+  .tset-row .input { flex: 1 1 100%; }
+  .tset-row .btn { flex: 1; justify-content: center; }
+}

@@ -1,26 +1,40 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Copy, Check, Trash2, LogOut } from 'lucide-react';
+import { Copy, Check, Trash2, LogOut, Share2, Link2, Users } from 'lucide-react';
 import { colorFor, initials } from '@/lib/util';
 
+/**
+ * Trip settings: who can reach this trip, who is on it, and how to get rid of
+ * it. Every block is the same shape — a heading, a line saying what it is for,
+ * then the controls — because they used to be a mix of cards and bare headings
+ * and read as a pile rather than a page.
+ *
+ * There is no display-name field any more. Names come from the account, so an
+ * editable copy here was a second answer to a question already settled at
+ * sign-up, free to disagree with the one on every other screen.
+ */
+
+function Section({ title, icon: Icon, hint, children }) {
+  return (
+    <section className="card tset">
+      <h3 className="tset-h">{Icon ? <Icon size={15} aria-hidden="true" /> : null}{title}</h3>
+      {hint ? <p className="tset-hint">{hint}</p> : null}
+      {children}
+    </section>
+  );
+}
+
 export default function People({
-  members, online, user, isOwner, displayName, onRename,
-  shareUrl, onRemove, onDeleteTrip, onLeaveTrip,
+  members, online, user, isOwner, shareUrl, onRemove, onDeleteTrip, onLeaveTrip,
 }) {
-  const [name, setName] = useState(displayName || '');
-  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const onlineIds = online.map((o) => o.id);
 
-  useEffect(() => { setName(displayName || ''); }, [displayName]);
-
-  function submitName(e) {
-    e.preventDefault();
-    onRename(name);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  }
+  // Asked after mount: navigator.share does not exist on the server, and on
+  // desktop it usually does not exist at all.
+  useEffect(() => { setCanShare(typeof navigator !== 'undefined' && !!navigator.share); }, []);
 
   async function copy() {
     if (!shareUrl) return;
@@ -29,106 +43,117 @@ export default function People({
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch (e) {
+      // Clipboard access can be refused; selecting the text leaves it one
+      // keystroke away rather than failing silently.
       const el = document.getElementById('shareurl');
-      if (el) { el.select(); }
+      if (el) el.select();
+    }
+  }
+
+  async function share() {
+    try {
+      await navigator.share({ title: 'Join my trip on Wander', url: shareUrl });
+    } catch (e) {
+      // Dismissing the sheet throws too, so there is nothing to report here.
     }
   }
 
   return (
     <div>
       <div className="page-head">
-        <h2>People</h2>
-        <div className="small muted">Anyone with the link edits this trip live — no account needed</div>
+        <h2>Trip settings</h2>
+        <div className="small muted">Sharing, who is on the trip, and removing it</div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <label className="label" htmlFor="shareurl">Share link</label>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <Section
+        title="Share this trip"
+        icon={Link2}
+        hint="Anyone you send this to can open the trip and edit it. They sign in first, so
+              you will see who they are."
+      >
+        <div className="tset-row">
           <input id="shareurl" className="input mono small" readOnly value={shareUrl}
             onFocus={(e) => e.target.select()} />
-          <button className="btn primary" type="button" onClick={copy}>
+          {canShare ? (
+            <button className="btn primary" type="button" onClick={share}>
+              <Share2 size={15} /> Share
+            </button>
+          ) : null}
+          <button className={`btn${canShare ? '' : ' primary'}`} type="button" onClick={copy}>
             {copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}
           </button>
         </div>
-        <p className="tiny dim" style={{ marginBottom: 0 }}>
-          Send this to anyone. Opening it drops them into this trip as an editor. Treat it like a
-          password — anyone holding it can edit the trip.
+        <p className="tiny dim tset-foot">
+          Treat it like a password: holding the link is what grants access, so anyone it is
+          forwarded to can edit the trip as well.
         </p>
-      </div>
+      </Section>
 
-      <form className="card" style={{ marginBottom: 16 }} onSubmit={submitName}>
-        <label className="label" htmlFor="dn">Your display name</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input id="dn" className="input" value={name} maxLength={40}
-            placeholder="Guest 1234" onChange={(e) => setName(e.target.value)} />
-          <button className="btn">{saved ? 'Saved' : 'Save'}</button>
+      <Section
+        title="On this trip"
+        icon={Users}
+        hint={`${members.length} ${members.length === 1 ? 'person has' : 'people have'} access.`}
+      >
+        <div className="tset-people">
+          {members.map((m) => {
+            const label = m.display_name || m.email || 'Traveller';
+            const isMe = !!(user && m.user_id === user.id);
+            const here = onlineIds.includes(m.user_id);
+            return (
+              <div className="person" key={m.user_id}>
+                <span className="avatar" style={{ background: colorFor(label), marginLeft: 0 }}>
+                  {initials(label)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="person-name">{label}{isMe ? ' (you)' : ''}</div>
+                  <div className="tiny dim">
+                    {m.role}
+                    {m.email && m.email !== label ? ` · ${m.email}` : ''}
+                    {here ? ' · online now' : ''}
+                  </div>
+                </div>
+                {here ? <span className="pulse" title="Online now" /> : null}
+                {isOwner && !isMe ? (
+                  <button className="btn ghost sm" onClick={() => onRemove(m.user_id)}>Remove</button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
-        <p className="tiny dim" style={{ marginBottom: 0 }}>
-          This is what everyone else sees next to your edits.
-        </p>
-      </form>
+      </Section>
 
-      <h3 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em',
-        color: 'var(--text-3)', marginBottom: 8 }}>On this trip</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        {members.map((m) => {
-          const label = m.display_name || m.email || 'Guest';
-          const isMe = !!(user && m.user_id === user.id);
-          return (
-            <div className="person" key={m.user_id}>
-              <span className="avatar" style={{ background: colorFor(label), marginLeft: 0 }}>
-                {initials(label)}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {label}{isMe ? ' (you)' : ''}
-                </div>
-                <div className="tiny dim">
-                  {m.role}{onlineIds.includes(m.user_id) ? ' · online now' : ''}
-                </div>
-              </div>
-              {onlineIds.includes(m.user_id) ? <span className="pulse" title="Online now" /> : null}
-              {isOwner && !isMe ? (
-                <button className="btn ghost sm" onClick={() => onRemove(m.user_id)}>Remove</button>
-              ) : null}
+      {/* Named for what it does rather than how it feels. "Danger zone" tells
+          you to be careful without telling you what happens. */}
+      {isOwner ? (
+        <Section
+          title="Delete this trip"
+          icon={Trash2}
+          hint="Removes the itinerary, packing list and everyone's access. This cannot be undone."
+        >
+          {confirmDelete ? (
+            <div className="chiprow">
+              <button className="btn" onClick={() => setConfirmDelete(false)}>Keep it</button>
+              <button className="btn danger-solid" onClick={onDeleteTrip}>
+                Yes, delete this trip
+              </button>
             </div>
-          );
-        })}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ fontSize: 15, marginBottom: 6 }}>Keep your access</h3>
-        <p className="small muted" style={{ margin: 0 }}>
-          You are signed in as a guest on this browser. Clearing site data, or switching to another
-          device or browser, starts a fresh guest — so keep the share link if you want to get back in.
-        </p>
-      </div>
-
-      <div className="card">
-        <h3 style={{ fontSize: 15, marginBottom: 6 }}>Danger zone</h3>
-        {isOwner ? (
-          <>
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Deleting the trip removes its activities, packing list and members for everyone.
-            </p>
-            {confirmDelete ? (
-              <div className="chiprow">
-                <button className="btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-                <button className="btn danger-solid" onClick={onDeleteTrip}>Yes, delete this trip</button>
-              </div>
-            ) : (
-              <button className="btn danger" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Delete trip</button>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Leaving hides this trip from you. Others keep it, and the share link still works.
-            </p>
-            <button className="btn danger" onClick={onLeaveTrip}><LogOut size={15} /> Leave trip</button>
-          </>
-        )}
-      </div>
+          ) : (
+            <button className="btn danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={15} /> Delete trip
+            </button>
+          )}
+        </Section>
+      ) : (
+        <Section
+          title="Leave this trip"
+          icon={LogOut}
+          hint="Removes it from your trips. Everyone else keeps it, and the share link still works."
+        >
+          <button className="btn danger" onClick={onLeaveTrip}>
+            <LogOut size={15} /> Leave trip
+          </button>
+        </Section>
+      )}
     </div>
   );
 }

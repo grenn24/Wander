@@ -24,7 +24,7 @@ export default function TripTabPage({ params }) {
   const tab = resolveTab(segment);
 
   const router = useRouter();
-  const { supabase, user, displayName, saveDisplayName, fail, pushToast } = useApp();
+  const { supabase, user, fail, pushToast } = useApp();
   const {
     trip, days, activities, packing, members, online, isOwner, setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
@@ -121,7 +121,6 @@ export default function TripTabPage({ params }) {
 
       {tab === 'settings' ? (
         <People members={members} online={online} user={user} isOwner={isOwner}
-          displayName={displayName} onRename={saveDisplayName}
           shareUrl={shareUrl} onRemove={removeMember}
           onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
       ) : null}
