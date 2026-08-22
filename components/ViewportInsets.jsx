@@ -19,6 +19,26 @@ export default function ViewportInsets() {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return undefined;
+
+    /*
+     * iOS only, and that is the point rather than laziness.
+     *
+     * What this measures is window height minus visible height, which says how
+     * much browser chrome is in the way but not *where*. A bottom-anchored
+     * toolbar is an iOS Safari thing; every other engine puts its chrome at the
+     * top, where the same number is a top shrink being read as a bottom one —
+     * on Chrome, the URL bar sliding back in during a fast scroll up lifted the
+     * tab bar clean off the floor for the length of the animation.
+     *
+     * There is no reliable way to ask which end the missing pixels came from,
+     * so the compensation is limited to the platform that needs it.
+     */
+    const ua = navigator.userAgent;
+    const iOS = /iP(hone|od|ad)/.test(ua)
+      // iPadOS reports itself as a Mac, and is told apart by having a touch screen.
+      || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    if (!iOS) return undefined;
+
     const root = document.documentElement;
 
     const measure = () => {
