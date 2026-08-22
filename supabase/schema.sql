@@ -194,10 +194,11 @@ drop table if exists public.trip_invites cascade;
 -- Supabase versions stopped handing new public tables to anon/authenticated by
 -- default, so grant explicitly rather than relying on default privileges.
 --
--- Only `authenticated` needs them: an anonymous sign-in still yields a real
--- session whose JWT carries role=authenticated (with is_anonymous=true), which
--- is the role every policy below is written for. `anon` — a visitor with no
--- session at all — deliberately gets nothing.
+-- Only `authenticated` needs them: that is the role every policy below is
+-- written for, and since sign-in became mandatory it is the only role any
+-- request to these tables can arrive with. `anon` — a visitor with no session
+-- at all — deliberately gets nothing, which is what makes leaving anonymous
+-- sign-ins switched off on the project a real boundary rather than a setting.
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete
   on public.trips, public.trip_members, public.activities, public.packing_items
