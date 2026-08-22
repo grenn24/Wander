@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Plane, Sun, Moon, SunMoon, Menu } from 'lucide-react';
+import { Plane, Sun, Moon, SunMoon, ChevronDown, LogOut } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
 import Popover from '@/components/Popover';
 import { colorFor, initials } from '@/lib/util';
@@ -14,12 +14,13 @@ import { colorFor, initials } from '@/lib/util';
  * On phones this collapses to the platform convention — back, title, and two
  * icon actions — because a row of words at 375px is a queue, not a toolbar.
  *
- * `menu` takes [{ id, label, icon, href | onClick }] and turns the trailing
- * control into an overflow menu. Pages that pass nothing keep the plain
- * identity chip.
+ * The trailing control is always the account menu: your name opens it, and
+ * signing out lives there on every page rather than only inside a trip.
+ * `menu` adds page-specific items above the account ones — [{ id, label,
+ * icon, href | onClick }].
  */
-export default function TopBar({ children, online = [], menu = null, onOpenProfile }) {
-  const { displayName } = useApp();
+export default function TopBar({ children, online = [], menu = [] }) {
+  const { displayName, user, signOut } = useApp();
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === 'dark' ? Sun : theme === 'light' ? Moon : SunMoon;
   const ref = useRef(null);
@@ -43,13 +44,6 @@ export default function TopBar({ children, online = [], menu = null, onOpenProfi
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  const badge = (
-    <>
-      <span className="who-full">{who}</span>
-      <span className="who-short" aria-hidden="true">{initials(who)}</span>
-    </>
-  );
 
   return (
     <header className="topbar" ref={ref}>
@@ -81,48 +75,44 @@ export default function TopBar({ children, online = [], menu = null, onOpenProfi
         <ThemeIcon size={16} />
       </button>
 
-      {menu ? (
-        <>
-          <button ref={menuBtn} className="btn ghost sm icon-btn" type="button"
-            title="Menu" aria-label="Trip menu" aria-haspopup="menu" aria-expanded={open}
-            onClick={() => setOpen((o) => !o)}>
-            <Menu size={17} />
+      <button ref={menuBtn} className="btn ghost sm who" type="button"
+        aria-haspopup="menu" aria-expanded={open} aria-label={`Account — ${who}`}
+        onClick={() => setOpen((o) => !o)}>
+        <span className="who-mark" aria-hidden="true">{initials(who)}</span>
+        <span className="who-full">{who}</span>
+        <ChevronDown size={14} className="who-chev" aria-hidden="true" />
+      </button>
+
+      {/* Always rendered, so closing it can be a transition (see Popover). */}
+      <Popover anchorEl={menuBtn.current} open={open} width={228}
+        onClose={() => setOpen(false)}>
+        <div className="act-menu" role="menu">
+          <p className="menu-who">
+            {who}
+            {user && user.email ? <span className="menu-who-sub">{user.email}</span> : null}
+          </p>
+
+          {menu.map((m) => {
+            const Icon = m.icon;
+            return m.href ? (
+              <Link key={m.id} href={m.href} role="menuitem" onClick={() => setOpen(false)}>
+                <Icon size={15} /> {m.label}
+              </Link>
+            ) : (
+              <button key={m.id} type="button" role="menuitem"
+                onClick={() => { setOpen(false); m.onClick(); }}>
+                <Icon size={15} /> {m.label}
+              </button>
+            );
+          })}
+
+          {menu.length ? <div className="menu-rule" /> : null}
+          <button type="button" role="menuitem"
+            onClick={() => { setOpen(false); signOut(); }}>
+            <LogOut size={15} /> Sign out
           </button>
-          {/* Always rendered, so closing it can be a transition rather than a
-              disappearance. */}
-          <Popover anchorEl={menuBtn.current} open={open} width={208}
-            onClose={() => setOpen(false)}>
-            <div className="act-menu" role="menu">
-              {/* The name used to sit in the bar itself; it still belongs
-                  somewhere, and this is where the account actions are now. */}
-              <p className="menu-who">{who}</p>
-              {menu.map((m) => {
-                const Icon = m.icon;
-                return m.href ? (
-                  <Link key={m.id} href={m.href} role="menuitem"
-                    onClick={() => setOpen(false)}>
-                    <Icon size={15} /> {m.label}
-                  </Link>
-                ) : (
-                  <button key={m.id} type="button" role="menuitem"
-                    onClick={() => { setOpen(false); m.onClick(); }}>
-                    <Icon size={15} /> {m.label}
-                  </button>
-                );
-              })}
-          </div>
-          </Popover>
-        </>
-      ) : onOpenProfile ? (
-        <button className="btn ghost sm who" title="You" aria-label={`You — ${who}`}
-          onClick={onOpenProfile}>
-          {badge}
-        </button>
-      ) : (
-        <span className="btn ghost sm who" style={{ cursor: 'default' }} title={who}>
-          {badge}
-        </span>
-      )}
+        </div>
+      </Popover>
     </header>
   );
 }

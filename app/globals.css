@@ -676,8 +676,20 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; max-width: 40vw;
 }
-/* The initials stand in for the name once the bar runs out of room. */
-.who-short { display: none; }
+/* The name is the way into the account menu: initials always, the name itself
+   when the bar has room for it. */
+.who { gap: 8px; }
+.who-mark {
+  display: grid; place-items: center; width: 24px; height: 24px; flex: none;
+  border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+}
+.who-chev { color: var(--text-3); flex: none; }
+.menu-who-sub {
+  display: block; font-weight: 400; letter-spacing: 0; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.menu-rule { height: 1px; background: var(--border); margin: 5px 4px; }
 
 /* Phone chrome is a title bar, not a toolbar.
    The convention on small screens is: back, title, and at most a couple of
@@ -700,13 +712,8 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   .avatars .avatar { width: 25px; height: 25px; font-size: 10.5px; }
   .avatars .avatar:nth-child(n + 3) { display: none; }
 
-  .who { padding: 0; width: 34px; min-height: 34px; justify-content: center; flex: none; }
+  .who { padding: 0 6px 0 4px; min-height: 34px; flex: none; gap: 3px; }
   .who-full { display: none; }
-  .who-short {
-    display: grid; place-items: center; width: 26px; height: 26px;
-    border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
-    font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
-  }
 
   /* Title above, actions in one full-width row under it — three buttons
      stacked down the right edge is a column of chrome beside a column of
@@ -1559,8 +1566,16 @@ body::before {
 @keyframes float4 { from { margin: 0; } to { margin: 0 3vw 4vh 0; } }
 @keyframes sheen { to { transform: rotate(360deg); } }
 
-/* The landing page has its own light, so the shared body wash would double up. */
-.lp ~ * , body:has(.lp)::before { display: none; }
+/*
+ * The landing page has its own light, so the shared body wash would double up.
+ *
+ * Only the wash: an earlier version also carried `.lp ~ *`, which hid every
+ * sibling after the page wrapper. Nothing was rendered there at the time, so it
+ * looked harmless — until popovers and toasts started portalling into <body>,
+ * which is precisely that position. They were mounted, placed and measured
+ * correctly, and painted nothing.
+ */
+body:has(.lp)::before { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora-blob, .aurora-sheen { animation: none; transform: none !important; rotate: none; }
@@ -2399,3 +2414,7 @@ body::before {
   font: inherit; font-size: 13px; color: var(--accent-ink);
 }
 .linkbtn:hover { text-decoration: underline; }
+
+/* Holds the nav's shape while the session is still being read, so the bar does
+   not jump when the answer arrives. */
+.lp-account-hold { display: inline-block; width: 104px; height: 32px; }

@@ -5,6 +5,7 @@ import Aurora from '@/components/Aurora';
 import Reveal from '@/components/Reveal';
 import LiveMock from '@/components/LiveMock';
 import FeatureGrid from '@/components/FeatureGrid';
+import LandingAccount from '@/components/LandingAccount';
 import {
   Plane, CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -50,7 +51,7 @@ export default async function Landing({ searchParams }) {
           <div className="grow" />
           <a className="lp-navlink" href="#features">Features</a>
           <a className="lp-navlink" href="#how">How it works</a>
-          <Link className="btn primary sm" href="/trips">Open Wander</Link>
+          <LandingAccount />
         </div>
       </header>
 
