@@ -99,7 +99,11 @@ const QUESTION = {
   additionalProperties: false,
   required: ['ask', 'header', 'kind', 'options'],
   properties: {
-    ask: { type: 'string', description: 'One short question in plain words' },
+    ask: {
+      type: 'string',
+      description: 'One short question in plain words, under fifteen words. The '
+        + 'options carry the detail, so do not list them again here.',
+    },
     header: {
       type: 'string',
       description: 'Two or three words naming what is being decided, e.g. "Which three"',
@@ -194,6 +198,15 @@ Rules:
 - An instruction that would delete a lot should still be obeyed; the person
   reviews the list before anything happens.`;
 
+/** Shorten to a limit without ending mid-word. */
+function trim(value, limit) {
+  const s = String(value || '').trim();
+  if (s.length <= limit) return s;
+  const cut = s.slice(0, limit);
+  const at = cut.lastIndexOf(' ');
+  return `${(at > limit * 0.6 ? cut.slice(0, at) : cut).replace(/[,;:.\s]+$/, '')}…`;
+}
+
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
 
@@ -279,7 +292,9 @@ export async function POST(req) {
       return Response.json({
         understood: false,
         question: {
-          ask: String(q.ask || 'Which did you mean?').slice(0, 240),
+          // Cut at a word, never mid-syllable: a question that ends "or do yo"
+          // reads like the app broke rather than like the model ran long.
+          ask: trim(q.ask || 'Which did you mean?', 240),
           header: String(q.header || '').slice(0, 28),
           // A list with nothing in it is a box with a label; ask for words.
           kind: options.length && q.kind !== 'text' ? (q.kind === 'multi' ? 'multi' : 'choice') : 'text',

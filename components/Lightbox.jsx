@@ -1,10 +1,12 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import {
+  X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut,
+} from 'lucide-react';
 
 /**
- * A photo, full size, over everything else.
+ * A photo, full size, over everything else — and closer, if you want it.
  *
  * Rendered into <body> rather than where it is used: the editor it opens from
  * sits inside a backdrop that sets backdrop-filter, and that makes the backdrop
@@ -15,13 +17,72 @@ import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
  * photo without also closing the editor underneath it. Both listen on the
  * document, and without this they would both answer the same press.
  */
+
+const MAX = 6;
+const STEP = 1.6;
+
 export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) {
   const [mounted, setMounted] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const imgRef = useRef(null);
+  const frameRef = useRef(null);
+  // Live pointers, for dragging with one and pinching with two.
+  const touches = useRef(new Map());
+  const drag = useRef(null);
+  const pinch = useRef(null);
+  // Set while a drag is in progress, so letting go over the backdrop does not
+  // read as a click on it and close the photo.
+  const moved = useRef(false);
+
   const many = photos.length > 1;
+  const zoomed = view.scale > 1.001;
 
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => { setLoaded(false); }, [index]);
+  // A new photo starts where the last one did, not wherever you had dragged to.
+  useEffect(() => { setLoaded(false); setView({ scale: 1, x: 0, y: 0 }); }, [index]);
+
+  /*
+   * Keep the picture over its own footprint.
+   *
+   * offsetWidth is the layout size and ignores the transform, so the overflow
+   * at a given scale is exactly half the extra width. Panning past that would
+   * drag the image off into the dark, which is only ever an accident.
+   */
+  const clamp = useCallback((x, y, scale) => {
+    const el = imgRef.current;
+    if (!el || scale <= 1) return { x: 0, y: 0 };
+    const mx = (el.offsetWidth * (scale - 1)) / 2;
+    const my = (el.offsetHeight * (scale - 1)) / 2;
+    return {
+      x: Math.max(-mx, Math.min(mx, x)),
+      y: Math.max(-my, Math.min(my, y)),
+    };
+  }, []);
+
+  /**
+   * Zoom about a point, so whatever is under the cursor stays under it. Without
+   * this the picture slides away from what you were trying to look at.
+   */
+  const zoomTo = useCallback((next, originX, originY) => {
+    setView((v) => {
+      const scale = Math.max(1, Math.min(MAX, next));
+      if (scale === v.scale) return v;
+      if (scale === 1) return { scale: 1, x: 0, y: 0 };
+      const el = imgRef.current;
+      let { x, y } = v;
+      if (el && originX != null) {
+        const box = el.getBoundingClientRect();
+        // Where the point sits relative to the middle of what is on screen.
+        const dx = originX - (box.left + box.width / 2);
+        const dy = originY - (box.top + box.height / 2);
+        const k = scale / v.scale;
+        x = v.x - dx * (k - 1);
+        y = v.y - dy * (k - 1);
+      }
+      return { scale, ...clamp(x, y, scale) };
+    });
+  }, [clamp]);
 
   const step = useCallback((by) => {
     onIndex((index + by + photos.length) % photos.length);
@@ -29,37 +90,117 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); onClose(); }
-      else if (e.key === 'ArrowRight' && many) { e.stopPropagation(); step(1); }
+      if (e.key === 'Escape') {
+        e.stopPropagation(); e.preventDefault();
+        // Escape backs out of the zoom first, then out of the photo — the same
+        // order you got into them.
+        if (zoomed) setView({ scale: 1, x: 0, y: 0 }); else onClose();
+      } else if (e.key === 'ArrowRight' && many) { e.stopPropagation(); step(1); }
       else if (e.key === 'ArrowLeft' && many) { e.stopPropagation(); step(-1); }
+      else if (e.key === '+' || e.key === '=') { e.stopPropagation(); zoomTo(view.scale * STEP); }
+      else if (e.key === '-') { e.stopPropagation(); zoomTo(view.scale / STEP); }
+      else if (e.key === '0') { e.stopPropagation(); setView({ scale: 1, x: 0, y: 0 }); }
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose, step, many]);
+  }, [onClose, step, many, zoomed, zoomTo, view.scale]);
+
+  /*
+   * The wheel is bound by hand because React's onWheel is passive, and a
+   * passive listener may not call preventDefault — so the page behind would
+   * scroll while the picture zoomed.
+   */
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || !mounted) return undefined;
+    const onWheel = (e) => {
+      e.preventDefault();
+      zoomTo(view.scale * (e.deltaY < 0 ? 1.14 : 1 / 1.14), e.clientX, e.clientY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [mounted, zoomTo, view.scale]);
+
+  function onPointerDown(e) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved.current = false;
+    if (touches.current.size === 2) {
+      const [a, b] = [...touches.current.values()];
+      pinch.current = { gap: Math.hypot(a.x - b.x, a.y - b.y), scale: view.scale };
+      drag.current = null;
+    } else if (zoomed) {
+      drag.current = { x: e.clientX - view.x, y: e.clientY - view.y };
+    }
+  }
+
+  function onPointerMove(e) {
+    if (!touches.current.has(e.pointerId)) return;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pinch.current && touches.current.size === 2) {
+      const [a, b] = [...touches.current.values()];
+      const gap = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch.current.gap > 0) {
+        moved.current = true;
+        zoomTo(pinch.current.scale * (gap / pinch.current.gap),
+          (a.x + b.x) / 2, (a.y + b.y) / 2);
+      }
+      return;
+    }
+
+    if (drag.current) {
+      moved.current = true;
+      const x = e.clientX - drag.current.x;
+      const y = e.clientY - drag.current.y;
+      setView((v) => ({ scale: v.scale, ...clamp(x, y, v.scale) }));
+    }
+  }
+
+  function onPointerUp(e) {
+    touches.current.delete(e.pointerId);
+    if (touches.current.size < 2) pinch.current = null;
+    if (!touches.current.size) drag.current = null;
+  }
 
   if (!mounted) return null;
 
   const src = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w=${w}`;
 
   return createPortal((
-    <div className="lightbox" role="dialog" aria-modal="true" aria-label={alt || 'Photo'}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <button className="lb-x" type="button" aria-label="Close photo" onClick={onClose}>
-        <X size={20} />
-      </button>
+    <div className={`lightbox${zoomed ? ' is-zoomed' : ''}`}
+      role="dialog" aria-modal="true" aria-label={alt || 'Photo'}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget && !moved.current) onClose(); }}>
+
+      <div className="lb-tools">
+        <button type="button" aria-label="Zoom out" disabled={!zoomed}
+          onClick={() => zoomTo(view.scale / STEP)}><ZoomOut size={17} /></button>
+        <span className="lb-pct" aria-live="polite">{Math.round(view.scale * 100)}%</span>
+        <button type="button" aria-label="Zoom in" disabled={view.scale >= MAX}
+          onClick={() => zoomTo(view.scale * STEP)}><ZoomIn size={17} /></button>
+        <button type="button" aria-label="Close photo" onClick={onClose}><X size={18} /></button>
+      </div>
 
       {many ? (
         <button className="lb-step lb-prev" type="button" aria-label="Previous photo"
           onClick={() => step(-1)}><ChevronLeft size={22} /></button>
       ) : null}
 
-      <figure className="lb-frame">
+      <figure className="lb-frame" ref={frameRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onDoubleClick={(e) => zoomTo(zoomed ? 1 : 2.5, e.clientX, e.clientY)}>
         {loaded ? null : <Loader2 size={22} className="spin lb-wait" aria-label="Loading" />}
-        <img src={src(photos[index], 1600)} alt={alt}
+        <img ref={imgRef} src={src(photos[index], 1600)} alt={alt} draggable={false}
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
           onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
-        {many ? (
-          <figcaption className="lb-count">{index + 1} of {photos.length}</figcaption>
-        ) : null}
+        <figcaption className="lb-count">
+          {many ? `${index + 1} of ${photos.length} · ` : ''}
+          {zoomed ? 'Drag to move · double-click to fit' : 'Double-click or scroll to zoom'}
+        </figcaption>
       </figure>
 
       {many ? (

@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles, Loader2, X, Check, ArrowUp, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  ArrowLeft,
+  ArrowLeft, RotateCcw,
 } from 'lucide-react';
+import GrowArea from '@/components/GrowArea';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { fmtDayTiny, shortPlace } from '@/lib/util';
@@ -303,6 +304,9 @@ export default function TripCommand() {
     }
   }
 
+  // Something has come back and is waiting on the reader.
+  const replied = !!question || !!plan;
+
   // The preview lists intents; this is how many activities they land on.
   const edits = plan ? plan.ops.flatMap((o) => expand(o, activities)).length : 0;
 
@@ -329,12 +333,13 @@ export default function TripCommand() {
       <div className="cmd card">
         <form className="cmd-top" onSubmit={(e) => { e.preventDefault(); ask(); }}>
           <Sparkles size={16} className="cmd-spark" />
-          <input
+          <GrowArea
             ref={inputRef}
             className="cmd-input"
             value={text}
             disabled={busy}
             placeholder="Change anything in this trip…"
+            onSubmit={() => ask()}
             onChange={(e) => {
               setText(e.target.value); setError(''); setPlan(null);
               // A new instruction is a new conversation; the old answers were
@@ -342,8 +347,22 @@ export default function TripCommand() {
               setAnswers([]); clearAsk(); pending.current = '';
             }}
           />
+          {/*
+            * Send, or start again — never both meanings on one button.
+            *
+            * Once there is a question to answer or a plan to approve, the
+            * instruction has already been sent, and an arrow that still says
+            * "send" invites you to send it a second time. What is actually
+            * wanted at that point is a way out, so that is what it becomes.
+            */}
           {busy ? <Loader2 size={16} className="spin" />
-            : text.trim() ? (
+            : replied ? (
+              <button className="btn ghost sm icon-btn" type="button"
+                title="Start over" aria-label="Start over"
+                onClick={() => { reset(); inputRef.current.focus(); }}>
+                <RotateCcw size={15} />
+              </button>
+            ) : text.trim() ? (
               <button className="qa-send cmd-send" type="submit" aria-label="Work it out">
                 <ArrowUp size={15} />
               </button>
@@ -381,8 +400,9 @@ export default function TripCommand() {
             {typing ? (
               <form className="cmdq-row"
                 onSubmit={(e) => { e.preventDefault(); if (answer.trim()) ask(answer.trim()); }}>
-                <input ref={askRef} className="input" value={answer} disabled={busy}
+                <GrowArea ref={askRef} value={answer} disabled={busy}
                   placeholder="Say what you meant…"
+                  onSubmit={() => { if (answer.trim()) ask(answer.trim()); }}
                   onChange={(e) => setAnswer(e.target.value)} />
                 <button className="btn sm primary" type="submit" disabled={busy || !answer.trim()}>
                   Continue
