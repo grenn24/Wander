@@ -60,7 +60,14 @@ function TripChrome({ tripId, children }) {
             { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
           ]}
         >
-          <Link href="/trips" className="crumb-back" aria-label="All trips">
+          {/* Back should undo the last step, not the last two: from a section
+              that is where the trip came from, and only the trip itself leads
+              out to the list. */}
+          <Link
+            href={active === 'itinerary' ? '/trips' : `/trips/${tripId}/itinerary`}
+            className="crumb-back"
+            aria-label={active === 'itinerary' ? 'All trips' : 'Back to the itinerary'}
+          >
             <ChevronLeft size={16} />
           </Link>
           {/* A shimmer the width of a trip name, rather than the word

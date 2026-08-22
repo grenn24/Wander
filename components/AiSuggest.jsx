@@ -9,12 +9,14 @@ import { categoryIcon } from '@/lib/icons';
  * written until the traveller picks — a planner that silently inserts things
  * you did not choose is worse than no planner.
  */
-export default function AiSuggest({ trip, day, dayLabel, existing, onAdd, onClose }) {
+export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', onAdd, onClose }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [ideas, setIdeas] = useState([]);
   const [taken, setTaken] = useState({});
-  const [note, setNote] = useState('');
+  // Whatever was typed into the day's add line is what they were after;
+  // asking for ideas should start from it rather than ignore it.
+  const [note, setNote] = useState(seed);
   const ran = useRef(false);
 
   async function ask(extra) {
@@ -46,7 +48,7 @@ export default function AiSuggest({ trip, day, dayLabel, existing, onAdd, onClos
   useEffect(() => {
     if (ran.current) return;
     ran.current = true;
-    ask('');
+    ask(seed);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function take(idea, i) {

@@ -117,7 +117,7 @@ export default function QuickAdd({
             value={text}
             disabled={busy}
             aria-label={`Add something to ${label}`}
-            placeholder="Add anything — “ramen near the station, 7pm”"
+            placeholder="Describe what you want to add…"
             onChange={(e) => { setText(e.target.value); setError(''); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { setText(''); e.currentTarget.blur(); }
@@ -131,7 +131,8 @@ export default function QuickAdd({
           {busy ? <Loader2 size={15} className="spin qa-spin" aria-label="Working" /> : null}
         </div>
 
-        <button className="btn sm" type="button" aria-pressed={suggestOpen} onClick={onSuggest}>
+        <button className="btn sm" type="button" aria-pressed={suggestOpen}
+          onClick={() => onSuggest(text.trim())}>
           <Sparkles size={15} /> Suggest
         </button>
         <button className="btn sm" type="button" onClick={() => { onManual(day, text.trim()); setText(''); }}>

@@ -13,6 +13,7 @@
   --accent-soft: #e8f0fc;
   --danger: #d03b3b;
   --good:   #0ca30c;
+  --warn:   #a8761f;
   --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
   --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.18);
@@ -48,6 +49,7 @@
   --accent-soft: #16283f;
   --danger: #e66767;
   --good:   #0ca30c;
+  --warn:   #c99a44;
   /* Muted for dark. Saturated fills that look crisp on white turn into glare
      against a dark surface, and a page with seven of them at full strength
      reads as a chart rather than an itinerary. Same hues, less shouting —
@@ -350,6 +352,15 @@ a { color: var(--accent); }
 
 .geo-list { border: 1px solid var(--border); border-radius: 9px; margin-top: 7px;
   max-height: 172px; overflow: auto; background: var(--surface-1); }
+.geo-list li {
+  display: flex; align-items: center; gap: 8px; padding: 8px 11px;
+  cursor: pointer; font-size: 13.5px; color: var(--text-1);
+  border-bottom: 1px solid var(--border);
+}
+.geo-list li:last-child { border-bottom: none; }
+.geo-list li svg { flex: none; color: var(--text-3); }
+.geo-list li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.geo-list li.is-active { background: var(--surface-2); }
 .geo-list button { display: block; width: 100%; text-align: left; padding: 8px 11px;
   border: none; background: transparent; cursor: pointer; font-size: 13px;
   border-bottom: 1px solid var(--border); }
@@ -537,7 +548,8 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   position: fixed; z-index: 80; left: 50%; transform: translateX(-50%);
   bottom: calc(16px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
   display: flex; flex-direction: column; gap: 8px;
-  width: min(440px, calc(100vw - 24px)); pointer-events: none;
+  width: min(440px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  pointer-events: none;
 }
 @media (min-width: 861px) { .toasts { left: auto; right: 20px; transform: none; } }
 @media (max-width: 860px) {
@@ -1060,7 +1072,8 @@ body::before {
 /* On mobile the bar floats clear of the edge, like a control pill. */
 @media (max-width: 860px) {
   .tabbar {
-    left: 10px; right: 10px;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
     bottom: calc(8px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
     border: 1px solid var(--glass-line);
     border-radius: 18px;
@@ -1933,7 +1946,11 @@ body::before {
    goes to the accessible name instead. */
 @media (max-width: 640px) {
   .cmd-pill {
-    left: auto; right: 14px; transform: none;
+    /* viewport-fit=cover lets the page run under the rounded corners and the
+       notch, so a fixed 14px from the edge is 14px from the *screen*, not from
+       the usable area. In landscape on a notched phone that put this half
+       under the bezel. */
+    left: auto; right: max(14px, env(safe-area-inset-right)); transform: none;
     width: 52px; height: 52px; padding: 0; border-radius: 50%;
     justify-content: center; box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
   }
@@ -2269,3 +2286,33 @@ body::before {
   .act:active, .stop:active, .nearby:active, .tripcard:active,
   .pack-item:active, .daychip:active, .lp-card:active { transform: none; }
 }
+
+/* ------------------------------------------------- location autocomplete -- */
+
+/* The list hangs off the field rather than pushing the form around, so the
+   rows below do not jump every time a match arrives. */
+.ac { position: relative; }
+.ac .geo-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 30;
+  margin: 0; padding: 0; list-style: none; max-height: 232px; overflow-y: auto;
+  background: var(--surface-1); box-shadow: var(--lift);
+}
+.ac-busy {
+  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--accent); pointer-events: none;
+}
+
+/*
+ * Typed text and a placed pin look identical in an input, so the difference is
+ * stated underneath. Without this an activity can read as located, save
+ * happily, and simply never appear on the map.
+ */
+.pinstate {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin: 7px 0 0; font-size: 12px;
+}
+.pinstate svg { flex: none; }
+.pinstate.is-idle { color: var(--text-3); }
+.pinstate.is-pinned { color: var(--good); }
+.pinstate.is-loose { color: var(--warn); }
+.pinstate .btn { margin-left: 2px; }

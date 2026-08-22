@@ -27,6 +27,7 @@ export default function Itinerary({
   const lastMenuAct = useRef(null);
   const [activeDay, setActiveDay] = useState(null);
   const [suggestFor, setSuggestFor] = useState(null);
+  const [suggestSeed, setSuggestSeed] = useState('');
   const jumpedFor = useRef(null);
   const stripRef = useRef(null);
   // A click picks a day deliberately; the spy must not argue with it until the
@@ -283,12 +284,16 @@ export default function Itinerary({
               existing={list}
               onCreate={(draft) => onAddMany([draft])}
               onManual={onAdd}
-              onSuggest={() => setSuggestFor(suggestFor === d ? null : d)}
+              onSuggest={(seed) => {
+                setSuggestSeed(seed || '');
+                setSuggestFor(suggestFor === d ? null : d);
+              }}
               suggestOpen={suggestFor === d}
             />
 
             {suggestFor === d ? (
               <AiSuggest trip={trip} day={d} dayLabel={`Day ${i + 1}, ${fmtDay(d)}`}
+                seed={suggestSeed}
                 existing={list} onAdd={onAddMany} onClose={() => setSuggestFor(null)} />
             ) : null}
           </section>

@@ -21,20 +21,38 @@ export default function ViewportInsets() {
     if (!vv) return undefined;
     const root = document.documentElement;
 
-    const apply = () => {
+    const measure = () => {
       const gap = window.innerHeight - vv.height - vv.offsetTop;
       // A toolbar is tens of pixels; a software keyboard is hundreds. Only the
       // first should lift our chrome — a bottom bar floating halfway up the
       // screen above an open keyboard is worse than one tucked behind it.
-      const inset = gap > 4 && gap < 140 ? Math.round(gap) : 0;
-      root.style.setProperty('--vv-bottom', `${inset}px`);
+      return gap > 4 && gap < 140 ? Math.round(gap) : 0;
     };
 
-    apply();
+    /*
+     * Settled values only.
+     *
+     * Safari's toolbar collapses *while* you scroll, and the visual viewport
+     * reports every intermediate size on the way. Writing each one straight
+     * through made the tab bar climb the screen during a fast flick and drop
+     * back at the end. Waiting for the value to hold still means the bar stays
+     * where it is until the scroll is over, and then moves once.
+     */
+    let settle = 0;
+    const apply = () => {
+      clearTimeout(settle);
+      settle = setTimeout(() => {
+        root.style.setProperty('--vv-bottom', `${measure()}px`);
+      }, 160);
+    };
+
+    // The first reading is not mid-gesture, so it can land immediately.
+    root.style.setProperty('--vv-bottom', `${measure()}px`);
     vv.addEventListener('resize', apply);
     vv.addEventListener('scroll', apply);
     window.addEventListener('orientationchange', apply);
     return () => {
+      clearTimeout(settle);
       vv.removeEventListener('resize', apply);
       vv.removeEventListener('scroll', apply);
       window.removeEventListener('orientationchange', apply);
