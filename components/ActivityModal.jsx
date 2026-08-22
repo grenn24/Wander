@@ -4,7 +4,30 @@ import { X, Loader2, MapPin } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
+import ActivityMap from '@/components/ActivityMap';
+import { googleMapsAvailable } from '@/components/GoogleMap';
 import { useModalChrome } from '@/lib/useModal';
+
+/**
+ * Whether there is room to put the map beside the form.
+ *
+ * Asked in JavaScript rather than answered in CSS because only one map may
+ * exist: a Google map built inside a display:none column measures zero and
+ * comes back blank when the column is shown. Crossing the breakpoint rebuilds
+ * it, which is the correct amount of work for something that happens when you
+ * drag a window edge.
+ */
+function useRoomForMap() {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 900px)');
+    const read = () => setWide(m.matches);
+    read();
+    m.addEventListener('change', read);
+    return () => m.removeEventListener('change', read);
+  }, []);
+  return wide;
+}
 
 export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose }) {
   const [hits, setHits] = useState([]);
@@ -13,6 +36,11 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   const [active, setActive] = useState(-1);
   const [confirm, setConfirm] = useState(''); // '' | 'delete' | 'discard'
   const pristine = useRef(JSON.stringify(draft));
+  // Suggestions answer typing. Without this, opening an activity that has a
+  // written location dropped a list of alternatives over the form before
+  // anyone had touched anything.
+  const typed = useRef(false);
+  const wide = useRoomForMap();
 
   const set = (patch) => onChange({ ...draft, ...patch });
   const dirty = JSON.stringify(draft) !== pristine.current;
@@ -36,7 +64,9 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
    */
   useEffect(() => {
     const term = (draft.location || '').trim();
-    if (pinned || term.length < 3) { setHits([]); setGeoErr(''); return undefined; }
+    if (!typed.current || pinned || term.length < 3) {
+      setHits([]); setGeoErr(''); return undefined;
+    }
     let alive = true;
     const timer = setTimeout(async () => {
       setSearching(true); setGeoErr('');
@@ -75,144 +105,177 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   }
 
 
+  /*
+   * The map goes beside the form when there is width for it and under the
+   * location field when there is not.
+   *
+   * Beside, it is always there — an empty panel that fills in as you pick a
+   * place is steadier than a modal that grows a column halfway through, and it
+   * says what the field is for before anyone uses it. Underneath, it appears
+   * only once there is something to draw: a phone has no room to spend on a
+   * box explaining itself.
+   */
+  const hasMaps = googleMapsAvailable();
+  const beside = hasMaps && wide;
+  const under = hasMaps && !wide
+    && (pinned || (draft.location || '').trim().length >= 3);
+
+  const pick = (patch) => set(patch);
+
+  /* One panel, two homes. Only ever rendered once — two of these would be two
+     Google maps competing for the same activity. */
+  const where = (compact) => <ActivityMap draft={draft} onPick={pick} compact={compact} />;
+
   return (
     <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Activity">
+      <div className={`modal${beside ? ' modal-wide' : ''}`}
+        role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
           <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
         </div>
 
-        <div className="modal-body">
-          <div className="field">
-            <label className="label" htmlFor="at">What</label>
-            <input id="at" className="input" autoFocus value={draft.title || ''}
-              placeholder="Senso-ji temple" onChange={(e) => set({ title: e.target.value })} />
-          </div>
-
-          <div className="row">
+        <div className="modal-split">
+          <div className="modal-body">
             <div className="field">
-              <label className="label" htmlFor="ad">Day</label>
-              <Select
-                id="ad" label="Day"
-                value={draft.day || (days[0] || '')}
-                onChange={(v) => set({ day: v })}
-                options={(days.includes(draft.day) || !draft.day
-                  ? days
-                  : [draft.day, ...days]
-                ).map((d) => ({
-                  value: d,
-                  label: days.includes(d) ? `Day ${days.indexOf(d) + 1}` : 'Outside the trip',
-                  hint: fmtDay(d),
-                }))}
-              />
+              <label className="label" htmlFor="at">What</label>
+              <input id="at" className="input" autoFocus value={draft.title || ''}
+                placeholder="Senso-ji temple" onChange={(e) => set({ title: e.target.value })} />
             </div>
+
+            <div className="row">
+              <div className="field">
+                <label className="label" htmlFor="ad">Day</label>
+                <Select
+                  id="ad" label="Day"
+                  value={draft.day || (days[0] || '')}
+                  onChange={(v) => set({ day: v })}
+                  options={(days.includes(draft.day) || !draft.day
+                    ? days
+                    : [draft.day, ...days]
+                  ).map((d) => ({
+                    value: d,
+                    label: days.includes(d) ? `Day ${days.indexOf(d) + 1}` : 'Outside the trip',
+                    hint: fmtDay(d),
+                  }))}
+                />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="ac">Type</label>
+                <Select
+                  id="ac" label="Type"
+                  value={draft.category || 'sightseeing'}
+                  onChange={(v) => set({ category: v })}
+                  options={CATEGORIES.map((c) => ({
+                    value: c.id,
+                    label: c.label,
+                    icon: <span className={`catdot cat-${c.id}`} aria-hidden="true" />,
+                  }))}
+                />
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label className="label" htmlFor="as">Start</label>
+                <input id="as" className="input" type="time" value={draft.start_time || ''}
+                  onChange={(e) => set({ start_time: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="ae">End</label>
+                <input id="ae" className="input" type="time" value={draft.end_time || ''}
+                  onChange={(e) => set({ end_time: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="ax">Cost ({currency})</label>
+                <input id="ax" className="input mono" inputMode="decimal" value={draft.cost ?? ''}
+                  placeholder="0" onChange={(e) => set({ cost: e.target.value })} />
+              </div>
+            </div>
+
             <div className="field">
-              <label className="label" htmlFor="ac">Type</label>
-              <Select
-                id="ac" label="Type"
-                value={draft.category || 'sightseeing'}
-                onChange={(v) => set({ category: v })}
-                options={CATEGORIES.map((c) => ({
-                  value: c.id,
-                  label: c.label,
-                  icon: <span className={`catdot cat-${c.id}`} aria-hidden="true" />,
-                }))}
-              />
-            </div>
-          </div>
+              <label className="label" htmlFor="al">Location</label>
+              <div className="ac">
+                <input
+                  id="al" className="input" value={draft.location || ''}
+                  placeholder="Start typing a place…"
+                  role="combobox" aria-expanded={hits.length > 0} aria-controls="al-list"
+                  aria-autocomplete="list" autoComplete="off"
+                  aria-activedescendant={active >= 0 ? `al-opt-${active}` : undefined}
+                  onChange={(e) => { typed.current = true; set({
+                    location: e.target.value,
+                    // The words and the pin have to agree, so changing one drops
+                    // the other.
+                    lat: null, lng: null, place_id: null, photo_ref: null,
+                  }); }}
+                  onKeyDown={onLocationKey}
+                />
+                {searching ? <Loader2 size={15} className="spin ac-busy" aria-label="Searching" /> : null}
+                {hits.length ? (
+                  <ul className="geo-list" id="al-list" role="listbox" aria-label="Matching places">
+                    {hits.map((h, i) => (
+                      <li key={h.place_id || h.label} id={`al-opt-${i}`} role="option"
+                        aria-selected={i === active}
+                        className={i === active ? 'is-active' : ''}
+                        onMouseEnter={() => setActive(i)}
+                        onMouseDown={(e) => { e.preventDefault(); choose(h); }}>
+                        <MapPin size={13} aria-hidden="true" />
+                        <span>{h.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
 
-          <div className="row">
+              {geoErr ? <div className="err">{geoErr}</div> : null}
+
+              {/*
+                * No "placed" versus "not placed" here.
+                *
+                * The map resolves a written location on its own, so the warning
+                * this used to show — that typed text stays off the map — was not
+                * even true. Picking a match is a shortcut that saves the lookup
+                * and pins the exact spot; typing the name is the same thing more
+                * slowly. Neither is an error state worth interrupting anyone for.
+                */}
+              <p className="pinstate is-idle">
+                <MapPin size={13} aria-hidden="true" />
+                <span>
+                  {pinned
+                    ? 'Pinned to this spot.'
+                    : 'Anything written here is found on the map for you.'}
+                </span>
+                {pinned ? (
+                  <button className="btn ghost sm" type="button"
+                    onClick={() => set({ lat: null, lng: null, place_id: null, photo_ref: null })}>
+                    clear
+                  </button>
+                ) : null}
+              </p>
+
+              {under ? where(true) : null}
+            </div>
+
             <div className="field">
-              <label className="label" htmlFor="as">Start</label>
-              <input id="as" className="input" type="time" value={draft.start_time || ''}
-                onChange={(e) => set({ start_time: e.target.value })} />
+              <label className="label" htmlFor="ab">Booking reference</label>
+              <input id="ab" className="input" value={draft.booking_ref || ''}
+                placeholder="JL712 / hotel conf. 4471X" onChange={(e) => set({ booking_ref: e.target.value })} />
             </div>
+
             <div className="field">
-              <label className="label" htmlFor="ae">End</label>
-              <input id="ae" className="input" type="time" value={draft.end_time || ''}
-                onChange={(e) => set({ end_time: e.target.value })} />
-            </div>
-            <div className="field">
-              <label className="label" htmlFor="ax">Cost ({currency})</label>
-              <input id="ax" className="input mono" inputMode="decimal" value={draft.cost ?? ''}
-                placeholder="0" onChange={(e) => set({ cost: e.target.value })} />
+              <label className="label" htmlFor="an">Notes</label>
+              <textarea id="an" className="textarea" value={draft.notes || ''}
+                placeholder="Opening hours, who booked it, what to bring…"
+                onChange={(e) => set({ notes: e.target.value })} />
             </div>
           </div>
 
-          <div className="field">
-            <label className="label" htmlFor="al">Location</label>
-            <div className="ac">
-              <input
-                id="al" className="input" value={draft.location || ''}
-                placeholder="Start typing a place…"
-                role="combobox" aria-expanded={hits.length > 0} aria-controls="al-list"
-                aria-autocomplete="list" autoComplete="off"
-                aria-activedescendant={active >= 0 ? `al-opt-${active}` : undefined}
-                onChange={(e) => set({
-                  location: e.target.value,
-                  // The words and the pin have to agree, so changing one drops
-                  // the other.
-                  lat: null, lng: null, place_id: null, photo_ref: null,
-                })}
-                onKeyDown={onLocationKey}
-              />
-              {searching ? <Loader2 size={15} className="spin ac-busy" aria-label="Searching" /> : null}
-              {hits.length ? (
-                <ul className="geo-list" id="al-list" role="listbox" aria-label="Matching places">
-                  {hits.map((h, i) => (
-                    <li key={h.place_id || h.label} id={`al-opt-${i}`} role="option"
-                      aria-selected={i === active}
-                      className={i === active ? 'is-active' : ''}
-                      onMouseEnter={() => setActive(i)}
-                      onMouseDown={(e) => { e.preventDefault(); choose(h); }}>
-                      <MapPin size={13} aria-hidden="true" />
-                      <span>{h.label}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-
-            {geoErr ? <div className="err">{geoErr}</div> : null}
-
-            {/*
-              * No "placed" versus "not placed" here.
-              *
-              * The map resolves a written location on its own, so the warning
-              * this used to show — that typed text stays off the map — was not
-              * even true. Picking a match is a shortcut that saves the lookup
-              * and pins the exact spot; typing the name is the same thing more
-              * slowly. Neither is an error state worth interrupting anyone for.
-              */}
-            <p className="pinstate is-idle">
-              <MapPin size={13} aria-hidden="true" />
-              <span>
-                {pinned
-                  ? 'Pinned to this spot.'
-                  : 'Anything written here is found on the map for you.'}
-              </span>
-              {pinned ? (
-                <button className="btn ghost sm" type="button"
-                  onClick={() => set({ lat: null, lng: null, place_id: null, photo_ref: null })}>
-                  clear
-                </button>
-              ) : null}
-            </p>
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor="ab">Booking reference</label>
-            <input id="ab" className="input" value={draft.booking_ref || ''}
-              placeholder="JL712 / hotel conf. 4471X" onChange={(e) => set({ booking_ref: e.target.value })} />
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor="an">Notes</label>
-            <textarea id="an" className="textarea" value={draft.notes || ''}
-              placeholder="Opening hours, who booked it, what to bring…"
-              onChange={(e) => set({ notes: e.target.value })} />
-          </div>
+          {beside ? (
+            <aside className="modal-aside" aria-label="Where this is">
+              <span className="label">Where this is</span>
+              {where(false)}
+            </aside>
+          ) : null}
         </div>
 
         <div className="modal-foot">

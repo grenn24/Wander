@@ -29,6 +29,19 @@ export function googleMapsAvailable() {
   return !!KEY && !KEY.startsWith('REPLACE_WITH');
 }
 
+/* Marker colour per category, read from the stylesheet so the map follows the
+   theme rather than keeping its own copy of the palette. */
+const CAT_VAR = {
+  sightseeing: 1, food: 2, transport: 3, lodging: 4, activity: 5, shopping: 6, other: 7,
+};
+
+export function catColor(id) {
+  if (typeof document === 'undefined') return '#2a78d6';
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--cat-${CAT_VAR[id] || 7}`).trim();
+  return v || '#2a78d6';
+}
+
 let loader = null;
 
 /**
@@ -92,6 +105,12 @@ function loadMaps() {
 export default function GoogleMap({
   stops, places, focused, focusedPlace, dayColours,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
+  /*
+   * Cooperative by default: a map that swallows the wheel is a trap on a page
+   * you are trying to scroll. A map that owns its whole column has no such
+   * problem and should just respond, so the caller decides.
+   */
+  gestures = 'cooperative',
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -112,13 +131,16 @@ export default function GoogleMap({
    * without guessing at a delay.
    */
   const owedFit = useRef(null);
+  // Whether the map has ever been aimed. The first fit is ours to make; after
+  // that the view belongs to whoever is looking at it.
+  const fitted = useRef(false);
   const [ready, setReady] = useState(false);
 
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
   latest.current = {
     stops, places, focused, focusedPlace, dayColours,
-    onFocus, onPlaceFocus, onPlaceAdd, onViewport,
+    onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
   };
 
   useEffect(() => {
@@ -133,11 +155,15 @@ export default function GoogleMap({
         disableDefaultUI: true,
         zoomControl: true,
         clickableIcons: false,
-        gestureHandling: 'cooperative',
+        gestureHandling: gestures,
       });
       info.current = new L.InfoWindow();
       mapRef.current.addListener('click', (e) => {
-        if (e.latLng && onDropPin) onDropPin(e.latLng.lat(), e.latLng.lng());
+        // Through latest, not the closure: this listener is attached once, so a
+        // handler captured here would be the first render's for the map's whole
+        // life — and would never see anything the page learned since.
+        const drop = latest.current.onDropPin;
+        if (e.latLng && drop) drop(e.latLng.lat(), e.latLng.lng());
       });
       /*
        * "Nearby" means near what you are looking at, so the map has to say
@@ -224,10 +250,20 @@ export default function GoogleMap({
     if (!map || !want || !el || !el.clientHeight || !el.clientWidth) return;
     owedFit.current = null;
     if (want.center) {
-      map.setCenter(want.center);
-      map.setZoom(14);
+      if (!fitted.current) {
+        map.setCenter(want.center);
+        map.setZoom(14);
+      } else {
+        // Already aimed once. Move only if the point has left the screen, and
+        // never zoom back out — nudging a pin while zoomed in should not throw
+        // the view away and start again.
+        const b = map.getBounds();
+        if (!b || !b.contains(want.center)) map.setCenter(want.center);
+      }
+      fitted.current = true;
     } else {
       map.fitBounds(want.bounds, 48);
+      fitted.current = true;
     }
   }
 

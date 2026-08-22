@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Search, X, Loader2, Plus, CornerDownLeft } from 'lucide-react';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
@@ -31,8 +31,11 @@ function haystack(a) {
 
 export default function TripSearch() {
   const router = useRouter();
+  const pathname = usePathname();
   const { pushToast, fail } = useApp();
-  const { tripId, trip, days, activities, addActivities } = useTrip();
+  const {
+    tripId, trip, days, activities, addActivities, requestFocus,
+  } = useTrip();
 
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -80,11 +83,21 @@ export default function TripSearch() {
 
   useEffect(() => { setActive(0); }, [q]);
 
+  const itinerary = `/trips/${tripId}/itinerary`;
+
+  /**
+   * Go to an activity: the itinerary scrolls to it and opens it.
+   *
+   * The request goes through the trip rather than the address. An address can
+   * only say a thing once — asking for the same activity a second time changed
+   * nothing in the URL and so did nothing at all — and taking the parameter
+   * back out afterwards meant a navigation, which closed the editor it had
+   * just opened.
+   */
   function go(a) {
     close();
-    // focus travels in the address, so this works from any tab and survives a
-    // reload of the page it lands on.
-    router.push(`/trips/${tripId}/itinerary?focus=${encodeURIComponent(a.id)}`);
+    requestFocus(a.id);
+    if (pathname !== itinerary) router.push(itinerary);
   }
 
   /** Nothing matched, so offer to make it rather than leave them at a dead end. */
@@ -114,7 +127,8 @@ export default function TripSearch() {
       const id = Array.isArray(made) && made[0] ? made[0].id : null;
       pushToast(`Added “${body.activity.title}”.`);
       close();
-      router.push(`/trips/${tripId}/itinerary${id ? `?focus=${encodeURIComponent(id)}` : ''}`);
+      if (id) requestFocus(id);
+      if (pathname !== itinerary) router.push(itinerary);
     } catch (e) {
       fail(e);
     } finally {

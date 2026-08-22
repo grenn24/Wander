@@ -29,6 +29,17 @@ export default function TripProvider({ tripId, children }) {
   const [online, setOnline] = useState([]);
   const [loadedId, setLoadedId] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  /*
+   * "Take me to this activity", held here rather than in the address.
+   *
+   * It used to travel as ?focus=, which read well but could not be taken back
+   * out: removing it is a navigation, a navigation remounts the page, and the
+   * remount closed the editor the request had just opened. Asking for the same
+   * activity twice was also silent, because the address did not change the
+   * second time. A timestamp makes every request distinct, and clearing it
+   * costs nothing.
+   */
+  const [focusReq, setFocusReq] = useState(null);
 
   const ready = loadedId === tripId;
   const days = useMemo(() => (trip ? dayRange(trip.start_date, trip.end_date) : []), [trip]);
@@ -327,8 +338,14 @@ export default function TripProvider({ tripId, children }) {
     if (error) { fail(error); load(tripId); }
   }, [supabase, tripId, fail, load]);
 
+  const requestFocus = useCallback((id) => {
+    if (id) setFocusReq({ id: String(id), at: Date.now() });
+  }, []);
+  const clearFocus = useCallback(() => setFocusReq(null), []);
+
   const value = useMemo(() => ({
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner,
+    focusReq, requestFocus, clearFocus,
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
@@ -336,6 +353,7 @@ export default function TripProvider({ tripId, children }) {
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
+    focusReq, requestFocus, clearFocus,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,

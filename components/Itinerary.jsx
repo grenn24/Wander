@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
 } from 'lucide-react';
@@ -19,12 +19,15 @@ const ANCHORS = new Set(['transport', 'lodging']);
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
-  onEditTrip, onPrint, onAddMany,
+  onEditTrip, onPrint, onAddMany, focus, onFocused,
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
   const params = useSearchParams();
-  const focusId = params.get('focus');
+  const pathname = usePathname();
+  // Two ways in: the search bar asks through the trip, and a link from outside
+  // carries it in the address.
+  const urlFocus = params.get('focus');
   const [flash, setFlash] = useState(null);
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
@@ -33,12 +36,24 @@ export default function Itinerary({
   const [suggestFor, setSuggestFor] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState('');
   const jumpedFor = useRef(null);
+  // Which focus request has already been carried out, so the same one is not
+  // served twice while the address still names it.
+  const took = useRef(null);
+  const actsRef = useRef(activities);
+  actsRef.current = activities;
   const stripRef = useRef(null);
   // A click picks a day deliberately; the spy must not argue with it until the
   // reader scrolls for themselves.
   const pinned = useRef(false);
 
   const hasStrip = days.length > 3;
+
+  const wantId = (focus && focus.id) || urlFocus || null;
+  // The key is what makes a repeat request a new one: the same activity asked
+  // for twice has the same id and two different timestamps.
+  const wantKey = focus ? `r${focus.at}` : urlFocus ? `u${urlFocus}` : null;
+  // A boolean, not the array: it flips once, when the wanted activity arrives.
+  const focusHere = !!wantId && activities.some((a) => String(a.id) === String(wantId));
 
   function stickyOffset() {
     const bar = document.querySelector('.topbar');
@@ -116,25 +131,69 @@ export default function Itinerary({
   }, [hasStrip]);
 
   /*
-   * Arriving from search. The id travels in the address rather than in memory,
-   * so it survives the tab change and a reload of the page it lands on — and
-   * the row says so for a moment, because scrolling somewhere without marking
-   * what you came for leaves the reader to guess which one it was.
+   * Arriving from search: go to the activity, then open it.
+   *
+   * The id travels in the address, so this works from any tab and from a link.
+   * It is an instruction rather than a state, so it is carried out once and
+   * then wiped — otherwise searching for the same activity a second time
+   * changes nothing in the address, the effect never re-runs, and the search
+   * appears to have done nothing at all.
+   *
+   * Waiting on the data rather than polling the DOM is what makes the rest of
+   * the edge cases go away: the old version gave up after two and a half
+   * seconds, which is a race a slow trip load wins.
+   *
+   * What it depends on matters as much as what it does. Depending on the
+   * activities themselves meant any unrelated update — someone else's presence,
+   * a save landing — replaced the array, tore this down mid-scroll, and then
+   * declined to start again because it had already been claimed. So it turns on
+   * whether the activity is *there*, which changes exactly once.
    */
   useEffect(() => {
-    if (!focusId) return undefined;
-    let tries = 0;
-    const find = () => {
-      const el = document.getElementById(`act-${focusId}`);
-      if (!el) { tries += 1; if (tries < 20) setTimeout(find, 120); return; }
-      pinned.current = true;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setFlash(focusId);
-      setTimeout(() => setFlash(null), 2200);
+    // Not asked for, not here yet, or already dealt with.
+    if (!wantKey || !focusHere || took.current === wantKey) return undefined;
+    const act = actsRef.current.find((a) => String(a.id) === String(wantId));
+    if (!act) return undefined;
+
+    took.current = wantKey;
+    pinned.current = true;
+    // Claim the one-time jump to today as well, or it lands an instant scroll
+    // on top of this one and the reader ends up somewhere they did not ask for.
+    jumpedFor.current = trip.id;
+
+    let alive = true;
+    let done = false;
+    let frames = 0;
+    const run = () => {
+      if (!alive) return;
+      const el = document.getElementById(`act-${wantId}`);
+      // The row can be a paint behind the data it came from.
+      if (!el) { frames += 1; if (frames < 20) requestAnimationFrame(run); return; }
+      setFlash(String(wantId));
+      setTimeout(() => { if (alive) setFlash(null); }, 2600);
+      scrollToRow(el, stickyOffset()).then(() => {
+        if (!alive) return;
+        done = true;
+        onEdit(act);
+        if (onFocused) onFocused();
+        // Take it out of the address by hand. router.replace would do it as a
+        // navigation, and the remount that comes with one closes the editor
+        // this just opened.
+        if (urlFocus && window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', pathname);
+        }
+      });
     };
-    find();
-    return undefined;
-  }, [focusId]);
+    requestAnimationFrame(run);
+    /*
+     * Give the request back if this run did not finish it. React mounts,
+     * unmounts and remounts every component once in development, so a claim
+     * that outlived its own run left the second attempt with nothing to do —
+     * and the request silently disappeared.
+     */
+    return () => { alive = false; if (!done) took.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantKey, focusHere]);
 
   // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
@@ -336,7 +395,9 @@ export default function Itinerary({
           </p>
           <div className="acts">
             {stray.map((a) => (
-              <div className="act" key={a.id} role="button" tabIndex={0} onClick={() => onEdit(a)}
+              <div className={`act${flash === String(a.id) ? ' is-found' : ''}`} key={a.id}
+                id={`act-${a.id}`}
+                role="button" tabIndex={0} onClick={() => onEdit(a)}
                 onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
                 <div className="act-when"><span className="act-t mono">{fmtDayTiny(a.day)}</span></div>
                 <div className="act-body">
@@ -386,4 +447,37 @@ export default function Itinerary({
       </Popover>
     </div>
   );
+}
+
+/*
+ * Put a row on screen and say when it has arrived.
+ *
+ * scrollIntoView with block:"center" cannot see the sticky title bar and day
+ * strip, so a row near the top of the document lands underneath them; this
+ * centres within the space that is actually visible instead. And the caller
+ * has to know when the scrolling has stopped, because opening the editor locks
+ * the page — do it too early and the scroll is frozen halfway there.
+ */
+function scrollToRow(el, head) {
+  const box = el.getBoundingClientRect();
+  const room = window.innerHeight - head;
+  const want = window.scrollY + box.top - head - Math.max(12, (room - box.height) / 2);
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: Math.max(0, want), behavior: still ? 'auto' : 'smooth' });
+
+  return new Promise((done) => {
+    let last = null;
+    let steady = 0;
+    let frames = 0;
+    const watch = () => {
+      const y = Math.round(window.scrollY);
+      if (y === last) steady += 1; else { steady = 0; last = y; }
+      frames += 1;
+      // Three still frames is the end of it; the frame cap is the escape hatch
+      // for a scroll that never settles, so nothing can hang here.
+      if (steady >= 3 || frames > 90) { done(); return; }
+      requestAnimationFrame(watch);
+    };
+    requestAnimationFrame(watch);
+  });
 }

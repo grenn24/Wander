@@ -27,6 +27,7 @@ export default function TripTabPage({ params }) {
   const { supabase, user, fail, pushToast } = useApp();
   const {
     trip, days, activities, packing, members, online, isOwner, setTrip,
+    focusReq, clearFocus,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addActivities, addPackingItems,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
@@ -94,6 +95,8 @@ export default function TripTabPage({ params }) {
           onDelete={deleteActivity}
           onPrint={() => window.print()}
           onAddMany={addActivities}
+          focus={focusReq}
+          onFocused={clearFocus}
           onEditTrip={() => setTripDraft({ ...trip })} />
       ) : null}
 

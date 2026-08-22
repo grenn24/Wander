@@ -2533,3 +2533,98 @@ body:has(.lp)::before { display: none; }
   .tsearch-back, .tsearch { animation: none; }
 }
 @media print { .tsearch-back { display: none !important; } }
+
+/* ------------------------------------------------- activity editor map --- */
+/*
+ * Appended, not merged into the modal block above: `.modal-wide` and `.modal`
+ * are both single classes, so which one wins is decided by source order. The
+ * override has to come after the rule it overrides.
+ */
+.modal-split { display: block; }
+
+.amap { margin-top: 11px; }
+.amap-el {
+  height: 176px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface-2);
+}
+.amap-el .map-el { height: 100%; }
+.amap-note {
+  display: flex; align-items: flex-start; gap: 6px; margin: 7px 0 0;
+}
+.amap-note svg { flex: none; margin-top: 1px; color: var(--text-3); }
+.amap-guess {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+}
+.amap-guess .amap-note { min-width: 0; flex: 1 1 150px; }
+.amap-guess .btn { flex: none; }
+.amap-blank {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 176px; border-radius: 12px; text-align: center; padding: 0 18px;
+  border: 1px dashed var(--border); color: var(--text-3); font-size: 13px;
+}
+.amap-blank svg { flex: none; }
+
+@media (min-width: 900px) {
+  .modal.modal-wide { max-width: 940px; }
+  .modal-wide .modal-split { display: flex; align-items: flex-start; }
+  .modal-wide .modal-body { flex: 1 1 auto; min-width: 0; }
+  .modal-wide .modal-aside {
+    flex: 0 0 328px; padding: 18px; border-left: 1px solid var(--border);
+    /* Held in place while the form scrolls past it, and sat below the sticky
+       title bar rather than under it. */
+    position: sticky; top: 54px; align-self: flex-start;
+  }
+  .modal-wide .modal-aside .label { display: block; margin-bottom: 7px; }
+  .modal-wide .amap { margin-top: 0; }
+  .modal-wide .amap-el, .modal-wide .amap-blank { height: 292px; }
+}
+
+/* --------------------------------------------------------- place photos --- */
+.aphotos {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 9px;
+}
+.aphoto {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--surface-2); cursor: zoom-in; aspect-ratio: 4 / 3;
+  transition: transform .14s var(--spring), border-color .14s ease;
+}
+.aphoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.aphoto:hover { transform: translateY(-2px); border-color: var(--accent); }
+.aphoto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ------------------------------------------------------------ lightbox --- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  background: rgba(8, 8, 12, .88);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.lb-frame {
+  margin: 0; max-width: 100%; max-height: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+}
+.lb-frame img {
+  max-width: min(1100px, 100%); max-height: 82dvh; object-fit: contain;
+  border-radius: 12px; box-shadow: 0 24px 60px -20px rgba(0,0,0,.8);
+}
+.lb-wait { color: rgba(255,255,255,.8); position: absolute; }
+.lb-count { font-size: 12px; color: rgba(255,255,255,.72); }
+.lb-x, .lb-step {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.12);
+  color: #fff; backdrop-filter: blur(6px);
+}
+.lb-x:hover, .lb-step:hover { background: rgba(255,255,255,.24); }
+.lb-x { top: max(14px, env(safe-area-inset-top)); right: 14px; }
+.lb-prev { left: 14px; }
+.lb-next { right: 14px; }
+@media (max-width: 560px) {
+  .lb-step { width: 36px; height: 36px; }
+  .lb-prev { left: 8px; }
+  .lb-next { right: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .aphoto { transition: none; } }
+@media print { .lightbox { display: none !important; } }

@@ -9,20 +9,8 @@ import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
 } from '@/lib/geo';
-import GoogleMap, { googleMapsAvailable } from '@/components/GoogleMap';
+import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
-
-
-const CAT_VAR = {
-  sightseeing: 1, food: 2, transport: 3, lodging: 4, activity: 5, shopping: 6, other: 7,
-};
-
-function catColor(id) {
-  if (typeof document === 'undefined') return '#2a78d6';
-  const v = getComputedStyle(document.documentElement)
-    .getPropertyValue(`--cat-${CAT_VAR[id] || 7}`).trim();
-  return v || '#2a78d6';
-}
 
 
 export default function MapView({
