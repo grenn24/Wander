@@ -15,6 +15,33 @@ import { useApp } from '@/components/AppProvider';
 
 const MIN_PASSWORD = 8;
 
+/*
+ * Why this person is being asked to sign in.
+ *
+ * The gate takes over whatever address was requested, so it already knows what
+ * was being reached for — and saying so is the difference between an
+ * interruption and a step. Someone who just described a trip should be told
+ * their plan is waiting, not shown a bare form and left to wonder whether
+ * their sentence survived.
+ */
+const ERRANDS = [
+  {
+    at: (p) => p.startsWith('/join/'),
+    title: 'Sign in to open this trip',
+    sub: 'You will be added to it straight after.',
+  },
+  {
+    at: (p) => p.startsWith('/plan'),
+    title: 'Sign in to see your plan',
+    sub: 'We will start building it the moment you are in, and save it to your account.',
+  },
+  {
+    at: (p) => p.startsWith('/trips'),
+    title: 'Sign in to reach your trips',
+    sub: 'Everything you have planned is waiting.',
+  },
+];
+
 export default function AuthScreen() {
   const { signIn, signUp, signInWithGoogle, sendReset } = useApp();
 
@@ -26,7 +53,8 @@ export default function AuthScreen() {
   const [err, setErr] = useState('');
   const [said, setSaid] = useState('');
 
-  const joining = typeof window !== 'undefined' && window.location.pathname.startsWith('/join/');
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const errand = ERRANDS.find((e) => e.at(path)) || null;
 
   function fault(e) {
     const m = (e && e.message) || '';
@@ -90,11 +118,11 @@ export default function AuthScreen() {
         <h1 className="auth-title">
           {mode === 'up' ? 'Create your account'
             : mode === 'reset' ? 'Reset your password'
-              : joining ? 'Sign in to open this trip'
+              : errand ? errand.title
                 : 'Sign in'}
         </h1>
-        {joining && mode === 'in' ? (
-          <p className="auth-sub">You will be added to the trip straight after.</p>
+        {errand && mode !== 'reset' ? (
+          <p className="auth-sub">{errand.sub}</p>
         ) : null}
 
         {mode !== 'reset' ? (

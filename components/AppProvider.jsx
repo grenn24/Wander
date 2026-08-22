@@ -3,6 +3,7 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { getClient, readConfig, missingEnv, configWarning } from '@/lib/supabase';
 import { humanError } from '@/lib/util';
 import Toasts from '@/components/Toasts';
@@ -45,6 +46,7 @@ function nameOf(session) {
  * asked for is already the page they are on.
  */
 export default function AppProvider({ children }) {
+  const router = useRouter();
   const [phase, setPhase] = useState('boot'); // boot | error | signedout | ready
   const [supabase, setSupabase] = useState(null);
   const [session, setSession] = useState(null);
@@ -154,8 +156,15 @@ export default function AppProvider({ children }) {
   }, [supabase]);
 
   const signOut = useCallback(async () => {
+    /*
+     * Leave for the landing page first, then drop the session. Signing out is
+     * leaving, not a request to sign back in — clearing the session while
+     * still on a gated route just replaces the app with the sign-in form,
+     * which reads as being bounced rather than as having left.
+     */
+    router.replace('/');
     await supabase.auth.signOut();
-  }, [supabase]);
+  }, [supabase, router]);
 
   const value = useMemo(() => ({
     supabase, user, session, phase, displayName, saveDisplayName,
