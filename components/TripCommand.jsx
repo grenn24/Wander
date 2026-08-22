@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles, Loader2, X, Check, ArrowUp, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
+  ArrowLeft,
 } from 'lucide-react';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
@@ -122,16 +123,25 @@ export default function TripCommand() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState(null); // { summary, ops }
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(null); // { ask, header, kind, options }
+  const [answers, setAnswers] = useState([]); // every reply so far, in order
+  const [picked, setPicked] = useState([]); // multi-select, before Continue
+  const [typing, setTyping] = useState(false); // "something else" is open
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef(null);
+  const askRef = useRef(null);
   const pending = useRef('');
 
-  const reset = useCallback(() => {
-    setText(''); setPlan(null); setQuestion(''); setAnswer(''); setError('');
-    pending.current = '';
+  const clearAsk = useCallback(() => {
+    setQuestion(null); setPicked([]); setAnswer(''); setTyping(false);
   }, []);
+
+  const reset = useCallback(() => {
+    setText(''); setPlan(null); setAnswers([]); setError('');
+    clearAsk();
+    pending.current = '';
+  }, [clearAsk]);
 
   // Cmd/Ctrl+K from anywhere in the trip, Escape to dismiss.
   useEffect(() => {
@@ -149,10 +159,21 @@ export default function TripCommand() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, busy, reset]);
 
-  async function ask(clarification) {
-    const instruction = clarification ? pending.current : text.trim();
+  /**
+   * Send the instruction, plus every answer given to every question so far.
+   *
+   * `reply` is a new answer being added, or nothing for a first attempt. The
+   * whole run goes each time because an answer is meaningless without the
+   * question it belongs to, and a second question would otherwise arrive with
+   * the first answer already forgotten.
+   */
+  async function ask(reply) {
+    const first = reply == null;
+    const instruction = first ? text.trim() : pending.current;
     if (!instruction) return;
-    setBusy(true); setError(''); setQuestion('');
+    const said = first ? [] : [...answers, reply];
+    setAnswers(said);
+    setBusy(true); setError(''); clearAsk();
     /*
      * A trip-wide edit genuinely takes a minute or two. Left to the default,
      * a stalled request hangs forever and then reports the same shrug as a
@@ -168,7 +189,7 @@ export default function TripCommand() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instruction,
-          answer: clarification || '',
+          answers: said,
           trip: {
             name: trip.name,
             destination: trip.destination,
@@ -196,6 +217,8 @@ export default function TripCommand() {
       if (!body.understood && body.question) {
         pending.current = instruction;
         setQuestion(body.question);
+        setTyping(body.question.kind === 'text');
+        setTimeout(() => askRef.current && askRef.current.focus(), 0);
         return;
       }
       if (!body.ops.length) {
@@ -312,7 +335,12 @@ export default function TripCommand() {
             value={text}
             disabled={busy}
             placeholder="Change anything in this trip…"
-            onChange={(e) => { setText(e.target.value); setError(''); setPlan(null); }}
+            onChange={(e) => {
+              setText(e.target.value); setError(''); setPlan(null);
+              // A new instruction is a new conversation; the old answers were
+              // about a question nobody is being asked any more.
+              setAnswers([]); clearAsk(); pending.current = '';
+            }}
           />
           {busy ? <Loader2 size={16} className="spin" />
             : text.trim() ? (
@@ -335,19 +363,83 @@ export default function TripCommand() {
 
         {error ? <div className="err" style={{ marginTop: 4 }}>{error}</div> : null}
 
+        {/*
+          * Answers, not a blank box.
+          *
+          * The question the model asks is nearly always a choice between
+          * readings it has already worked out — offering them turns a decision
+          * into one tap and removes the second round that a vaguely worded
+          * reply used to cost. Typing is still there underneath, because a
+          * list of four cannot cover a number, a date, or "actually, never
+          * mind, I meant something else".
+          */}
         {question ? (
-          <form className="qa-ask" style={{ marginTop: 10 }}
-            onSubmit={(e) => { e.preventDefault(); if (answer.trim()) ask(answer.trim()); }}>
-            <div className="qa-ask-q"><Sparkles size={14} /><span>{question}</span></div>
-            <div className="qa-ask-row">
-              <input className="input" value={answer} disabled={busy}
-                placeholder="Answer, or say what you meant…"
-                onChange={(e) => setAnswer(e.target.value)} />
-              <button className="btn sm primary" type="submit" disabled={busy || !answer.trim()}>
-                Continue
-              </button>
-            </div>
-          </form>
+          <div className="cmdq">
+            {question.header ? <span className="cmdq-head">{question.header}</span> : null}
+            <p className="cmdq-ask"><Sparkles size={14} aria-hidden="true" />{question.ask}</p>
+
+            {typing ? (
+              <form className="cmdq-row"
+                onSubmit={(e) => { e.preventDefault(); if (answer.trim()) ask(answer.trim()); }}>
+                <input ref={askRef} className="input" value={answer} disabled={busy}
+                  placeholder="Say what you meant…"
+                  onChange={(e) => setAnswer(e.target.value)} />
+                <button className="btn sm primary" type="submit" disabled={busy || !answer.trim()}>
+                  Continue
+                </button>
+                {question.kind !== 'text' ? (
+                  <button className="btn sm ghost" type="button" disabled={busy}
+                    onClick={() => { setTyping(false); setAnswer(''); }}>
+                    <ArrowLeft size={14} /> Back
+                  </button>
+                ) : null}
+              </form>
+            ) : (
+              <>
+                <div className="cmdq-opts" role={question.kind === 'multi' ? 'group' : 'list'}>
+                  {question.options.map((o) => {
+                    const on = picked.includes(o.label);
+                    return (
+                      <button key={o.label} type="button" disabled={busy}
+                        aria-pressed={question.kind === 'multi' ? on : undefined}
+                        className={`cmdq-opt${on ? ' is-on' : ''}`}
+                        onClick={() => {
+                          if (question.kind !== 'multi') { ask(o.label); return; }
+                          setPicked((p) => (on ? p.filter((x) => x !== o.label) : [...p, o.label]));
+                        }}>
+                        {question.kind === 'multi' ? (
+                          <span className="cmdq-box" aria-hidden="true">
+                            {on ? <Check size={12} /> : null}
+                          </span>
+                        ) : null}
+                        <span className="cmdq-opt-main">
+                          <span className="cmdq-opt-label">{o.label}</span>
+                          {o.detail ? <span className="cmdq-opt-detail">{o.detail}</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="cmdq-foot">
+                  <button type="button" className="linkbtn" disabled={busy}
+                    onClick={() => {
+                      setTyping(true);
+                      setTimeout(() => askRef.current && askRef.current.focus(), 0);
+                    }}>
+                    Something else…
+                  </button>
+                  {question.kind === 'multi' ? (
+                    <button className="btn sm primary" type="button"
+                      disabled={busy || !picked.length}
+                      onClick={() => ask(picked.join(', '))}>
+                      Continue{picked.length ? ` · ${picked.length}` : ''}
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
         ) : null}
 
         {plan ? (

@@ -84,13 +84,57 @@ const OP = {
   },
 };
 
+/**
+ * A question worth interrupting for, asked so it can be answered in a tap.
+ *
+ * A blank box is the laziest way to ask something: it makes the reader guess
+ * both the answer and the vocabulary it should be phrased in, and half of the
+ * replies then need a question of their own. Nearly every ambiguity here is a
+ * choice between a handful of readings the model has already thought of, so it
+ * has to name them. Free text stays available for the ones that genuinely are
+ * open — a number, a date, a place — and as an escape hatch under every list.
+ */
+const QUESTION = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  required: ['ask', 'header', 'kind', 'options'],
+  properties: {
+    ask: { type: 'string', description: 'One short question in plain words' },
+    header: {
+      type: 'string',
+      description: 'Two or three words naming what is being decided, e.g. "Which three"',
+    },
+    kind: {
+      type: 'string',
+      enum: ['choice', 'multi', 'text'],
+      description: 'choice: one answer. multi: several can apply. text: nothing listable.',
+    },
+    options: {
+      type: ['array', 'null'],
+      description: 'choice and multi only: two to four answers. Null for text.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label', 'detail'],
+        properties: {
+          label: { type: 'string', description: 'The answer itself, two to six words' },
+          detail: {
+            type: ['string', 'null'],
+            description: 'One short line on what choosing it would do to this trip',
+          },
+        },
+      },
+    },
+  },
+};
+
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['understood', 'question', 'summary', 'ops'],
   properties: {
     understood: { type: 'boolean' },
-    question: { type: 'string', description: 'One short question when understood is false' },
+    question: QUESTION,
     summary: { type: 'string', description: 'One line describing the whole change' },
     ops: { type: 'array', items: OP },
   },
@@ -131,7 +175,22 @@ Rules:
 - Times are 24-hour HH:MM. Costs are plain numbers in the trip currency.
 - "location" must be a real place name a map search would find, or null.
 - If the instruction is ambiguous in a way that changes which activities are
-  touched, set understood false and ask one short question instead of guessing.
+  touched, set understood false and ask ONE question instead of guessing.
+  Offer answers rather than a blank box. Use kind "choice" when one reading out
+  of two to four is right, "multi" when several can apply at once (days,
+  categories, particular activities), and "text" only when the answer is a
+  number, a date or a name that cannot be listed. Options must be concrete and
+  about this trip — "Keep the three earliest each day", not "Option A" — and
+  "detail" should say what that would actually do here. Do not write an "other"
+  or "something else" option: the app always offers one.
+  For "multi" every option must be one thing that stands on its own, because
+  they are ticked independently: list "Day 2 (Aug 22)", "Day 3 (Aug 23)", not
+  "Day 2 only" or "all of them" — combinations are what ticking two boxes is
+  for. If the answers are combinations of each other, it is a "choice".
+  Write labels the way a traveller reads them: "Day 4 (Aug 24)", never a bare
+  2026-08-24. Keep a label under about eight words.
+- A second question is allowed if the first answer opens a real fork, but stop
+  there and make your best reading of anything still unsettled.
 - An instruction that would delete a lot should still be obeyed; the person
   reviews the list before anything happens.`;
 
@@ -149,7 +208,10 @@ export async function POST(req) {
   if (!instruction) return Response.json({ error: 'Nothing to do.' }, { status: 400 });
 
   const trip = body.trip || {};
-  const answer = String(body.answer || '').slice(0, 300);
+  // Every answer so far, not just the last: a choice like "let me pick which
+  // ones" only means anything alongside the question it answered.
+  const answers = (Array.isArray(body.answers) ? body.answers : [body.answer])
+    .filter(Boolean).map((a) => String(a).slice(0, 300)).slice(0, 6);
   const activities = (Array.isArray(body.activities) ? body.activities : []).slice(0, 80);
 
   const listing = activities.map((a) => [
@@ -162,18 +224,40 @@ export async function POST(req) {
     a.cost ? `${a.cost}` : '',
   ].filter(Boolean).join(' | ')).join('\n');
 
+  /*
+   * Which date is "day 4".
+   *
+   * Nobody thinks of their trip as 2026-08-24, and the model can only answer in
+   * the vocabulary it was given — without this it wrote options and summaries
+   * full of ISO dates, which are exact and unreadable.
+   */
+  const dayNames = [];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trip.start_date || '')) {
+    const at = new Date(`${trip.start_date}T00:00:00Z`);
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(trip.end_date || '') ? trip.end_date : trip.start_date;
+    for (let n = 1; n <= 60; n += 1) {
+      const iso = at.toISOString().slice(0, 10);
+      dayNames.push(`Day ${n} = ${iso}`);
+      if (iso >= end) break;
+      at.setUTCDate(at.getUTCDate() + 1);
+    }
+  }
+
   const prompt = [
     `Trip: ${trip.name || 'Untitled'}`,
     `Destination: ${trip.destination || 'unspecified'}`,
     `Dates: ${trip.start_date} to ${trip.end_date}`,
     `Currency: ${trip.currency || 'SGD'}`,
     `Budget: ${trip.budget == null ? 'none' : trip.budget}`,
+    dayNames.length ? `Days: ${dayNames.join(', ')}` : '',
     '',
     'Activities:',
     listing || '(none yet)',
     '',
     `Instruction: "${instruction}"`,
-    answer ? `They then clarified: "${answer}"` : '',
+    ...(answers.length
+      ? ['They then answered your questions, in order:', ...answers.map((a) => `- ${a}`)]
+      : []),
   ].join('\n');
 
   try {
@@ -187,7 +271,21 @@ export async function POST(req) {
     });
 
     if (!out.understood && out.question) {
-      return Response.json({ understood: false, question: String(out.question).slice(0, 200) });
+      const q = out.question;
+      const options = (Array.isArray(q.options) ? q.options : []).slice(0, 4).map((o) => ({
+        label: String((o && o.label) || '').slice(0, 80),
+        detail: o && o.detail ? String(o.detail).slice(0, 160) : '',
+      })).filter((o) => o.label);
+      return Response.json({
+        understood: false,
+        question: {
+          ask: String(q.ask || 'Which did you mean?').slice(0, 240),
+          header: String(q.header || '').slice(0, 28),
+          // A list with nothing in it is a box with a label; ask for words.
+          kind: options.length && q.kind !== 'text' ? (q.kind === 'multi' ? 'multi' : 'choice') : 'text',
+          options,
+        },
+      });
     }
 
     // Only ever act on activities that exist, and only in ways we implement.
