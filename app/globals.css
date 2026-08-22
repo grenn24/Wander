@@ -931,13 +931,26 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   align-items: stretch;
   height: min(76dvh, 820px);
 }
-@media (max-width: 1000px) {
-  .maplayout { grid-template-columns: 1fr; height: auto; }
-  .map-wrap { height: min(52dvh, 460px); }
-  .mapside { max-height: min(60dvh, 520px); }
-}
 
 .map-wrap { height: min(62dvh, 560px); position: relative; }
+
+/* Below the two-column breakpoint. Kept here, after the base height it
+   overrides, because source order is what decides between two single-class
+   rules and this one lost sitting further up the file. */
+@media (max-width: 1000px) {
+  .maplayout { grid-template-columns: 1fr; height: auto; }
+  /* Stacked, the map has to earn its space twice: big enough to read, small
+     enough to leave the list visible under it. It sticks while that list
+     scrolls, so panning and reading stay one gesture apart. */
+  .map-wrap {
+    height: min(46dvh, 420px);
+    position: sticky;
+    top: calc(var(--topbar-h) + 6px);
+    z-index: 4;
+  }
+  .mapside { max-height: none; height: auto; overflow: visible; }
+}
+
 .map-el { cursor: crosshair; }
 
 /* Numbered stop marker, coloured by activity type. */
@@ -2222,7 +2235,12 @@ body::before {
    of the reading measure the rest of the app is set in. */
 .wrap:has(.mappage) { max-width: 1480px; }
 
-.map-wrap:has(+ .mapside), .maplayout > .map-wrap { height: 100%; }
+/* Only where the layout actually has a height to fill. Below the two-column
+   breakpoint .maplayout is height:auto, and 100% of auto is nothing — which is
+   exactly how the map came to be invisible on a phone. */
+@media (min-width: 1001px) {
+  .maplayout > .map-wrap { height: 100%; }
+}
 
 .mapside-where {
   display: flex; align-items: flex-start; gap: 5px;
@@ -2326,17 +2344,13 @@ body::before {
   color: var(--accent); pointer-events: none;
 }
 
-/*
- * Typed text and a placed pin look identical in an input, so the difference is
- * stated underneath. Without this an activity can read as located, save
- * happily, and simply never appear on the map.
- */
+/* A quiet line about how the location will be used — not a status, and not a
+   warning: see the note in ActivityModal. */
 .pinstate {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   margin: 7px 0 0; font-size: 12px;
 }
 .pinstate svg { flex: none; }
 .pinstate.is-idle { color: var(--text-3); }
-.pinstate.is-pinned { color: var(--good); }
-.pinstate.is-loose { color: var(--warn); }
+.pinstate svg { color: var(--text-3); }
 .pinstate .btn { margin-left: 2px; }

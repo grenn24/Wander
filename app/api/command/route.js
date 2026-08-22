@@ -115,6 +115,10 @@ approximations, and the app expands them:
   short request and is the usual reason a large edit fails to finish.
   note_add is appended to what the activity already says; it never replaces it.
 
+Never emit more than about ten single-activity operations. If a change touches
+more than that, it is a bulk change and one of the kinds above expresses it —
+a long list of update_activity is both slower to write and harder to check.
+
 Rules:
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
   or improve anything that was not asked about.

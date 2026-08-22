@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
-import { fmtDayTiny } from '@/lib/util';
+import { fmtDayTiny, shortPlace } from '@/lib/util';
 
 const ICONS = {
   add_activity: Plus,
@@ -183,7 +183,10 @@ export default function TripCommand() {
             start_time: a.start_time,
             title: a.title,
             category: a.category,
-            location: a.location,
+            // "Asakusa, Tokyo" rather than the full postal address Google
+            // returned: enough to reason about, a third of the tokens, and
+            // every token in the question is time before the answer starts.
+            location: shortPlace(a.location),
             cost: a.cost,
           })),
         }),

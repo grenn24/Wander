@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Loader2, MapPin, TriangleAlert } from 'lucide-react';
+import { X, Loader2, MapPin } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
@@ -176,27 +176,29 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
             {geoErr ? <div className="err">{geoErr}</div> : null}
 
-            {/* Whether this activity is actually placed, said plainly — the
-                text box looks the same either way. */}
-            {pinned ? (
-              <p className="pinstate is-pinned">
-                <MapPin size={13} aria-hidden="true" />
-                <span>On the map</span>
+            {/*
+              * No "placed" versus "not placed" here.
+              *
+              * The map resolves a written location on its own, so the warning
+              * this used to show — that typed text stays off the map — was not
+              * even true. Picking a match is a shortcut that saves the lookup
+              * and pins the exact spot; typing the name is the same thing more
+              * slowly. Neither is an error state worth interrupting anyone for.
+              */}
+            <p className="pinstate is-idle">
+              <MapPin size={13} aria-hidden="true" />
+              <span>
+                {pinned
+                  ? 'Pinned to this spot.'
+                  : 'Anything written here is found on the map for you.'}
+              </span>
+              {pinned ? (
                 <button className="btn ghost sm" type="button"
                   onClick={() => set({ lat: null, lng: null, place_id: null, photo_ref: null })}>
-                  remove pin
+                  clear
                 </button>
-              </p>
-            ) : (draft.location || '').trim() ? (
-              <p className="pinstate is-loose">
-                <TriangleAlert size={13} aria-hidden="true" />
-                <span>Not placed yet — choose one of the matches, or this stays off the map.</span>
-              </p>
-            ) : (
-              <p className="pinstate is-idle">
-                <span>Type a place and pick a match to put this on the map.</span>
-              </p>
-            )}
+              ) : null}
+            </p>
           </div>
 
           <div className="field">
