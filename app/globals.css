@@ -444,6 +444,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 @media (max-width: 460px) {
   .kpi-value { font-size: 21px; }
   .row > * { flex: 1 1 100%; }
+  /* ...except the times, which are four characters each. Stacking those made
+     the activity editor a screen taller than it needed to be. */
+  .row > .field:has(input[type="time"]) { flex: 1 1 calc(50% - 5px); }
 }
 
 /* ================================================================ added --- */
