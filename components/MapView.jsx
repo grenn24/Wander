@@ -18,7 +18,7 @@ import Lightbox from '@/components/Lightbox';
 
 
 export default function MapView({
-  trip, days, activities, onEdit, onSetCoords, onNewAt,
+  trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '',
 }) {
   const mapsReady = googleMapsAvailable();
   // Keyed on, not just passed: Google settles the colour scheme when the map is
@@ -610,7 +610,8 @@ export default function MapView({
                       </div>
                     ) : null}
                     <div id={`stop-${a.id}`}
-                      className={`stop${focused === a.id ? ' is-focus' : ''}`}
+                      className={`stop${focused === a.id ? ' is-focus' : ''}`
+                        + `${opening === String(a.id) ? ' is-opening' : ''}`}
                       data-tip={focused === a.id ? 'Open' : 'Show on map'}
                       role="button" tabIndex={0}
                       onClick={() => focus(a)}

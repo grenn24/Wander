@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { useApp } from '@/components/AppProvider';
@@ -15,6 +15,7 @@ import People from '@/components/People';
 import ActivityModal from '@/components/ActivityModal';
 import TripModal from '@/components/TripModal';
 import { todayISO } from '@/lib/util';
+import { placeDetails } from '@/lib/geo';
 
 export default function TripTabPage({ params }) {
   const { id, tab: segment } = use(params);
@@ -34,7 +35,36 @@ export default function TripTabPage({ params }) {
   } = useTrip();
 
   const [editing, setEditing] = useState(null);
+  const [opening, setOpening] = useState(''); // the row we are fetching for
   const [tripDraft, setTripDraft] = useState(null);
+
+  /*
+   * Open the editor with the place already in hand.
+   *
+   * The pictures, the rating and the reviews all arrive on one Place Details
+   * call made from inside the modal, so the modal used to appear at the height
+   * of a form with an empty panel beside it and then jump — twice — as the
+   * photographs and then the reviews landed under it. Half a second of nothing
+   * is a better thing to give someone than a dialog that grows while they are
+   * reading it.
+   *
+   * The call is cached per tab, so this waits once per place and never again;
+   * and it is a race rather than an await, because a slow lookup must not be
+   * able to make the editor feel broken. Whatever has not arrived by then
+   * arrives late, the way it used to.
+   */
+  const HOLD = 1200;
+  const openEditor = useCallback(async (a) => {
+    const draft = { ...a };
+    if (!draft.place_id) { setEditing(draft); return; }
+    setOpening(String(a.id || ''));
+    await Promise.race([
+      placeDetails(draft.place_id).catch(() => null),
+      new Promise((done) => { setTimeout(done, HOLD); }),
+    ]);
+    setOpening('');
+    setEditing(draft);
+  }, []);
 
   /*
    * Requests from the chrome, carried out here.
@@ -102,7 +132,7 @@ export default function TripTabPage({ params }) {
 
   async function onDuplicate(act) {
     const copy = await duplicateActivity(act);
-    if (copy) setEditing({ ...copy });
+    if (copy) openEditor(copy);
   }
 
   return (
@@ -110,7 +140,8 @@ export default function TripTabPage({ params }) {
       {tab === 'itinerary' ? (
         <Itinerary trip={trip} days={days} activities={activities}
           onAdd={(day, title) => setEditing({ day, title: title || '', category: 'sightseeing', cost: 0 })}
-          onEdit={(a) => setEditing({ ...a })}
+          onEdit={openEditor}
+          opening={opening}
           onQuickAdd={quickAddActivity}
           onMove={moveActivity}
           onDuplicate={onDuplicate}
@@ -124,7 +155,8 @@ export default function TripTabPage({ params }) {
 
       {tab === 'map' ? (
         <MapView trip={trip} days={days} activities={activities}
-          onEdit={(a) => setEditing({ ...a })}
+          onEdit={openEditor}
+          opening={opening}
           onNewAt={(draft) => setEditing(draft)}
           onSetCoords={setActivityCoords}
         />

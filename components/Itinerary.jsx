@@ -23,6 +23,9 @@ const ANCHORS = new Set(['transport', 'lodging']);
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
   onEditTrip, onPrint, onAddMany, focus, onFocused,
+  // Which row is waiting on its place before the editor can open. A click that
+  // does nothing visible for half a second reads as a click that missed.
+  opening = '',
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
@@ -371,7 +374,8 @@ export default function Itinerary({
                     <div id={`act-${a.id}`}
                       className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`
                         + `${flash === String(a.id) ? ' is-found' : ''}`
-                        + `${liveId === String(a.id) ? ' is-live' : ''}`}
+                        + `${liveId === String(a.id) ? ' is-live' : ''}`
+                        + `${opening === String(a.id) ? ' is-opening' : ''}`}
                       role="button" tabIndex={0}
                       onClick={() => onEdit(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>

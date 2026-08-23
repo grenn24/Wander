@@ -19,10 +19,23 @@ import { useModalChrome } from '@/lib/useModal';
  * it, which is the correct amount of work for something that happens when you
  * drag a window edge.
  */
+const ROOM = '(min-width: 900px)';
+
 function useRoomForMap() {
-  const [wide, setWide] = useState(false);
+  /*
+   * Read before the first render, not after it.
+   *
+   * Starting at false and correcting in an effect meant every modal on a
+   * desktop opened in the one-column layout for a frame and then rebuilt
+   * itself in two — a 60-pixel lurch a tenth of a second after it appeared,
+   * which is exactly when someone is looking at it. There is no server render
+   * to disagree with here: this component only ever mounts on a click.
+   */
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(ROOM).matches,
+  );
   useEffect(() => {
-    const m = window.matchMedia('(min-width: 900px)');
+    const m = window.matchMedia(ROOM);
     const read = () => setWide(m.matches);
     read();
     m.addEventListener('change', read);

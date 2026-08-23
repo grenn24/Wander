@@ -3188,6 +3188,30 @@ body:has(.lp)::before { display: none; }
 .rv-go { margin-left: auto; }
 @media print { .rv { display: none !important; } }
 
+/*
+ * A row that has been clicked and is fetching the place before the editor can
+ * open. Not a spinner: nothing here should move or change size, because the
+ * whole point of the wait is that nothing moves. A quiet sweep of light across
+ * the row says the click landed and something is happening.
+ */
+.act.is-opening, .stop.is-opening {
+  position: relative; overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.act.is-opening::after, .stop.is-opening::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 80%);
+  animation: opensweep 1s var(--ease) infinite;
+}
+@keyframes opensweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .act.is-opening::after, .stop.is-opening::after { animation: none; opacity: .5; }
+}
+
 /* The row you are in the middle of, right now.
  *
  * A slow outward pulse rather than the two-second flash a search result gets:

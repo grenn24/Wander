@@ -4,7 +4,7 @@ import { MapPin, Loader2, Crosshair } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import PlaceFacts from '@/components/PlaceFacts';
-import { searchPlaces, reverseGeocode, placeDetails } from '@/lib/geo';
+import { searchPlaces, reverseGeocode, placeDetails, cachedDetails } from '@/lib/geo';
 
 /* Shared, so "no photos" is the same array every render and does not restart
    the effect that reads it. */
@@ -35,7 +35,10 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
   const [probe, setProbe] = useState(null); // best guess for text with no pin
   const [busy, setBusy] = useState(false);
   const [mapErr, setMapErr] = useState('');
-  const [facts, setFacts] = useState(null); // photos, rating, reviews
+  // Seeded from the cache rather than fetched into it: the editor is opened
+  // with the place already asked for, so by the time this mounts the answer is
+  // usually sitting there and the panel can be right the first time.
+  const [facts, setFacts] = useState(() => cachedDetails(draft.place_id));
   const scheme = useMapScheme();
 
   const lat = Number(draft.lat);
@@ -68,8 +71,9 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
    * the request rather than by the field.
    */
   useEffect(() => {
-    setFacts(null);
-    if (!draft.place_id) return undefined;
+    const known = cachedDetails(draft.place_id);
+    setFacts(known);
+    if (!draft.place_id || known) return undefined;
     let alive = true;
     placeDetails(draft.place_id)
       .then((d) => { if (alive) setFacts(d); })
