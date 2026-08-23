@@ -1962,12 +1962,12 @@ body:has(.lp)::before { display: none; }
 
 /* ========================================================= command bar --- */
 /* Floats over the workspace on every trip tab, clear of the mobile tab bar. */
-.cmd-pill, .cmd-wrap {
+.cmd-pill {
   position: fixed; z-index: 55; left: 50%; transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
 }
 @media (max-width: 860px) {
-  .cmd-pill, .cmd-wrap { bottom: calc(78px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px)); }
+  .cmd-pill { bottom: calc(78px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px)); }
 }
 
 .cmd-pill {
@@ -2012,7 +2012,6 @@ body:has(.lp)::before { display: none; }
   .cmd-pill svg { width: 21px; height: 21px; }
 }
 
-.cmd-wrap { width: min(620px, calc(100vw - 24px)); }
 .cmd {
   padding: 12px;
   background: var(--glass-strong);
@@ -2063,7 +2062,7 @@ body:has(.lp)::before { display: none; }
   .cmd-pill { transition: none; }
   .cmd-pill:hover { transform: translateX(-50%); }
 }
-@media print { .cmd-pill, .cmd-wrap { display: none !important; } }
+@media print { .cmd-pill { display: none !important; } }
 
 /* ==================================================== motion on arrival --- */
 
@@ -2445,69 +2444,96 @@ body:has(.lp)::before { display: none; }
   .presence .avatars { display: none; }
 }
 
-/* ================================================================ search -- */
-
-/* One layout at both sizes: a list of results wants the screen on a phone and
-   reads well centred on a desktop, so there is no second design to maintain. */
-.tsearch-back {
+/* ============================================================== command -- */
+/*
+ * One panel for finding and for changing. It used to be two — a search list
+ * and a separate instruction box docked to the bottom of the window — and
+ * nobody arrives knowing which of the two their sentence belongs to.
+ *
+ * One layout at both sizes: a list of answers wants the screen on a phone and
+ * reads well centred on a desktop, so there is no second design to maintain.
+ */
+.ck-back {
   position: fixed; inset: 0; z-index: 90;
   background: rgba(10,10,10,.5);
   -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-  display: flex; justify-content: center;
-  padding: max(10vh, 48px) 16px 24px;
+  /* flex-start, or the panel stretches to the height of the backdrop and
+     hangs a column of empty card under its own last row. */
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: max(9vh, 40px) 16px 24px;
   animation: fadein .14s var(--ease);
 }
 @keyframes fadein { from { opacity: 0; } }
 
-.tsearch {
-  width: min(560px, 100%); max-height: min(70vh, 620px);
-  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+.ck {
+  width: min(600px, 100%); max-height: min(74vh, 660px);
+  display: flex; flex-direction: column; padding: 0; overflow: hidden auto;
   animation: cmdin .16s var(--ease);
 }
-.tsearch-top {
-  display: flex; align-items: center; gap: 10px;
-  padding: 13px 13px 13px 15px; border-bottom: 1px solid var(--border);
+.ck-top {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 11px 11px 15px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 2; background: var(--surface-1);
 }
-.tsearch-ico { color: var(--text-3); flex: none; }
-.tsearch-in {
+.ck-ico-lead { color: var(--accent); flex: none; margin-top: 8px; }
+.ck-top > .btn { flex: none; margin-top: 3px; }
+.ck-in {
   flex: 1; min-width: 0; border: none; background: none; outline: none;
-  font: inherit; font-size: 16px; color: var(--text-1);
+  font: inherit; font-size: 16px; color: var(--text-1); padding: 6px 0;
 }
-.tsearch-in::placeholder { color: var(--text-3); }
+.ck-in::placeholder { color: var(--text-3); }
 
-.tsearch-empty { margin: 0; padding: 16px 15px; font-size: 13.5px; color: var(--text-3); }
-.tsearch-none { padding: 4px 15px 16px; }
+.ck-empty { margin: 0; padding: 16px 15px; font-size: 13.5px; color: var(--text-3); }
+.ck-err { margin: 12px 15px 0; }
+.ck-pad { padding: 4px 15px 15px; }
+.ck-blank .cmd-examples { padding: 0 15px 14px; margin-top: 8px; }
 
-.tsearch-list {
+.ck-list {
   list-style: none; margin: 0; padding: 6px; overflow-y: auto;
   overscroll-behavior: contain; min-height: 0;
 }
-.tsearch-hit {
+.ck-row {
   display: flex; align-items: center; gap: 10px; padding: 9px 10px;
   border-radius: 9px; cursor: pointer;
 }
-.tsearch-hit.is-active { background: var(--surface-2); }
-.tsearch-main { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-.tsearch-title {
+.ck-row.is-active { background: var(--surface-2); }
+/* An action is a different kind of answer from a match, so it says so before
+   you read it — the sparkle sits in the accent, not in the row colour. */
+.ck-row.is-action .ck-ico {
+  width: 26px; height: 26px; flex: none; border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+}
+.ck-main { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.ck-title {
   font-weight: 550; font-size: 14px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tsearch-foot {
+.ck-row .tiny {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* A match's second line is a place and a time, which reads fine clipped. An
+   action's is a sentence, which does not. */
+.ck-row.is-action .tiny {
+  white-space: normal; text-overflow: clip;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.ck-foot {
   display: flex; align-items: center; gap: 6px; margin: 0;
   padding: 9px 15px; border-top: 1px solid var(--border);
   font-size: 11.5px; color: var(--text-3);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-back, .ck { animation: none; }
+}
+@media print { .ck-back { display: none !important; } }
 
 /* The row you came for, marked long enough to find and no longer. */
 .act.is-found {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .tsearch-back, .tsearch { animation: none; }
-}
-@media print { .tsearch-back { display: none !important; } }
 
 /* ------------------------------------------------- activity editor map --- */
 /*

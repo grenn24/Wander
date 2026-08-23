@@ -98,7 +98,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           </button>
         ))}
         <button type="button" className="samplechip shuffle" onClick={shuffle}
-          data-tip="Show different examples"
+          data-tip="Other examples"
           aria-label="Show different examples">
           <Shuffle size={13} />
         </button>

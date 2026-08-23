@@ -257,9 +257,9 @@ export default function Itinerary({
             </button>
           ) : null}
           <button className="btn sm" onClick={onPrint}
-            data-tip="Print, or save the whole trip as a PDF"><Printer size={15} /> Print</button>
+            data-tip="Print or save PDF"><Printer size={15} /> Print</button>
           <button className="btn sm" onClick={onEditTrip}
-            data-tip="Name, dates, destination and budget"><Settings size={15} /> Edit trip</button>
+            data-tip="Dates, budget, name"><Settings size={15} /> Edit trip</button>
         </div>
       </div>
 
@@ -351,7 +351,7 @@ export default function Itinerary({
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => e.stopPropagation()}>
                         <button className="btn ghost sm icon-btn" type="button"
-                          data-tip="Move, duplicate or delete"
+                          data-tip="Move, copy, delete"
                           aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
                           onClick={(e) => {
                             const same = menuFor === a.id;

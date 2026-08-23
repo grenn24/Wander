@@ -502,7 +502,7 @@ export default function MapView({
               const KindIcon = categoryIcon(k.category);
               return (
                 <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
-                  data-tip={`${k.label} near the middle of the map`}
+                  data-tip="Search this view"
                   disabled={!mapsReady}
                   onClick={() => {
                     setHits(null); setQuery(''); setPickedPlace(null);
@@ -563,7 +563,7 @@ export default function MapView({
                   </div>
                   <button className="btn sm icon-btn"
                     onClick={(e) => { e.stopPropagation(); addPlace(pl); }}
-                    data-tip={`Add ${pl.name} to the trip`}
+                    data-tip="Add to trip"
                     aria-label={`Add ${pl.name}`}><Plus size={14} /></button>
                 </div>
               ))}
@@ -603,7 +603,7 @@ export default function MapView({
                     ) : null}
                     <div id={`stop-${a.id}`}
                       className={`stop${focused === a.id ? ' is-focus' : ''}`}
-                      data-tip={focused === a.id ? `Open ${a.title}` : `Show ${a.title} on the map`}
+                      data-tip={focused === a.id ? 'Open' : 'Show on map'}
                       role="button" tabIndex={0}
                       onClick={() => focus(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
@@ -616,7 +616,7 @@ export default function MapView({
                         </div>
                       </div>
                       <button className="btn ghost sm icon-btn"
-                        data-tip={`Edit ${a.title}`} aria-label={`Edit ${a.title}`}
+                        data-tip="Edit" aria-label={`Edit ${a.title}`}
                         onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
                         <SquarePen size={14} />
                       </button>

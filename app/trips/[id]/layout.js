@@ -7,8 +7,7 @@ import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
-import TripCommand from '@/components/TripCommand';
-import TripSearch from '@/components/TripSearch';
+import { CommandProvider, CommandTrigger } from '@/components/Command';
 import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
@@ -79,11 +78,11 @@ function TripChrome({ tripId, children }) {
   }
 
   return (
-    <>
+    <CommandProvider>
       <div className="shell">
         <TopBar
           online={online}
-          tools={<TripSearch />}
+          tools={<CommandTrigger />}
           menu={[
             { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
@@ -96,7 +95,7 @@ function TripChrome({ tripId, children }) {
           <Link
             href={active === 'itinerary' ? '/trips' : `/trips/${tripId}/itinerary`}
             className="crumb-back"
-            data-tip={active === 'itinerary' ? 'All your trips' : 'Back to the itinerary'}
+            data-tip={active === 'itinerary' ? 'All trips' : 'Back to trip'}
             aria-label={active === 'itinerary' ? 'All trips' : 'Back to the itinerary'}
           >
             <ChevronLeft size={16} />
@@ -143,8 +142,6 @@ function TripChrome({ tripId, children }) {
           </main>
         </div>
 
-        <TripCommand />
-
         <nav className="tabbar" ref={tabRef} aria-label="Trip sections">
           {TRIP_NAV.map((t) => {
             const Icon = TAB_ICONS[t.id];
@@ -159,6 +156,6 @@ function TripChrome({ tripId, children }) {
 
       <PrintView trip={trip} days={days} activities={activities}
         packing={packing} members={members} />
-    </>
+    </CommandProvider>
   );
 }

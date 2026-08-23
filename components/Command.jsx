@@ -1,13 +1,39 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Sparkles, Loader2, X, Check, ArrowUp, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  ArrowLeft, RotateCcw,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
+  Search, ArrowLeft, RotateCcw, CornerDownLeft,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
-import { fmtDayTiny, shortPlace } from '@/lib/util';
+import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
+import { categoryIcon } from '@/lib/icons';
+
+/**
+ * One box for everything you might type at this trip.
+ *
+ * There used to be two, side by side in the same bar: a magnifying glass that
+ * searched what was already there, and a sparkle that changed it. Nobody
+ * arrives at a trip knowing which of those their sentence is — "dinner in
+ * Kyoto" is a search if it exists and an instruction if it does not, and the
+ * only way to find out was to guess a button and start again if you guessed
+ * wrong.
+ *
+ * So there is one input, and the answers are ranked underneath it. Matching
+ * runs locally on every keystroke: a few dozen rows, no network, no waiting to
+ * be told what you can already see. The model is offered rather than invoked,
+ * always as a row you choose, because it costs a minute and a trip-wide edit
+ * is not a thing to start by accident.
+ *
+ * What sits first is decided by shape rather than by intent-detection. A word
+ * or two is a lookup, so matches lead; a sentence is an instruction, so the
+ * actions do. Nothing is hidden either way.
+ */
 
 const ICONS = {
   add_activity: Plus,
@@ -22,6 +48,16 @@ const ICONS = {
 };
 
 const DESTRUCTIVE = new Set(['delete_activity', 'clear_day']);
+
+/** Past this many words it is a sentence, and a sentence is an instruction. */
+const SENTENCE = 4;
+
+const EXAMPLES = [
+  'Move everything on day 3 to day 5',
+  'Make the trip two days longer',
+  'Add a hotel each night in Kyoto',
+  'Nothing before 10am',
+];
 
 /** Nudge a HH:MM by some minutes, staying inside the day. */
 function shiftTime(t, minutes) {
@@ -98,30 +134,87 @@ function expand(op, activities) {
   return [op];
 }
 
-const EXAMPLES = [
-  'Move everything on day 3 to day 5',
-  'Make the trip two days longer',
-  'Add a hotel each night in Kyoto',
-  'Nothing before 10am',
-];
+/** Everything about an activity that someone might reasonably type. */
+function haystack(a) {
+  return [a.title, a.location, a.notes, a.booking_ref, categoryOf(a.category).label]
+    .filter(Boolean).join(' ').toLowerCase();
+}
 
-/**
- * One box that edits anything in the trip.
- *
- * It never applies straight away. The model returns a list of concrete edits,
- * each described in a line you can check, and nothing touches the database
- * until you approve it — an instruction like "clear day 4" is easy to say and
- * expensive to get wrong.
- */
-export default function TripCommand() {
+/* ---------------------------------------------------------------- wiring --- */
+
+const Ctx = createContext(null);
+
+/** For anything that wants to open the bar — the top bar's button, mainly. */
+export function useCommand() {
+  return useContext(Ctx) || { open: () => {} };
+}
+
+export function CommandTrigger() {
+  const { open } = useCommand();
+  return (
+    <button className="btn ghost sm icon-btn" type="button"
+      data-tip="Search or change  ⌘K" aria-label="Search or change this trip"
+      onClick={open}>
+      <Search size={16} />
+    </button>
+  );
+}
+
+export function CommandProvider({ children }) {
+  const [open, setOpen] = useState(false);
+  const value = useMemo(() => ({ open: () => setOpen(true) }), []);
+
+  /*
+   * Two ways in from the keyboard, because there are two habits: ⌘K is the
+   * command palette everybody has, and "/" is the search box everybody has.
+   * They arrive at the same place, which is the point of merging them.
+   */
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = /^(INPUT|TEXTAREA)$/.test(
+        document.activeElement && document.activeElement.tagName,
+      ) || (document.activeElement && document.activeElement.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(true);
+      } else if (e.key === '/' && !typing) {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      {open ? null : (
+        <button className="cmd-pill" type="button" data-tip="Search or change  ⌘K"
+          aria-label="Search or change this trip" onClick={() => setOpen(true)}>
+          <Sparkles size={15} />
+          <span>Search or change…</span>
+          <kbd>⌘K</kbd>
+        </button>
+      )}
+      {open ? <CommandBar onClose={() => setOpen(false)} /> : null}
+    </Ctx.Provider>
+  );
+}
+
+/* ------------------------------------------------------------- the panel --- */
+
+function CommandBar({ onClose }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { pushToast, fail } = useApp();
   const {
-    trip, activities,
+    tripId, trip, days, activities, requestFocus,
     addActivities, saveActivity, moveActivity, deleteActivity, updateTrip,
   } = useTrip();
 
-  const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState(null); // { summary, ops }
   const [question, setQuestion] = useState(null); // { ask, header, kind, options }
@@ -130,35 +223,82 @@ export default function TripCommand() {
   const [typing, setTyping] = useState(false); // "something else" is open
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
   const inputRef = useRef(null);
   const askRef = useRef(null);
   const pending = useRef('');
+
+  // Portals need a DOM to aim at, so nothing escapes during SSR.
+  useEffect(() => {
+    setReady(true);
+    const t = setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
+    return () => clearTimeout(t);
+  }, []);
 
   const clearAsk = useCallback(() => {
     setQuestion(null); setPicked([]); setAnswer(''); setTyping(false);
   }, []);
 
-  const reset = useCallback(() => {
-    setText(''); setPlan(null); setAnswers([]); setError('');
+  const startOver = useCallback(() => {
+    setText(''); setPlan(null); setAnswers([]); setError(''); setActive(0);
     clearAsk();
     pending.current = '';
+    if (inputRef.current) inputRef.current.focus();
   }, [clearAsk]);
 
-  // Cmd/Ctrl+K from anywhere in the trip, Escape to dismiss.
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setOpen(true);
-        setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
-      } else if (e.key === 'Escape' && open && !busy) {
-        setOpen(false);
-        reset();
-      }
+      if (e.key === 'Escape' && !busy) { e.stopPropagation(); onClose(); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, busy, reset]);
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [busy, onClose]);
+
+  /* ------------------------------------------------------------ matching --- */
+
+  const term = text.trim().toLowerCase();
+  const words = term ? term.split(/\s+/) : [];
+
+  const hits = useMemo(() => {
+    if (!term) return [];
+    // Every word must appear somewhere, so "ramen shibuya" narrows rather than
+    // widens the way a single-string match would.
+    return activities
+      .filter((a) => { const h = haystack(a); return words.every((w) => h.includes(w)); })
+      .sort((a, b) => (a.day === b.day
+        ? String(a.start_time || '').localeCompare(String(b.start_time || ''))
+        : String(a.day).localeCompare(String(b.day))))
+      .slice(0, 30);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term, activities]);
+
+  /*
+   * The whole answer, in the order it should be read. A sentence leads with
+   * what to do about it; a word or two leads with what it already matches.
+   */
+  const rows = useMemo(() => {
+    if (!term) return [];
+    const found = hits.map((a) => ({ id: `a-${a.id}`, kind: 'act', act: a }));
+    const acts = [
+      { id: 'do', kind: 'do' },
+      { id: 'add', kind: 'add' },
+    ];
+    return words.length >= SENTENCE || !found.length
+      ? [...acts, ...found] : [...found, ...acts];
+  }, [term, hits, words.length]);
+
+  useEffect(() => { setActive(0); }, [term]);
+
+  const itinerary = `/trips/${tripId}/itinerary`;
+
+  /** Go to an activity: the itinerary scrolls to it and opens it. */
+  function go(a) {
+    onClose();
+    requestFocus(a.id);
+    if (pathname !== itinerary) router.push(itinerary);
+  }
+
+  /* -------------------------------------------------------------- doing --- */
 
   /**
    * Send the instruction, plus every answer given to every question so far.
@@ -168,7 +308,7 @@ export default function TripCommand() {
    * question it belongs to, and a second question would otherwise arrive with
    * the first answer already forgotten.
    */
-  async function ask(reply) {
+  async function run(reply) {
     const first = reply == null;
     const instruction = first ? text.trim() : pending.current;
     if (!instruction) return;
@@ -237,6 +377,42 @@ export default function TripCommand() {
     }
   }
 
+  /** One sentence, one activity — the quick path that skips the whole trip. */
+  async function addOne() {
+    const said = text.trim();
+    if (!said || busy) return;
+    setBusy(true); setError('');
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: said,
+          destination: trip.destination || trip.name,
+          currency: trip.currency,
+          dayLabel: 'the trip',
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.activity) {
+        setError(body.error || 'Could not read that as an activity.');
+        return;
+      }
+      const day = body.activity.day && days.includes(body.activity.day)
+        ? body.activity.day : days[0];
+      const made = await addActivities([{ ...body.activity, day }]);
+      const id = Array.isArray(made) && made[0] ? made[0].id : null;
+      pushToast(`Added “${body.activity.title}”.`);
+      onClose();
+      if (id) requestFocus(id);
+      if (pathname !== itinerary) router.push(itinerary);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function apply() {
     if (!plan) return;
     setBusy(true);
@@ -295,8 +471,7 @@ export default function TripCommand() {
 
       if (additions.length) await addActivities(additions);
       pushToast(`${done} change${done === 1 ? '' : 's'} applied.`);
-      setOpen(false);
-      reset();
+      onClose();
     } catch (e) {
       fail(e);
     } finally {
@@ -304,84 +479,138 @@ export default function TripCommand() {
     }
   }
 
-  // Something has come back and is waiting on the reader.
-  const replied = !!question || !!plan;
+  function choose(row) {
+    if (!row || busy) return;
+    if (row.kind === 'act') go(row.act);
+    else if (row.kind === 'do') run();
+    else if (row.kind === 'add') addOne();
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); setActive((i) => Math.min(rows.length - 1, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); setActive((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); choose(rows[active]);
+    }
+  }
+
+  if (!trip || !ready) return null;
 
   // The preview lists intents; this is how many activities they land on.
   const edits = plan ? plan.ops.flatMap((o) => expand(o, activities)).length : 0;
+  const answered = !!question || !!plan;
+  const showList = !answered && !busy;
 
-  if (!trip) return null;
-
-  if (!open) {
-    // At phone widths this is a round icon button and the label is hidden, so
-    // the accessible name has to be stated rather than read off the text.
+  /** A row of the answer, whichever kind it is. */
+  const row = (r, i) => {
+    const on = i === active;
+    const pick = { onMouseEnter: () => setActive(i), onMouseDown: (e) => { e.preventDefault(); choose(r); } };
+    if (r.kind === 'act') {
+      const cat = categoryOf(r.act.category);
+      const Icon = categoryIcon(cat.id);
+      const place = shortPlace(r.act.location);
+      return (
+        <li key={r.id} role="option" aria-selected={on}
+          className={`ck-row${on ? ' is-active' : ''}`} {...pick}>
+          <span className={`catico cat-${cat.id}`} aria-hidden="true"><Icon size={14} /></span>
+          <span className="ck-main">
+            <span className="ck-title">{r.act.title}</span>
+            <span className="tiny dim">
+              {fmtDayTiny(r.act.day)}
+              {r.act.start_time ? ` · ${fmtTime(r.act.start_time)}` : ''}
+              {place ? ` · ${place}` : ''}
+            </span>
+          </span>
+        </li>
+      );
+    }
+    const isDo = r.kind === 'do';
     return (
-      <button className="cmd-pill" type="button" data-tip="Change anything in this trip  ⌘K"
-        aria-label="Change anything in this trip"
-        onClick={() => {
-          setOpen(true);
-          setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
-        }}>
-        <Sparkles size={15} />
-        <span>Change anything…</span>
-        <kbd>⌘K</kbd>
-      </button>
+      <li key={r.id} role="option" aria-selected={on}
+        className={`ck-row is-action${on ? ' is-active' : ''}`} {...pick}>
+        <span className="ck-ico" aria-hidden="true">
+          {isDo ? <Sparkles size={15} /> : <Plus size={15} />}
+        </span>
+        <span className="ck-main">
+          <span className="ck-title">
+            {isDo ? 'Make this change to the trip' : 'Add it as one activity'}
+          </span>
+          <span className="tiny dim">
+            {isDo
+              ? 'Shows the edits before anything is saved'
+              : 'Day and time read from what you wrote'}
+          </span>
+        </span>
+      </li>
     );
-  }
+  };
 
-  return (
-    <div className="cmd-wrap">
-      <div className="cmd card">
-        <form className="cmd-top" onSubmit={(e) => { e.preventDefault(); ask(); }}>
-          <Sparkles size={16} className="cmd-spark" />
+  return createPortal((
+    <div className="ck-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ck card" role="dialog" aria-modal="true" aria-label="Search or change this trip">
+        <div className="ck-top">
+          {busy ? <Loader2 size={17} className="spin ck-ico-lead" />
+            : <Sparkles size={17} className="ck-ico-lead" />}
           <GrowArea
             ref={inputRef}
-            className="cmd-input"
+            className="ck-in"
             value={text}
             disabled={busy}
-            placeholder="Change anything in this trip…"
-            onSubmit={() => ask()}
+            placeholder="Search this trip, or say what to change…"
+            aria-label="Search this trip, or say what to change"
+            onKeyDown={onKeyDown}
             onChange={(e) => {
               setText(e.target.value); setError(''); setPlan(null);
-              // A new instruction is a new conversation; the old answers were
+              // A new sentence is a new conversation; the old answers were
               // about a question nobody is being asked any more.
               setAnswers([]); clearAsk(); pending.current = '';
             }}
           />
-          {/*
-            * Send, or start again — never both meanings on one button.
-            *
-            * Once there is a question to answer or a plan to approve, the
-            * instruction has already been sent, and an arrow that still says
-            * "send" invites you to send it a second time. What is actually
-            * wanted at that point is a way out, so that is what it becomes.
-            */}
-          {busy ? <Loader2 size={16} className="spin" />
-            : replied ? (
-              <button className="btn ghost sm icon-btn" type="button"
-                data-tip="Start over" aria-label="Start over"
-                onClick={() => { reset(); inputRef.current.focus(); }}>
-                <RotateCcw size={15} />
-              </button>
-            ) : text.trim() ? (
-              <button className="qa-send cmd-send" type="submit" aria-label="Work it out">
-                <ArrowUp size={15} />
-              </button>
-            ) : null}
-          <button className="btn ghost sm icon-btn" type="button" aria-label="Close"
-            onClick={() => { setOpen(false); reset(); }}><X size={15} /></button>
-        </form>
+          {answered && !busy ? (
+            <button className="btn ghost sm icon-btn" type="button"
+              data-tip="Start over" aria-label="Start over" onClick={startOver}>
+              <RotateCcw size={15} />
+            </button>
+          ) : null}
+          <button className="btn ghost sm icon-btn" type="button"
+            data-tip="Close  Esc" aria-label="Close" onClick={onClose}><X size={15} /></button>
+        </div>
 
-        {!plan && !question && !error && !busy ? (
-          <div className="cmd-examples">
-            {EXAMPLES.map((x) => (
-              <button key={x} type="button" className="samplechip"
-                onClick={() => { setText(x); inputRef.current.focus(); }}>{x}</button>
-            ))}
+        {error ? <div className="err ck-err">{error}</div> : null}
+
+        {busy ? (
+          <p className="ck-empty">Working it out — a whole-trip change can take a minute.</p>
+        ) : null}
+
+        {showList && !term ? (
+          <div className="ck-blank">
+            <p className="ck-empty" style={{ padding: '14px 15px 4px' }}>
+              Type a place or a name to find it. Type a sentence to change the trip.
+            </p>
+            <div className="cmd-examples">
+              {EXAMPLES.map((x) => (
+                <button key={x} type="button" className="samplechip"
+                  onClick={() => { setText(x); inputRef.current.focus(); }}>{x}</button>
+              ))}
+            </div>
           </div>
         ) : null}
 
-        {error ? <div className="err" style={{ marginTop: 4 }}>{error}</div> : null}
+        {showList && term ? (
+          <>
+            <ul className="ck-list" role="listbox" aria-label="Results">
+              {rows.map(row)}
+            </ul>
+            <p className="ck-foot">
+              <CornerDownLeft size={12} />
+              {hits.length
+                ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in this trip`
+                : 'Nothing in this trip matches — the model can still do it'}
+            </p>
+          </>
+        ) : null}
 
         {/*
           * Answers, not a blank box.
@@ -389,21 +618,19 @@ export default function TripCommand() {
           * The question the model asks is nearly always a choice between
           * readings it has already worked out — offering them turns a decision
           * into one tap and removes the second round that a vaguely worded
-          * reply used to cost. Typing is still there underneath, because a
-          * list of four cannot cover a number, a date, or "actually, never
-          * mind, I meant something else".
+          * reply used to cost.
           */}
         {question ? (
-          <div className="cmdq">
+          <div className="cmdq ck-pad">
             {question.header ? <span className="cmdq-head">{question.header}</span> : null}
             <p className="cmdq-ask"><Sparkles size={14} aria-hidden="true" />{question.ask}</p>
 
             {typing ? (
               <form className="cmdq-row"
-                onSubmit={(e) => { e.preventDefault(); if (answer.trim()) ask(answer.trim()); }}>
+                onSubmit={(e) => { e.preventDefault(); if (answer.trim()) run(answer.trim()); }}>
                 <GrowArea ref={askRef} value={answer} disabled={busy}
                   placeholder="Say what you meant…"
-                  onSubmit={() => { if (answer.trim()) ask(answer.trim()); }}
+                  onSubmit={() => { if (answer.trim()) run(answer.trim()); }}
                   onChange={(e) => setAnswer(e.target.value)} />
                 <button className="btn sm primary" type="submit" disabled={busy || !answer.trim()}>
                   Continue
@@ -425,7 +652,7 @@ export default function TripCommand() {
                         aria-pressed={question.kind === 'multi' ? on : undefined}
                         className={`cmdq-opt${on ? ' is-on' : ''}`}
                         onClick={() => {
-                          if (question.kind !== 'multi') { ask(o.label); return; }
+                          if (question.kind !== 'multi') { run(o.label); return; }
                           setPicked((p) => (on ? p.filter((x) => x !== o.label) : [...p, o.label]));
                         }}>
                         {question.kind === 'multi' ? (
@@ -453,7 +680,7 @@ export default function TripCommand() {
                   {question.kind === 'multi' ? (
                     <button className="btn sm primary" type="button"
                       disabled={busy || !picked.length}
-                      onClick={() => ask(picked.join(', '))}>
+                      onClick={() => run(picked.join(', '))}>
                       Continue{picked.length ? ` · ${picked.length}` : ''}
                     </button>
                   ) : null}
@@ -464,7 +691,7 @@ export default function TripCommand() {
         ) : null}
 
         {plan ? (
-          <div className="cmd-plan">
+          <div className="cmd-plan ck-pad">
             {plan.summary ? <p className="small muted cmd-summary">{plan.summary}</p> : null}
             <ul className="cmd-ops">
               {plan.ops.map((op, i) => {
@@ -496,5 +723,5 @@ export default function TripCommand() {
         ) : null}
       </div>
     </div>
-  );
+  ), document.body);
 }

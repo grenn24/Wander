@@ -134,7 +134,7 @@ export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, 
                   <span className="pack-label">{i.label}</span>
                   {i.qty > 1 ? <span className="tag mono">×{i.qty}</span> : null}
                   <button className="btn ghost sm icon-btn"
-                    data-tip={`Remove ${i.label}`} aria-label={`Remove ${i.label}`}
+                    data-tip="Remove" aria-label={`Remove ${i.label}`}
                     onClick={() => onDelete(i.id)}><X size={15} /></button>
                 </div>
               ))}

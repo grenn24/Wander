@@ -439,7 +439,7 @@ export default function GoogleMap({
       const shot = document.createElement('button');
       shot.type = 'button';
       shot.className = 'gminfo-shot';
-      shot.dataset.tip = 'See the photos';
+      shot.dataset.tip = 'Photos';
       shot.setAttribute('aria-label', `Photos of ${card.title}`);
       const img = document.createElement('img');
       img.alt = '';
