@@ -3004,3 +3004,79 @@ body:has(.lp)::before { display: none; }
   font-size: 11.5px; color: var(--text-2); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }
+
+/* ================================================================ tourist -- */
+/*
+ * The trip while you are on it, which is a different document from the trip
+ * while you are planning it. Full screen, big type, two cards and a clock:
+ * everything here has to be readable at arm's length in daylight, by someone
+ * holding a bag.
+ */
+.tourist {
+  position: fixed; inset: 0; z-index: 95;
+  display: flex; flex-direction: column;
+  background: var(--surface-0);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tourist-top {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tourist-day {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-2);
+}
+.tourist-day svg { color: var(--accent); }
+.tourist-clock { margin-left: auto; font-size: 15px; font-weight: 700; }
+.tourist-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 14px 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.tourist-empty {
+  margin: 0; padding: 28px 4px; text-align: center; color: var(--text-3);
+  font-size: 14px;
+}
+.tourist-foot {
+  flex: none; padding: 12px 14px; border-top: 1px solid var(--border);
+  display: flex; justify-content: center;
+}
+
+.tcard {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-1); padding: 16px;
+}
+/* What you are doing gets the accent; what comes next is quieter, because the
+   whole point is that only one of them is a decision right now. */
+.tcard-now { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tcard-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tcard-when {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-3);
+}
+.tcard-now .tcard-when { color: var(--accent-ink); }
+.tcard-time { margin-left: auto; font-size: 14px; font-weight: 700; }
+.tcard-in {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; color: var(--text-3);
+}
+.tcard-title {
+  font-size: 22px; line-height: 1.2; letter-spacing: -.02em; margin: 10px 0 0;
+}
+.tcard-leg { margin: 8px 0 0; font-size: 13px; color: var(--text-1); }
+.tcard-place, .tcard-ref, .tcard-cost {
+  display: flex; align-items: center; gap: 6px;
+  margin: 6px 0 0; font-size: 13.5px; color: var(--text-2);
+}
+.tcard-place svg { flex: none; color: var(--text-3); }
+.tcard-notes {
+  margin: 10px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2);
+  white-space: pre-wrap;
+}
+.tcard-go { width: 100%; margin-top: 14px; }
+
+@media (min-width: 700px) {
+  .tourist-body { max-width: 560px; width: 100%; margin: 0 auto; }
+  .tcard-title { font-size: 25px; }
+}
+@media print { .tourist { display: none !important; } }

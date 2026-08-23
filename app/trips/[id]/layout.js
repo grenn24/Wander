@@ -1,13 +1,14 @@
 'use client';
 
-import { use, useEffect, useRef } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Settings, Compass } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import { CommandProvider, CommandTrigger } from '@/components/Command';
+import Tourist, { tripIsOn } from '@/components/Tourist';
 import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
@@ -26,6 +27,7 @@ function TripChrome({ tripId, children }) {
   // trailing slash shifts the positions, which is what silently pinned this to
   // "itinerary" no matter which tab was open.
   const tabRef = useRef(null);
+  const [touring, setTouring] = useState(false);
 
   /*
    * How much of the bottom edge the tab bar occupies.
@@ -82,7 +84,20 @@ function TripChrome({ tripId, children }) {
       <div className="shell">
         <TopBar
           online={online}
-          tools={<CommandTrigger />}
+          tools={(
+            <>
+              {/* Only while the trip is actually running. Before and after, a
+                  button offering to show you "now" has no now to show. */}
+              {tripIsOn(trip) ? (
+                <button className="btn ghost sm icon-btn" type="button"
+                  data-tip="Where am I now" aria-label="Tourist mode"
+                  onClick={() => setTouring(true)}>
+                  <Compass size={16} />
+                </button>
+              ) : null}
+              <CommandTrigger />
+            </>
+          )}
           menu={[
             { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
@@ -153,6 +168,8 @@ function TripChrome({ tripId, children }) {
           })}
         </nav>
       </div>
+
+      {touring ? <Tourist onClose={() => setTouring(false)} /> : null}
 
       <PrintView trip={trip} days={days} activities={activities}
         packing={packing} members={members} />
