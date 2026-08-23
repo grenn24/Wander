@@ -263,7 +263,10 @@ export default function MapView({
    */
   async function openPhotos(seed) {
     const held = (seed.photos && seed.photos.length ? seed.photos
-      : seed.photoRef ? [seed.photoRef] : []).filter(Boolean);
+      // Only a bare reference was saved with the activity, so there is nobody
+      // to credit until the details arrive a moment later.
+      : seed.photoRef ? [{ ref: seed.photoRef, author: '', authorUri: '' }]
+        : []).filter(Boolean);
     if (!held.length) return;
     setShots({ photos: held, index: 0, title: seed.title || '' });
     if (!seed.placeId) return;

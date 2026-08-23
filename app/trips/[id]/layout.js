@@ -8,7 +8,7 @@ import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import { CommandProvider, CommandTrigger } from '@/components/Command';
-import Tourist, { tripIsOn } from '@/components/Tourist';
+import Tourist from '@/components/Tourist';
 import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
@@ -86,15 +86,13 @@ function TripChrome({ tripId, children }) {
           online={online}
           tools={(
             <>
-              {/* Only while the trip is actually running. Before and after, a
-                  button offering to show you "now" has no now to show. */}
-              {tripIsOn(trip) ? (
-                <button className="btn ghost sm icon-btn" type="button"
-                  data-tip="Where am I now" aria-label="Tourist mode"
-                  onClick={() => setTouring(true)}>
-                  <Compass size={16} />
-                </button>
-              ) : null}
+              {/* Always here. Before the trip it is a rehearsal of day one,
+                  during it the thing you actually open the app for. */}
+              <button className="btn ghost sm icon-btn" type="button"
+                data-tip="Today" aria-label="Today"
+                onClick={() => setTouring(true)}>
+                <Compass size={16} />
+              </button>
               <CommandTrigger />
             </>
           )}

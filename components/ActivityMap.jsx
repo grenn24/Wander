@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapPin, Loader2, Crosshair, Search } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
@@ -82,10 +82,15 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
    * details land. It is not the same string Google returns for the same
    * picture a second time, so it is replaced rather than merged.
    */
-  const shots = pinned
-    ? (facts && facts.photos && facts.photos.length
-      ? facts.photos : draft.photo_ref ? [draft.photo_ref] : NO_PHOTOS)
-    : (probe && probe.photos) || NO_PHOTOS;
+  const shots = useMemo(() => {
+    if (!pinned) return (probe && probe.photos) || NO_PHOTOS;
+    if (facts && facts.photos && facts.photos.length) return facts.photos;
+    return draft.photo_ref
+      ? [{ ref: draft.photo_ref, author: '', authorUri: '' }] : NO_PHOTOS;
+    // Memoised because the fallback builds a fresh array: handed straight to a
+    // child that watches the prop by identity, a new one every render is an
+    // endless round of resets.
+  }, [pinned, probe, facts, draft.photo_ref]);
 
   /**
    * A click on the map is someone saying "there", exactly.

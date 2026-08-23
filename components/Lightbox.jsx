@@ -64,6 +64,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   const zoomed = view.scale > 1.001;
   liveScale.current = view.scale;
   const wide = fullWidth();
+  const shot = photos[index] || {};
 
   useEffect(() => { setMounted(true); }, []);
   // A new photo starts where the last one did, not wherever you had dragged to.
@@ -137,7 +138,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
       const at = (index + by + photos.length) % photos.length;
       if (at === index) return;
       const img = new Image();
-      img.src = `/api/places/photo?ref=${encodeURIComponent(photos[at])}&w=${fullWidth()}`;
+      img.src = `/api/places/photo?ref=${encodeURIComponent(photos[at].ref)}&w=${fullWidth()}`;
     });
   }, [mounted, index, photos]);
 
@@ -274,18 +275,35 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
           */}
         {loaded ? null : <Loader2 size={22} className="spin lb-wait" aria-label="Loading" />}
         <div className="lb-stack">
-          <img className="lb-thumb" key={`t-${photos[index]}`} aria-hidden="true"
-            src={src(photos[index], THUMB)} alt="" draggable={false}
+          <img className="lb-thumb" key={`t-${shot.ref}`} aria-hidden="true"
+            src={src(shot.ref, THUMB)} alt="" draggable={false}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} />
           <img ref={imgRef} className={`lb-full${loaded ? ' is-on' : ''}`}
-            key={photos[index]}
-            src={src(photos[index], wide)} alt={alt} draggable={false}
+            key={shot.ref}
+            src={src(shot.ref, wide)} alt={alt} draggable={false}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
             onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
         </div>
+        {/*
+          * A place photograph on Google belongs to whoever went and stood
+          * there. Naming them is the courtesy, and it is also the only caption
+          * these pictures have — so it takes the line, and the how-to-zoom
+          * hint steps aside for it.
+          */}
         <figcaption className="lb-count">
-          {many ? `${index + 1} of ${photos.length} · ` : ''}
-          {zoomed ? 'Drag to move · double-click to fit' : 'Double-click or scroll to zoom'}
+          {many ? `${index + 1} of ${photos.length}` : ''}
+          {many && shot.author ? ' · ' : ''}
+          {shot.author ? (
+            <>
+              Photo by
+              {' '}
+              {shot.authorUri
+                ? <a href={shot.authorUri} target="_blank" rel="noreferrer">{shot.author}</a>
+                : shot.author}
+            </>
+          ) : (
+            <>{many ? ' · ' : ''}{zoomed ? 'Drag to move' : 'Double-click to zoom'}</>
+          )}
         </figcaption>
       </figure>
 

@@ -65,7 +65,9 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
   return (
     <div className={`planbox${compact ? ' compact' : ''}`}>
       <form className="planbox-field" onSubmit={submit}>
-        <Sparkles size={17} className="planbox-spark" aria-hidden="true" />
+        {/* In the flow rather than pinned to a corner: an icon positioned by
+            hand agrees with the text at exactly one font size. */}
+        <span className="planbox-spark" aria-hidden="true"><Sparkles size={17} /></span>
         <textarea
           ref={areaRef}
           className="planbox-input"

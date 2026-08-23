@@ -1320,10 +1320,21 @@ body::before {
 
 /* -------------------------------------------------------- the prompt box -- */
 .planbox { margin: 4px 0 22px; max-width: 100%; }
+/*
+ * One row, three things, one baseline.
+ *
+ * The sparkle used to be absolutely positioned at a fixed distance from the
+ * top while the row bottom-aligned everything else, so the icon, the text and
+ * the send button each sat at a different height — visible as soon as anything
+ * was typed. Now each is a box of the same height with its own contents
+ * centred, and they bottom-align together so the button stays in the corner as
+ * the field grows.
+ */
 .planbox-field {
+  --row: 38px;
   position: relative;
   display: flex; align-items: flex-end; gap: 10px;
-  padding: 13px 13px 13px 42px;
+  padding: 13px 13px 13px 15px;
   border-radius: 18px;
   background: var(--glass-strong);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
@@ -1338,23 +1349,29 @@ body::before {
               0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .planbox-spark {
-  position: absolute; left: 15px; top: 17px;
+  flex: none; height: var(--row); display: grid; place-items: center;
   color: var(--accent); pointer-events: none;
 }
 .planbox-input {
   flex: 1; min-width: 0; resize: none; border: none; outline: none;
   background: transparent; color: var(--text-1);
-  font: inherit; font-size: 15.5px; line-height: 1.5;
+  font: inherit; font-size: 15.5px; line-height: 22px;
+  /* Height of the row, with the first line centred in it. */
+  min-height: var(--row); padding: calc((var(--row) - 22px) / 2) 0;
   max-height: 160px;
 }
 .planbox-input::placeholder { color: var(--text-3); }
 .planbox-go {
-  flex: none; width: 40px; height: 40px; padding: 0; border-radius: 13px;
+  /* .btn carries a min-height of its own, which quietly won over the height
+     set here and left the button two pixels taller than the row. */
+  flex: none; width: var(--row); height: var(--row); min-height: var(--row);
+  padding: 0; border-radius: 13px;
 }
-.planbox.compact .planbox-field { padding: 10px 10px 10px 38px; border-radius: 15px; }
-.planbox.compact .planbox-spark { top: 14px; left: 13px; }
+.planbox.compact .planbox-field {
+  --row: 34px; padding: 10px 10px 10px 13px; border-radius: 15px;
+}
 .planbox.compact .planbox-input { font-size: 14.5px; }
-.planbox.compact .planbox-go { width: 34px; height: 34px; border-radius: 11px; }
+.planbox.compact .planbox-go { border-radius: 11px; }
 
 .planbox-samples {
   display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px;
@@ -2116,7 +2133,8 @@ body:has(.lp)::before { display: none; }
 
 /* ------------------------------------------------- prompt box, rotating -- */
 .planbox-ghost {
-  position: absolute; left: 46px; top: 50%; transform: translateY(-50%);
+  /* Where the text starts: the field's padding, the icon, and the gap. */
+  position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
   pointer-events: none; color: var(--text-3); font-size: 15px;
   max-width: calc(100% - 110px); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap;
@@ -3019,78 +3037,89 @@ body:has(.lp)::before { display: none; }
   text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }
 
-/* ================================================================ tourist -- */
+/* ================================================================== today -- */
 /*
  * The trip while you are on it, which is a different document from the trip
- * while you are planning it. Full screen, big type, two cards and a clock:
- * everything here has to be readable at arm's length in daylight, by someone
- * holding a bag.
+ * while you are planning it. No cards: what you are doing is simply the
+ * screen, set in the middle in the largest type in the app, because it has to
+ * survive being read at arm's length in daylight by someone holding a bag.
  */
-.tourist {
+.today {
   position: fixed; inset: 0; z-index: 95;
   display: flex; flex-direction: column;
   background: var(--surface-0);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.tourist-top {
+.today-top {
   flex: none; display: flex; align-items: center; gap: 10px;
   padding: max(12px, env(safe-area-inset-top)) 14px 12px;
-  border-bottom: 1px solid var(--border);
 }
-.tourist-day {
+.today-day {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-weight: 600; color: var(--text-2);
+  font-size: 12.5px; font-weight: 600; color: var(--text-3);
 }
-.tourist-day svg { color: var(--accent); }
-.tourist-clock { margin-left: auto; font-size: 15px; font-weight: 700; }
-.tourist-body {
+.today-day svg { color: var(--accent); }
+.today-clock { margin-left: auto; font-size: 14px; font-weight: 700; color: var(--text-2); }
+
+/* The middle of the screen, and the middle of the attention. */
+.today-now {
   flex: 1; min-height: 0; overflow-y: auto;
-  padding: 16px 14px 20px; display: flex; flex-direction: column; gap: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 0; padding: 20px 22px 28px;
 }
-.tourist-empty {
-  margin: 0; padding: 28px 4px; text-align: center; color: var(--text-3);
-  font-size: 14px;
+.today-mark {
+  width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-ink); margin-bottom: 16px;
 }
-.tourist-foot {
-  flex: none; padding: 12px 14px; border-top: 1px solid var(--border);
-  display: flex; justify-content: center;
+.today-label {
+  margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--accent);
 }
-
-.tcard {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface-1); padding: 16px;
+.today-title {
+  margin: 8px 0 0; font-size: clamp(28px, 7vw, 40px); line-height: 1.12;
+  letter-spacing: -.03em; max-width: 16ch;
 }
-/* What you are doing gets the accent; what comes next is quieter, because the
-   whole point is that only one of them is a decision right now. */
-.tcard-now { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.tcard-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tcard-when {
-  font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--text-3);
-}
-.tcard-now .tcard-when { color: var(--accent-ink); }
-.tcard-time { margin-left: auto; font-size: 14px; font-weight: 700; }
-.tcard-in {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11.5px; color: var(--text-3);
-}
-.tcard-title {
-  font-size: 22px; line-height: 1.2; letter-spacing: -.02em; margin: 10px 0 0;
-}
-.tcard-leg { margin: 8px 0 0; font-size: 13px; color: var(--text-1); }
-.tcard-place, .tcard-ref, .tcard-cost {
+.today-at { margin: 12px 0 0; font-size: 17px; font-weight: 700; }
+.today-leg { margin: 10px 0 0; font-size: 14px; color: var(--text-1); }
+.today-place, .today-ref, .today-cost {
   display: flex; align-items: center; gap: 6px;
-  margin: 6px 0 0; font-size: 13.5px; color: var(--text-2);
+  margin: 8px 0 0; font-size: 14.5px; color: var(--text-2);
 }
-.tcard-place svg { flex: none; color: var(--text-3); }
-.tcard-notes {
-  margin: 10px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2);
-  white-space: pre-wrap;
+.today-place svg { flex: none; color: var(--text-3); }
+.today-notes {
+  margin: 16px 0 0; max-width: 34ch; font-size: 14px; line-height: 1.6;
+  color: var(--text-2); white-space: pre-wrap;
 }
-.tcard-go { width: 100%; margin-top: 14px; }
+.today-free { margin: 0; font-size: 17px; color: var(--text-3); }
 
-@media (min-width: 700px) {
-  .tourist-body { max-width: 560px; width: 100%; margin: 0 auto; }
-  .tcard-title { font-size: 25px; }
+/* Next is a line along the foot, not a second card competing with the first. */
+.today-next {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px calc(13px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border); background: var(--surface-1);
 }
-@media print { .tourist { display: none !important; } }
+.today-next-what {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
+.today-next-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.today-next-title {
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+  font-size: 14.5px; font-weight: 550;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.today-next-title b { flex: none; color: var(--text-2); font-size: 13px; }
+.today-next-go { flex: none; }
+
+/* On a narrow screen the arrow says it. Giving the word back to the title is
+   worth more than labelling a button nobody misreads. */
+@media (max-width: 420px) {
+  .today-next-go span { display: none; }
+  .today-next-go { width: 40px; padding: 0; justify-content: center; }
+}
+
+@media print { .today { display: none !important; } }
+.lb-count a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.lb-count a:hover { color: #fff; }

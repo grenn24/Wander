@@ -16,22 +16,25 @@ export default function ActivityPhotos({ photos = [], title }) {
   const [broken, setBroken] = useState({});
   const [at, setAt] = useState(-1); // which one the viewer is showing
 
-  useEffect(() => { setBroken({}); }, [photos]);
+  // Keyed on what the pictures are rather than on the array holding them, so a
+  // caller that rebuilds the list without changing it does not clear this.
+  const key = photos.map((p) => p && p.ref).join('|');
+  useEffect(() => { setBroken({}); }, [key]);
 
-  const shown = photos.filter((r) => r && !broken[r]).slice(0, 6);
+  const shown = photos.filter((p) => p && p.ref && !broken[p.ref]).slice(0, 6);
   if (!shown.length) return null;
 
   return (
     <>
       <div className="aphotos">
-        {shown.map((ref, i) => (
-          <button key={ref} type="button" className="aphoto"
-            data-tip="Full size"
+        {shown.map((p, i) => (
+          <button key={p.ref} type="button" className="aphoto"
+            data-tip={p.author ? `Photo by ${p.author}` : 'Full size'}
             aria-label={`Photo ${i + 1} of ${shown.length}${title ? ` — ${title}` : ''}`}
             onClick={() => setAt(i)}>
-            <img src={`/api/places/photo?ref=${encodeURIComponent(ref)}&w=420`} alt=""
+            <img src={`/api/places/photo?ref=${encodeURIComponent(p.ref)}&w=420`} alt=""
               loading="lazy"
-              onError={() => setBroken((b) => ({ ...b, [ref]: true }))} />
+              onError={() => setBroken((b) => ({ ...b, [p.ref]: true }))} />
           </button>
         ))}
       </div>
