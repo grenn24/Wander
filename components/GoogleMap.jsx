@@ -157,6 +157,9 @@ export default function GoogleMap({
   // Two different questions, so two different answers: a stop is coloured by
   // the day it belongs to, a suggestion by what kind of place it is.
   stopColour, placeColour = catColor,
+  // A route to draw over everything else: the way from one place to another,
+  // as opposed to the dashed line that merely joins a day's stops in order.
+  path,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
   // What a stop should say when its marker is clicked, and what to do about
   // it. The words belong to the page — it knows the trip's currency and how it
@@ -175,6 +178,7 @@ export default function GoogleMap({
   const stopMarks = useRef([]);
   const placeMarks = useRef([]);
   const lines = useRef([]);
+  const route = useRef(null);
   const info = useRef(null);
   // Which marker the open callout belongs to, so a click can tell "dismiss
   // this" from "do something new".
@@ -199,7 +203,7 @@ export default function GoogleMap({
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
   latest.current = {
-    stops, places, focused, focusedPlace, stopColour, placeColour,
+    stops, places, focused, focusedPlace, stopColour, placeColour, path,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto,
   };
@@ -292,6 +296,11 @@ export default function GoogleMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, places]);
 
+  useEffect(() => {
+    if (ready) drawPath();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, path]);
+
   /*
    * Highlighting is a class change, not a redraw. Rebuilding the markers to
    * move a ring would also destroy whichever one the open info window is
@@ -351,6 +360,29 @@ export default function GoogleMap({
       map.fitBounds(want.bounds, 48);
       fitted.current = true;
     }
+  }
+
+  /** The route itself: solid, heavy, and fitted to on arrival. */
+  function drawPath() {
+    const L = libs.current;
+    const map = mapRef.current;
+    if (route.current) { route.current.setMap(null); route.current = null; }
+    const pts = latest.current.path;
+    if (!pts || pts.length < 2) return;
+
+    route.current = new L.Polyline({
+      path: pts,
+      strokeColor: catColor('transport'),
+      strokeOpacity: 0.95,
+      strokeWeight: 5,
+      map,
+    });
+
+    const bounds = new L.LatLngBounds();
+    pts.forEach((p) => bounds.extend(p));
+    owedFit.current = { bounds };
+    fitted.current = false; // a new route is a new thing to look at
+    applyFit();
   }
 
   function drawStops() {

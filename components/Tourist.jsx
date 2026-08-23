@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   X, MapPin, Navigation, CalendarDays, Ticket,
 } from 'lucide-react';
+import RouteView from '@/components/RouteView';
 import { useTrip } from '@/components/TripProvider';
 import { activityIcon } from '@/lib/icons';
 import { transportLine } from '@/lib/transport';
@@ -98,6 +99,7 @@ export default function Tourist({ onClose }) {
   const { trip, days, activities } = useTrip();
   const [at, setAt] = useState(nowMinutes);
   const [ready, setReady] = useState(false);
+  const [routeTo, setRouteTo] = useState(null); // the stop being routed to
 
   useEffect(() => { setReady(true); }, []);
 
@@ -108,10 +110,14 @@ export default function Tourist({ onClose }) {
   }, []);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      // The route sits on top, so it goes first.
+      if (routeTo) setRouteTo(null); else onClose();
+    };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  }, [onClose, routeTo]);
 
   if (!ready || !trip) return null;
 
@@ -182,9 +188,10 @@ export default function Tourist({ onClose }) {
             {lead.notes ? <p className="today-notes">{lead.notes}</p> : null}
             {/* Directions only where you have not arrived yet. */}
             {leadTo ? (
-              <a className="btn primary today-go" href={leadTo} target="_blank" rel="noreferrer">
+              <button className="btn primary today-go" type="button"
+                onClick={() => setRouteTo(lead)}>
                 <Navigation size={15} /> Take me there
-              </a>
+              </button>
             ) : null}
           </>
         ) : (
@@ -210,11 +217,17 @@ export default function Tourist({ onClose }) {
             </span>
           </div>
           {afterTo ? (
-            <a className="btn sm today-next-go" href={afterTo} target="_blank" rel="noreferrer">
-              <Navigation size={14} /> <span>Directions</span>
-            </a>
+            <button className="btn sm today-next-go" type="button"
+              data-tip="Take me there" aria-label={`Take me to ${after.title}`}
+              onClick={() => setRouteTo(after)}>
+              <Navigation size={14} /> <span>Take me there</span>
+            </button>
           ) : null}
         </footer>
+      ) : null}
+      {routeTo && routeTo.lat != null ? (
+        <RouteView to={{ lat: routeTo.lat, lng: routeTo.lng }} title={routeTo.title}
+          onClose={() => setRouteTo(null)} />
       ) : null}
     </div>
   ), document.body);
