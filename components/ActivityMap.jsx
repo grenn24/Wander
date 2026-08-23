@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Loader2, Crosshair, Search } from 'lucide-react';
+import { MapPin, Loader2, Crosshair } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import PlaceFacts from '@/components/PlaceFacts';
@@ -23,8 +23,9 @@ const NO_PHOTOS = [];
  *                 here: a pin is the map saying "this one, exactly", and it
  *                 must never say that about a guess nobody has agreed to.
  *   best guess  — only words are saved. The map goes to where they land and
- *                 draws nothing, and the name is offered underneath with the
- *                 button that would make it true.
+ *                 draws nothing. What it found, and the button that would make
+ *                 it true, belong beside the field that asked — repeating them
+ *                 under the map was the same sentence twice.
  *   nothing     — no location yet.
  *
  * Double-clicking the map moves the pin, which is the only way to correct a
@@ -80,7 +81,7 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
      is told rather than left to look it up a second time. */
   useEffect(() => {
     if (!onGuess) return;
-    onGuess({ busy, name: probe ? probe.name || probe.label : '' });
+    onGuess({ busy, place: probe || null });
   }, [onGuess, busy, probe]);
 
   if (!googleMapsAvailable()) return null;
@@ -168,28 +169,7 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
                   : 'Drag to look around; double-click to move the pin.'}
               </span>
             </p>
-          ) : (
-            <div className="amap-guess">
-              <p className="amap-note">
-                <Search size={13} aria-hidden="true" />
-                {/* The name, not the address: the address is already in the
-                    field an inch away, and repeating it there says nothing. */}
-                <span className="tiny dim">
-                  Best match{probe.name ? ` — ${probe.name}` : ' for what you wrote'}
-                </span>
-              </p>
-              <button className="btn sm" type="button"
-                onClick={() => onPick({
-                  location: probe.label,
-                  lat: probe.lat,
-                  lng: probe.lng,
-                  place_id: probe.place_id || null,
-                  photo_ref: probe.photo_ref || null,
-                })}>
-                <MapPin size={14} /> Pin here
-              </button>
-            </div>
-          )}
+          ) : null}
 
           <ActivityPhotos title={draft.title} photos={shots} />
           {pinned ? <PlaceFacts details={facts} /> : null}

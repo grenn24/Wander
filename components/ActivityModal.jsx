@@ -38,7 +38,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   const [active, setActive] = useState(-1);
   const [confirm, setConfirm] = useState(''); // '' | 'delete' | 'discard'
   // What the map panel has made of the words so far, so the field can say it.
-  const [guess, setGuess] = useState({ busy: false, name: '' });
+  const [guess, setGuess] = useState({ busy: false, place: null });
   const pristine = useRef(JSON.stringify(draft));
   // Suggestions answer typing. Without this, opening an activity that has a
   // written location dropped a list of alternatives over the form before
@@ -160,6 +160,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
      for the guess to be about — and last search's answer must not hang around
      describing this one. */
   const said = (draft.location || '').trim().length >= 3;
+  const found = said && !pinned && !guess.busy ? guess.place : null;
 
   /* One panel, two homes. Only ever rendered once — two of these would be two
      Google maps competing for the same activity. */
@@ -338,13 +339,20 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                   {pinned ? 'Pinned to this spot.'
                     : !said ? 'Anything written here is found on the map for you.'
                       : guess.busy ? 'Looking that up…'
-                        : guess.name ? `Best match — ${guess.name}`
+                        : found ? `Best match — ${found.name || found.label}`
                           : 'Nothing found for that yet.'}
                 </span>
                 {pinned ? (
                   <button className="btn ghost sm" type="button"
                     onClick={() => set({ lat: null, lng: null, place_id: null, photo_ref: null })}>
                     clear
+                  </button>
+                ) : found ? (
+                  /* The whole point of naming the match is to be able to take
+                     it, so the button that does is on the same line. */
+                  <button className="btn sm pinstate-go" type="button"
+                    onClick={() => choose(found)}>
+                    <MapPin size={13} aria-hidden="true" /> Select
                   </button>
                 ) : null}
               </p>

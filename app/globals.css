@@ -2369,6 +2369,9 @@ body:has(.lp)::before { display: none; }
 .pinstate.is-idle { color: var(--text-3); }
 .pinstate svg { color: var(--text-3); }
 .pinstate .btn { margin-left: 2px; }
+/* Pushed to the far edge: the sentence is what the map found, the button is
+   what to do about it, and they are not the same thought. */
+.pinstate .pinstate-go { margin-left: auto; }
 
 /* ================================================================== auth -- */
 
@@ -2579,12 +2582,6 @@ body:has(.lp)::before { display: none; }
   display: flex; align-items: flex-start; gap: 6px; margin: 7px 0 0;
 }
 .amap-note svg { flex: none; margin-top: 1px; color: var(--text-3); }
-.amap-guess {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; flex-wrap: wrap;
-}
-.amap-guess .amap-note { min-width: 0; flex: 1 1 150px; }
-.amap-guess .btn { flex: none; }
 .amap-blank {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 176px; border-radius: 12px; text-align: center; padding: 0 18px;
