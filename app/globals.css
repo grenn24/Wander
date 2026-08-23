@@ -3207,18 +3207,26 @@ body:has(.lp)::before { display: none; }
  * the row says the click landed and something is happening.
  */
 .act.is-opening, .stop.is-opening {
-  position: relative; overflow: hidden;
+  position: relative;
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
+/*
+ * The light moves within the gradient rather than by sliding the element that
+ * paints it, so the row needs no `overflow: hidden` to contain it — which
+ * matters because on a wide screen the time sits in a gutter outside the card,
+ * and hiding the overflow took the time away for as long as the row was busy.
+ */
 .act.is-opening::after, .stop.is-opening::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(100deg, transparent 20%,
-    color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 80%);
+  border-radius: inherit;
+  background-image: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--accent) 16%, transparent) 50%, transparent 80%);
+  background-size: 220% 100%;
   animation: opensweep 1s var(--ease) infinite;
 }
 @keyframes opensweep {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .act.is-opening::after, .stop.is-opening::after { animation: none; opacity: .5; }
