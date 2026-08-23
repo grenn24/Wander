@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { useApp } from '@/components/AppProvider';
@@ -27,7 +27,7 @@ export default function TripTabPage({ params }) {
   const { supabase, user, fail, pushToast } = useApp();
   const {
     trip, days, activities, packing, members, online, isOwner, setTrip,
-    focusReq, clearFocus,
+    focusReq, clearFocus, intent, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addActivities, addPackingItems,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
@@ -35,6 +35,28 @@ export default function TripTabPage({ params }) {
 
   const [editing, setEditing] = useState(null);
   const [tripDraft, setTripDraft] = useState(null);
+
+  /*
+   * Requests from the chrome, carried out here.
+   *
+   * The command bar sits above the page and can be opened from any tab, but
+   * the editors are this page's — so it asks, and this answers. Packing is the
+   * exception: it has no modal, only a form on its own tab, so the request
+   * rides along to the list itself.
+   */
+  useEffect(() => {
+    if (!intent) return;
+    if (intent.kind === 'activity') {
+      setEditing({
+        day: days[0] || null, title: '', category: 'sightseeing', cost: 0,
+        ...(intent.seed || {}),
+      });
+      clearIntent();
+    } else if (intent.kind === 'trip' && trip) {
+      setTripDraft({ ...trip });
+      clearIntent();
+    }
+  }, [intent, days, trip, clearIntent]);
 
   if (!trip) return null;
 
@@ -115,7 +137,9 @@ export default function TripTabPage({ params }) {
 
       {tab === 'packing' ? (
         <Packing items={packing} onAdd={addPacking} onUpdate={updatePacking} onDelete={deletePacking}
-          trip={trip} days={days} activities={activities} onAddMany={addPackingItems} />
+          trip={trip} days={days} activities={activities} onAddMany={addPackingItems}
+          focusAdd={intent && intent.kind === 'packing' ? intent.at : null}
+          onFocused={clearIntent} />
       ) : null}
 
       {tab === 'notes' ? (

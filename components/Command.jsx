@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, RotateCcw, CornerDownLeft,
+  Search, ArrowLeft, RotateCcw, CornerDownLeft, Backpack, Printer,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { useTrip } from '@/components/TripProvider';
@@ -51,6 +51,25 @@ const DESTRUCTIVE = new Set(['delete_activity', 'clear_day']);
 
 /** Past this many words it is a sentence, and a sentence is an instruction. */
 const SENTENCE = 4;
+
+/* What every action row says. One table, so the words for a thing live in one
+   place rather than inside whichever branch happens to render it. */
+const ACTIONS = {
+  do: {
+    icon: Sparkles,
+    label: 'Make this change to the trip',
+    hint: 'Shows the edits before anything is saved',
+  },
+  pack: {
+    icon: Backpack,
+    label: 'Add it to the packing list',
+    hint: 'Straight in, and a number on the front counts as the quantity',
+  },
+  activity: { icon: Plus, label: 'New activity' },
+  packing: { icon: Backpack, label: 'New packing item' },
+  trip: { icon: Settings, label: 'Trip details' },
+  print: { icon: Printer, label: 'Print or save as PDF' },
+};
 
 const EXAMPLES = [
   'Move everything on day 3 to day 5',
@@ -209,8 +228,8 @@ function CommandBar({ onClose }) {
   const pathname = usePathname();
   const { pushToast, fail } = useApp();
   const {
-    tripId, trip, days, activities, requestFocus,
-    addActivities, saveActivity, moveActivity, deleteActivity, updateTrip,
+    tripId, trip, activities, requestFocus, request,
+    addActivities, addPacking, saveActivity, moveActivity, deleteActivity, updateTrip,
   } = useTrip();
 
   const [text, setText] = useState('');
@@ -277,11 +296,19 @@ function CommandBar({ onClose }) {
    * what to do about it; a word or two leads with what it already matches.
    */
   const rows = useMemo(() => {
-    if (!term) return [];
+    // Nothing typed yet: the things someone might have opened this to start.
+    if (!term) {
+      return [
+        { id: 'new-act', kind: 'start', arg: 'activity' },
+        { id: 'new-pack', kind: 'start', arg: 'packing' },
+        { id: 'trip', kind: 'start', arg: 'trip' },
+        { id: 'print', kind: 'print' },
+      ];
+    }
     const found = hits.map((a) => ({ id: `a-${a.id}`, kind: 'act', act: a }));
     const acts = [
       { id: 'do', kind: 'do' },
-      { id: 'add', kind: 'add' },
+      { id: 'pack', kind: 'pack' },
     ];
     return words.length >= SENTENCE || !found.length
       ? [...acts, ...found] : [...found, ...acts];
@@ -290,6 +317,7 @@ function CommandBar({ onClose }) {
   useEffect(() => { setActive(0); }, [term]);
 
   const itinerary = `/trips/${tripId}/itinerary`;
+  const packingTab = `/trips/${tripId}/packing`;
 
   /** Go to an activity: the itinerary scrolls to it and opens it. */
   function go(a) {
@@ -377,40 +405,35 @@ function CommandBar({ onClose }) {
     }
   }
 
-  /** One sentence, one activity — the quick path that skips the whole trip. */
-  async function addOne() {
+  /**
+   * Straight onto the packing list, with no model in the way.
+   *
+   * A number on the front is a quantity, and reading it off is arithmetic
+   * rather than judgement — worth doing, and not worth a round trip to do it.
+   */
+  async function pack() {
     const said = text.trim();
     if (!said || busy) return;
-    setBusy(true); setError('');
+    const m = said.match(/^(\d{1,3})\s*x?\s+(.+)$/);
+    const label = ((m ? m[2] : said)).trim().slice(0, 120);
+    setBusy(true);
     try {
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: said,
-          destination: trip.destination || trip.name,
-          currency: trip.currency,
-          dayLabel: 'the trip',
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok || !body.activity) {
-        setError(body.error || 'Could not read that as an activity.');
-        return;
-      }
-      const day = body.activity.day && days.includes(body.activity.day)
-        ? body.activity.day : days[0];
-      const made = await addActivities([{ ...body.activity, day }]);
-      const id = Array.isArray(made) && made[0] ? made[0].id : null;
-      pushToast(`Added “${body.activity.title}”.`);
+      await addPacking({ label, category: 'general', qty: m ? Number(m[1]) : 1 });
+      pushToast(`Added “${label}” to the packing list.`);
       onClose();
-      if (id) requestFocus(id);
-      if (pathname !== itinerary) router.push(itinerary);
+      if (pathname !== packingTab) router.push(packingTab);
     } catch (e) {
       fail(e);
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Start something that belongs to the page underneath. */
+  function start(kind) {
+    onClose();
+    if (kind === 'packing' && pathname !== packingTab) router.push(packingTab);
+    request(kind);
   }
 
   async function apply() {
@@ -483,7 +506,9 @@ function CommandBar({ onClose }) {
     if (!row || busy) return;
     if (row.kind === 'act') go(row.act);
     else if (row.kind === 'do') run();
-    else if (row.kind === 'add') addOne();
+    else if (row.kind === 'pack') pack();
+    else if (row.kind === 'start') start(row.arg);
+    else if (row.kind === 'print') { onClose(); setTimeout(() => window.print(), 60); }
   }
 
   function onKeyDown(e) {
@@ -526,22 +551,15 @@ function CommandBar({ onClose }) {
         </li>
       );
     }
-    const isDo = r.kind === 'do';
+    const said = ACTIONS[r.kind === 'start' ? r.arg : r.kind];
+    const Icon = said.icon;
     return (
       <li key={r.id} role="option" aria-selected={on}
         className={`ck-row is-action${on ? ' is-active' : ''}`} {...pick}>
-        <span className="ck-ico" aria-hidden="true">
-          {isDo ? <Sparkles size={15} /> : <Plus size={15} />}
-        </span>
+        <span className="ck-ico" aria-hidden="true"><Icon size={15} /></span>
         <span className="ck-main">
-          <span className="ck-title">
-            {isDo ? 'Make this change to the trip' : 'Add it as one activity'}
-          </span>
-          <span className="tiny dim">
-            {isDo
-              ? 'Shows the edits before anything is saved'
-              : 'Day and time read from what you wrote'}
-          </span>
+          <span className="ck-title">{said.label}</span>
+          {said.hint ? <span className="tiny dim">{said.hint}</span> : null}
         </span>
       </li>
     );
@@ -584,11 +602,15 @@ function CommandBar({ onClose }) {
           <p className="ck-empty">Working it out — a whole-trip change can take a minute.</p>
         ) : null}
 
+        {showList ? (
+          <ul className="ck-list" role="listbox" aria-label="Results">
+            {rows.map(row)}
+          </ul>
+        ) : null}
+
         {showList && !term ? (
           <div className="ck-blank">
-            <p className="ck-empty" style={{ padding: '14px 15px 4px' }}>
-              Type a place or a name to find it. Type a sentence to change the trip.
-            </p>
+            <p className="ck-sec">Or say what to change</p>
             <div className="cmd-examples">
               {EXAMPLES.map((x) => (
                 <button key={x} type="button" className="samplechip"
@@ -599,17 +621,12 @@ function CommandBar({ onClose }) {
         ) : null}
 
         {showList && term ? (
-          <>
-            <ul className="ck-list" role="listbox" aria-label="Results">
-              {rows.map(row)}
-            </ul>
-            <p className="ck-foot">
-              <CornerDownLeft size={12} />
-              {hits.length
-                ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in this trip`
-                : 'Nothing in this trip matches — the model can still do it'}
-            </p>
-          </>
+          <p className="ck-foot">
+            <CornerDownLeft size={12} />
+            {hits.length
+              ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in this trip`
+              : 'Nothing in this trip matches — the model can still do it'}
+          </p>
         ) : null}
 
         {/*

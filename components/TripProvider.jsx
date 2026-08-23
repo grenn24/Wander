@@ -40,6 +40,13 @@ export default function TripProvider({ tripId, children }) {
    * costs nothing.
    */
   const [focusReq, setFocusReq] = useState(null);
+  /*
+   * "Start a new one of these", asked for from somewhere that cannot open it.
+   * The command bar lives in the chrome; the editors it wants to open belong
+   * to the page underneath. Same shape as focusReq, and for the same reason:
+   * a timestamp makes every request distinct, so asking twice works twice.
+   */
+  const [intent, setIntent] = useState(null); // { kind, seed, at }
 
   const ready = loadedId === tripId;
   const days = useMemo(() => (trip ? dayRange(trip.start_date, trip.end_date) : []), [trip]);
@@ -343,9 +350,15 @@ export default function TripProvider({ tripId, children }) {
   }, []);
   const clearFocus = useCallback(() => setFocusReq(null), []);
 
+  const request = useCallback((kind, seed) => {
+    setIntent({ kind, seed: seed || null, at: Date.now() });
+  }, []);
+  const clearIntent = useCallback(() => setIntent(null), []);
+
   const value = useMemo(() => ({
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner,
     focusReq, requestFocus, clearFocus,
+    intent, request, clearIntent,
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
@@ -354,6 +367,7 @@ export default function TripProvider({ tripId, children }) {
   }), [
     tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
     focusReq, requestFocus, clearFocus,
+    intent, request, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,

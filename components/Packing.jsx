@@ -1,11 +1,24 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 import Select from '@/components/Select';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
-export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, activities, onAddMany }) {
+export default function Packing({
+  items, onAdd, onUpdate, onDelete, trip, days, activities, onAddMany,
+  focusAdd, onFocused,
+}) {
+  const addRef = useRef(null);
+
+  // Arrived here to add something, so the cursor is already in the box.
+  useEffect(() => {
+    if (!focusAdd || !addRef.current) return;
+    addRef.current.focus();
+    addRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (onFocused) onFocused();
+  }, [focusAdd, onFocused]);
+
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState('');
 
@@ -91,7 +104,7 @@ export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, 
         <div className="row">
           <div style={{ flex: '3 1 200px' }}>
             <label className="label" htmlFor="pl">Item</label>
-            <input id="pl" className="input" value={label} placeholder="Passport"
+            <input id="pl" ref={addRef} className="input" value={label} placeholder="Passport"
               onChange={(e) => setLabel(e.target.value)} />
           </div>
           <div style={{ flex: '1 1 120px' }}>
