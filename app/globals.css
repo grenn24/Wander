@@ -1327,18 +1327,19 @@ body::before {
  * top while the row bottom-aligned everything else, so the icon, the text and
  * the send button each sat at a different height — visible as soon as anything
  * was typed. Now each is a box of the same height with its own contents
- * centred, and they bottom-align together so the button stays in the corner as
- * the field grows.
+ * centred: at one line they share the row exactly, and past that the icon
+ * holds the first line while the button stays down in the corner.
  */
 .planbox-field {
   --row: 38px;
+  --pad-l: 15px;
+  --gap: 10px;
   position: relative;
-  /* Top, not bottom. The landing field is two rows tall, and bottom-aligning
-     the icon put the sparkle level with the second line while the text began
-     on the first. The button is the one thing that belongs at the foot, so it
-     is the one thing that says so. */
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 13px 13px 13px 15px;
+  /* Top, not bottom — the icon belongs to the line the sentence starts on.
+     The button is the one thing that belongs at the foot, so it is the one
+     thing that says so. */
+  display: flex; align-items: flex-start; gap: var(--gap);
+  padding: 13px 13px 13px var(--pad-l);
   border-radius: 18px;
   background: var(--glass-strong);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
@@ -1373,7 +1374,8 @@ body::before {
   padding: 0; border-radius: 13px;
 }
 .planbox.compact .planbox-field {
-  --row: 34px; padding: 10px 10px 10px 13px; border-radius: 15px;
+  --row: 34px; --pad-l: 13px;
+  padding: 10px 10px 10px var(--pad-l); border-radius: 15px;
 }
 .planbox.compact .planbox-input { font-size: 14.5px; }
 .planbox.compact .planbox-go { border-radius: 11px; }
@@ -2138,20 +2140,21 @@ body:has(.lp)::before { display: none; }
 
 /* ------------------------------------------------- prompt box, rotating -- */
 .planbox-ghost {
-  /* Where the text starts: the field's padding, the icon, and the gap. */
-  position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
+  /* Sits exactly where the real text does: the field's own padding, the icon's
+     width and the gap after it, all read from the field rather than guessed.
+     Stretched top to bottom and centred by flex instead of a transform, so the
+     entrance animation has a transform of its own to use. */
+  position: absolute; left: calc(var(--pad-l) + 17px + var(--gap));
+  top: 13px; height: var(--row);
+  display: flex; align-items: center;
   pointer-events: none; color: var(--text-3); font-size: 15px;
   max-width: calc(100% - 110px); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap;
   animation: ghostin .5s var(--ease);
 }
-.planbox:not(.compact) .planbox-ghost { top: 22px; transform: none; }
+.planbox.compact .planbox-ghost { top: 10px; font-size: 14.5px; }
 @keyframes ghostin {
   from { opacity: 0; transform: translateY(6px); }
-}
-.planbox:not(.compact) .planbox-ghost { animation-name: ghostin-flat; }
-@keyframes ghostin-flat {
-  from { opacity: 0; }
 }
 
 /* ------------------------------------------------------ card spotlight --- */

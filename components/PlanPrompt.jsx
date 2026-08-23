@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle } from 'lucide-react';
 
@@ -25,6 +25,25 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
   const [shown, setShown] = useState(() => SAMPLE_PROMPTS.slice(0, 3));
   const [ghost, setGhost] = useState(0);
   const areaRef = useRef(null);
+
+  /*
+   * One line to begin with, and as many as it takes after that.
+   *
+   * It used to open two rows tall for a box that almost always holds one line,
+   * which left the send button sitting an inch below the text it belonged to —
+   * the button bottom-aligns so it stays in the corner as the field grows, and
+   * with nothing to grow into there was nothing under it but empty glass. A
+   * field that starts at its content's height has no gap to misalign across.
+   */
+  useLayoutEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const cap = parseFloat(getComputedStyle(el).maxHeight) || Infinity;
+    const want = el.scrollHeight;
+    el.style.overflowY = want > cap ? 'auto' : 'hidden';
+    el.style.height = `${Math.min(want, cap)}px`;
+  }, [value]);
 
   /*
    * On the landing page the empty box suggests trips instead of asking a
@@ -72,7 +91,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           ref={areaRef}
           className="planbox-input"
           value={value}
-          rows={compact ? 1 : 2}
+          rows={1}
           autoFocus={autoFocus}
           aria-label="Describe the trip you want"
           placeholder={rotate ? '' : 'Where are you going?'}
