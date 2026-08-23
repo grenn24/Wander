@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Loader2, Footprints, TrainFront, Car, LocateFixed, ExternalLink, TriangleAlert,
+  X, Loader2, Footprints, TrainFront, Car, LocateFixed, ExternalLink, MapPin,
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
@@ -28,35 +28,52 @@ const WAYS = [
   { id: 'DRIVE', label: 'Drive', icon: Car },
 ];
 
-export default function RouteView({ to, title, onClose }) {
+/**
+ * `fallback` is where the route starts from when the phone will not say: the
+ * activity you are in the middle of. It is a worse answer than your actual
+ * position and a far better one than nothing, because at the moment you ask
+ * for directions you are usually still at the last place.
+ */
+export default function RouteView({ to, title, fallback, fallbackName, onClose }) {
   const [mode, setMode] = useState('WALK');
-  const [from, setFrom] = useState(null);
-  const [where, setWhere] = useState('asking'); // asking | got | denied
+  const [mine, setMine] = useState(null); // the phone's answer, if it gives one
+  const [where, setWhere] = useState('asking'); // asking | got | refused | off
   const [legs, setLegs] = useState({}); // mode -> result
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const scheme = useMapScheme();
 
   /*
-   * Where you are, asked for once and only here. The rest of the app never
-   * needs it — a route is the one question that cannot be answered without it,
-   * and asking on a screen that has just been opened for directions is the one
-   * moment the request explains itself.
+   * Where you are, asked for the moment this opens — which is the one moment
+   * the request explains itself, because the screen it appears over is a
+   * screen about getting somewhere.
+   *
+   * Asked again on demand, because the first ask can be dismissed by accident
+   * and a browser that has been told no once will never prompt again on its
+   * own. The button is the only way back from that, so there is a button.
    */
-  useEffect(() => {
+  const ask = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setWhere('denied');
+      setWhere('off');
       return;
     }
+    setWhere('asking');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setFrom({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setMine({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setWhere('got');
       },
-      () => setWhere('denied'),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      (e) => setWhere(e && e.code === 1 ? 'refused' : 'off'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
   }, []);
+
+  useEffect(() => { ask(); }, [ask]);
+
+  // Your position if the phone gave one, the place you are standing in
+  // otherwise, and nothing at all if neither.
+  const from = mine || (where !== 'asking' && fallback ? fallback : null);
+  const guessed = !mine && !!from;
 
   useEffect(() => {
     if (!from || legs[mode]) return undefined;
@@ -70,6 +87,7 @@ export default function RouteView({ to, title, onClose }) {
   }, [from, to, mode, legs]);
 
   const leg = legs[mode];
+  const nowhere = where !== 'asking' && !from;
   const path = useMemo(
     () => (leg && leg.polyline ? decodePath(leg.polyline) : null),
     [leg],
@@ -102,8 +120,16 @@ export default function RouteView({ to, title, onClose }) {
         })}
       </div>
 
+      {/* No origin at all means no route to draw — say that once, plainly,
+          rather than showing an empty map with a spinner over it. */}
       <div className="rv-map">
-        {googleMapsAvailable() ? (
+        {nowhere ? (
+          <p className="rv-nowhere">
+            <MapPin size={20} aria-hidden="true" />
+            Nothing to measure from — turn location on, or give the activity you
+            are at now a place of its own.
+          </p>
+        ) : googleMapsAvailable() ? (
           <GoogleMap
             key={scheme}
             stops={[{
@@ -114,20 +140,24 @@ export default function RouteView({ to, title, onClose }) {
             focusedPlace={null}
             stopColour={() => catColor('sightseeing')}
             path={path}
-            here={from}
+            here={mine}
             gestures="greedy"
           />
         ) : null}
       </div>
 
       <footer className="rv-foot">
-        {where === 'asking' ? (
+        {where !== 'got' ? (
+          <button className="btn sm rv-here" type="button" onClick={ask}
+            data-tip={where === 'refused' ? 'Allow location in your browser first' : 'Use my location'}>
+            <LocateFixed size={14} /> <span>Use my location</span>
+          </button>
+        ) : null}
+
+        {where === 'asking' && !from ? (
           <p className="rv-note"><LocateFixed size={14} /> Finding where you are…</p>
-        ) : where === 'denied' ? (
-          <p className="rv-note">
-            <TriangleAlert size={14} />
-            Wander needs your location to measure the way there. You can still open it below.
-          </p>
+        ) : nowhere ? (
+          <p className="rv-note">No starting point.</p>
         ) : busy ? (
           <p className="rv-note"><Loader2 size={14} className="spin" /> Working out the route…</p>
         ) : err ? (
@@ -139,6 +169,11 @@ export default function RouteView({ to, title, onClose }) {
           <p className="rv-said">
             <b>{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
             <span className="dim"> · {fmtKm(leg.metres / 1000)}</span>
+            {/* Said out loud, because a time measured from the wrong place is
+                worth having and not worth mistaking for the right one. */}
+            {guessed ? (
+              <span className="rv-from">from {fallbackName || 'where you were'}</span>
+            ) : null}
             {leg.lines.length ? (
               <span className="rv-lines">
                 {leg.lines.map((l) => <span className="rv-line" key={l.name + l.from}>{l.name}</span>)}

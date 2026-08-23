@@ -6,6 +6,7 @@ import { TRANSPORT, transportOf } from '@/lib/transport';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
 import ActivityMap from '@/components/ActivityMap';
+import TimeField from '@/components/TimeField';
 import { googleMapsAvailable } from '@/components/GoogleMap';
 import { useModalChrome } from '@/lib/useModal';
 
@@ -255,13 +256,13 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
             <div className="row">
               <div className="field">
                 <label className="label" htmlFor="as">Start</label>
-                <input id="as" className="input" type="time" value={draft.start_time || ''}
-                  onChange={(e) => set({ start_time: e.target.value })} />
+                <TimeField id="as" label="Start" value={draft.start_time || ''}
+                  onChange={(v) => set({ start_time: v })} />
               </div>
               <div className="field">
                 <label className="label" htmlFor="ae">End</label>
-                <input id="ae" className="input" type="time" value={draft.end_time || ''}
-                  onChange={(e) => set({ end_time: e.target.value })} />
+                <TimeField id="ae" label="End" value={draft.end_time || ''}
+                  onChange={(v) => set({ end_time: v })} />
               </div>
               <div className="field">
                 <label className="label" htmlFor="ax">Cost ({currency})</label>

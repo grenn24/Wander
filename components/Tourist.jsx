@@ -172,7 +172,15 @@ export default function Tourist({ onClose }) {
         </footer>
       ) : null}
       {routeTo && routeTo.lat != null ? (
-        <RouteView to={{ lat: routeTo.lat, lng: routeTo.lng }} title={routeTo.title}
+        <RouteView
+          to={{ lat: routeTo.lat, lng: routeTo.lng }}
+          title={routeTo.title}
+          /* Where you probably are if the phone will not say: the activity you
+             are in the middle of — and never the destination itself, which
+             would measure a journey of nothing. */
+          fallback={now && now !== routeTo && now.lat != null
+            ? { lat: now.lat, lng: now.lng } : null}
+          fallbackName={now && now !== routeTo ? shortPlace(now.location) || now.title : ''}
           onClose={() => setRouteTo(null)} />
       ) : null}
     </div>
