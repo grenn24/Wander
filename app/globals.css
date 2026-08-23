@@ -2625,6 +2625,20 @@ body:has(.lp)::before { display: none; }
   transform-origin: center; will-change: transform; user-select: none;
   -webkit-user-drag: none;
 }
+/*
+ * The small copy and the full one, in the same place.
+ *
+ * One grid cell holding both, rather than absolute positioning: absolute would
+ * measure itself against the nearest positioned ancestor, which here is the
+ * whole viewer, and the picture escaped its frame entirely. A shared cell
+ * sizes to whichever has loaded, and they are the same photograph so they land
+ * on top of each other exactly.
+ */
+.lb-stack { display: grid; place-items: center; min-height: 0; min-width: 0; }
+.lb-stack > img { grid-area: 1 / 1; }
+.lb-full { opacity: 0; transition: opacity .18s ease; }
+.lb-full.is-on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .lb-full { transition: none; } }
 .lb-wait { color: rgba(255,255,255,.8); position: absolute; }
 
 /*

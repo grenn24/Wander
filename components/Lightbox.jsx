@@ -21,6 +21,27 @@ import {
 const MAX = 6;
 const STEP = 1.6;
 
+/*
+ * The width the strip already asked for. Reusing the exact number means the
+ * small copy of the next photo is in the browser's cache before anyone clicks
+ * next — it was fetched to draw the thumbnail.
+ */
+const THUMB = 420;
+
+/**
+ * How big the full copy needs to be, snapped to three sizes.
+ *
+ * A phone was being sent a 1600-pixel image to show in 375 points, which is
+ * most of the wait for no visible gain. Snapped rather than exact so that two
+ * devices a few pixels apart share one cached image instead of each warming
+ * their own.
+ */
+function fullWidth() {
+  if (typeof window === 'undefined') return 1200;
+  const want = window.innerWidth * Math.min(2, window.devicePixelRatio || 1);
+  return want <= 800 ? 800 : want <= 1200 ? 1200 : 1600;
+}
+
 export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) {
   const [mounted, setMounted] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -42,6 +63,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   const many = photos.length > 1;
   const zoomed = view.scale > 1.001;
   liveScale.current = view.scale;
+  const wide = fullWidth();
 
   useEffect(() => { setMounted(true); }, []);
   // A new photo starts where the last one did, not wherever you had dragged to.
@@ -100,6 +122,24 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   const step = useCallback((by) => {
     onIndex((index + by + photos.length) % photos.length);
   }, [index, photos.length, onIndex]);
+
+  /*
+   * Fetch the pictures on either side while this one is being looked at.
+   *
+   * Clicking next used to start a request to Google through our own server and
+   * then wait for it — half a second of nothing, every time. The neighbours
+   * are almost always where you are going, so they arrive during the pause you
+   * were taking anyway, and the click becomes instant.
+   */
+  useEffect(() => {
+    if (!mounted || photos.length < 2) return;
+    [1, -1].forEach((by) => {
+      const at = (index + by + photos.length) % photos.length;
+      if (at === index) return;
+      const img = new Image();
+      img.src = `/api/places/photo?ref=${encodeURIComponent(photos[at])}&w=${fullWidth()}`;
+    });
+  }, [mounted, index, photos]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -220,10 +260,29 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDoubleClick={(e) => zoomTo(zoomed ? 1 : 2.5, e.clientX, e.clientY)}>
+        {/*
+          * Two copies of the same picture, one on top of the other.
+          *
+          * The small one is already in the cache — the strip drew it — so it
+          * paints in the same frame as the click and the viewer never shows
+          * the previous photo, or a blank, while the big one is on its way.
+          * The big one fades in over it once it has decoded.
+          *
+          * Keyed on the reference so React builds a new element per photo: a
+          * reused <img> keeps the old picture on screen until the new source
+          * decodes, which is most of what "slow to switch" was.
+          */}
         {loaded ? null : <Loader2 size={22} className="spin lb-wait" aria-label="Loading" />}
-        <img ref={imgRef} src={src(photos[index], 1600)} alt={alt} draggable={false}
-          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
-          onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
+        <div className="lb-stack">
+          <img className="lb-thumb" key={`t-${photos[index]}`} aria-hidden="true"
+            src={src(photos[index], THUMB)} alt="" draggable={false}
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} />
+          <img ref={imgRef} className={`lb-full${loaded ? ' is-on' : ''}`}
+            key={photos[index]}
+            src={src(photos[index], wide)} alt={alt} draggable={false}
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+            onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
+        </div>
         <figcaption className="lb-count">
           {many ? `${index + 1} of ${photos.length} · ` : ''}
           {zoomed ? 'Drag to move · double-click to fit' : 'Double-click or scroll to zoom'}
