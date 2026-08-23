@@ -163,6 +163,22 @@ export default function GoogleMap({
   // Where the reader is standing. A route with only one end on it is half a
   // route — you cannot tell which way along the line you are meant to go.
   here,
+  /*
+   * Follow mode: the map stays under you rather than you looking for yourself
+   * on it, and turns to face the way you are facing. Both are the caller's to
+   * switch on, because the caller is the one that can ask the phone.
+   *
+   * `onFollowBreak` fires the moment the map is dragged. Following is a thing
+   * the map is doing *for* you, and a hand on the map is the plainest possible
+   * statement that you would rather do it yourself.
+   */
+  follow = false,
+  heading = null,
+  onFollowBreak,
+  // Told once, when the map knows: whether it is the kind of map that can turn
+  // at all. Only a vector Map ID can, and the caller should not offer to point
+  // the map at north-east if the answer is always going to be north.
+  onRotatable,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
   // What a stop should say when its marker is clicked, and what to do about
   // it. The words belong to the page — it knows the trip's currency and how it
@@ -199,6 +215,8 @@ export default function GoogleMap({
    * without guessing at a delay.
    */
   const owedFit = useRef(null);
+  // Said once: whether this map is one that can turn.
+  const told = useRef(false);
   // Whether the map has ever been aimed. The first fit is ours to make; after
   // that the view belongs to whoever is looking at it.
   const fitted = useRef(false);
@@ -208,6 +226,7 @@ export default function GoogleMap({
   const latest = useRef(null);
   latest.current = {
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
+    follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto,
   };
@@ -244,6 +263,15 @@ export default function GoogleMap({
         if (e.latLng && drop) drop(e.latLng.lat(), e.latLng.lng());
       });
       /*
+       * A drag is a hand on the map, which outranks anything the map was doing
+       * on your behalf. Only a drag: zooming is still a question about where
+       * you are, so it leaves following alone.
+       */
+      mapRef.current.addListener('dragstart', () => {
+        const brk = latest.current.onFollowBreak;
+        if (latest.current.follow && brk) brk();
+      });
+      /*
        * "Nearby" means near what you are looking at, so the map has to say
        * where that is. `idle` fires once panning and zooming have settled
        * rather than on every frame of the gesture.
@@ -267,6 +295,25 @@ export default function GoogleMap({
           // than the search can reach.
           spanKm: km,
         });
+      });
+      /*
+       * Can this map turn? Only a vector one can — a raster map takes a
+       * heading, reports it back for a moment, and then draws north-up anyway.
+       *
+       * Asked on the first idle rather than at construction: until the map has
+       * drawn something it answers UNINITIALIZED, and answering the question
+       * from the option you just set is how you get a confident wrong answer.
+       */
+      mapRef.current.addListener('idle', () => {
+        const say = latest.current.onRotatable;
+        if (!say || told.current) return;
+        const map = mapRef.current;
+        const R = window.google.maps.RenderingType;
+        if (!R || typeof map.getRenderingType !== 'function') { told.current = true; say(false); return; }
+        const kind = map.getRenderingType();
+        if (kind === R.UNINITIALIZED) return; // ask again next time
+        told.current = true;
+        say(kind === R.VECTOR && typeof map.setHeading === 'function');
       });
       setReady(true);
     }).catch((e) => { if (!dead && onError) onError(e.message); });
@@ -345,6 +392,42 @@ export default function GoogleMap({
     if (mapRef.current.getZoom() < 14) mapRef.current.setZoom(14);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focused]);
+
+  /* Close enough to see which side of the street you are on. */
+  const FOLLOW_ZOOM = 17;
+
+  // Switching it on aims the map at you and moves in.
+  useEffect(() => {
+    if (!ready || !follow) return;
+    const map = mapRef.current;
+    const at = latest.current.here;
+    if (!at) return;
+    map.panTo(at);
+    if (map.getZoom() < FOLLOW_ZOOM) map.setZoom(FOLLOW_ZOOM);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, follow]);
+
+  // ...and it stays aimed at you as you walk.
+  useEffect(() => {
+    if (!ready || !follow || !here) return;
+    mapRef.current.panTo(here);
+  }, [ready, follow, here]);
+
+  /*
+   * Turning the map to face the way you are facing, which is the whole point
+   * of holding a map up in the street. Only while following, and back to north
+   * the moment it stops — a map left at a stale angle is worse than one that
+   * never turned.
+   *
+   * Raster maps ignore setHeading entirely, so this quietly does nothing
+   * rather than needing to know which kind of map it was given.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    const map = mapRef.current;
+    if (typeof map.setHeading !== 'function') return;
+    map.setHeading(follow && heading != null ? heading : 0);
+  }, [ready, follow, heading]);
 
   /** Apply an owed fit, but only once the map is big enough to have an opinion. */
   function applyFit() {

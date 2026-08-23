@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Loader2, Footprints, TrainFront, Car, LocateFixed, ExternalLink, MapPin,
+  X, Loader2, Footprints, TrainFront, Car, LocateFixed, Navigation,
+  ExternalLink, MapPin,
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
@@ -38,6 +39,9 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   const [mode, setMode] = useState('WALK');
   const [mine, setMine] = useState(null); // the phone's answer, if it gives one
   const [where, setWhere] = useState('asking'); // asking | got | refused | off
+  const [follow, setFollow] = useState(false); // map staying under you
+  const [heading, setHeading] = useState(null); // which way you are facing
+  const [turns, setTurns] = useState(false); // whether this map can face it
   const [legs, setLegs] = useState({}); // mode -> result
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -69,6 +73,75 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   }, []);
 
   useEffect(() => { ask(); }, [ask]);
+
+  /*
+   * The compass, which on iOS may only be asked for from inside the gesture
+   * that wants it — so this is called from the click handler and nowhere else.
+   * Everywhere else the events simply arrive, and the ones that never arrive
+   * cost nothing.
+   */
+  function askCompass() {
+    if (!turns) return; // nothing would come of it
+    const D = typeof DeviceOrientationEvent !== 'undefined' ? DeviceOrientationEvent : null;
+    if (D && typeof D.requestPermission === 'function') {
+      D.requestPermission().catch(() => {});
+    }
+  }
+
+  function locate() {
+    askCompass();
+    setFollow(true);
+    ask();
+  }
+
+  /*
+   * While following, the position is watched rather than asked for once: the
+   * point of the blue state is that the map keeps up with you, and a single
+   * fix goes stale the moment you start walking.
+   */
+  useEffect(() => {
+    if (!follow || typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        setMine({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setWhere('got');
+      },
+      (e) => { setWhere(e && e.code === 1 ? 'refused' : 'off'); setFollow(false); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [follow]);
+
+  /*
+   * Which way the phone is pointing. iOS reports true north directly;
+   * everywhere else it is the absolute alpha angle, counted the other way
+   * round. Either is then corrected for a phone held sideways, because the
+   * sensor answers about the device and the map is drawn on the screen.
+   *
+   * Ignored below a couple of degrees: a hand is never quite still, and a map
+   * that trembles is harder to read than one that lags.
+   */
+  useEffect(() => {
+    if (!follow || !turns) { setHeading(null); return undefined; }
+    const on = (e) => {
+      let h = null;
+      if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+      else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+      if (h == null || !Number.isFinite(h)) return;
+      const screen = (window.screen && window.screen.orientation
+        && window.screen.orientation.angle) || 0;
+      const at = (h + screen + 360) % 360;
+      setHeading((was) => {
+        if (was == null) return at;
+        const off = Math.abs((((at - was) % 360) + 540) % 360 - 180);
+        return off >= 2 ? at : was;
+      });
+    };
+    const type = 'ondeviceorientationabsolute' in window
+      ? 'deviceorientationabsolute' : 'deviceorientation';
+    window.addEventListener(type, on);
+    return () => window.removeEventListener(type, on);
+  }, [follow, turns]);
 
   // Your position if the phone gave one, the place you are standing in
   // otherwise, and nothing at all if neither.
@@ -141,23 +214,29 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
             stopColour={() => catColor('sightseeing')}
             path={path}
             here={mine}
+            follow={follow}
+            heading={heading}
+            onFollowBreak={() => setFollow(false)}
+            onRotatable={setTurns}
             gestures="greedy"
           />
         ) : null}
 
         {/* Bottom right of the map, where every map keeps this button — the
             words live in the tooltip, because a control this well known does
-            not need them and the map has better uses for the space. */}
-        {where !== 'got' ? (
-          <button className="rv-locate" type="button" onClick={ask}
-            disabled={where === 'asking'}
-            data-tip={where === 'refused' ? 'Allow location first' : 'Use my location'}
-            aria-label="Use my location">
-            {where === 'asking'
-              ? <Loader2 size={17} className="spin" />
+            not need them and the map has better uses for the space.
+
+            Always there, in both of its states: lit while the map is yours to
+            stand in the middle of, plain the moment you take the map back. */}
+        <button className={`rv-locate${follow ? ' is-on' : ''}`} type="button"
+          onClick={locate} aria-pressed={follow}
+          data-tip={follow ? 'Following you'
+            : where === 'refused' ? 'Allow location first' : 'Use my location'}
+          aria-label="Use my location">
+          {where === 'asking' && !mine ? <Loader2 size={17} className="spin" />
+            : follow && heading != null ? <Navigation size={17} />
               : <LocateFixed size={17} />}
-          </button>
-        ) : null}
+        </button>
       </div>
 
       <footer className="rv-foot">

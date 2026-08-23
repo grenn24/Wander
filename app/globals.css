@@ -3272,6 +3272,13 @@ body:has(.lp)::before { display: none; }
 }
 .rv-locate:hover { color: var(--accent); transform: translateY(-1px); }
 .rv-locate:disabled { color: var(--text-3); transform: none; cursor: default; }
+/* Lit while the map is following you — the one piece of state this control
+   has, said the way every map says it. */
+.rv-locate.is-on {
+  color: #fff; background: var(--accent); border-color: transparent;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.rv-locate.is-on:hover { color: #fff; }
 .rv-from { font-size: 12px; color: var(--text-3); }
 .rv-nowhere {
   height: 100%; margin: 0; display: flex; flex-direction: column;
