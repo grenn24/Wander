@@ -316,7 +316,8 @@ export default function TripCommand() {
     // At phone widths this is a round icon button and the label is hidden, so
     // the accessible name has to be stated rather than read off the text.
     return (
-      <button className="cmd-pill" type="button" aria-label="Change anything in this trip"
+      <button className="cmd-pill" type="button" title="Change anything in this trip  ⌘K"
+        aria-label="Change anything in this trip"
         onClick={() => {
           setOpen(true);
           setTimeout(() => inputRef.current && inputRef.current.focus(), 0);

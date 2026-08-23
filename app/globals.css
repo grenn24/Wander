@@ -962,6 +962,8 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   cursor: pointer;
 }
 .stop:hover { border-color: var(--border-strong); }
+/* Scrolled to when its marker is clicked, so it needs room to land in. */
+.stop { scroll-margin: 10px; }
 .stop.is-focus { border-color: var(--accent); background: var(--accent-soft); }
 .stop-n {
   width: 21px; height: 21px; flex: none; border-radius: 50%; display: grid;
@@ -1640,22 +1642,73 @@ body:has(.lp)::before { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .gmk-place { transition: none; } }
 
-.gminfo { font-size: 13px; line-height: 1.45; color: #111; }
-.gminfo div { opacity: .7; }
+/* ------------------------------------------------------- marker callout --- */
+/*
+ * Google's bubble, wearing this app's clothes.
+ *
+ * The InfoWindow is drawn outside our tree with its own white chrome, which on
+ * a dark map is a sheet of paper stapled to the picture. These are the classes
+ * the API renders; there is no other way in. headerDisabled removes the title
+ * row, so what is left is the container, the padding it insists on, and the
+ * little tail underneath.
+ */
+.gm-style .gm-style-iw-c {
+  padding: 0 !important;
+  border-radius: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 34px -10px rgba(0,0,0,.55);
+}
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  background: transparent;
+  max-height: none !important;
+}
+/* The tail is a rotated square that has to match the bubble it hangs off. */
+.gm-style .gm-style-iw-tc::after { background: var(--surface-1); }
+/* Google's own close button, in case a version turns the header back on. */
+.gm-style .gm-style-iw-chr { display: none; }
 
-/* -------------------------------------------------- suggestion callout --- */
-.gminfo-place { min-width: 172px; max-width: 240px; }
-.gminfo-img {
-  display: block; width: 100%; height: 96px; object-fit: cover;
-  border-radius: 8px; margin-bottom: 7px;
+.gminfo {
+  position: relative; width: 244px;
+  font-size: 13px; line-height: 1.45; color: var(--text-1);
 }
-.gminfo-meta { font-size: 12px; opacity: .72; margin-top: 2px; }
-.gminfo-add {
-  margin-top: 9px; width: 100%; padding: 7px 10px; border-radius: 8px;
+.gminfo-shot {
+  display: block; width: 100%; padding: 0; border: none; background: none;
+  cursor: zoom-in; line-height: 0;
+}
+.gminfo-shot img {
+  display: block; width: 100%; height: 128px; object-fit: cover;
+  border-radius: 13px 13px 0 0;
+}
+.gminfo-shot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.gminfo-body { padding: 11px 12px 12px; }
+.gminfo-title {
+  display: block; font-size: 14px; font-weight: 650; line-height: 1.3;
+  color: var(--text-1);
+}
+/* Two lines of address is a location; four is a paragraph in a bubble. */
+.gminfo-meta {
+  margin-top: 3px; font-size: 12px; color: var(--text-2); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gminfo-go {
+  margin-top: 10px; width: 100%; padding: 8px 10px; border-radius: 9px;
   border: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
-  background: #2a78d6; color: #fff;
+  background: var(--accent); color: #fff;
 }
-.gminfo-add:hover { background: #1f66bc; }
+.gminfo-go:hover { filter: brightness(1.08); }
+.gminfo-x {
+  position: absolute; top: 7px; right: 7px; z-index: 2;
+  width: 26px; height: 26px; border-radius: 999px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(16,16,20,.6); color: #fff;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.gminfo-x:hover { background: rgba(40,40,48,.85); }
 
 /* A result the map is pointing at. */
 .nearby.is-focus {

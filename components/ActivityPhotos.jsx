@@ -47,6 +47,7 @@ export default function ActivityPhotos({ placeId, photoRef, given, title }) {
       <div className="aphotos">
         {shown.map((ref, i) => (
           <button key={ref} type="button" className="aphoto"
+            title="See it full size"
             aria-label={`Photo ${i + 1} of ${shown.length}${title ? ` — ${title}` : ''}`}
             onClick={() => setAt(i)}>
             <img src={`/api/places/photo?ref=${encodeURIComponent(ref)}&w=420`} alt=""

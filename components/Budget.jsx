@@ -41,11 +41,14 @@ export default function Budget({ trip, days, activities, onEditTrip }) {
         </div>
         <div className="chiprow">
           {budget == null && onEditTrip ? (
-            <button className="btn sm" onClick={onEditTrip}><Settings size={15} /> Set a budget</button>
+            <button className="btn sm" onClick={onEditTrip}
+              title="Set a budget in the trip settings"><Settings size={15} /> Set a budget</button>
           ) : null}
           <button className="btn sm" aria-pressed={view === 'chart'}
+            title="Bars for spend by type and by day"
             onClick={() => setView('chart')}><BarChart3 size={15} /> Chart</button>
           <button className="btn sm" aria-pressed={view === 'table'}
+            title="Every activity that has a cost"
             onClick={() => setView('table')}><Table2 size={15} /> Table</button>
         </div>
       </div>

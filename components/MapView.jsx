@@ -4,13 +4,15 @@ import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X, Footprints, TrainFront, TriangleAlert,
   Search, Crosshair, ChevronUp, ChevronDown,
 } from 'lucide-react';
-import { categoryOf, fmtDayTiny, fmtTime, sortActs } from '@/lib/util';
+import { categoryOf, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
-  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
+  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, placePhotos,
+  NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
+import Lightbox from '@/components/Lightbox';
 
 
 export default function MapView({
@@ -44,6 +46,7 @@ export default function MapView({
    * and a gesture that lands anywhere in between is a gesture to get wrong.
    */
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
 
   const inDay = useCallback(
@@ -223,12 +226,53 @@ export default function MapView({
 
   /* ---------------------------------------------------------------- map --- */
 
+  /*
+   * First click points the map at it; a second opens it.
+   *
+   * A row in this list is the same activity as the card on the itinerary, and
+   * there was no way to edit one from here without finding the small pencil at
+   * its right edge. Clicking the thing you have already selected is the
+   * gesture every file list has trained people to expect.
+   */
   function focus(a) {
+    if (focused === a.id) { onEdit(a); return; }
     setFocused(a.id);
-    const m = markers.current[a.id];
-    if (m && mapRef.current) {
-      mapRef.current.flyTo([a.lat, a.lng], Math.max(mapRef.current.getZoom(), 14), { duration: .5 });
-      m.openPopup();
+  }
+
+  /**
+   * What a stop's marker says when it is clicked. The map does not know the
+   * trip's currency or how this app writes a date, so it asks.
+   */
+  function describeStop(a) {
+    const bits = [fmtDayTiny(a.day)];
+    if (a.start_time) bits.push(fmtTime(a.start_time));
+    const place = shortPlace(a.location);
+    if (place) bits.push(place);
+    if (Number(a.cost) > 0) bits.push(money(a.cost, trip.currency));
+    return { meta: bits.join(' · ') };
+  }
+
+  /**
+   * Open the viewer on a place's photographs.
+   *
+   * The one saved with the activity opens straight away rather than after a
+   * round trip; the rest of the place's photos arrive behind it if Google has
+   * any, so the viewer fills out while you are already looking at it.
+   */
+  async function openPhotos(seed) {
+    const held = (seed.photos && seed.photos.length ? seed.photos
+      : seed.photoRef ? [seed.photoRef] : []).filter(Boolean);
+    if (!held.length) return;
+    setShots({ photos: held, index: 0, title: seed.title || '' });
+    if (!seed.placeId) return;
+    try {
+      const more = await placePhotos(seed.placeId);
+      const merged = [held[0], ...more.filter((r) => r !== held[0])];
+      if (merged.length > held.length) {
+        setShots((s) => (s ? { ...s, photos: merged } : s));
+      }
+    } catch (e) {
+      // The photo already on screen is enough; nothing to report.
     }
   }
 
@@ -293,6 +337,22 @@ export default function MapView({
   const viewTooWide = !!anchor && anchor.spanKm > 12;
 
   /*
+   * Clicking a marker selects a row that may be twenty rows down a panel, or
+   * behind a collapsed sheet. Selecting something nobody can see is the same
+   * as not selecting it, so the list comes to meet the map.
+   */
+  useEffect(() => {
+    if (!focused) return undefined;
+    let alive = true;
+    const t = setTimeout(() => {
+      if (!alive) return;
+      const row = document.getElementById(`stop-${focused}`);
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, sheetOpen ? 0 : 320); // wait out the sheet if it is on its way up
+    return () => { alive = false; clearTimeout(t); };
+  }, [focused, sheetOpen]);
+
+  /*
    * The map is the page.
    *
    * It used to be a rectangle in a column, sharing the screen with a heading
@@ -313,7 +373,10 @@ export default function MapView({
             places={places}
             focused={focused}
             dayColours={catColor}
-            onFocus={setFocused}
+            onFocus={(id) => { setFocused(id); setSheetOpen(true); }}
+            describeStop={describeStop}
+            onStopOpen={onEdit}
+            onPhoto={openPhotos}
             onDropPin={async (lat, lng) => {
               setDropped({ lat, lng, label: 'Looking up…', name: '' });
               reveal();
@@ -401,7 +464,7 @@ export default function MapView({
                   <strong className="small">{dropped.name || 'Dropped point'}</strong>
                   <div className="tiny muted" style={{ overflowWrap: 'anywhere' }}>{dropped.label}</div>
                 </div>
-                <button className="btn ghost sm icon-btn" aria-label="Dismiss"
+                <button className="btn ghost sm icon-btn" title="Dismiss" aria-label="Dismiss"
                   onClick={() => setDropped(null)}><X size={14} /></button>
               </div>
               <button className="btn primary sm" style={{ width: '100%', marginTop: 10 }}
@@ -433,6 +496,7 @@ export default function MapView({
               const KindIcon = categoryIcon(k.category);
               return (
                 <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
+                  title={`${k.label} near the middle of the map`}
                   disabled={!mapsReady}
                   onClick={() => {
                     setHits(null); setQuery(''); setPickedPlace(null);
@@ -493,6 +557,7 @@ export default function MapView({
                   </div>
                   <button className="btn sm icon-btn"
                     onClick={(e) => { e.stopPropagation(); addPlace(pl); }}
+                    title={`Add ${pl.name} to the trip`}
                     aria-label={`Add ${pl.name}`}><Plus size={14} /></button>
                 </div>
               ))}
@@ -530,7 +595,9 @@ export default function MapView({
                             : ` · ${walkMinutes(leg)} min walk`}
                       </div>
                     ) : null}
-                    <div className={`stop${focused === a.id ? ' is-focus' : ''}`}
+                    <div id={`stop-${a.id}`}
+                      className={`stop${focused === a.id ? ' is-focus' : ''}`}
+                      title={focused === a.id ? `Open ${a.title}` : `Show ${a.title} on the map`}
                       role="button" tabIndex={0}
                       onClick={() => focus(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
@@ -542,7 +609,8 @@ export default function MapView({
                           {fmtDayTiny(a.day)}{a.start_time ? ` · ${fmtTime(a.start_time)}` : ''}
                         </div>
                       </div>
-                      <button className="btn ghost sm icon-btn" aria-label={`Edit ${a.title}`}
+                      <button className="btn ghost sm icon-btn"
+                        title={`Edit ${a.title}`} aria-label={`Edit ${a.title}`}
                         onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
                         <SquarePen size={14} />
                       </button>
@@ -575,6 +643,12 @@ export default function MapView({
           ) : null}
         </div>
       </aside>
+
+      {shots ? (
+        <Lightbox photos={shots.photos} index={shots.index} alt={shots.title}
+          onIndex={(i) => setShots((v) => (v ? { ...v, index: i } : v))}
+          onClose={() => setShots(null)} />
+      ) : null}
     </div>
   );
 }

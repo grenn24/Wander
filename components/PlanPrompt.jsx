@@ -85,6 +85,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           </span>
         ) : null}
         <button className="btn primary planbox-go" type="submit" disabled={!value.trim()}
+          title="Plan this trip"
           aria-label="Plan this trip">
           <ArrowUp size={17} />
         </button>
@@ -97,6 +98,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           </button>
         ))}
         <button type="button" className="samplechip shuffle" onClick={shuffle}
+          title="Show different examples"
           aria-label="Show different examples">
           <Shuffle size={13} />
         </button>

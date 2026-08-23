@@ -136,6 +136,10 @@ function loadMaps() {
 export default function GoogleMap({
   stops, places, focused, focusedPlace, dayColours,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
+  // What a stop should say when its marker is clicked, and what to do about
+  // it. The words belong to the page — it knows the trip's currency and how it
+  // writes a date — so the map asks rather than deciding.
+  describeStop, onStopOpen, onPhoto,
   /*
    * Cooperative by default: a map that swallows the wheel is a trap on a page
    * you are trying to scroll. A map that owns its whole column has no such
@@ -172,6 +176,7 @@ export default function GoogleMap({
   latest.current = {
     stops, places, focused, focusedPlace, dayColours,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
+    describeStop, onStopOpen, onPhoto,
   };
 
   useEffect(() => {
@@ -184,17 +189,14 @@ export default function GoogleMap({
         zoom: 4,
         mapId: MAP_ID,
         colorScheme: readScheme(),
+        // No furniture at all. Scroll, pinch and double-tap are how anyone
+        // actually zooms a map, and a pair of grey buttons in the corner of a
+        // full-bleed map is a widget sitting on a photograph.
         disableDefaultUI: true,
-        zoomControl: true,
-        // Bottom right is where a panel goes on a full-bleed map, so the
-        // buttons would spend most of their life underneath one.
-        zoomControlOptions: {
-          position: window.google.maps.ControlPosition.LEFT_BOTTOM,
-        },
+        zoomControl: false,
         clickableIcons: false,
         gestureHandling: gestures,
       });
-      info.current = new L.InfoWindow();
       mapRef.current.addListener('click', (e) => {
         // Through latest, not the closure: this listener is attached once, so a
         // handler captured here would be the first render's for the map's whole
@@ -236,7 +238,23 @@ export default function GoogleMap({
   useEffect(() => {
     if (ready) drawStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, stops, focused]);
+  }, [ready, stops]);
+
+  /*
+   * Selection is a class, not a redraw.
+   *
+   * Rebuilding every marker to move a ring also destroys the one the open
+   * callout is anchored to — and since clicking a marker is what changes the
+   * selection, the card closed in the same frame it opened. Suggestions were
+   * given this treatment when the same thing happened to them; stops were left
+   * redrawing on every click.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    stopMarks.current.forEach((m) => {
+      if (m.__el) m.__el.classList.toggle('gmk-focus', m.__id === focused);
+    });
+  }, [ready, focused, stops]);
 
   useEffect(() => {
     if (ready) drawPlaces();
@@ -326,13 +344,23 @@ export default function GoogleMap({
       const mark = new L.AdvancedMarkerElement({
         map, position: { lat: a.lat, lng: a.lng }, content: el, title: a.title,
       });
+      mark.__id = a.id;
+      mark.__el = el;
       mark.addListener('click', () => {
-        info.current.setContent(
-          `<div class="gminfo"><strong>${escapeHtml(a.title)}</strong>`
-          + (a.location ? `<div>${escapeHtml(a.location)}</div>` : '')
-          + '</div>',
-        );
-        info.current.open({ map, anchor: mark });
+        const said = latest.current.describeStop
+          ? latest.current.describeStop(a) : { meta: a.location || '' };
+        openInfo(mark, {
+          title: a.title,
+          meta: said.meta,
+          photoRef: a.photo_ref,
+          photos: said.photos,
+          placeId: a.place_id,
+          action: 'Open activity',
+          onAction: () => {
+            info.current.close();
+            if (latest.current.onStopOpen) latest.current.onStopOpen(a);
+          },
+        });
         if (focus) focus(a.id);
       });
 
@@ -365,43 +393,106 @@ export default function GoogleMap({
   }
 
   /**
-   * What a suggestion says when you click it.
+   * One card for every marker.
    *
-   * Built as a DOM node rather than an HTML string so the button can carry a
-   * real listener — a string would need the content re-found after the window
-   * opens, and would put a click handler somewhere it could not see the place
-   * it belongs to.
+   * Suggestions used to get a photograph and a button while a stop already in
+   * the plan got two lines of grey text — the same click on the same map
+   * answering in two different registers. Built as DOM rather than an HTML
+   * string so the picture and the buttons can carry real listeners; a string
+   * would have to be re-found after the window opened.
    */
-  function openPlaceInfo(p, anchor) {
+  function openInfo(anchor, card) {
     const map = mapRef.current;
     const el = document.createElement('div');
-    el.className = 'gminfo gminfo-place';
+    el.className = 'gminfo';
 
+    const shut = document.createElement('button');
+    shut.type = 'button';
+    shut.className = 'gminfo-x';
+    shut.title = 'Close';
+    shut.setAttribute('aria-label', 'Close');
+    shut.innerHTML = '&#10005;';
+    shut.addEventListener('click', () => info.current.close());
+    el.appendChild(shut);
+
+    if (card.photoRef) {
+      const shot = document.createElement('button');
+      shot.type = 'button';
+      shot.className = 'gminfo-shot';
+      shot.title = 'See the photos';
+      shot.setAttribute('aria-label', `Photos of ${card.title}`);
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = `/api/places/photo?ref=${encodeURIComponent(card.photoRef)}&w=420`;
+      shot.appendChild(img);
+      shot.addEventListener('click', () => {
+        const show = latest.current.onPhoto;
+        if (show) {
+          show({
+            photoRef: card.photoRef,
+            photos: card.photos,
+            placeId: card.placeId,
+            title: card.title,
+          });
+        }
+      });
+      el.appendChild(shot);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'gminfo-body';
+    body.innerHTML = `<strong class="gminfo-title">${escapeHtml(card.title || '')}</strong>`
+      + (card.meta ? `<div class="gminfo-meta">${escapeHtml(card.meta)}</div>` : '');
+    el.appendChild(body);
+
+    if (card.action && card.onAction) {
+      const go = document.createElement('button');
+      go.type = 'button';
+      go.className = 'gminfo-go';
+      go.textContent = card.action;
+      go.addEventListener('click', card.onAction);
+      body.appendChild(go);
+    }
+
+    /*
+     * A new window each time, rather than one kept for the life of the map.
+     *
+     * The long-lived one reported itself open, on the right map, anchored to a
+     * marker that was on screen — and rendered nothing at all. It is built
+     * during the map's own construction, and in development React builds the
+     * map twice; the window that survives is not the one the map kept. Making
+     * it at the moment it is opened removes the question entirely, and one
+     * small object per click is not a cost worth reasoning about.
+     */
+    /*
+     * Built at the moment it opens rather than kept for the life of the map:
+     * one small object per click, and no question about which map generation
+     * it belongs to.
+     */
+    if (info.current) info.current.close();
+    info.current = new libs.current.InfoWindow({ maxWidth: 268 });
+    info.current.setContent(el);
+    info.current.open({ map, anchor });
+  }
+
+  /** A suggestion: not in the plan yet, so the action is to put it there. */
+  function openPlaceInfo(p, anchor) {
     const bits = [];
-    if (p.detail) bits.push(escapeHtml(p.detail));
+    if (p.detail) bits.push(p.detail);
     if (p.rating) bits.push(`★ ${Number(p.rating).toFixed(1)}`);
     if (p.km != null) bits.push(`${p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`} away`);
 
-    el.innerHTML = `
-      ${p.photo_ref ? `<img class="gminfo-img" alt="" src="/api/places/photo?ref=${encodeURIComponent(p.photo_ref)}&w=320">` : ''}
-      <strong>${escapeHtml(p.name)}</strong>
-      ${bits.length ? `<div class="gminfo-meta">${bits.join(' · ')}</div>` : ''}
-    `;
-
-    if (latest.current.onPlaceAdd) {
-      const add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'gminfo-add';
-      add.textContent = 'Add to trip';
-      add.addEventListener('click', () => {
-        info.current.close();
-        latest.current.onPlaceAdd(p);
-      });
-      el.appendChild(add);
-    }
-
-    info.current.setContent(el);
-    info.current.open({ map, anchor });
+    openInfo(anchor, {
+      title: p.name,
+      meta: bits.join(' · '),
+      photoRef: p.photo_ref,
+      photos: p.photos,
+      placeId: (p.place_id || String(p.id || '').replace(/^g-/, '')) || null,
+      action: latest.current.onPlaceAdd ? 'Add to trip' : null,
+      onAction: latest.current.onPlaceAdd
+        ? () => { info.current.close(); latest.current.onPlaceAdd(p); }
+        : null,
+    });
   }
 
   function drawPlaces() {

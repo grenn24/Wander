@@ -22,6 +22,7 @@ export default function Presence({ online = [], meId }) {
   return (
     <>
       <button ref={btn} className={`presence${online.length < 2 ? ' is-alone' : ''}`} type="button"
+        title={label}
         aria-haspopup="menu" aria-expanded={open} aria-label={label}
         onClick={() => setOpen((o) => !o)}>
         <span className="pulse" aria-hidden="true" />

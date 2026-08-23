@@ -78,7 +78,8 @@ export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', on
             <div className="tiny dim">Nothing is added until you pick.</div>
           </div>
         </div>
-        <button className="btn ghost sm icon-btn" onClick={onClose} aria-label="Close suggestions">
+        <button className="btn ghost sm icon-btn" onClick={onClose}
+          title="Close suggestions" aria-label="Close suggestions">
           <X size={15} />
         </button>
       </div>
@@ -117,7 +118,8 @@ export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', on
                     {idea.location ? <div className="tiny dim">{idea.location}</div> : null}
                   </div>
                   <button className="btn sm" disabled={!!state}
-                    onClick={() => take(idea, i)} aria-label={`Add ${idea.title}`}>
+                    onClick={() => take(idea, i)}
+                    title={`Add ${idea.title} to this day`} aria-label={`Add ${idea.title}`}>
                     {state === 'busy' ? <Loader2 size={14} className="spin" />
                       : state === 'done' ? 'Added' : <Plus size={14} />}
                   </button>

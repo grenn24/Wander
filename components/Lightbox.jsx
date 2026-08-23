@@ -174,16 +174,17 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
       onClick={(e) => { if (e.target === e.currentTarget && !moved.current) onClose(); }}>
 
       <div className="lb-tools">
-        <button type="button" aria-label="Zoom out" disabled={!zoomed}
+        <button type="button" title="Zoom out  −" aria-label="Zoom out" disabled={!zoomed}
           onClick={() => zoomTo(view.scale / STEP)}><ZoomOut size={17} /></button>
         <span className="lb-pct" aria-live="polite">{Math.round(view.scale * 100)}%</span>
-        <button type="button" aria-label="Zoom in" disabled={view.scale >= MAX}
+        <button type="button" title="Zoom in  +" aria-label="Zoom in" disabled={view.scale >= MAX}
           onClick={() => zoomTo(view.scale * STEP)}><ZoomIn size={17} /></button>
-        <button type="button" aria-label="Close photo" onClick={onClose}><X size={18} /></button>
+        <button type="button" title="Close  Esc" aria-label="Close photo"
+          onClick={onClose}><X size={18} /></button>
       </div>
 
       {many ? (
-        <button className="lb-step lb-prev" type="button" aria-label="Previous photo"
+        <button className="lb-step lb-prev" type="button" title="Previous  ←" aria-label="Previous photo"
           onClick={() => step(-1)}><ChevronLeft size={22} /></button>
       ) : null}
 
@@ -204,7 +205,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
       </figure>
 
       {many ? (
-        <button className="lb-step lb-next" type="button" aria-label="Next photo"
+        <button className="lb-step lb-next" type="button" title="Next  →" aria-label="Next photo"
           onClick={() => step(1)}><ChevronRight size={22} /></button>
       ) : null}
     </div>

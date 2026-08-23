@@ -160,7 +160,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
         role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
-          <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
+          <button className="btn ghost sm" onClick={attemptClose}
+            title="Close  Esc" aria-label="Close"><X size={15} /></button>
         </div>
 
         <div className="modal-split">

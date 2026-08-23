@@ -96,6 +96,7 @@ function TripChrome({ tripId, children }) {
           <Link
             href={active === 'itinerary' ? '/trips' : `/trips/${tripId}/itinerary`}
             className="crumb-back"
+            title={active === 'itinerary' ? 'All your trips' : 'Back to the itinerary'}
             aria-label={active === 'itinerary' ? 'All trips' : 'Back to the itinerary'}
           >
             <ChevronLeft size={16} />

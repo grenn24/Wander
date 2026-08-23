@@ -124,7 +124,7 @@ export default function QuickAdd({
             }}
           />
           {text.trim() && !busy ? (
-            <button className="qa-send" type="submit" aria-label="Add this">
+            <button className="qa-send" type="submit" title="Add this  ↵" aria-label="Add this">
               <ArrowUp size={15} />
             </button>
           ) : null}
@@ -161,7 +161,7 @@ export default function QuickAdd({
             <button className="btn sm primary" type="submit" disabled={busy || !answer.trim()}>
               {busy ? <Loader2 size={14} className="spin" /> : 'Continue'}
             </button>
-            <button className="btn ghost sm icon-btn" type="button" aria-label="Cancel"
+            <button className="btn ghost sm icon-btn" type="button" title="Cancel" aria-label="Cancel"
               onClick={reset}><X size={14} /></button>
           </div>
         </form>

@@ -251,12 +251,15 @@ export default function Itinerary({
         </div>
         <div className="chiprow">
           {todayIndex >= 0 ? (
-            <button className="btn sm primary" onClick={() => jumpTo(today)}>
+            <button className="btn sm primary" title="Jump to today"
+              onClick={() => jumpTo(today)}>
               <LocateFixed size={15} /> Today
             </button>
           ) : null}
-          <button className="btn sm" onClick={onPrint}><Printer size={15} /> Print</button>
-          <button className="btn sm" onClick={onEditTrip}><Settings size={15} /> Edit trip</button>
+          <button className="btn sm" onClick={onPrint}
+            title="Print, or save the whole trip as a PDF"><Printer size={15} /> Print</button>
+          <button className="btn sm" onClick={onEditTrip}
+            title="Name, dates, destination and budget"><Settings size={15} /> Edit trip</button>
         </div>
       </div>
 
@@ -348,6 +351,7 @@ export default function Itinerary({
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => e.stopPropagation()}>
                         <button className="btn ghost sm icon-btn" type="button"
+                          title="Move, duplicate or delete"
                           aria-label={`Actions for ${a.title}`} aria-expanded={menuFor === a.id}
                           onClick={(e) => {
                             const same = menuFor === a.id;

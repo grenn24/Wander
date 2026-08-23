@@ -133,7 +133,8 @@ export default function Packing({ items, onAdd, onUpdate, onDelete, trip, days, 
                     onChange={(e) => onUpdate(i.id, { packed: e.target.checked })} />
                   <span className="pack-label">{i.label}</span>
                   {i.qty > 1 ? <span className="tag mono">×{i.qty}</span> : null}
-                  <button className="btn ghost sm icon-btn" aria-label={`Remove ${i.label}`}
+                  <button className="btn ghost sm icon-btn"
+                    title={`Remove ${i.label}`} aria-label={`Remove ${i.label}`}
                     onClick={() => onDelete(i.id)}><X size={15} /></button>
                 </div>
               ))}
