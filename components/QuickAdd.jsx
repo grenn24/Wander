@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, X } from 'lucide-react';
 import { parseQuickAdd } from '@/lib/util';
 
@@ -20,6 +20,16 @@ export default function QuickAdd({
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef(null);
+  /*
+   * The sentence in this box is the brief for the suggestions panel, so
+   * closing the panel ends it. Leaving it behind meant the next thing typed
+   * here was appended to a request already answered and dismissed.
+   */
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !suggestOpen) setText('');
+    wasOpen.current = suggestOpen;
+  }, [suggestOpen]);
   const answerRef = useRef(null);
   const pending = useRef('');
 

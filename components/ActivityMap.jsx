@@ -19,15 +19,18 @@ const NO_PHOTOS = [];
  * the field answers the question where it is asked.
  *
  * Three states, and it says which one it is in:
- *   pinned      — an exact spot is saved with the activity.
- *   best guess  — only words are saved; this is where they land, offered
- *                 rather than assumed, because a name can match two places.
+ *   pinned      — an exact spot is saved with the activity. A marker, and only
+ *                 here: a pin is the map saying "this one, exactly", and it
+ *                 must never say that about a guess nobody has agreed to.
+ *   best guess  — only words are saved. The map goes to where they land and
+ *                 draws nothing, and the name is offered underneath with the
+ *                 button that would make it true.
  *   nothing     — no location yet.
  *
- * Clicking the map moves the pin, which is the only way to correct a spot that
- * is nearly right without deleting the words and starting the search again.
+ * Double-clicking the map moves the pin, which is the only way to correct a
+ * spot that is nearly right without deleting the words and starting again.
  */
-export default function ActivityMap({ draft, onPick, compact = false }) {
+export default function ActivityMap({ draft, onPick, onGuess, compact = false }) {
   const [probe, setProbe] = useState(null); // best guess for text with no pin
   const [busy, setBusy] = useState(false);
   const [mapErr, setMapErr] = useState('');
@@ -72,6 +75,13 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
       .catch(() => { /* the saved photo and the pin are still worth showing */ });
     return () => { alive = false; };
   }, [draft.place_id]);
+
+  /* The field an inch away asks the same question this panel answers, so it
+     is told rather than left to look it up a second time. */
+  useEffect(() => {
+    if (!onGuess) return;
+    onGuess({ busy, name: probe ? probe.name || probe.label : '' });
+  }, [onGuess, busy, probe]);
 
   if (!googleMapsAvailable()) return null;
 
@@ -119,15 +129,18 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
           <div className="amap-el">
             <GoogleMap
               key={scheme}
-              stops={[{
+              /* A marker means a decision has been made. Until one has, the
+                 map only goes to the neighbourhood. */
+              stops={pinned ? [{
                 id: 'draft',
                 lat: at.lat,
                 lng: at.lng,
                 day: draft.day || 'draft',
                 title: draft.title || 'This activity',
-                location: pinned ? text : (probe && probe.label) || text,
+                location: text,
                 category: draft.category || 'sightseeing',
-              }]}
+              }] : []}
+              look={pinned ? undefined : at}
               places={[]}
               focused={null}
               focusedPlace={null}
@@ -151,8 +164,8 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
                   do not tell a phone to drag. */}
               <span className="tiny dim">
                 {compact
-                  ? 'Tap the map to move the pin.'
-                  : 'Drag to look around; click the map to move the pin.'}
+                  ? 'Double-tap the map to move the pin.'
+                  : 'Drag to look around; double-click to move the pin.'}
               </span>
             </p>
           ) : (

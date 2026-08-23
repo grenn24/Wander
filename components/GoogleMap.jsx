@@ -160,6 +160,10 @@ export default function GoogleMap({
   // A route to draw over everything else: the way from one place to another,
   // as opposed to the dashed line that merely joins a day's stops in order.
   path,
+  // Where to aim when there are no stops to aim at: a map showing the whole
+  // world says less about a place than a map showing the street it is on,
+  // even with nothing drawn on top.
+  look,
   // Where the reader is standing. A route with only one end on it is half a
   // route — you cannot tell which way along the line you are meant to go.
   here,
@@ -226,7 +230,7 @@ export default function GoogleMap({
   const latest = useRef(null);
   latest.current = {
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
-    follow, onFollowBreak, onRotatable,
+    look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto,
   };
@@ -241,6 +245,9 @@ export default function GoogleMap({
         zoom: 4,
         mapId: MAP_ID,
         colorScheme: readScheme(),
+        // Where a double click drops a pin it cannot also zoom: one gesture,
+        // two answers, and you get whichever the map felt like.
+        disableDoubleClickZoom: !!latest.current.onDropPin,
         // No furniture at all. Scroll, pinch and double-tap are how anyone
         // actually zooms a map, and a pair of grey buttons in the corner of a
         // full-bleed map is a widget sitting on a photograph.
@@ -249,16 +256,22 @@ export default function GoogleMap({
         clickableIcons: false,
         gestureHandling: gestures,
       });
-      mapRef.current.addListener('click', (e) => {
-        /*
-         * With a callout open, a click on the map means "put that away" and
-         * nothing else. It used to drop a pin as well, so dismissing the card
-         * left a new point behind — every time.
-         */
-        if (shownFor.current) { closeInfo(); return; }
-        // Through latest, not the closure: this listener is attached once, so a
-        // handler captured here would be the first render's for the map's whole
-        // life — and would never see anything the page learned since.
+      /*
+       * A single click puts the open callout away, and otherwise does nothing.
+       * Looking at a map is mostly clicking on it — to dismiss something, to
+       * take the focus off a field, or by simply missing a marker — and every
+       * one of those used to leave a new point behind.
+       */
+      mapRef.current.addListener('click', () => {
+        if (shownFor.current) closeInfo();
+      });
+      /*
+       * Dropping a pin is a decision, so it takes the gesture nobody makes by
+       * accident. Through latest, not the closure: this listener is attached
+       * once, so a handler captured here would be the first render's for the
+       * map's whole life.
+       */
+      mapRef.current.addListener('dblclick', (e) => {
         const drop = latest.current.onDropPin;
         if (e.latLng && drop) drop(e.latLng.lat(), e.latLng.lng());
       });
@@ -324,7 +337,7 @@ export default function GoogleMap({
   useEffect(() => {
     if (ready) drawStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, stops]);
+  }, [ready, stops, look]);
 
   /*
    * Selection is a class, not a redraw.
@@ -577,6 +590,8 @@ export default function GoogleMap({
       owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
     } else if (list.length > 1 && !bounds.isEmpty()) {
       owedFit.current = { bounds };
+    } else if (!list.length && latest.current.look) {
+      owedFit.current = { center: latest.current.look };
     }
     applyFit();
   }

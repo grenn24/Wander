@@ -37,6 +37,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   const [geoErr, setGeoErr] = useState('');
   const [active, setActive] = useState(-1);
   const [confirm, setConfirm] = useState(''); // '' | 'delete' | 'discard'
+  // What the map panel has made of the words so far, so the field can say it.
+  const [guess, setGuess] = useState({ busy: false, name: '' });
   const pristine = useRef(JSON.stringify(draft));
   // Suggestions answer typing. Without this, opening an activity that has a
   // written location dropped a list of alternatives over the form before
@@ -154,9 +156,16 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
   const pick = (patch) => set(patch);
 
+  /* Below three characters there is nothing to look up, so there is nothing
+     for the guess to be about — and last search's answer must not hang around
+     describing this one. */
+  const said = (draft.location || '').trim().length >= 3;
+
   /* One panel, two homes. Only ever rendered once — two of these would be two
      Google maps competing for the same activity. */
-  const where = (compact) => <ActivityMap draft={draft} onPick={pick} compact={compact} />;
+  const where = (compact) => (
+    <ActivityMap draft={draft} onPick={pick} onGuess={setGuess} compact={compact} />
+  );
 
   return (
     <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
@@ -316,12 +325,21 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 * and pins the exact spot; typing the name is the same thing more
                 * slowly. Neither is an error state worth interrupting anyone for.
                 */}
+              {/*
+                * What the map is currently going on, said where the doubt is.
+                * "Anything written here is found on the map for you" described
+                * the mechanism and left the outcome to be guessed at — and
+                * with a marker drawn for the guess as well, a place nobody had
+                * agreed to read as a place already chosen.
+                */}
               <p className="pinstate is-idle">
                 <MapPin size={13} aria-hidden="true" />
                 <span>
-                  {pinned
-                    ? 'Pinned to this spot.'
-                    : 'Anything written here is found on the map for you.'}
+                  {pinned ? 'Pinned to this spot.'
+                    : !said ? 'Anything written here is found on the map for you.'
+                      : guess.busy ? 'Looking that up…'
+                        : guess.name ? `Best match — ${guess.name}`
+                          : 'Nothing found for that yet.'}
                 </span>
                 {pinned ? (
                   <button className="btn ghost sm" type="button"
