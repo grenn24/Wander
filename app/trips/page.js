@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, CalendarDays, MapPin, Wallet, ArrowRight } from 'lucide-react';
+import { Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
@@ -16,6 +16,8 @@ export default function TripsHome() {
   const { supabase, user, fail, pushToast } = useApp();
   const router = useRouter();
   const [trips, setTrips] = useState([]);
+  // trip id -> who owns it, for the ones somebody else does.
+  const [sharedBy, setSharedBy] = useState({});
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState(null);
 
@@ -24,7 +26,29 @@ export default function TripsHome() {
     const { data, error } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
     if (error) fail(error); else setTrips(data || []);
     setLoading(false);
-  }, [supabase, fail]);
+
+    /*
+     * Whose trips these are.
+     *
+     * A trip someone shared with you sits in this list looking exactly like
+     * one you started, which matters most in the case where it matters most:
+     * the moment before you change something in somebody else's plan. Asked
+     * for only when there is something to ask about, and never for your own.
+     */
+    const theirs = (data || []).filter((t) => t.owner_id !== (user && user.id));
+    if (!theirs.length) { setSharedBy({}); return; }
+    const { data: owners } = await supabase.from('trip_members')
+      .select('trip_id, display_name, email')
+      .eq('role', 'owner')
+      .in('trip_id', theirs.map((t) => t.id));
+    const by = {};
+    (owners || []).forEach((o) => {
+      by[o.trip_id] = o.display_name
+        || (o.email || '').split('@')[0]
+        || 'someone else';
+    });
+    setSharedBy(by);
+  }, [supabase, fail, user]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -112,10 +136,17 @@ export default function TripsHome() {
             <div className="tripgrid">
               {ordered.map((t) => {
                 const status = tripStatus(t);
+                const from = sharedBy[t.id];
                 return (
                   <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="tripcard">
                     <div className="tripcard-top">
                       <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
+                      {from ? (
+                        <span className="sharedpill" data-tip={`${from} owns this trip`}>
+                          <UserRound size={11} aria-hidden="true" />
+                          Shared by {from}
+                        </span>
+                      ) : null}
                       <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </div>
                     <h3 className="tripcard-name">{t.name}</h3>
