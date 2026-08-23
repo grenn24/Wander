@@ -144,16 +144,23 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
             gestures="greedy"
           />
         ) : null}
+
+        {/* Bottom right of the map, where every map keeps this button — the
+            words live in the tooltip, because a control this well known does
+            not need them and the map has better uses for the space. */}
+        {where !== 'got' ? (
+          <button className="rv-locate" type="button" onClick={ask}
+            disabled={where === 'asking'}
+            data-tip={where === 'refused' ? 'Allow location first' : 'Use my location'}
+            aria-label="Use my location">
+            {where === 'asking'
+              ? <Loader2 size={17} className="spin" />
+              : <LocateFixed size={17} />}
+          </button>
+        ) : null}
       </div>
 
       <footer className="rv-foot">
-        {where !== 'got' ? (
-          <button className="btn sm rv-here" type="button" onClick={ask}
-            data-tip={where === 'refused' ? 'Allow location in your browser first' : 'Use my location'}>
-            <LocateFixed size={14} /> <span>Use my location</span>
-          </button>
-        ) : null}
-
         {where === 'asking' && !from ? (
           <p className="rv-note"><LocateFixed size={14} /> Finding where you are…</p>
         ) : nowhere ? (
