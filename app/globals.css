@@ -3123,3 +3123,6 @@ body:has(.lp)::before { display: none; }
 @media print { .today { display: none !important; } }
 .lb-count a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .lb-count a:hover { color: #fff; }
+/* Only shown where you have not arrived yet, so it is the one thing on the
+   screen worth pressing. */
+.today-go { margin-top: 22px; min-width: 220px; }

@@ -52,28 +52,34 @@ function until(mins) {
 /**
  * Where the day has got to.
  *
- * "Now" is whatever has started and not finished, or failing that whatever
- * started most recently — an activity with no end time does not stop being
- * where you are because the plan forgot to say when it ends.
+ * An activity with an end time is over when that time passes. One without an
+ * end time runs until the next thing starts, and if it is the last thing of
+ * the day, until the day is out — because the plan forgetting to say when
+ * dinner ends does not mean dinner ends immediately, and does not mean it is
+ * still going at eleven the next morning either.
+ *
+ * That second half matters: the old rule fell back to "whatever started most
+ * recently", which had no way of ever running out, so a six o'clock train sat
+ * there being Now until midnight and the day could never be finished.
  */
 function readDay(list, at) {
-  const timed = list.filter((a) => toMinutes(a.start_time) != null);
+  const timed = list
+    .filter((a) => toMinutes(a.start_time) != null)
+    .sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
+
   let now = null;
   let next = null;
 
-  timed.forEach((a) => {
+  timed.forEach((a, i) => {
     const from = toMinutes(a.start_time);
-    const to = toMinutes(a.end_time);
-    if (from <= at && (to == null || to > at)) now = a;
-    else if (from > at && (!next || from < toMinutes(next.start_time))) next = a;
+    const after = timed[i + 1] ? toMinutes(timed[i + 1].start_time) : 24 * 60;
+    const to = toMinutes(a.end_time) ?? after;
+    if (from <= at && to > at) now = a;
+    else if (from > at && !next) next = a;
   });
 
-  if (!now) {
-    const started = timed.filter((a) => toMinutes(a.start_time) <= at);
-    now = started.length ? started[started.length - 1] : null;
-  }
   // Nothing has a time on it, so the first thing on the list is the plan.
-  if (!now && !next) next = list[0] || null;
+  if (!now && !next && !timed.length) next = list[0] || null;
   return { now, next };
 }
 
@@ -122,11 +128,21 @@ export default function Tourist({ onClose }) {
   const dayNo = days.indexOf(day) + 1;
   const away = next ? (toMinutes(next.start_time) ?? 0) - at : null;
 
-  const Icon = now ? activityIcon(now) : Ticket;
-  const place = now ? shortPlace(now.location) : '';
-  const leg = now && now.category === 'transport'
-    ? transportLine(now.subtype, now.details) : '';
-  const nextTo = directions(next);
+  /*
+   * The middle of the screen is whatever is closest to hand: what you are
+   * doing, or failing that what you are about to. Between two activities the
+   * honest answer is the one coming, not a claim that the day is over.
+   */
+  const lead = now || next;
+  const onIt = !!now;
+  const after = now ? next : null;
+  const Icon = lead ? activityIcon(lead) : Ticket;
+  const place = lead ? shortPlace(lead.location) : '';
+  const leg = lead && lead.category === 'transport'
+    ? transportLine(lead.subtype, lead.details) : '';
+  const leadAway = !onIt && live && lead ? (toMinutes(lead.start_time) ?? 0) - at : null;
+  const leadTo = onIt ? '' : directions(lead);
+  const afterTo = directions(after);
 
   return createPortal((
     <div className="today">
@@ -145,26 +161,35 @@ export default function Tourist({ onClose }) {
       </header>
 
       <main className="today-now">
-        {now ? (
+        {lead ? (
           <>
             <span className="today-mark" aria-hidden="true"><Icon size={26} /></span>
-            <p className="today-label">{live ? 'Now' : 'Starting the day'}</p>
-            <h1 className="today-title">{now.title}</h1>
+            <p className="today-label">
+              {onIt ? 'Now' : 'Up next'}
+              {leadAway != null && leadAway > 0 ? ` · ${until(leadAway)}` : ''}
+            </p>
+            <h1 className="today-title">{lead.title}</h1>
             <p className="today-at mono">
-              {now.start_time ? fmtTime(now.start_time) : ''}
-              {now.end_time ? ` – ${fmtTime(now.end_time)}` : ''}
+              {lead.start_time ? fmtTime(lead.start_time) : ''}
+              {lead.end_time ? ` – ${fmtTime(lead.end_time)}` : ''}
             </p>
             {leg ? <p className="today-leg mono">{leg}</p> : null}
             {place ? <p className="today-place"><MapPin size={14} /> {place}</p> : null}
-            {now.booking_ref ? <p className="today-ref mono">{now.booking_ref}</p> : null}
-            {Number(now.cost) > 0 ? (
-              <p className="today-cost mono">{money(now.cost, trip.currency)}</p>
+            {lead.booking_ref ? <p className="today-ref mono">{lead.booking_ref}</p> : null}
+            {Number(lead.cost) > 0 ? (
+              <p className="today-cost mono">{money(lead.cost, trip.currency)}</p>
             ) : null}
-            {now.notes ? <p className="today-notes">{now.notes}</p> : null}
+            {lead.notes ? <p className="today-notes">{lead.notes}</p> : null}
+            {/* Directions only where you have not arrived yet. */}
+            {leadTo ? (
+              <a className="btn primary today-go" href={leadTo} target="_blank" rel="noreferrer">
+                <Navigation size={15} /> Take me there
+              </a>
+            ) : null}
           </>
         ) : (
           <p className="today-free">
-            {list.length ? 'That is everything for today.' : 'Nothing planned. Enjoy it.'}
+            {list.length ? 'The day is yours from here.' : 'Nothing planned. Enjoy it.'}
           </p>
         )}
       </main>
@@ -173,19 +198,19 @@ export default function Tourist({ onClose }) {
         * Next is a line, not a card. It is not a decision until this one ends —
         * but when it is, the way there should already be under your thumb.
         */}
-      {next ? (
+      {after ? (
         <footer className="today-next">
           <div className="today-next-what">
             <span className="today-next-label">
               Next{away != null && away > 0 ? ` · ${until(away)}` : ''}
             </span>
             <span className="today-next-title">
-              {next.start_time ? <b className="mono">{fmtTime(next.start_time)}</b> : null}
-              {next.title}
+              {after.start_time ? <b className="mono">{fmtTime(after.start_time)}</b> : null}
+              {after.title}
             </span>
           </div>
-          {nextTo ? (
-            <a className="btn sm today-next-go" href={nextTo} target="_blank" rel="noreferrer">
+          {afterTo ? (
+            <a className="btn sm today-next-go" href={afterTo} target="_blank" rel="noreferrer">
               <Navigation size={14} /> <span>Directions</span>
             </a>
           ) : null}
