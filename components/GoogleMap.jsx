@@ -154,6 +154,9 @@ export default function GoogleMap({
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const info = useRef(null);
+  // Which marker the open callout belongs to, so a click can tell "dismiss
+  // this" from "do something new".
+  const shownFor = useRef(null);
   const glyphs = useRef(null);
   /*
    * The fit we still owe the map.
@@ -198,6 +201,12 @@ export default function GoogleMap({
         gestureHandling: gestures,
       });
       mapRef.current.addListener('click', (e) => {
+        /*
+         * With a callout open, a click on the map means "put that away" and
+         * nothing else. It used to drop a pin as well, so dismissing the card
+         * left a new point behind — every time.
+         */
+        if (shownFor.current) { closeInfo(); return; }
         // Through latest, not the closure: this listener is attached once, so a
         // handler captured here would be the first render's for the map's whole
         // life — and would never see anything the page learned since.
@@ -347,6 +356,9 @@ export default function GoogleMap({
       mark.__id = a.id;
       mark.__el = el;
       mark.addListener('click', () => {
+        // Clicking the marker whose card is already up closes it, the same way
+        // clicking the map does.
+        if (shownFor.current === mark) { closeInfo(); return; }
         const said = latest.current.describeStop
           ? latest.current.describeStop(a) : { meta: a.location || '' };
         openInfo(mark, {
@@ -412,7 +424,7 @@ export default function GoogleMap({
     shut.title = 'Close';
     shut.setAttribute('aria-label', 'Close');
     shut.innerHTML = '&#10005;';
-    shut.addEventListener('click', () => info.current.close());
+    shut.addEventListener('click', closeInfo);
     el.appendChild(shut);
 
     if (card.photoRef) {
@@ -473,6 +485,12 @@ export default function GoogleMap({
     info.current = new libs.current.InfoWindow({ maxWidth: 268 });
     info.current.setContent(el);
     info.current.open({ map, anchor });
+    shownFor.current = anchor;
+  }
+
+  function closeInfo() {
+    if (info.current) info.current.close();
+    shownFor.current = null;
   }
 
   /** A suggestion: not in the plan yet, so the action is to put it there. */
@@ -523,6 +541,7 @@ export default function GoogleMap({
       mark.__id = p.id;
       mark.__el = el;
       mark.addListener('click', () => {
+        if (shownFor.current === mark) { closeInfo(); return; }
         openPlaceInfo(p, mark);
         if (latest.current.onPlaceFocus) latest.current.onPlaceFocus(p.id);
       });

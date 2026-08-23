@@ -373,7 +373,13 @@ export default function MapView({
             places={places}
             focused={focused}
             dayColours={catColor}
-            onFocus={(id) => { setFocused(id); setSheetOpen(true); }}
+            /*
+             * Selecting, not opening the drawer. The marker's own card already
+             * says what the stop is, so raising the sheet over the map to
+             * repeat it takes the view away to show something you can read
+             * where you are looking.
+             */
+            onFocus={setFocused}
             describeStop={describeStop}
             onStopOpen={onEdit}
             onPhoto={openPhotos}
