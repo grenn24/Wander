@@ -2963,3 +2963,8 @@ body:has(.lp)::before { display: none; }
 }
 .facts-more { margin-top: 10px; font-size: 12.5px; }
 .facts-by { margin: 9px 0 0; }
+.facts-contact {
+  display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px;
+}
+.facts-contact .btn { max-width: 100%; overflow: hidden; }
+.facts-contact .btn > :last-child { overflow: hidden; text-overflow: ellipsis; }

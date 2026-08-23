@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Star, ExternalLink } from 'lucide-react';
+import { Star, ExternalLink, Phone, Globe } from 'lucide-react';
 import { colorFor, initials } from '@/lib/util';
 
 /**
@@ -19,6 +19,15 @@ import { colorFor, initials } from '@/lib/util';
  */
 
 const SHOWN = 2;
+
+/** The bit of a URL worth reading: tabelog.com, not forty characters of path. */
+function host(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (e) {
+    return url;
+  }
+}
 
 /** Five stars with the average poured into them. */
 function Stars({ value, size = 13 }) {
@@ -42,8 +51,11 @@ export default function PlaceFacts({ details }) {
   const [all, setAll] = useState(false);
   if (!details) return null;
 
-  const { rating, ratings, reviews = [], mapsUri } = details;
-  if (rating == null && !reviews.length) return null;
+  const {
+    rating, ratings, reviews = [], mapsUri, phone, dial, website,
+  } = details;
+  // A place with a phone number and no reviews still has something to say.
+  if (rating == null && !reviews.length && !phone && !website) return null;
 
   const list = all ? reviews : reviews.slice(0, SHOWN);
 
@@ -60,6 +72,32 @@ export default function PlaceFacts({ details }) {
             <a className="facts-link" href={mapsUri} target="_blank" rel="noreferrer"
               data-tip="Open in Google Maps">
               <ExternalLink size={13} aria-hidden="true" />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        * How to reach it. Both are links rather than text to copy: a phone
+        * number on a phone should be one tap, and a website you have to
+        * retype is a website you do not visit.
+        *
+        * There is no email here because Google does not have one — the Places
+        * API returns a phone number and a site and nothing else, so the only
+        * way to an address would be to go and read the site, which is not
+        * something this app should be doing on anyone's behalf.
+        */}
+      {phone || website ? (
+        <div className="facts-contact">
+          {phone ? (
+            <a className="btn sm" href={`tel:${dial || phone}`} data-tip="Call">
+              <Phone size={14} aria-hidden="true" /> {phone}
+            </a>
+          ) : null}
+          {website ? (
+            <a className="btn sm" href={website} target="_blank" rel="noreferrer"
+              data-tip="Open the website">
+              <Globe size={14} aria-hidden="true" /> {host(website)}
             </a>
           ) : null}
         </div>
