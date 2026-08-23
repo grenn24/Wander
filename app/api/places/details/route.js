@@ -1,9 +1,9 @@
-import { placesKey, notConfigured, placesFailure, placePhotos } from '@/lib/places';
+import { placesKey, notConfigured, placesFailure, placeDetails } from '@/lib/places';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** The photo references Google holds for a place, for the editor's photo strip. */
+/** What Google knows about a place: its photographs, its rating, its reviews. */
 export async function GET(req) {
   if (!placesKey()) return notConfigured();
   const { searchParams } = new URL(req.url);
@@ -23,12 +23,12 @@ export async function GET(req) {
      * changes about as often as a restaurant redecorates, so six hours at the
      * CDN turns "once per person per open" into "once per place".
      */
-    return Response.json({ photos: await placePhotos(id) }, {
+    return Response.json(await placeDetails(id), {
       headers: {
         'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
       },
     });
   } catch (e) {
-    return placesFailure(e, 'photos');
+    return placesFailure(e, 'details');
   }
 }

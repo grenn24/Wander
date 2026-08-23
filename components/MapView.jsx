@@ -7,7 +7,7 @@ import {
 import { categoryOf, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
-  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, placePhotos,
+  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, placeDetails,
   NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
@@ -266,10 +266,11 @@ export default function MapView({
     setShots({ photos: held, index: 0, title: seed.title || '' });
     if (!seed.placeId) return;
     try {
-      const more = await placePhotos(seed.placeId);
-      const merged = [held[0], ...more.filter((r) => r !== held[0])];
-      if (merged.length > held.length) {
-        setShots((s) => (s ? { ...s, photos: merged } : s));
+      const d = await placeDetails(seed.placeId);
+      // Replaced rather than merged: the same picture comes back under a
+      // different name every time, so filtering by equality filters nothing.
+      if (d && d.photos && d.photos.length) {
+        setShots((s) => (s ? { ...s, photos: d.photos } : s));
       }
     } catch (e) {
       // The photo already on screen is enough; nothing to report.

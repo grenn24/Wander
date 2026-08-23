@@ -1,56 +1,24 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Lightbox from '@/components/Lightbox';
-import { placePhotos } from '@/lib/geo';
 
 /**
- * What the place looks like, in the editor.
+ * What the place looks like.
  *
  * A location is a line of text and a dot on a map, neither of which tells you
- * whether it is the right place — a photo does that in a glance, which is the
- * whole reason the trip list already shows one. Here there is room for more
- * than a thumbnail, so the rest of the place's photos are worth asking for.
+ * whether it is the right place — a photo does that in a glance.
  *
- * Only a pinned activity has photos: the reference belongs to a specific place
- * in Google's index, and a line of text has not been resolved to one yet.
+ * The pictures are handed in rather than fetched here: they arrive on the same
+ * Place Details call as the rating and the reviews, and that call is billed by
+ * the request, so it is made once by whoever needs any of it.
  */
-export default function ActivityPhotos({ placeId, photoRef, given, title }) {
-  const [photos, setPhotos] = useState(given || (photoRef ? [photoRef] : []));
+export default function ActivityPhotos({ photos = [], title }) {
   const [broken, setBroken] = useState({});
   const [at, setAt] = useState(-1); // which one the viewer is showing
 
-  useEffect(() => {
-    // A search result arrives with its photos attached, so there is nothing to
-    // go and ask for.
-    if (given) { setPhotos(given); setBroken({}); return undefined; }
-    setPhotos(photoRef ? [photoRef] : []);
-    setBroken({});
-    if (!placeId) return undefined;
-    let alive = true;
-    placePhotos(placeId)
-      .then((list) => {
-        if (!alive || !list.length) return;
-        /*
-         * Replaced, not merged with the saved reference.
-         *
-         * A Google photo name is not a stable id: the same picture comes back
-         * under a different name from every call, because the name carries a
-         * token from the response it arrived in. Putting the saved one at the
-         * front and filtering the list by string equality therefore filtered
-         * nothing, and the first photo appeared twice — once under the name
-         * saved months ago and once under the name fetched a second ago.
-         *
-         * The saved reference is only there to put something on screen before
-         * this arrives. Google returns the same photo first, so the strip does
-         * not jump.
-         */
-        setPhotos(list);
-      })
-      .catch(() => { /* the one saved photo is still worth showing */ });
-    return () => { alive = false; };
-  }, [placeId, photoRef, given]);
+  useEffect(() => { setBroken({}); }, [photos]);
 
-  const shown = photos.filter((r) => !broken[r]).slice(0, 6);
+  const shown = photos.filter((r) => r && !broken[r]).slice(0, 6);
   if (!shown.length) return null;
 
   return (

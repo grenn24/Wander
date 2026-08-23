@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { MapPin, Loader2, Crosshair, Search } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
-import { searchPlaces, reverseGeocode } from '@/lib/geo';
+import PlaceFacts from '@/components/PlaceFacts';
+import { searchPlaces, reverseGeocode, placeDetails } from '@/lib/geo';
 
 /* Shared, so "no photos" is the same array every render and does not restart
    the effect that reads it. */
@@ -30,6 +31,7 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
   const [probe, setProbe] = useState(null); // best guess for text with no pin
   const [busy, setBusy] = useState(false);
   const [mapErr, setMapErr] = useState('');
+  const [facts, setFacts] = useState(null); // photos, rating, reviews
   const scheme = useMapScheme();
 
   const lat = Number(draft.lat);
@@ -56,9 +58,34 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
     return () => { alive = false; clearTimeout(timer); };
   }, [text, pinned]);
 
+  /*
+   * One request for the photographs, the rating and the reviews together —
+   * they all come back from the same Place Details call, which is billed by
+   * the request rather than by the field.
+   */
+  useEffect(() => {
+    setFacts(null);
+    if (!draft.place_id) return undefined;
+    let alive = true;
+    placeDetails(draft.place_id)
+      .then((d) => { if (alive) setFacts(d); })
+      .catch(() => { /* the saved photo and the pin are still worth showing */ });
+    return () => { alive = false; };
+  }, [draft.place_id]);
+
   if (!googleMapsAvailable()) return null;
 
   const at = pinned ? { lat, lng } : probe ? { lat: probe.lat, lng: probe.lng } : null;
+
+  /*
+   * The saved reference is only there to put something on screen before the
+   * details land. It is not the same string Google returns for the same
+   * picture a second time, so it is replaced rather than merged.
+   */
+  const shots = pinned
+    ? (facts && facts.photos && facts.photos.length
+      ? facts.photos : draft.photo_ref ? [draft.photo_ref] : NO_PHOTOS)
+    : (probe && probe.photos) || NO_PHOTOS;
 
   /**
    * A click on the map is someone saying "there", exactly.
@@ -146,12 +173,8 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
             </div>
           )}
 
-          <ActivityPhotos
-            title={draft.title}
-            {...(pinned
-              ? { placeId: draft.place_id, photoRef: draft.photo_ref }
-              : { given: (probe && probe.photos) || NO_PHOTOS })}
-          />
+          <ActivityPhotos title={draft.title} photos={shots} />
+          {pinned ? <PlaceFacts details={facts} /> : null}
         </>
       ) : (
         <div className="amap-blank">
