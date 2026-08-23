@@ -14,7 +14,20 @@ export async function GET(req) {
     return Response.json({ error: 'Need a place.' }, { status: 400 });
   }
   try {
-    return Response.json({ photos: await placePhotos(id) });
+    /*
+     * Cached at the edge, keyed by the place.
+     *
+     * This is the priciest of the three calls — Place Details bills per
+     * request — and it used to fire every single time anyone opened an
+     * activity that had a pin. The answer is the same for every reader and
+     * changes about as often as a restaurant redecorates, so six hours at the
+     * CDN turns "once per person per open" into "once per place".
+     */
+    return Response.json({ photos: await placePhotos(id) }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
+      },
+    });
   } catch (e) {
     return placesFailure(e, 'photos');
   }

@@ -37,7 +37,13 @@ export async function GET(req) {
   return new Response(upstream.body, {
     headers: {
       'Content-Type': upstream.headers.get('content-type') || 'image/jpeg',
-      'Cache-Control': 'public, max-age=86400, immutable',
+      /*
+       * A day in the browser, a month at the edge. The bytes behind a photo
+       * reference never change, so every reader after the first is served
+       * without touching Google at all — which is where most of the saving in
+       * this app is, since a trip with twenty stops paints twenty thumbnails.
+       */
+      'Cache-Control': 'public, max-age=86400, s-maxage=2592000, immutable',
     },
   });
 }

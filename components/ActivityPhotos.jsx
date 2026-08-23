@@ -30,10 +30,21 @@ export default function ActivityPhotos({ placeId, photoRef, given, title }) {
     placePhotos(placeId)
       .then((list) => {
         if (!alive || !list.length) return;
-        // The saved reference first: it is the one already on the card
-        // elsewhere in the app, so the strip opens with a familiar picture.
-        const rest = list.filter((r) => r !== photoRef);
-        setPhotos(photoRef ? [photoRef, ...rest] : rest);
+        /*
+         * Replaced, not merged with the saved reference.
+         *
+         * A Google photo name is not a stable id: the same picture comes back
+         * under a different name from every call, because the name carries a
+         * token from the response it arrived in. Putting the saved one at the
+         * front and filtering the list by string equality therefore filtered
+         * nothing, and the first photo appeared twice — once under the name
+         * saved months ago and once under the name fetched a second ago.
+         *
+         * The saved reference is only there to put something on screen before
+         * this arrives. Google returns the same photo first, so the strip does
+         * not jump.
+         */
+        setPhotos(list);
       })
       .catch(() => { /* the one saved photo is still worth showing */ });
     return () => { alive = false; };
