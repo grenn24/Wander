@@ -14,6 +14,10 @@ import { initials } from '@/lib/util';
  *
  * On phones this collapses to the platform convention — back, title, and two
  * icon actions — because a row of words at 375px is a queue, not a toolbar.
+ * Getting down to two meant deciding what a permanent slot is worth: the theme
+ * switch is a preference set once and moved into the account menu, and the
+ * presence pill has nothing to say while you are the only one here, so on a
+ * phone it waits until somebody else arrives.
  *
  * The trailing control is always the account menu: your name opens it, and
  * signing out lives there on every page rather than only inside a trip.
@@ -24,6 +28,7 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
   const { displayName, user, signOut } = useApp();
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === 'dark' ? Sun : theme === 'light' ? Moon : SunMoon;
+  const themeWord = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
   const ref = useRef(null);
   const menuBtn = useRef(null);
   const [open, setOpen] = useState(false);
@@ -61,11 +66,6 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
 
       <Presence online={online} meId={user ? user.id : null} />
 
-      <button className="btn ghost sm icon-btn" onClick={toggle}
-        title="Switch light / dark" aria-label="Switch light or dark theme">
-        <ThemeIcon size={16} />
-      </button>
-
       <button ref={menuBtn} className="btn ghost sm who" type="button"
         aria-haspopup="menu" aria-expanded={open} aria-label={`Account — ${who}`}
         onClick={() => setOpen((o) => !o)}>
@@ -98,6 +98,15 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
           })}
 
           {menu.length ? <div className="menu-rule" /> : null}
+
+          {/* Left open on purpose: cycling through system, light and dark is
+              worth watching happen, and closing after each press would make
+              three taps out of what should be one. */}
+          <button type="button" role="menuitem" onClick={toggle}>
+            <ThemeIcon size={15} /> Appearance
+            <span className="menu-tail">{themeWord}</span>
+          </button>
+
           <button type="button" role="menuitem"
             onClick={() => { setOpen(false); signOut(); }}>
             <LogOut size={15} /> Sign out

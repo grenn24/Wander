@@ -40,6 +40,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   // written location dropped a list of alternatives over the form before
   // anyone had touched anything.
   const typed = useRef(false);
+  const titleRef = useRef(null);
   const wide = useRoomForMap();
 
   const set = (patch) => onChange({ ...draft, ...patch });
@@ -49,7 +50,40 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
     if (dirty) setConfirm('discard'); else onClose();
   }, [dirty, onClose]);
 
-  useModalChrome({ onEscape: attemptClose, onSubmit: () => onSave(draft) });
+  /*
+   * Nothing to save is not a thing to offer.
+   *
+   * Saving an activity you only opened to look at writes an updated_at, shows
+   * a toast and tells everyone else on the trip that something changed, all
+   * for no change at all. A new one needs a name before it is anything.
+   */
+  const canSave = draft.id ? dirty : !!(draft.title || '').trim();
+
+  useModalChrome({
+    onEscape: attemptClose,
+    onSubmit: () => { if (canSave) onSave(draft); },
+  });
+
+  /*
+   * The editor opens ready to type.
+   *
+   * A frame late on purpose: on the tick this mounts the dialog is still being
+   * laid out, and a focus call from there is quietly dropped on mobile
+   * browsers — which is where it matters most, because it is also what raises
+   * the keyboard. A name that was suggested is selected, so typing replaces it;
+   * a name you wrote yourself is left alone with the caret at the end.
+   */
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return undefined;
+    const t = setTimeout(() => {
+      el.focus({ preventScroll: true });
+      if (draft.id) el.setSelectionRange(el.value.length, el.value.length);
+      else el.select();
+    }, 40);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pinned = draft.lat != null && draft.lng != null && draft.lat !== '';
 
@@ -298,8 +332,13 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                   onClick={() => setConfirm('delete')}>Delete</button>
               ) : null}
               <span className="kbd-hint">⌘↵ to save · Esc to close</span>
-              <button className="btn" onClick={attemptClose}>Cancel</button>
-              <button className="btn primary" onClick={() => onSave(draft)}>
+              <button className="btn" onClick={attemptClose}>
+                {dirty ? 'Cancel' : 'Close'}
+              </button>
+              <button className="btn primary" disabled={!canSave}
+                title={canSave ? undefined
+                  : draft.id ? 'Nothing has changed yet' : 'Give it a name first'}
+                onClick={() => onSave(draft)}>
                 {draft.id ? 'Save' : 'Add activity'}
               </button>
             </>

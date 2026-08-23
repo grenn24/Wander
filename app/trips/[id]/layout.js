@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronLeft, Plus, Printer, Settings } from 'lucide-react';
@@ -26,6 +26,34 @@ function TripChrome({ tripId, children }) {
   // Read the tab off the end of the path rather than by index — a leading or
   // trailing slash shifts the positions, which is what silently pinned this to
   // "itinerary" no matter which tab was open.
+  const tabRef = useRef(null);
+
+  /*
+   * How much of the bottom edge the tab bar occupies.
+   *
+   * It is fixed, so it takes no space in the flow — which is exactly why
+   * anything drawn full-height underneath it (the map) has to be told. Not its
+   * height: it floats clear of the bottom by eight pixels plus whatever the
+   * safe area adds, and a panel sitting on its height alone tucks under it by
+   * that much. The distance from the bottom of the window to its top edge is
+   * the number that is actually wanted, and it is zero on desktop where the
+   * bar is not displayed at all.
+   */
+  useEffect(() => {
+    const el = tabRef.current;
+    const shell = el && el.closest('.shell');
+    if (!el || !shell || typeof ResizeObserver === 'undefined') return undefined;
+    const read = () => {
+      const box = el.getBoundingClientRect();
+      const used = box.height ? Math.max(0, Math.round(window.innerHeight - box.top)) : 0;
+      shell.style.setProperty('--tabbar-h', `${used}px`);
+    };
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    window.addEventListener('resize', read);
+    return () => { ro.disconnect(); window.removeEventListener('resize', read); };
+  }, []);
+
   const segments = pathname.split('/').filter(Boolean);
   const last = segments[segments.length - 1];
   const active = isTripTab(last) ? resolveTab(last) : 'itinerary';
@@ -116,7 +144,7 @@ function TripChrome({ tripId, children }) {
 
         <TripCommand />
 
-        <nav className="tabbar" aria-label="Trip sections">
+        <nav className="tabbar" ref={tabRef} aria-label="Trip sections">
           {TRIP_NAV.map((t) => {
             const Icon = TAB_ICONS[t.id];
             return (

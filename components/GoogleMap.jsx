@@ -35,6 +35,37 @@ const CAT_VAR = {
   sightseeing: 1, food: 2, transport: 3, lodging: 4, activity: 5, shopping: 6, other: 7,
 };
 
+/**
+ * Light or dark, to match the page.
+ *
+ * A full-bleed map in the app's dark theme cannot be a sheet of white paper.
+ * Google fixes colorScheme at construction, so this is also what the caller
+ * keys the map on: changing theme rebuilds it, which is the price of the
+ * option not being settable afterwards.
+ */
+export function readScheme() {
+  if (typeof document === 'undefined') return 'LIGHT';
+  const set = document.documentElement.getAttribute('data-theme');
+  if (set) return set === 'dark' ? 'DARK' : 'LIGHT';
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'DARK' : 'LIGHT';
+}
+
+/** The current scheme, and a re-render whenever it changes. */
+export function useMapScheme() {
+  const [scheme, setScheme] = useState('LIGHT');
+  useEffect(() => {
+    const read = () => setScheme(readScheme());
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', read);
+    return () => { mo.disconnect(); mq.removeEventListener('change', read); };
+  }, []);
+  return scheme;
+}
+
 export function catColor(id) {
   if (typeof document === 'undefined') return '#2a78d6';
   const v = getComputedStyle(document.documentElement)
@@ -152,8 +183,14 @@ export default function GoogleMap({
         center: { lat: 35.68, lng: 139.76 },
         zoom: 4,
         mapId: MAP_ID,
+        colorScheme: readScheme(),
         disableDefaultUI: true,
         zoomControl: true,
+        // Bottom right is where a panel goes on a full-bleed map, so the
+        // buttons would spend most of their life underneath one.
+        zoomControlOptions: {
+          position: window.google.maps.ControlPosition.LEFT_BOTTOM,
+        },
         clickableIcons: false,
         gestureHandling: gestures,
       });

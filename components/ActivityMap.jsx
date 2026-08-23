@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { MapPin, Loader2, Crosshair, Search } from 'lucide-react';
-import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
+import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import { searchPlaces, reverseGeocode } from '@/lib/geo';
 
@@ -30,6 +30,7 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
   const [probe, setProbe] = useState(null); // best guess for text with no pin
   const [busy, setBusy] = useState(false);
   const [mapErr, setMapErr] = useState('');
+  const scheme = useMapScheme();
 
   const lat = Number(draft.lat);
   const lng = Number(draft.lng);
@@ -85,6 +86,7 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
         <>
           <div className="amap-el">
             <GoogleMap
+              key={scheme}
               stops={[{
                 id: 'draft',
                 lat: at.lat,

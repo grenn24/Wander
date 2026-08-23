@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X, Footprints, TrainFront, TriangleAlert,
-  Search, Crosshair,
+  Search, Crosshair, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { categoryOf, fmtDayTiny, fmtTime, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, NEARBY_KINDS,
 } from '@/lib/geo';
-import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
+import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 
 
@@ -17,6 +17,9 @@ export default function MapView({
   trip, days, activities, onEdit, onSetCoords, onNewAt,
 }) {
   const mapsReady = googleMapsAvailable();
+  // Keyed on, not just passed: Google settles the colour scheme when the map is
+  // built, so switching theme has to build another one.
+  const scheme = useMapScheme();
   const [err, setErr] = useState('');
   const [day, setDay] = useState('all');
   const [focused, setFocused] = useState(null);
@@ -32,6 +35,15 @@ export default function MapView({
   const [pickedPlace, setPickedPlace] = useState(null);
   const [searchedAt, setSearchedAt] = useState(null); // where the results came from
   const [epoch, setEpoch] = useState(0); // bumped to ask again
+  /*
+   * How much of the phone screen the panel is taking.
+   *
+   * Collapsed it is a search box and four chips over the map; open it is a
+   * list. Two states rather than a draggable sheet, because the only two
+   * heights anyone wants are "let me see the map" and "let me read the list",
+   * and a gesture that lands anywhere in between is a gesture to get wrong.
+   */
+  const [sheetOpen, setSheetOpen] = useState(false);
   const viewRef = useRef(null);
 
   const inDay = useCallback(
@@ -206,6 +218,9 @@ export default function MapView({
     setKind(null); setHits(null); setPlaces([]); setQuery(''); setPickedPlace(null);
   }
 
+  /* Results nobody can see are not results. Asking for some opens the panel. */
+  const reveal = () => setSheetOpen(true);
+
   /* ---------------------------------------------------------------- map --- */
 
   function focus(a) {
@@ -277,21 +292,66 @@ export default function MapView({
    */
   const viewTooWide = !!anchor && anchor.spanKm > 12;
 
+  /*
+   * The map is the page.
+   *
+   * It used to be a rectangle in a column, sharing the screen with a heading
+   * that said "Map" over a map, a strip of days and a panel — so on a phone it
+   * got a third of the height and on a desktop it stopped well short of the
+   * edges. Everything that reads against the map now floats over it instead:
+   * the days along the top, everything else in one panel that is a column on
+   * the right where there is width for it and a sheet at the bottom where
+   * there is not.
+   */
   return (
-    <div className="mappage">
-      <div className="page-head spread">
-        <div>
-          <h2>Map</h2>
-          <div className="small muted">
-            {stops.length} stop{stops.length === 1 ? '' : 's'}
-            {totalKm > 0 ? ` · ${fmtKm(totalKm)} between them` : ''}
-            {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
+    <div className={`mapstage${sheetOpen ? ' is-open' : ''}`}>
+      <div className="mapcanvas">
+        {mapsReady ? (
+          <GoogleMap
+            key={scheme}
+            stops={stops}
+            places={places}
+            focused={focused}
+            dayColours={catColor}
+            onFocus={setFocused}
+            onDropPin={async (lat, lng) => {
+              setDropped({ lat, lng, label: 'Looking up…', name: '' });
+              reveal();
+              try {
+                const r = await reverseGeocode(lat, lng);
+                setDropped({ lat, lng, label: r.label, name: r.name });
+              } catch (e) {
+                setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
+              }
+            }}
+            focusedPlace={pickedPlace}
+            onPlaceFocus={setPickedPlace}
+            onPlaceAdd={addPlace}
+            onViewport={setView}
+            onError={(m) => setErr(m)}
+            /* Full bleed, so there is nothing behind it to scroll and no
+               reason to make anyone hold a key to zoom. */
+            gestures="greedy"
+          />
+        ) : (
+          <div className="mapsetup">
+            <MapPinOff size={26} aria-hidden="true" />
+            <p className="empty-title">The map needs a Google Maps key</p>
+            <p className="small muted">
+              Set <code>NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY</code> to draw the map, and{' '}
+              <code>PLACES_API_KEY</code> for locating stops, nearby search and photos.
+              Both go in <code>.env.local</code>; restart the server afterwards.
+            </p>
+            <p className="tiny dim" style={{ marginBottom: 0 }}>
+              Each variable is named after the Google Cloud API it belongs to:
+              enable <strong>Maps JavaScript API</strong> and <strong>Places API (New)</strong>.
+            </p>
           </div>
-        </div>
+        )}
       </div>
 
       {days.length > 1 ? (
-        <div className="daystrip">
+        <div className="mapdays" role="group" aria-label="Show one day">
           <button type="button" className={`daychip${day === 'all' ? ' active' : ''}`}
             onClick={() => { setDay('all'); setFocused(null); }}>
             <span className="daychip-n">All</span>
@@ -307,58 +367,33 @@ export default function MapView({
         </div>
       ) : null}
 
-      {err ? <div className="err" style={{ marginBottom: 10 }}>{err}</div> : null}
+      {err ? <div className="err mapalert">{err}</div> : null}
 
-      <div className="maplayout">
-        <div className="map-wrap">
-          {mapsReady ? (
-            <GoogleMap
-              stops={stops}
-              places={places}
-              focused={focused}
-              dayColours={catColor}
-              onFocus={setFocused}
-              onDropPin={async (lat, lng) => {
-                setDropped({ lat, lng, label: 'Looking up…', name: '' });
-                try {
-                  const r = await reverseGeocode(lat, lng);
-                  setDropped({ lat, lng, label: r.label, name: r.name });
-                } catch (e) {
-                  setDropped({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, name: '' });
-                }
-              }}
-              focusedPlace={pickedPlace}
-              onPlaceFocus={setPickedPlace}
-              onPlaceAdd={addPlace}
-              onViewport={setView}
-              onError={(m) => setErr(m)}
-            />
-          ) : (
-            <div className="mapsetup">
-              <MapPinOff size={26} aria-hidden="true" />
-              <p className="empty-title">The map needs a Google Maps key</p>
-              <p className="small muted">
-                Set <code>NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY</code> to draw the map, and{' '}
-                <code>PLACES_API_KEY</code> for locating stops, nearby search and photos.
-                Both go in <code>.env.local</code>; restart the server afterwards.
-              </p>
-              <p className="tiny dim" style={{ marginBottom: 0 }}>
-                Each variable is named after the Google Cloud API it belongs to:
-                enable <strong>Maps JavaScript API</strong> and <strong>Places API (New)</strong>.
-              </p>
-            </div>
-          )}
+      {/* Offered rather than done: results that rearrange themselves while
+          you are moving the map are worse than results that wait. */}
+      {strayed ? (
+        <button className="btn sm mapredo" type="button" onClick={() => { redo(); reveal(); }}>
+          <Search size={14} /> Search this area
+        </button>
+      ) : null}
 
-          {/* Offered rather than done: results that rearrange themselves while
-              you are moving the map are worse than results that wait. */}
-          {strayed ? (
-            <button className="btn sm mapredo" type="button" onClick={redo}>
-              <Search size={14} /> Search this area
-            </button>
-          ) : null}
-        </div>
+      <aside className="mappanel" aria-label="Places and stops">
+        {/*
+          * The handle is the whole top edge, and it says what it will do.
+          * A phone panel that can be either 150px or most of the screen needs
+          * one obvious control, not a gesture you have to discover.
+          */}
+        <button className="mappanel-grab" type="button" aria-expanded={sheetOpen}
+          onClick={() => setSheetOpen((o) => !o)}>
+          <span className="mappanel-bar" aria-hidden="true" />
+          <span className="mappanel-grab-label">
+            {sheetOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+            {sheetOpen ? 'Show the map' : `${stops.length} stop${stops.length === 1 ? '' : 's'}`
+              + (showingFinds && finds.length ? ` · ${finds.length} found` : '')}
+          </span>
+        </button>
 
-        <aside className="mapside">
+        <div className="mappanel-head">
           {dropped ? (
             <div className="card notice mapside-drop">
               <div className="spread" style={{ alignItems: 'flex-start' }}>
@@ -379,31 +414,13 @@ export default function MapView({
             </div>
           ) : null}
 
-          <div className="mapside-head">
-            <Compass size={15} />
-            <span>Explore nearby</span>
-            {showingFinds ? (
-              <button className="btn ghost sm icon-btn mapside-clear" aria-label="Clear results"
-                onClick={clearFinds}><X size={14} /></button>
-            ) : null}
-          </div>
-          {/* Only when it is actually a problem. Explaining that the search
-              follows the map is a caption on something you find out by using
-              it once; that the view has outrun the search is not. */}
-          {viewTooWide ? (
-            <p className="tiny dim mapside-where">
-              <Crosshair size={12} aria-hidden="true" />
-              the view is wider than search reaches — zoom into a neighbourhood
-            </p>
-          ) : null}
-
-          <form className="mapfind" onSubmit={runSearch}>
+          <form className="mapfind" onSubmit={(e) => { runSearch(e); reveal(); }}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
             <input
               className="mapfind-in"
               value={query}
               disabled={!mapsReady}
-              placeholder="Search for anything…"
+              placeholder="Search this area…"
               aria-label="Search for places near the map view"
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -420,12 +437,30 @@ export default function MapView({
                   onClick={() => {
                     setHits(null); setQuery(''); setPickedPlace(null);
                     setKind(kind === k.id ? null : k.id);
+                    reveal();
                   }}>
                   <KindIcon size={14} aria-hidden="true" /> {k.label}
                 </button>
               );
             })}
+            {showingFinds ? (
+              <button className="btn sm ghost" type="button" onClick={clearFinds}>
+                <X size={14} /> Clear
+              </button>
+            ) : null}
           </div>
+        </div>
+
+        <div className="mappanel-body">
+          {/* Only when it is actually a problem. Explaining that the search
+              follows the map is a caption on something you find out by using
+              it once; that the view has outrun the search is not. */}
+          {viewTooWide && showingFinds ? (
+            <p className="tiny dim mapside-where">
+              <Crosshair size={12} aria-hidden="true" />
+              the view is wider than search reaches — zoom into a neighbourhood
+            </p>
+          ) : null}
 
           {!mapsReady ? (
             <p className="small muted" style={{ marginTop: 0 }}>
@@ -462,18 +497,20 @@ export default function MapView({
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="small muted mapside-hint">
-              Search for something, pick a category, or click anywhere on the map to add a stop
-              there.
-            </p>
-          )}
+          ) : null}
 
-          <div className="mapside-sep" />
+          {showingFinds ? <div className="mapside-sep" /> : null}
 
-          <h3 className="mapside-h">
-            {day === 'all' ? 'Every stop, in order' : `Day ${days.indexOf(day) + 1}, in order`}
-          </h3>
+          <div className="mappanel-title">
+            <h3 className="mapside-h">
+              {day === 'all' ? 'Every stop, in order' : `Day ${days.indexOf(day) + 1}, in order`}
+            </h3>
+            <span className="tiny dim">
+              {stops.length} stop{stops.length === 1 ? '' : 's'}
+              {totalKm > 0 ? ` · ${fmtKm(totalKm)}` : ''}
+              {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
+            </span>
+          </div>
 
           {stops.length ? (
             <div className="stoplist">
@@ -516,25 +553,28 @@ export default function MapView({
             </div>
           ) : (
             <p className="small muted" style={{ marginTop: 0 }}>
-              Give an activity a location and it appears here — or click the map to add one.
+              Give an activity a location and it appears here — or tap the map to add one.
             </p>
           )}
-        </aside>
-      </div>
 
-      {placeless.length ? (
-        <div className="card" style={{ marginTop: 14 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 6 }}>Without a location</h3>
-          <p className="small muted" style={{ marginTop: 0 }}>
-            These have no place written down yet, so there is nothing to put on the map.
-          </p>
-          <div className="chiprow">
-            {placeless.map((a) => (
-              <button key={a.id} className="btn sm" onClick={() => onEdit(a)}>{a.title}</button>
-            ))}
-          </div>
+          {placeless.length ? (
+            <>
+              <div className="mapside-sep" />
+              <div className="mappanel-title">
+                <h3 className="mapside-h">Without a location</h3>
+              </div>
+              <p className="tiny dim" style={{ margin: '0 0 8px' }}>
+                Nothing written down yet, so there is nothing to put on the map.
+              </p>
+              <div className="chiprow">
+                {placeless.map((a) => (
+                  <button key={a.id} className="btn sm" onClick={() => onEdit(a)}>{a.title}</button>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
-      ) : null}
+      </aside>
     </div>
   );
 }

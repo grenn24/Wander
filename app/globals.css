@@ -368,8 +368,6 @@ a { color: var(--accent); }
 .geo-list button:hover { background: var(--surface-2); }
 
 /* ----------------------------------------------------------------- map --- */
-.map-wrap { height: min(66dvh, 620px); border-radius: var(--radius);
-  overflow: hidden; border: 1px solid var(--border); }
 .map-el { height: 100%; width: 100%; background: var(--surface-2); }
 .pin {
   background: var(--accent); color: #fff; width: 26px; height: 26px;
@@ -932,32 +930,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
  * already planned — sits in one scrolling column beside it rather than
  * stacked underneath where you cannot see both at once.
  */
-.maplayout {
-  display: grid; gap: 14px;
-  grid-template-columns: minmax(0, 1fr) 372px;
-  align-items: stretch;
-  height: min(76dvh, 820px);
-}
-
-.map-wrap { height: min(62dvh, 560px); position: relative; }
-
-/* Below the two-column breakpoint. Kept here, after the base height it
-   overrides, because source order is what decides between two single-class
-   rules and this one lost sitting further up the file. */
-@media (max-width: 1000px) {
-  .maplayout { grid-template-columns: 1fr; height: auto; }
-  /* Stacked, the map has to earn its space twice: big enough to read, small
-     enough to leave the list visible under it. It sticks while that list
-     scrolls, so panning and reading stay one gesture apart. */
-  .map-wrap {
-    height: min(46dvh, 420px);
-    position: sticky;
-    top: calc(var(--topbar-h) + 6px);
-    z-index: 4;
-  }
-  .mapside { max-height: none; height: auto; overflow: visible; }
-}
-
 .map-el { cursor: crosshair; }
 
 /* Numbered stop marker, coloured by activity type. */
@@ -970,19 +942,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .mk span { transform: rotate(45deg); font-size: 11.5px; font-weight: 700; color: #fff; }
 .mk-focus { outline: 3px solid var(--accent); outline-offset: 2px; z-index: 400; }
 
-/* side panel */
-.mapside {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface-1); padding: 14px; display: flex; flex-direction: column;
-  height: 100%; overflow-y: auto; overscroll-behavior: contain;
-}
-
-.mapside-head {
-  display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 14px;
-  margin-bottom: 10px;
-}
-.mapside-head svg { color: var(--accent); }
-.mapside-scroll { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .mapside-drop { margin-bottom: 12px; padding: 12px; }
 .mapside-busy { display: flex; align-items: center; gap: 7px; }
 
@@ -1025,8 +984,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-
-@media print { .maplayout, .mapside { display: none !important; } }
 
 /* a leg that is implausible on foot */
 .leg-far { color: var(--danger); }
@@ -1224,7 +1181,7 @@ body::before {
   border-color: var(--glass-line);
 }
 
-.act-menu, .mapside {
+.act-menu {
   border-color: var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
 }
@@ -1255,10 +1212,6 @@ body::before {
 }
 
 /* --------------------------------------------------------------- map ------ */
-.map-wrap {
-  border-color: var(--glass-line);
-  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
-}
 .mk { border-color: color-mix(in srgb, #fff 70%, transparent); }
 
 /* -------------------------------------------------------------- landing --- */
@@ -2246,25 +2199,11 @@ body:has(.lp)::before { display: none; }
 
 /* ============================================================== map page -- */
 
-/* The map earns more width than a column of prose does, so this page opts out
-   of the reading measure the rest of the app is set in. */
-.wrap:has(.mappage) { max-width: 1480px; }
-
-/* Only where the layout actually has a height to fill. Below the two-column
-   breakpoint .maplayout is height:auto, and 100% of auto is nothing — which is
-   exactly how the map came to be invisible on a phone. */
-@media (min-width: 1001px) {
-  .maplayout > .map-wrap { height: 100%; }
-}
-
 .mapside-where {
   display: flex; align-items: flex-start; gap: 5px;
   margin: 2px 0 10px;
 }
 .mapside-where svg { flex: none; color: var(--accent); }
-.mapside-head { position: relative; }
-.mapside-clear { margin-left: auto; }
-.mapside-hint { margin-top: 2px; }
 
 /* --------------------------------------------------------- nearby search -- */
 .mapfind { position: relative; display: flex; margin-bottom: 9px; }
@@ -2732,3 +2671,137 @@ body:has(.lp)::before { display: none; }
 .cmd-top > .btn, .cmd-top > .qa-send, .cmd-top > .spin { margin-top: 2px; }
 .cmdq-row { align-items: flex-start; }
 .cmdq-row > .btn { margin-top: 3px; }
+
+/* ========================================================= immersive map --- */
+/*
+ * The map tab gives its whole area to the map and floats everything else on
+ * top. The page shell is built for a column of cards, so it has to be told to
+ * stand down for this one child — hence :has, rather than a class threaded
+ * through three layouts to say the same thing.
+ */
+.main:has(.mapstage) { padding: 0; }
+.wrap:has(.mapstage) { max-width: none; }
+
+.mapstage {
+  position: relative; overflow: hidden;
+  height: calc(100dvh - var(--topbar-h));
+  background: var(--surface-2);
+}
+.mapcanvas { position: absolute; inset: 0; }
+.mapcanvas .map-el { height: 100%; width: 100%; }
+
+/* Days along the top, out of the panel's way. */
+.mapdays {
+  position: absolute; top: 12px; left: 12px; z-index: 5;
+  display: flex; gap: 6px; padding: 2px; max-width: calc(100% - 420px);
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
+.mapdays::-webkit-scrollbar { display: none; }
+.mapdays .daychip {
+  background: var(--glass-strong); border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: var(--lift);
+}
+.mapdays .daychip.active { background: var(--accent); border-color: var(--accent); }
+
+.mapalert {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 7; max-width: min(520px, calc(100% - 24px));
+}
+/* Under the day chips rather than at the foot of the map: the bottom edge is
+   where the command pill lives, and on a phone it is where the sheet is. */
+.mapredo {
+  position: absolute; top: 66px; left: 50%; transform: translateX(-50%); z-index: 7;
+  background: var(--glass-strong); border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: var(--lift);
+}
+
+/* ---- the floating panel -------------------------------------------------- */
+.mappanel {
+  position: absolute; z-index: 6; display: flex; flex-direction: column;
+  top: 12px; right: 12px; bottom: 12px; width: 372px;
+  border: 1px solid var(--glass-line); border-radius: 16px; overflow: hidden;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
+}
+.mappanel-grab { display: none; }
+.mappanel-head {
+  flex: none; padding: 12px; border-bottom: 1px solid var(--glass-line);
+  display: flex; flex-direction: column; gap: 9px;
+}
+.mappanel-head .mapfind, .mappanel-head .mapkinds { margin: 0; }
+.mappanel-body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.mappanel-title {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
+}
+.mappanel-title .mapside-h { margin: 0; }
+
+@media print { .mapstage { display: none !important; } }
+
+/* ---- phones: a sheet, in two honest heights ------------------------------ */
+@media (max-width: 1000px) {
+  .shell:has(.mapstage) { --sheet-h: 148px; }
+  .shell:has(.mapstage.is-open) { --sheet-h: min(60dvh, 480px); }
+
+  .mapstage { height: calc(100dvh - var(--topbar-h) - var(--vv-bottom, 0px)); }
+  .mapdays { max-width: calc(100% - 24px); right: 12px; }
+
+  .mappanel {
+    top: auto; left: 0; right: 0; width: auto;
+    bottom: var(--tabbar-h);
+    height: var(--sheet-h);
+    border-radius: 18px 18px 0 0; border-bottom: none;
+    transition: height .3s var(--spring);
+  }
+  .mappanel-grab {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    flex: none; width: 100%; padding: 7px 12px 4px; cursor: pointer;
+    border: none; background: transparent; color: var(--text-2);
+  }
+  .mappanel-bar {
+    width: 38px; height: 4px; border-radius: 999px; background: var(--border-strong);
+  }
+  .mappanel-grab-label {
+    display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+  }
+  .mappanel-head { padding: 8px 12px 12px; }
+  /* One scrolling row, not two wrapped ones: every extra row of chips is a
+     row of map, and the sheet is only worth collapsing if it collapses small. */
+  .mappanel-head .mapkinds {
+    flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .mappanel-head .mapkinds::-webkit-scrollbar { display: none; }
+  .mappanel-head .mapkinds .btn { flex: none; }
+
+  /* The command pill lives above the sheet rather than on it. */
+  .shell:has(.mapstage) .cmd-pill {
+    bottom: calc(var(--tabbar-h) + var(--sheet-h) + 12px);
+  }
+}
+@media (max-width: 1000px) and (prefers-reduced-motion: reduce) {
+  .mappanel { transition: none; }
+}
+
+/* The phone bar rides over the map, so its height has to be known rather than
+   guessed at; TripLayout measures it into this. */
+.shell { --tabbar-h: 0px; }
+
+/* ------------------------------------------------------------- presence --- */
+/* Alone in a trip, this is a count of one and a picture of yourself. On a
+   phone that is a slot the title needs more than the fact does. */
+@media (max-width: 640px) {
+  .presence.is-alone { display: none; }
+}
+
+/* The current value of a menu item, sat at the far edge so the labels stay in
+   one column and the values in another. */
+.menu-tail { margin-left: auto; font-size: 12px; color: var(--text-3); }
