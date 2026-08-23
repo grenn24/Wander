@@ -40,7 +40,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   // written location dropped a list of alternatives over the form before
   // anyone had touched anything.
   const typed = useRef(false);
-  const titleRef = useRef(null);
+  const boxRef = useRef(null);
   const wide = useRoomForMap();
 
   const set = (patch) => onChange({ ...draft, ...patch });
@@ -65,24 +65,18 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   });
 
   /*
-   * The editor opens ready to type.
+   * The dialog takes focus, not the first field in it.
    *
-   * A frame late on purpose: on the tick this mounts the dialog is still being
-   * laid out, and a focus call from there is quietly dropped on mobile
-   * browsers — which is where it matters most, because it is also what raises
-   * the keyboard. A name that was suggested is selected, so typing replaces it;
-   * a name you wrote yourself is left alone with the caret at the end.
+   * Putting the caret in "What" raises the keyboard the moment the editor
+   * opens, which on a phone covers half of what you came to look at — and most
+   * openings are to check a time or a place, not to rename anything. Focus
+   * still has to leave the page behind, or Escape and the tab order would stay
+   * out there, so it lands on the dialog itself: announced by screen readers,
+   * and no keyboard until someone asks for one by tapping a field.
    */
   useEffect(() => {
-    const el = titleRef.current;
-    if (!el) return undefined;
-    const t = setTimeout(() => {
-      el.focus({ preventScroll: true });
-      if (draft.id) el.setSelectionRange(el.value.length, el.value.length);
-      else el.select();
-    }, 40);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const el = boxRef.current;
+    if (el) el.focus({ preventScroll: true });
   }, []);
 
   const pinned = draft.lat != null && draft.lng != null && draft.lat !== '';
@@ -162,7 +156,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
   return (
     <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
-      <div className={`modal${beside ? ' modal-wide' : ''}`}
+      <div className={`modal${beside ? ' modal-wide' : ''}`} ref={boxRef} tabIndex={-1}
         role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>

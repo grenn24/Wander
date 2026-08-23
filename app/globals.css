@@ -1425,11 +1425,6 @@ body::before {
 .suggest-more .input { flex: 1; min-width: 0; }
 .suggest-more .btn { flex: none; }
 
-.ideas-btn[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent-ink);
-}
-
 /* -------------------------------------------------------------- aurora --- */
 /*
  * Fixed to the viewport and always in motion. Each field runs its own slow
@@ -2231,18 +2226,6 @@ body:has(.lp)::before { display: none; }
 .mapkinds .btn { gap: 6px; }
 .mapkinds .btn svg { color: var(--text-3); }
 
-/* A chosen category has to look chosen. aria-pressed was carrying the whole
-   state for screen readers while the button looked identical to the three
-   nobody had picked — the same treatment the sidebar gives the open tab. */
-.mapkinds .btn[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-.mapkinds .btn[aria-pressed="true"] svg { color: currentColor; }
-.mapkinds .btn[aria-pressed="true"]:hover { background: var(--accent-soft); }
-
 .mapfinds {
   display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;
 }
@@ -2805,3 +2788,28 @@ body:has(.lp)::before { display: none; }
 /* The current value of a menu item, sat at the far edge so the labels stay in
    one column and the values in another. */
 .menu-tail { margin-left: auto; font-size: 12px; color: var(--text-3); }
+
+/* --------------------------------------------------------- pressed state -- */
+/*
+ * A button that is on has to look on.
+ *
+ * This was fixed once for the map's category chips and scoped to them, which
+ * left every other aria-pressed button in the app announcing a state to screen
+ * readers that nobody looking at it could see — the budget's Chart/Table pair
+ * and the day's Suggest toggle among them. It belongs on .btn, where the
+ * attribute already is.
+ *
+ * Last in the file on purpose: .btn, its hover and its variants are all single
+ * classes too, so source order is what decides this.
+ */
+.btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.btn[aria-pressed="true"] svg { color: currentColor; }
+.btn[aria-pressed="true"]:hover { background: var(--accent-soft); }
+/* Focused on open so the dialog owns the keyboard, but by script rather than by
+   the reader, so it should not draw a ring. */
+.modal[tabindex]:focus { outline: none; }
