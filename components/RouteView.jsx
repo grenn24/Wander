@@ -114,6 +114,7 @@ export default function RouteView({ to, title, onClose }) {
             focusedPlace={null}
             stopColour={() => catColor('sightseeing')}
             path={path}
+            here={from}
             gestures="greedy"
           />
         ) : null}

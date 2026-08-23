@@ -14,6 +14,7 @@ import {
   shortPlace, minutesBetween, fmtDuration,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
+import { nowMinutes, readDay } from '@/lib/day';
 import { activityIcon } from '@/lib/icons';
 
 /** Structural stops anchor a day; everything else sits between them. */
@@ -31,6 +32,9 @@ export default function Itinerary({
   // carries it in the address.
   const urlFocus = params.get('focus');
   const [flash, setFlash] = useState(null);
+  // Re-read on a timer so the marked row moves with the day rather than with
+  // whenever the page last happened to render.
+  const [clock, setClock] = useState(nowMinutes);
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
   const lastMenuAct = useRef(null);
@@ -49,6 +53,17 @@ export default function Itinerary({
   const pinned = useRef(false);
 
   const hasStrip = days.length > 3;
+
+  /*
+   * What is happening right now, if today is one of the trip's days. Marked on
+   * the itinerary as well as shown in Traveller mode, from the same reading —
+   * two screens disagreeing about where you are would be worse than neither
+   * saying anything.
+   */
+  const onToday = days.includes(today);
+  const live = onToday
+    ? readDay(activities.filter((a) => a.day === today), clock).now : null;
+  const liveId = live ? String(live.id) : null;
 
   const wantId = (focus && focus.id) || urlFocus || null;
   // The key is what makes a repeat request a new one: the same activity asked
@@ -197,15 +212,47 @@ export default function Itinerary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantKey, focusHere]);
 
-  // Opening a trip already under way should land on today, not on day 1.
   useEffect(() => {
-    if (jumpedFor.current === trip.id) return;
-    jumpedFor.current = trip.id;
-    if (todayIndex > 0) {
-      const el = document.getElementById(`day-${today}`);
-      if (el) el.scrollIntoView({ block: 'start' });
-    }
-  }, [trip.id, todayIndex, today]);
+    if (!onToday) return undefined;
+    const t = setInterval(() => setClock(nowMinutes()), 30000);
+    return () => clearInterval(t);
+  }, [onToday]);
+
+  /*
+   * Opening a trip already under way should land where the day has got to, not
+   * on day one and not at the top of today — the useful thing is the row you
+   * are in the middle of. Falls back to the day when nothing is running.
+   *
+   * Once per trip, but the claim is only made once there is something to aim
+   * at: staking it on the first render meant staking it before the activities
+   * had arrived, and by the time they did, the one shot had been spent on an
+   * empty page. It also stands down entirely when a focus request is in
+   * flight, because somebody asking for a particular activity beats a guess
+   * about the time of day.
+   */
+  useEffect(() => {
+    if (jumpedFor.current === trip.id || wantKey) return undefined;
+    if (!onToday && todayIndex <= 0) return undefined;
+    if (!activities.length) return undefined;
+
+    let alive = true;
+    let tries = 0;
+    const go = () => {
+      if (!alive) return;
+      const row = liveId ? document.getElementById(`act-${liveId}`) : null;
+      const dayEl = document.getElementById(`day-${today}`);
+      const target = row || dayEl;
+      // The rows can be a paint behind the data they came from.
+      if (!target) { tries += 1; if (tries < 20) requestAnimationFrame(go); return; }
+      jumpedFor.current = trip.id;
+      pinned.current = true;
+      target.scrollIntoView(row
+        ? { behavior: 'smooth', block: 'center' } : { block: 'start' });
+    };
+    requestAnimationFrame(go);
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id, todayIndex, today, liveId, onToday, activities.length, wantKey]);
 
   function jumpTo(day) {
     const el = document.getElementById(`day-${day}`);
@@ -323,7 +370,8 @@ export default function Itinerary({
 
                     <div id={`act-${a.id}`}
                       className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`
-                        + `${flash === String(a.id) ? ' is-found' : ''}`}
+                        + `${flash === String(a.id) ? ' is-found' : ''}`
+                        + `${liveId === String(a.id) ? ' is-live' : ''}`}
                       role="button" tabIndex={0}
                       onClick={() => onEdit(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>

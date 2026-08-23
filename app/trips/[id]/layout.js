@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings, Compass } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Settings, Binoculars } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
@@ -89,9 +89,9 @@ function TripChrome({ tripId, children }) {
               {/* Always here. Before the trip it is a rehearsal of day one,
                   during it the thing you actually open the app for. */}
               <button className="btn ghost sm icon-btn" type="button"
-                data-tip="Today" aria-label="Today"
+                data-tip="Traveller mode" aria-label="Traveller mode"
                 onClick={() => setTouring(true)}>
-                <Compass size={16} />
+                <Binoculars size={16} />
               </button>
               <CommandTrigger />
             </>

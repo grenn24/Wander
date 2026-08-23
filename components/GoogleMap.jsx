@@ -160,6 +160,9 @@ export default function GoogleMap({
   // A route to draw over everything else: the way from one place to another,
   // as opposed to the dashed line that merely joins a day's stops in order.
   path,
+  // Where the reader is standing. A route with only one end on it is half a
+  // route — you cannot tell which way along the line you are meant to go.
+  here,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
   // What a stop should say when its marker is clicked, and what to do about
   // it. The words belong to the page — it knows the trip's currency and how it
@@ -179,6 +182,7 @@ export default function GoogleMap({
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const route = useRef(null);
+  const mine = useRef(null);
   const info = useRef(null);
   // Which marker the open callout belongs to, so a click can tell "dismiss
   // this" from "do something new".
@@ -203,7 +207,7 @@ export default function GoogleMap({
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
   latest.current = {
-    stops, places, focused, focusedPlace, stopColour, placeColour, path,
+    stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto,
   };
@@ -301,6 +305,11 @@ export default function GoogleMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, path]);
 
+  useEffect(() => {
+    if (ready) drawHere();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, here]);
+
   /*
    * Highlighting is a class change, not a redraw. Rebuilding the markers to
    * move a ring would also destroy whichever one the open info window is
@@ -362,6 +371,21 @@ export default function GoogleMap({
     }
   }
 
+  /** A pulsing dot for the reader, distinct from anything in the plan. */
+  function drawHere() {
+    const L = libs.current;
+    const map = mapRef.current;
+    if (mine.current) { mine.current.map = null; mine.current = null; }
+    const at = latest.current.here;
+    if (!at) return;
+    const el = document.createElement('div');
+    el.className = 'gmk-here';
+    el.setAttribute('aria-label', 'Where you are');
+    mine.current = new L.AdvancedMarkerElement({
+      map, position: { lat: at.lat, lng: at.lng }, content: el,
+    });
+  }
+
   /** The route itself: solid, heavy, and fitted to on arrival. */
   function drawPath() {
     const L = libs.current;
@@ -380,6 +404,9 @@ export default function GoogleMap({
 
     const bounds = new L.LatLngBounds();
     pts.forEach((p) => bounds.extend(p));
+    // Both ends in view, even when the drawn line stops short of one of them.
+    if (latest.current.here) bounds.extend(latest.current.here);
+    (latest.current.stops || []).forEach((a) => bounds.extend({ lat: a.lat, lng: a.lng }));
     owedFit.current = { bounds };
     fitted.current = false; // a new route is a new thing to look at
     applyFit();

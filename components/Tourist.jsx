@@ -11,6 +11,7 @@ import { transportLine } from '@/lib/transport';
 import {
   fmtDayTiny, fmtTime, money, shortPlace, sortActs, todayISO,
 } from '@/lib/util';
+import { nowMinutes, readDay, toMinutes, until } from '@/lib/day';
 
 /**
  * The trip, while you are on it.
@@ -28,61 +29,6 @@ import {
  *
  * Nothing here offers to take you to where you already are.
  */
-
-/** Minutes since midnight, from the clock rather than from the plan. */
-function nowMinutes() {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-function toMinutes(t) {
-  if (!t) return null;
-  const [h, m] = String(t).split(':').map(Number);
-  return Number.isFinite(h) ? h * 60 + (m || 0) : null;
-}
-
-/** "in 25 min", "in 2h 10m" — how long until something starts. */
-function until(mins) {
-  if (mins == null || mins <= 0) return 'now';
-  if (mins < 60) return `in ${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `in ${h}h ${m}m` : `in ${h}h`;
-}
-
-/**
- * Where the day has got to.
- *
- * An activity with an end time is over when that time passes. One without an
- * end time runs until the next thing starts, and if it is the last thing of
- * the day, until the day is out — because the plan forgetting to say when
- * dinner ends does not mean dinner ends immediately, and does not mean it is
- * still going at eleven the next morning either.
- *
- * That second half matters: the old rule fell back to "whatever started most
- * recently", which had no way of ever running out, so a six o'clock train sat
- * there being Now until midnight and the day could never be finished.
- */
-function readDay(list, at) {
-  const timed = list
-    .filter((a) => toMinutes(a.start_time) != null)
-    .sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
-
-  let now = null;
-  let next = null;
-
-  timed.forEach((a, i) => {
-    const from = toMinutes(a.start_time);
-    const after = timed[i + 1] ? toMinutes(timed[i + 1].start_time) : 24 * 60;
-    const to = toMinutes(a.end_time) ?? after;
-    if (from <= at && to > at) now = a;
-    else if (from > at && !next) next = a;
-  });
-
-  // Nothing has a time on it, so the first thing on the list is the plan.
-  if (!now && !next && !timed.length) next = list[0] || null;
-  return { now, next };
-}
 
 /** Where a place is, handed to whatever the phone uses for directions. */
 function directions(act) {
