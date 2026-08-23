@@ -97,7 +97,7 @@ export default function Tourist({ onClose }) {
   const afterTo = directions(after);
 
   return createPortal((
-    <div className="today">
+    <div className="tmode">
       <header className="today-top">
         <span className="today-day">
           <CalendarDays size={14} aria-hidden="true" />
