@@ -5,12 +5,14 @@ import {
   Search, Crosshair, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { categoryOf, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
-import { categoryIcon } from '@/lib/icons';
+import { activityIcon, categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, placeDetails,
   NEARBY_KINDS,
 } from '@/lib/geo';
-import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
+import GoogleMap, {
+  googleMapsAvailable, catColor, dayColor, useMapScheme,
+} from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
 
@@ -373,7 +375,8 @@ export default function MapView({
             stops={stops}
             places={places}
             focused={focused}
-            dayColours={catColor}
+            stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
+            placeColour={catColor}
             /*
              * Selecting, not opening the drawer. The marker's own card already
              * says what the stop is, so raising the sheet over the map to
@@ -428,7 +431,8 @@ export default function MapView({
             <span className="daychip-d">{days.length} days</span>
           </button>
           {days.map((d, i) => (
-            <button key={d} type="button" className={`daychip${day === d ? ' active' : ''}`}
+            <button key={d} type="button" className={`daychip has-dot${day === d ? ' active' : ''}`}
+              style={{ '--dot': dayColor(i, days.length) }}
               onClick={() => { setDay(d); setFocused(null); }}>
               <span className="daychip-n">Day {i + 1}</span>
               <span className="daychip-d">{fmtDayTiny(d)}</span>
@@ -609,7 +613,7 @@ export default function MapView({
                       onClick={() => focus(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
                       <span className="stop-n">{i + 1}</span>
-                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={38} alt={a.title} />
+                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={38} alt={a.title} />
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div className="stop-name">{a.title}</div>
                         <div className="tiny dim">

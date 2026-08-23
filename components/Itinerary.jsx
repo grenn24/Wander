@@ -13,6 +13,8 @@ import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
   shortPlace, minutesBetween, fmtDuration,
 } from '@/lib/util';
+import { transportLine } from '@/lib/transport';
+import { activityIcon } from '@/lib/icons';
 
 /** Structural stops anchor a day; everything else sits between them. */
 const ANCHORS = new Set(['transport', 'lodging']);
@@ -308,6 +310,10 @@ export default function Itinerary({
                   ? minutesBetween(prev.end_time || prev.start_time, a.start_time)
                   : null;
                 const place = shortPlace(a.location);
+                // A flight's gate is worth more on the row than the address of
+                // the airport it leaves from.
+                const leg = a.category === 'transport'
+                  ? transportLine(a.subtype, a.details) : '';
 
                 return (
                   <div key={a.id}>
@@ -330,13 +336,14 @@ export default function Itinerary({
                         ) : null}
                       </div>
 
-                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} size={44} alt="" />
+                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={44} alt="" />
 
                       <div className="act-body">
                         <div className="act-title">{a.title}</div>
                         <div className="act-meta">
                           <span className={`cattag cat-${cat.id}`}>{cat.label}</span>
-                          {place ? (
+                          {leg ? <span className="act-leg mono">{leg}</span> : null}
+                          {!leg && place ? (
                             <span className="act-place"><MapPin size={11} />{place}</span>
                           ) : null}
                           {a.booking_ref ? <span className="act-ref mono">{a.booking_ref}</span> : null}

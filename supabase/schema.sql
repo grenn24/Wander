@@ -72,6 +72,14 @@ alter table public.trips        add column if not exists share_code   text;
 -- URLs are short-lived and are built on demand by /api/places/photo.
 alter table public.activities add column if not exists place_id  text;
 alter table public.activities add column if not exists photo_ref text;
+
+-- Transport is a parent type, not a leaf. A flight and a bus ride are both
+-- "transport" and share almost nothing: one has a terminal, a gate and a seat,
+-- the other has a stop and a departure board. The subtype says which, and the
+-- fields that only that subtype has live in `details` rather than as twenty
+-- mostly-null columns on every activity in the trip.
+alter table public.activities add column if not exists subtype text;
+alter table public.activities add column if not exists details  jsonb not null default '{}'::jsonb;
 alter table public.trips      add column if not exists cover_ref text;
 
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);

@@ -126,7 +126,7 @@ export default function ActivityMap({ draft, onPick, compact = false }) {
               places={[]}
               focused={null}
               focusedPlace={null}
-              dayColours={() => catColor(draft.category || 'sightseeing')}
+              stopColour={() => catColor(draft.category || 'sightseeing')}
               onDropPin={dropAt}
               /* Beside the form the map owns its column, so it can take the
                  wheel and a one-finger drag. Under the location field it is a

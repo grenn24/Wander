@@ -2983,3 +2983,24 @@ body:has(.lp)::before { display: none; }
   font-size: 13px; font-weight: 650; letter-spacing: .01em;
   color: var(--text-2); margin-bottom: 8px;
 }
+
+/* A day chip on the map wears the colour its pins do, so the ramp needs no
+   legend — the row of chips is the legend. */
+.mapdays .daychip.has-dot { position: relative; padding-left: 18px; }
+.mapdays .daychip.has-dot::before {
+  content: ''; position: absolute; left: 7px; top: 50%; margin-top: -3px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--dot);
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,.5);
+}
+.mapdays .daychip.active.has-dot::before { box-shadow: 0 0 0 1.5px rgba(255,255,255,.85); }
+
+/* Transport's own fields. Narrower than the general row, because a gate is two
+   characters and a seat is three — giving them a full column each would leave
+   a form of mostly whitespace. */
+.tfields > .field { flex: 1 1 128px; }
+
+/* What a transport activity actually is, on the row: JL712 · SIN → HND · Gate B7 */
+.act-leg {
+  font-size: 11.5px; color: var(--text-2); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}

@@ -66,6 +66,25 @@ export function useMapScheme() {
   return scheme;
 }
 
+/**
+ * A colour per day of the trip, walking the hue circle in order.
+ *
+ * Colour on a map should answer a question you cannot answer another way. The
+ * order of the stops is already written on them as a number, and a number is
+ * exact where a hue is a guess — but which day a pin belongs to has nowhere
+ * else to live, and on a trip that crosses cities it is the first thing you
+ * want to see. So the ramp runs across the trip: consecutive days are
+ * neighbouring hues, and you read progress rather than identity.
+ *
+ * Stops short of a full circle so the last day cannot come back round and
+ * impersonate the first.
+ */
+export function dayColor(index, total) {
+  const n = Math.max(1, total || 1);
+  const i = index < 0 ? 0 : index;
+  return `hsl(${Math.round(((i % n) / n) * 306)} 70% 52%)`;
+}
+
 export function catColor(id) {
   if (typeof document === 'undefined') return '#2a78d6';
   const v = getComputedStyle(document.documentElement)
@@ -134,7 +153,10 @@ function loadMaps() {
  * click anywhere to drop a new stop.
  */
 export default function GoogleMap({
-  stops, places, focused, focusedPlace, dayColours,
+  stops, places, focused, focusedPlace,
+  // Two different questions, so two different answers: a stop is coloured by
+  // the day it belongs to, a suggestion by what kind of place it is.
+  stopColour, placeColour = catColor,
   onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
   // What a stop should say when its marker is clicked, and what to do about
   // it. The words belong to the page — it knows the trip's currency and how it
@@ -177,7 +199,7 @@ export default function GoogleMap({
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
   latest.current = {
-    stops, places, focused, focusedPlace, dayColours,
+    stops, places, focused, focusedPlace, stopColour, placeColour,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto,
   };
@@ -334,7 +356,9 @@ export default function GoogleMap({
   function drawStops() {
     const L = libs.current;
     const map = mapRef.current;
-    const { stops: list, focused: sel, dayColours: colour, onFocus: focus } = latest.current;
+    const {
+      stops: list, focused: sel, stopColour: colour, onFocus: focus,
+    } = latest.current;
 
     stopMarks.current.forEach((m) => { m.map = null; });
     stopMarks.current = [];
@@ -347,7 +371,7 @@ export default function GoogleMap({
     list.forEach((a, i) => {
       const el = document.createElement('div');
       el.className = `gmk${sel === a.id ? ' gmk-focus' : ''}`;
-      el.style.setProperty('--mk', colour(a.category));
+      el.style.setProperty('--mk', colour(a));
       el.innerHTML = `<span>${i + 1}</span>`;
       /*
        * The name on the marker itself, not through the marker's `title`
@@ -386,20 +410,23 @@ export default function GoogleMap({
 
       stopMarks.current.push(mark);
       bounds.extend({ lat: a.lat, lng: a.lng });
-      (byDay[a.day] = byDay[a.day] || []).push({ lat: a.lat, lng: a.lng });
+      const seen = byDay[a.day] || (byDay[a.day] = { line: colour(a), path: [] });
+      seen.path.push({ lat: a.lat, lng: a.lng });
     });
 
+    // The route line belongs to its day, so it wears the day's colour rather
+    // than a fixed one that agreed with nothing on the map.
     Object.keys(byDay).forEach((d) => {
-      if (byDay[d].length < 2) return;
+      if (byDay[d].path.length < 2) return;
       lines.current.push(new L.Polyline({
-        path: byDay[d],
+        path: byDay[d].path,
         strokeOpacity: 0,
         icons: [{
           icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.65, scale: 3 },
           offset: '0',
           repeat: '11px',
         }],
-        strokeColor: colour('sightseeing'),
+        strokeColor: byDay[d].line,
         map,
       }));
     });
@@ -524,7 +551,7 @@ export default function GoogleMap({
   function drawPlaces() {
     const L = libs.current;
     const map = mapRef.current;
-    const { places: list, focusedPlace: sel, dayColours: colour } = latest.current;
+    const { places: list, focusedPlace: sel, placeColour: colour } = latest.current;
 
     placeMarks.current.forEach((m) => { m.map = null; });
     placeMarks.current = [];

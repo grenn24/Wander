@@ -126,8 +126,20 @@ export default function TripProvider({ tripId, children }) {
       lat: draft.lat === '' || draft.lat == null ? null : Number(draft.lat),
       lng: draft.lng === '' || draft.lng == null ? null : Number(draft.lng),
       cost: Number(draft.cost || 0),
+      // The editor can pin a place too, and used to drop what it learned on
+      // the way to the database — so an activity located by hand kept its
+      // coordinates and lost the identity behind them.
+      place_id: draft.place_id || null,
+      photo_ref: draft.photo_ref || null,
       booking_ref: draft.booking_ref || '',
       notes: draft.notes || '',
+      /*
+       * Only transport has a mode, and only a mode has fields. Anything else
+       * carrying a subtype would be a leftover from a category change, so both
+       * are cleared rather than kept where they mean nothing.
+       */
+      subtype: draft.category === 'transport' ? draft.subtype || null : null,
+      details: draft.category === 'transport' && draft.details ? draft.details : {},
       updated_at: new Date().toISOString(),
     };
   }

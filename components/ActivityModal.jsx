@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Loader2, MapPin } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
+import { TRANSPORT, transportOf } from '@/lib/transport';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
 import ActivityMap from '@/components/ActivityMap';
@@ -80,6 +81,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   }, []);
 
   const pinned = draft.lat != null && draft.lng != null && draft.lat !== '';
+  const mode = draft.category === 'transport'
+    ? transportOf(draft.subtype || 'flight') : null;
 
   /*
    * Typing looks for matches; only picking one pins the activity.
@@ -194,7 +197,15 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 <Select
                   id="ac" label="Type"
                   value={draft.category || 'sightseeing'}
-                  onChange={(v) => set({ category: v })}
+                  onChange={(v) => set({
+                    category: v,
+                    // A bus has no gate. Changing what this is drops what the
+                    // last answer carried, rather than keeping fields that
+                    // nothing on the form will show.
+                    ...(v === 'transport'
+                      ? (draft.subtype ? {} : { subtype: 'flight' })
+                      : { subtype: null, details: {} }),
+                  })}
                   options={CATEGORIES.map((c) => ({
                     value: c.id,
                     label: c.label,
@@ -203,6 +214,43 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 />
               </div>
             </div>
+
+            {/*
+              * Transport is a parent type, so it asks a second question — and
+              * then asks only what that answer actually has. A flight has a
+              * gate and a terminal; a ferry has a pier. One form carrying
+              * every field would be nine boxes of which two applied.
+              */}
+            {draft.category === 'transport' ? (
+              <div className="field">
+                <label className="label" htmlFor="ak">How</label>
+                <Select
+                  id="ak" label="How"
+                  value={draft.subtype || 'flight'}
+                  onChange={(v) => set({ subtype: v })}
+                  options={TRANSPORT.map((t) => ({
+                    value: t.id,
+                    label: t.label,
+                    icon: <t.icon size={14} aria-hidden="true" />,
+                  }))}
+                />
+              </div>
+            ) : null}
+
+            {mode ? (
+              <div className="row tfields">
+                {mode.fields.map((f) => (
+                  <div className="field" key={f.k}>
+                    <label className="label" htmlFor={`tf-${f.k}`}>{f.label}</label>
+                    <input id={`tf-${f.k}`} className="input" placeholder={f.ph}
+                      value={(draft.details && draft.details[f.k]) || ''}
+                      onChange={(e) => set({
+                        details: { ...(draft.details || {}), [f.k]: e.target.value },
+                      })} />
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div className="row">
               <div className="field">
