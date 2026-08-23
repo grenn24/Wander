@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 import Select from '@/components/Select';
+import { cap } from '@/lib/util';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
@@ -113,7 +114,7 @@ export default function Packing({
               id="pc" label="Group"
               value={category}
               onChange={setCategory}
-              options={GROUPS.map((g) => ({ value: g, label: g }))}
+              options={GROUPS.map((g) => ({ value: g, label: cap(g) }))}
             />
           </div>
           <div style={{ flex: '0 1 90px' }}>
@@ -137,8 +138,7 @@ export default function Packing({
       ) : (
         Object.keys(grouped).map((g) => (
           <section key={g} style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em',
-              color: 'var(--text-3)', marginBottom: 8 }}>{g}</h3>
+            <h3 className="pack-group">{cap(g)}</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               {grouped[g].map((i) => (
                 <div className={`pack-item${i.packed ? ' done' : ''}`} key={i.id}>

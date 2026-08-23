@@ -34,9 +34,14 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   // Set while a drag is in progress, so letting go over the backdrop does not
   // read as a click on it and close the photo.
   const moved = useRef(false);
+  // At most one gesture update per painted frame.
+  const frame = useRef(0);
+  // The current scale, readable from a listener that was bound once.
+  const liveScale = useRef(1);
 
   const many = photos.length > 1;
   const zoomed = view.scale > 1.001;
+  liveScale.current = view.scale;
 
   useEffect(() => { setMounted(true); }, []);
   // A new photo starts where the last one did, not wherever you had dragged to.
@@ -84,6 +89,14 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
     });
   }, [clamp]);
 
+  /**
+   * Multiply the current scale, read from a ref rather than from the closure —
+   * so a listener bound once still zooms from wherever the picture is now.
+   */
+  const zoomBy = useCallback((by, originX, originY) => {
+    zoomTo(liveScale.current * by, originX, originY);
+  }, [zoomTo]);
+
   const step = useCallback((by) => {
     onIndex((index + by + photos.length) % photos.length);
   }, [index, photos.length, onIndex]);
@@ -113,13 +126,15 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   useEffect(() => {
     const el = frameRef.current;
     if (!el || !mounted) return undefined;
+    // Reads the scale out of the updater rather than out of the closure, so
+    // this binds once instead of once per zoom step.
     const onWheel = (e) => {
       e.preventDefault();
-      zoomTo(view.scale * (e.deltaY < 0 ? 1.14 : 1 / 1.14), e.clientX, e.clientY);
+      zoomBy(e.deltaY < 0 ? 1.14 : 1 / 1.14, e.clientX, e.clientY);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [mounted, zoomTo, view.scale]);
+  }, [mounted, zoomBy]);
 
   function onPointerDown(e) {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -134,33 +149,44 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
     }
   }
 
+  /*
+   * Pointer events arrive faster than a screen refreshes, and every one of them
+   * used to be a React render. Coalescing to one per frame is the difference
+   * between sixty renders a second and sixteen — the browser was already going
+   * to paint once per frame either way.
+   */
   function onPointerMove(e) {
     if (!touches.current.has(e.pointerId)) return;
     touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    if (pinch.current && touches.current.size === 2) {
-      const [a, b] = [...touches.current.values()];
-      const gap = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch.current.gap > 0) {
-        moved.current = true;
-        zoomTo(pinch.current.scale * (gap / pinch.current.gap),
-          (a.x + b.x) / 2, (a.y + b.y) / 2);
+    if (!pinch.current && !drag.current) return;
+    moved.current = true;
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      if (pinch.current && touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        const gap = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch.current.gap > 0) {
+          zoomTo(pinch.current.scale * (gap / pinch.current.gap),
+            (a.x + b.x) / 2, (a.y + b.y) / 2);
+        }
+      } else if (drag.current) {
+        const p = [...touches.current.values()][0];
+        if (!p) return;
+        const x = p.x - drag.current.x;
+        const y = p.y - drag.current.y;
+        setView((v) => ({ scale: v.scale, ...clamp(x, y, v.scale) }));
       }
-      return;
-    }
-
-    if (drag.current) {
-      moved.current = true;
-      const x = e.clientX - drag.current.x;
-      const y = e.clientY - drag.current.y;
-      setView((v) => ({ scale: v.scale, ...clamp(x, y, v.scale) }));
-    }
+    });
   }
 
   function onPointerUp(e) {
     touches.current.delete(e.pointerId);
     if (touches.current.size < 2) pinch.current = null;
-    if (!touches.current.size) drag.current = null;
+    if (!touches.current.size) {
+      drag.current = null;
+      if (frame.current) { cancelAnimationFrame(frame.current); frame.current = 0; }
+    }
   }
 
   if (!mounted) return null;
