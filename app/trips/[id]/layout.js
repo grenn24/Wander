@@ -96,7 +96,7 @@ function TripChrome({ tripId, children }) {
           <Link
             href={active === 'itinerary' ? '/trips' : `/trips/${tripId}/itinerary`}
             className="crumb-back"
-            title={active === 'itinerary' ? 'All your trips' : 'Back to the itinerary'}
+            data-tip={active === 'itinerary' ? 'All your trips' : 'Back to the itinerary'}
             aria-label={active === 'itinerary' ? 'All trips' : 'Back to the itinerary'}
           >
             <ChevronLeft size={16} />
@@ -104,7 +104,7 @@ function TripChrome({ tripId, children }) {
           {/* A shimmer the width of a trip name, rather than the word
               "Loading" sitting where the name will be. */}
           {trip ? (
-            <span className="crumb" title={trip.name}>{trip.name}</span>
+            <span className="crumb" data-tip={trip.name}>{trip.name}</span>
           ) : (
             <span className="crumb skel skel-crumb" aria-label="Loading trip" />
           )}

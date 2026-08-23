@@ -316,7 +316,7 @@ export default function TripCommand() {
     // At phone widths this is a round icon button and the label is hidden, so
     // the accessible name has to be stated rather than read off the text.
     return (
-      <button className="cmd-pill" type="button" title="Change anything in this trip  ⌘K"
+      <button className="cmd-pill" type="button" data-tip="Change anything in this trip  ⌘K"
         aria-label="Change anything in this trip"
         onClick={() => {
           setOpen(true);
@@ -359,7 +359,7 @@ export default function TripCommand() {
           {busy ? <Loader2 size={16} className="spin" />
             : replied ? (
               <button className="btn ghost sm icon-btn" type="button"
-                title="Start over" aria-label="Start over"
+                data-tip="Start over" aria-label="Start over"
                 onClick={() => { reset(); inputRef.current.focus(); }}>
                 <RotateCcw size={15} />
               </button>

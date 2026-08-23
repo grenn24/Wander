@@ -46,7 +46,7 @@ function Toast({ toast, onDismiss }) {
         <button className="toast-action" type="button"
           onClick={() => { action.run(); close(); }}>{action.label}</button>
       ) : null}
-      <button className="toast-x" type="button" title="Dismiss" aria-label="Dismiss"
+      <button className="toast-x" type="button" data-tip="Dismiss" aria-label="Dismiss"
         onClick={close}><X size={14} /></button>
     </div>
   );

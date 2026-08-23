@@ -53,7 +53,7 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
 
   return (
     <header className="topbar" ref={ref}>
-      <Link href="/trips" className="brand-link" title="All your trips"
+      <Link href="/trips" className="brand-link" data-tip="All your trips"
         aria-label="Wander — all trips">
         <span className="brand-mark" aria-hidden="true"><Plane size={16} /></span>
         <span className="brand-word">Wander</span>
@@ -68,7 +68,7 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
       <Presence online={online} meId={user ? user.id : null} />
 
       <button ref={menuBtn} className="btn ghost sm who" type="button"
-        title="Account, appearance and sign out"
+        data-tip="Account, appearance and sign out"
         aria-haspopup="menu" aria-expanded={open} aria-label={`Account — ${who}`}
         onClick={() => setOpen((o) => !o)}>
         <span className="who-mark" aria-hidden="true">{initials(who)}</span>

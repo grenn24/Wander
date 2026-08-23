@@ -161,7 +161,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
           <button className="btn ghost sm" onClick={attemptClose}
-            title="Close  Esc" aria-label="Close"><X size={15} /></button>
+            data-tip="Close  Esc" aria-label="Close"><X size={15} /></button>
         </div>
 
         <div className="modal-split">
@@ -331,7 +331,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 {dirty ? 'Cancel' : 'Close'}
               </button>
               <button className="btn primary" disabled={!canSave}
-                title={canSave ? undefined
+                data-tip={canSave ? undefined
                   : draft.id ? 'Nothing has changed yet' : 'Give it a name first'}
                 onClick={() => onSave(draft)}>
                 {draft.id ? 'Save' : 'Add activity'}

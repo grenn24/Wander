@@ -151,7 +151,7 @@ export default function TripSearch() {
   return (
     <>
       <button className="btn ghost sm icon-btn" type="button" aria-label="Search this trip"
-        title="Search this trip  /" onClick={() => {
+        data-tip="Search this trip  /" onClick={() => {
           setOpen(true);
           setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
         }}>

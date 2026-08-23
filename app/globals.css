@@ -2866,3 +2866,31 @@ body:has(.lp)::before { display: none; }
 /* Focused on open so the dialog owns the keyboard, but by script rather than by
    the reader, so it should not draw a ring. */
 .modal[tabindex]:focus { outline: none; }
+
+/* -------------------------------------------------------------- tooltip --- */
+/*
+ * Positioned from JavaScript and painted here. Fixed rather than absolute so
+ * it is measured against the viewport the same way the code that places it is,
+ * and above everything — a tooltip on a control inside a modal has to clear
+ * the modal.
+ */
+.tip {
+  position: fixed; left: 0; top: 0; z-index: 200;
+  max-width: 264px; padding: 6px 10px; border-radius: 8px;
+  font-size: 12px; font-weight: 550; line-height: 1.4; letter-spacing: .005em;
+  color: var(--text-1); background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
+  pointer-events: none; /* never in the way of the thing it describes */
+  white-space: pre-wrap; text-align: center;
+  /* Transparent until it has been measured and placed; see Tips.jsx. */
+  opacity: 0; transform: translateY(-2px);
+  transition: opacity .12s ease, transform .12s var(--spring);
+}
+.tip.is-on { opacity: 1; transform: none; }
+.tip[data-above="true"] { transform: translateY(2px); }
+.tip[data-above="true"].is-on { transform: none; }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+@media print { .tip { display: none !important; } }

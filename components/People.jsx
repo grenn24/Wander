@@ -112,7 +112,7 @@ export default function People({
                     {here ? ' · online now' : ''}
                   </div>
                 </div>
-                {here ? <span className="pulse" title="Online now" /> : null}
+                {here ? <span className="pulse" data-tip="Online now" /> : null}
                 {isOwner && !isMe ? (
                   <button className="btn ghost sm" onClick={() => onRemove(m.user_id)}>Remove</button>
                 ) : null}

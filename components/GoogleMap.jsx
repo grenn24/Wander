@@ -349,9 +349,17 @@ export default function GoogleMap({
       el.className = `gmk${sel === a.id ? ' gmk-focus' : ''}`;
       el.style.setProperty('--mk', colour(a.category));
       el.innerHTML = `<span>${i + 1}</span>`;
+      /*
+       * The name on the marker itself, not through the marker's `title`
+       * option — that draws the operating system's tooltip, which is the one
+       * thing this app has just finished getting rid of. aria-label carries
+       * the same words for anything reading the page.
+       */
+      el.dataset.tip = a.title;
+      el.setAttribute('aria-label', a.title);
 
       const mark = new L.AdvancedMarkerElement({
-        map, position: { lat: a.lat, lng: a.lng }, content: el, title: a.title,
+        map, position: { lat: a.lat, lng: a.lng }, content: el,
       });
       mark.__id = a.id;
       mark.__el = el;
@@ -421,7 +429,7 @@ export default function GoogleMap({
     const shut = document.createElement('button');
     shut.type = 'button';
     shut.className = 'gminfo-x';
-    shut.title = 'Close';
+    shut.dataset.tip = 'Close';
     shut.setAttribute('aria-label', 'Close');
     shut.innerHTML = '&#10005;';
     shut.addEventListener('click', closeInfo);
@@ -431,7 +439,7 @@ export default function GoogleMap({
       const shot = document.createElement('button');
       shot.type = 'button';
       shot.className = 'gminfo-shot';
-      shot.title = 'See the photos';
+      shot.dataset.tip = 'See the photos';
       shot.setAttribute('aria-label', `Photos of ${card.title}`);
       const img = document.createElement('img');
       img.alt = '';
@@ -535,8 +543,11 @@ export default function GoogleMap({
         && glyphs.current.querySelector(`[data-cat="${cat}"] svg`);
       if (glyph) el.appendChild(glyph.cloneNode(true));
 
+      el.dataset.tip = p.name;
+      el.setAttribute('aria-label', p.name);
+
       const mark = new L.AdvancedMarkerElement({
-        map, position: { lat: p.lat, lng: p.lng }, content: el, title: p.name,
+        map, position: { lat: p.lat, lng: p.lng }, content: el,
       });
       mark.__id = p.id;
       mark.__el = el;

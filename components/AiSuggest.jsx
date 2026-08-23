@@ -79,7 +79,7 @@ export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', on
           </div>
         </div>
         <button className="btn ghost sm icon-btn" onClick={onClose}
-          title="Close suggestions" aria-label="Close suggestions">
+          data-tip="Close suggestions" aria-label="Close suggestions">
           <X size={15} />
         </button>
       </div>
@@ -119,7 +119,7 @@ export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', on
                   </div>
                   <button className="btn sm" disabled={!!state}
                     onClick={() => take(idea, i)}
-                    title={`Add ${idea.title} to this day`} aria-label={`Add ${idea.title}`}>
+                    data-tip={`Add ${idea.title} to this day`} aria-label={`Add ${idea.title}`}>
                     {state === 'busy' ? <Loader2 size={14} className="spin" />
                       : state === 'done' ? 'Added' : <Plus size={14} />}
                   </button>

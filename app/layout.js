@@ -1,5 +1,6 @@
 import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
 import ViewportInsets from '@/components/ViewportInsets';
+import Tips from '@/components/Tips';
 import './globals.css';
 
 /*
@@ -60,6 +61,9 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ViewportInsets />
         {children}
+        {/* One tooltip for the whole app, at the root so the landing page has
+            it too — it is outside the provider that wraps everything else. */}
+        <Tips />
       </body>
     </html>
   );

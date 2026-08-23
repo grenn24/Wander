@@ -470,7 +470,7 @@ export default function MapView({
                   <strong className="small">{dropped.name || 'Dropped point'}</strong>
                   <div className="tiny muted" style={{ overflowWrap: 'anywhere' }}>{dropped.label}</div>
                 </div>
-                <button className="btn ghost sm icon-btn" title="Dismiss" aria-label="Dismiss"
+                <button className="btn ghost sm icon-btn" data-tip="Dismiss" aria-label="Dismiss"
                   onClick={() => setDropped(null)}><X size={14} /></button>
               </div>
               <button className="btn primary sm" style={{ width: '100%', marginTop: 10 }}
@@ -502,7 +502,7 @@ export default function MapView({
               const KindIcon = categoryIcon(k.category);
               return (
                 <button key={k.id} className="btn sm" aria-pressed={kind === k.id}
-                  title={`${k.label} near the middle of the map`}
+                  data-tip={`${k.label} near the middle of the map`}
                   disabled={!mapsReady}
                   onClick={() => {
                     setHits(null); setQuery(''); setPickedPlace(null);
@@ -563,7 +563,7 @@ export default function MapView({
                   </div>
                   <button className="btn sm icon-btn"
                     onClick={(e) => { e.stopPropagation(); addPlace(pl); }}
-                    title={`Add ${pl.name} to the trip`}
+                    data-tip={`Add ${pl.name} to the trip`}
                     aria-label={`Add ${pl.name}`}><Plus size={14} /></button>
                 </div>
               ))}
@@ -603,7 +603,7 @@ export default function MapView({
                     ) : null}
                     <div id={`stop-${a.id}`}
                       className={`stop${focused === a.id ? ' is-focus' : ''}`}
-                      title={focused === a.id ? `Open ${a.title}` : `Show ${a.title} on the map`}
+                      data-tip={focused === a.id ? `Open ${a.title}` : `Show ${a.title} on the map`}
                       role="button" tabIndex={0}
                       onClick={() => focus(a)}
                       onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
@@ -616,7 +616,7 @@ export default function MapView({
                         </div>
                       </div>
                       <button className="btn ghost sm icon-btn"
-                        title={`Edit ${a.title}`} aria-label={`Edit ${a.title}`}
+                        data-tip={`Edit ${a.title}`} aria-label={`Edit ${a.title}`}
                         onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
                         <SquarePen size={14} />
                       </button>
