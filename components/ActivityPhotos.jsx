@@ -12,7 +12,7 @@ import Lightbox from '@/components/Lightbox';
  * Place Details call as the rating and the reviews, and that call is billed by
  * the request, so it is made once by whoever needs any of it.
  */
-export default function ActivityPhotos({ photos = [], title }) {
+export default function ActivityPhotos({ photos = [], title, preview = false }) {
   const [broken, setBroken] = useState({});
   const [at, setAt] = useState(-1); // which one the viewer is showing
 
@@ -26,7 +26,9 @@ export default function ActivityPhotos({ photos = [], title }) {
 
   return (
     <>
-      <div className="aphotos">
+      {/* One picture standing in a three-column grid is a grid with two holes
+          in it, so the preview gets the whole width instead. */}
+      <div className={`aphotos${preview && shown.length === 1 ? ' is-one' : ''}`}>
         {shown.map((p, i) => (
           <button key={p.ref} type="button" className="aphoto"
             data-tip={p.author ? `Photo by ${p.author}` : 'Full size'}

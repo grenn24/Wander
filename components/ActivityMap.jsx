@@ -94,7 +94,17 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
    * picture a second time, so it is replaced rather than merged.
    */
   const shots = useMemo(() => {
-    if (!pinned) return (probe && probe.photos) || NO_PHOTOS;
+    /*
+     * One picture for a place nobody has chosen yet.
+     *
+     * The references come back with the search and cost nothing, but every
+     * thumbnail actually drawn is a photo request — and a guess's references
+     * carry a fresh token each time, so they miss the cache that makes a saved
+     * activity's photos free. One is enough to recognise a place by, which is
+     * the only job it has before you have picked it; the rest arrive with the
+     * ratings and reviews once you have.
+     */
+    if (!pinned) return probe && probe.photos ? probe.photos.slice(0, 1) : NO_PHOTOS;
     if (facts && facts.photos && facts.photos.length) return facts.photos;
     return draft.photo_ref
       ? [{ ref: draft.photo_ref, author: '', authorUri: '' }] : NO_PHOTOS;
@@ -171,7 +181,7 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
             </p>
           ) : null}
 
-          <ActivityPhotos title={draft.title} photos={shots} />
+          <ActivityPhotos title={draft.title} photos={shots} preview={!pinned} />
           {pinned ? <PlaceFacts details={facts} /> : null}
         </>
       ) : (

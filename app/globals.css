@@ -2613,6 +2613,8 @@ body:has(.lp)::before { display: none; }
   background: var(--surface-2); cursor: zoom-in; aspect-ratio: 4 / 3;
   transition: transform .14s var(--spring), border-color .14s ease;
 }
+.aphotos.is-one { grid-template-columns: 1fr; }
+.aphotos.is-one .aphoto { aspect-ratio: 16 / 7; }
 .aphoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .aphoto:hover { transform: translateY(-2px); border-color: var(--accent); }
 .aphoto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
