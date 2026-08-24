@@ -15,9 +15,16 @@ export const maxDuration = 60;
  * id and a timezone, and neither is worth anything on its own.
  */
 
-/** A day plus a wall-clock time, in the shape Google wants. */
+/**
+ * A day plus a wall-clock time, in the shape Google wants.
+ *
+ * Postgres hands a `time` column back as "09:00:00", not "09:00". Appending
+ * the seconds this needs to that gave "2026-10-28T09:00:00:00", which Google
+ * rejects — so every activity with a time on it failed and every one without
+ * quietly succeeded as an all-day event. Cut to HH:MM first, whatever arrives.
+ */
 function at(day, time, tz) {
-  return { dateTime: `${day}T${time}:00`, timeZone: tz };
+  return { dateTime: `${day}T${String(time).slice(0, 5)}:00`, timeZone: tz };
 }
 
 /** Google treats an all-day end as exclusive, so it wants the following day. */
@@ -27,10 +34,16 @@ function nextDay(day) {
   return d.toISOString().slice(0, 10);
 }
 
-/** An hour long, unless it says otherwise. */
+/**
+ * An hour long, unless it says otherwise — and never past midnight.
+ *
+ * An event ending before it starts is the other way Google refuses one, so a
+ * late-evening activity stops at the end of its own day rather than wrapping
+ * round to the small hours of the same date.
+ */
 function plusHour(time) {
   const [h, m] = String(time).split(':').map(Number);
-  const total = (h * 60 + (m || 0) + 60) % (24 * 60);
+  const total = Math.min(23 * 60 + 59, (h || 0) * 60 + (m || 0) + 60);
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
@@ -169,7 +182,7 @@ export async function POST(req) {
       if (e instanceof NeedsReconnect) {
         return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
       }
-      failures.push(a.title);
+      failures.push({ title: a.title, why: (e && e.message) || 'unknown' });
       console.error('[gcal] push failed for', a.title, e.message);
     }
   }
@@ -177,8 +190,10 @@ export async function POST(req) {
   return Response.json({
     written,
     updated,
-    /* Named, not counted: "3 failed" is a puzzle, "Onsen failed" is a thing
-       you can go and look at. */
+    /* Named and explained. "3 failed" is a puzzle; "Onsen failed" is a thing
+       you can go and look at; "Onsen failed — invalid end time" is a thing you
+       can fix. Google's own words, because ours would only be a guess at
+       them. */
     failed: failures.slice(0, 5),
     timezone: tz,
   });

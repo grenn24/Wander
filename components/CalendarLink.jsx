@@ -81,7 +81,13 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
         pushToast(`${total} event${total === 1 ? '' : 's'} in your calendar`
           + `${out.updated ? ` (${out.updated} updated)` : ''}.`);
       }
-      if (out.failed && out.failed.length) setErr(`Could not write: ${out.failed.join(', ')}.`);
+      if (out.failed && out.failed.length) {
+        /* One reason, not five: they are nearly always the same reason, and a
+           list of five identical sentences reads as five problems. */
+        const why = out.failed[0].why || '';
+        const names = out.failed.map((f) => f.title || f).join(', ');
+        setErr(`Could not write: ${names}${why ? ` — ${why}` : ''}`);
+      }
     } catch (e) {
       if (e.code === 'reconnect') { setErr(e.message); await look(); } else {
         setErr(e.message || 'Could not write to your calendar.');
