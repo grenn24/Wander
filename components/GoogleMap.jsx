@@ -498,6 +498,10 @@ export default function GoogleMap({
       map,
     });
 
+    // Same rule as the stops: a redrawn line is not a reason to pull the view
+    // off someone who has asked the map to follow them.
+    if (latest.current.follow) return;
+
     const bounds = new L.LatLngBounds();
     pts.forEach((p) => bounds.extend(p));
     // Both ends in view, even when the drawn line stops short of one of them.
@@ -586,7 +590,19 @@ export default function GoogleMap({
       }));
     });
 
-    if (list.length === 1) {
+    /*
+     * While following, the view belongs to where you are standing and to
+     * nothing else.
+     *
+     * This is drawn again on every render that changes the stops — and on a
+     * route screen that is every position fix and every turn of the compass.
+     * Each one used to re-aim at the single stop on the map, which is the
+     * destination: hold the phone still and it stayed put, move and the map
+     * leapt to the far end of the journey.
+     */
+    if (latest.current.follow) {
+      // nothing to aim at: you are the centre until you say otherwise
+    } else if (list.length === 1) {
       owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
     } else if (list.length > 1 && !bounds.isEmpty()) {
       owedFit.current = { bounds };

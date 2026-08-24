@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Plane, Sun, Moon, SunMoon, ChevronDown, LogOut } from 'lucide-react';
+import { Plane, Sun, Moon, SunMoon, ChevronDown, LogOut, House } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
 import Popover from '@/components/Popover';
 import Presence from '@/components/Presence';
@@ -100,6 +100,13 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
           })}
 
           {menu.length ? <div className="menu-rule" /> : null}
+
+          {/* The front of the site, which is otherwise unreachable once you
+              are inside: every route out of here goes further in, and the
+              brand mark is already spoken for by the trip list. */}
+          <Link href="/" role="menuitem" onClick={() => setOpen(false)}>
+            <House size={15} /> Home page
+          </Link>
 
           {/* Left open on purpose: cycling through system, light and dark is
               worth watching happen, and closing after each press would make

@@ -18,7 +18,15 @@ import { nowMinutes, readDay } from '@/lib/day';
 import { activityIcon } from '@/lib/icons';
 
 /** Structural stops anchor a day; everything else sits between them. */
-const ANCHORS = new Set(['transport', 'lodging']);
+/*
+ * Rows that get an edge down their left side.
+ *
+ * Transport used to be one of them and no longer is: a flight already carries
+ * its own tag, its own icon and a line of flight numbers, and a coloured rule
+ * beside all that was a fourth voice saying the same thing. Where you sleep is
+ * the one fact a day is actually pinned to, so that keeps its edge.
+ */
+const ANCHORS = new Set(['lodging']);
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,

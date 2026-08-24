@@ -161,6 +161,9 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
 
   const leg = legs[mode];
   const nowhere = where !== 'asking' && !from;
+  const dest = useMemo(() => [{
+    id: 'to', lat: to.lat, lng: to.lng, day: 'to', title, category: 'sightseeing',
+  }], [to.lat, to.lng, title]);
   const path = useMemo(
     () => (leg && leg.polyline ? decodePath(leg.polyline) : null),
     [leg],
@@ -205,9 +208,9 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
         ) : googleMapsAvailable() ? (
           <GoogleMap
             key={scheme}
-            stops={[{
-              id: 'to', lat: to.lat, lng: to.lng, day: 'to', title, category: 'sightseeing',
-            }]}
+            /* A fresh array every render is a redraw every render, and this
+               screen re-renders on every position fix. */
+            stops={dest}
             places={[]}
             focused={null}
             focusedPlace={null}

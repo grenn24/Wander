@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound } from 'lucide-react';
+import {
+  Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound, LayoutGrid, Rows3,
+} from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
@@ -12,10 +14,23 @@ import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
 
+/*
+ * Cards or rows.
+ *
+ * Cards are right for three trips: the destination and the dates have room to
+ * be read at a glance and the grid looks like a shelf of them. They are wrong
+ * for twenty, where the same information wants to be a column you can run your
+ * eye down. Which one is better depends on how much you travel, so it is a
+ * choice rather than a rule — remembered per browser, because it is a habit
+ * rather than something about the trips.
+ */
+const VIEW_KEY = 'wander:trips-view';
+
 export default function TripsHome() {
   const { supabase, user, fail, pushToast } = useApp();
   const router = useRouter();
   const [trips, setTrips] = useState([]);
+  const [view, setView] = useState('cards'); // cards | list
   // trip id -> who owns it, for the ones somebody else does.
   const [sharedBy, setSharedBy] = useState({});
   const [loading, setLoading] = useState(true);
@@ -51,6 +66,20 @@ export default function TripsHome() {
   }, [supabase, fail, user]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Read after mount, not during render: the server has no localStorage and
+     would send markup the first client render then disagreed with. */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === 'list' || saved === 'cards') setView(saved);
+    } catch (e) { /* storage off; cards it is */ }
+  }, []);
+
+  function chooseView(v) {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch (e) { /* nothing to remember with */ }
+  }
 
   const groups = useMemo(() => {
     const today = todayISO();
@@ -105,9 +134,27 @@ export default function TripsHome() {
                     : `${trips.length} trip${trips.length === 1 ? '' : 's'}`}
               </div>
             </div>
-            <button className="btn primary" onClick={openNew}>
-              <Plus size={16} /> New trip
-            </button>
+            <div className="page-head-acts">
+              {/* Only worth offering once there is a list to have an opinion
+                  about. */}
+              {trips.length > 1 ? (
+                <div className="viewswap" role="group" aria-label="How to show your trips">
+                  <button type="button" className="viewswap-b" aria-pressed={view === 'cards'}
+                    data-tip="Cards" aria-label="Show trips as cards"
+                    onClick={() => chooseView('cards')}>
+                    <LayoutGrid size={15} />
+                  </button>
+                  <button type="button" className="viewswap-b" aria-pressed={view === 'list'}
+                    data-tip="List" aria-label="Show trips as a list"
+                    onClick={() => chooseView('list')}>
+                    <Rows3 size={15} />
+                  </button>
+                </div>
+              ) : null}
+              <button className="btn primary" onClick={openNew}>
+                <Plus size={16} /> New trip
+              </button>
+            </div>
           </div>
 
           <div className="trips-plan">
@@ -133,20 +180,42 @@ export default function TripsHome() {
               </p>
             </div>
           ) : (
-            <div className="tripgrid">
+            <div className={view === 'list' ? 'triplist' : 'tripgrid'}>
               {ordered.map((t) => {
                 const status = tripStatus(t);
                 const from = sharedBy[t.id];
+                const shared = from ? (
+                  <span className="sharedpill" data-tip={`${from} owns this trip`}>
+                    <UserRound size={11} aria-hidden="true" />
+                    Shared by {from}
+                  </span>
+                ) : null;
+
+                /* One row per trip: the same facts, in a line, with the name
+                   holding the left edge so the eye has a column to follow. */
+                if (view === 'list') {
+                  return (
+                    <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="triprow">
+                      <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
+                      <span className="triprow-name">{t.name}</span>
+                      {shared}
+                      <span className="triprow-meta">
+                        <span><CalendarDays size={13} /> {fmtRange(t.start_date, t.end_date)}</span>
+                        {t.destination ? <span><MapPin size={13} /> {t.destination}</span> : null}
+                        {t.budget != null ? (
+                          <span><Wallet size={13} /> {money(t.budget, t.currency)}</span>
+                        ) : null}
+                      </span>
+                      <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
+                    </Link>
+                  );
+                }
+
                 return (
                   <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="tripcard">
                     <div className="tripcard-top">
                       <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
-                      {from ? (
-                        <span className="sharedpill" data-tip={`${from} owns this trip`}>
-                          <UserRound size={11} aria-hidden="true" />
-                          Shared by {from}
-                        </span>
-                      ) : null}
+                      {shared}
                       <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </div>
                     <h3 className="tripcard-name">{t.name}</h3>

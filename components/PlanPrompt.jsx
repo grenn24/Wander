@@ -172,8 +172,8 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
         </button>
         <button className="btn primary planbox-go" type="submit"
           disabled={!value.trim() && !shot}
-          data-tip="Plan this trip"
-          aria-label="Plan this trip">
+          data-tip="Plan this trip for me"
+          aria-label="Plan this trip for me">
           <ArrowUp size={17} />
         </button>
       </form>

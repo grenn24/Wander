@@ -768,6 +768,59 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* Whose trip this is, said beside what state it is in — the arrow keeps the
    far edge, so the pills sit together rather than at opposite ends. */
 .tripcard-top .tripcard-go { margin-left: auto; }
+/* The heading's right-hand side: a choice of view, then the one action. */
+.page-head-acts { display: flex; align-items: center; gap: 8px; flex: none; }
+.viewswap {
+  display: inline-flex; padding: 2px; gap: 2px; border-radius: 11px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.viewswap-b {
+  display: grid; place-items: center; width: 30px; height: 26px;
+  border: none; border-radius: 8px; background: transparent; cursor: pointer;
+  color: var(--text-3); transition: color .14s var(--ease), background .14s var(--ease);
+}
+.viewswap-b:hover { color: var(--text-1); }
+.viewswap-b[aria-pressed="true"] {
+  background: var(--surface-1); color: var(--text-1);
+  box-shadow: inset 0 1px 0 var(--glass-edge), 0 1px 2px rgb(0 0 0 / .18);
+}
+
+/* One trip per line, name first, so the eye has a column to run down. */
+.triplist { display: flex; flex-direction: column; gap: 6px; }
+.triprow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px; border-radius: var(--radius);
+  background: var(--surface-1); border: 1px solid var(--border);
+  color: inherit; text-decoration: none;
+}
+.triprow:hover { border-color: var(--border-strong); }
+.triprow:hover .tripcard-go { transform: translateX(2px); color: var(--text-1); }
+.triprow .statuspill { flex: none; }
+.triprow-name {
+  font-weight: 600; font-size: 15px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.triprow-meta {
+  display: flex; align-items: center; gap: 14px; margin-left: auto;
+  font-size: 13px; color: var(--text-2); white-space: nowrap;
+}
+.triprow-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.triprow .tripcard-go { flex: none; }
+
+/* Narrow enough and a row is a card again: the meta drops under the name
+   rather than being squeezed off the end of the line. */
+@media (max-width: 720px) {
+  .triprow { flex-wrap: wrap; row-gap: 6px; }
+  /* The name and the way in share the top line; the labels and the dates
+     settle underneath, rather than the arrow being stranded on a line of its
+     own or the pills landing in a different place on every row. The empty
+     pseudo-element is the line break: flex has no other way to insist on one. */
+  .triprow-name { flex: 1 1 auto; order: -2; }
+  .triprow .tripcard-go { order: -1; margin-left: auto; }
+  .triprow::after { content: ''; order: -1; flex: 1 0 100%; height: 0; }
+  .triprow-meta { margin-left: 0; gap: 10px; flex-wrap: wrap; white-space: normal; }
+}
+
 .sharedpill {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0;
   font-size: 11px; font-weight: 650; padding: 2px 9px; border-radius: 999px;
@@ -1977,8 +2030,9 @@ body:has(.lp)::before { display: none; }
   letter-spacing: .01em; color: #fff; white-space: nowrap;
 }
 
-/* Transport and lodging are the skeleton of a day — give them an edge. */
-.act.is-anchor { border-left: 3px solid var(--cat-3); }
+/* Where you sleep is what a day hangs off, so it gets an edge — in its own
+   colour, not the one transport used to bring with it. */
+.act.is-anchor { border-left: 3px solid var(--cat-4); }
 .act.is-anchor .act-title { letter-spacing: -.005em; }
 
 /* Free time between two stops, drawn on the spine. */
