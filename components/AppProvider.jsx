@@ -55,6 +55,16 @@ export default function AppProvider({ children }) {
   const [fatal, setFatal] = useState('');
   const [fatalKind, setFatalKind] = useState('session'); // config | session
   const [toasts, setToasts] = useState([]);
+  /*
+   * The Google hand-off, which takes a moment and which the calendar panel
+   * needs to know about.
+   *
+   * Coming back from consent is a full page load: the panel mounts and asks
+   * whether a calendar is connected at the same instant the token is being
+   * posted to the server. The panel used to win that race and report no —
+   * correctly, at that instant, and wrongly by the time anyone read it.
+   */
+  const [calendar, setCalendar] = useState({ at: 0, saving: false, error: '' });
 
   /* ----------------------------------------------------------- toasts --- */
   const dismissToast = useCallback((id) => {
@@ -99,13 +109,25 @@ export default function AppProvider({ children }) {
        */
       if (s && s.provider_refresh_token && !kept.current) {
         kept.current = true;
+        setCalendar({ at: 0, saving: true, error: '' });
         keepCalendar(client, {
           refresh_token: s.provider_refresh_token,
           access_token: s.provider_token || '',
           expires_in: 3600,
           scope: 'https://www.googleapis.com/auth/calendar.readonly'
             + ' https://www.googleapis.com/auth/calendar.events',
-        }).catch(() => { kept.current = false; });
+        })
+          .then(() => setCalendar({ at: Date.now(), saving: false, error: '' }))
+          .catch((e) => {
+            kept.current = false;
+            /*
+             * Not silent any more. This also runs on an ordinary Google
+             * sign-in, where nobody asked for a calendar and the failure is
+             * none of their business — but the panel is the only thing that
+             * reads this, and it is only on screen when somebody did ask.
+             */
+            setCalendar({ at: 0, saving: false, error: (e && e.message) || 'That did not save.' });
+          });
       }
     };
 
@@ -249,11 +271,11 @@ export default function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     supabase, user, session, phase, displayName, saveDisplayName,
-    signIn, signUp, signInWithGoogle, connectCalendar, sendReset, signOut,
+    signIn, signUp, signInWithGoogle, connectCalendar, calendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   }), [
     supabase, user, session, phase, displayName, saveDisplayName,
-    signIn, signUp, signInWithGoogle, connectCalendar, sendReset, signOut,
+    signIn, signUp, signInWithGoogle, connectCalendar, calendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   ]);
 

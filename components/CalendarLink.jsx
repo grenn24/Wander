@@ -1,6 +1,5 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import {
   CalendarClock, Loader2, Check, Link2Off, TriangleAlert,
 } from 'lucide-react';
@@ -20,7 +19,7 @@ import { calendarStatus, dropCalendar, pushTrip } from '@/lib/gcal';
  * guess what the other has done.
  */
 export default function CalendarLink({ mode = 'account', trip = null }) {
-  const { supabase, connectCalendar, pushToast, fail } = useApp();
+  const { supabase, connectCalendar, calendar, pushToast, fail } = useApp();
   const [state, setState] = useState(null); // null while unknown
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -34,7 +33,15 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
     }
   }, [supabase]);
 
-  useEffect(() => { look(); }, [look]);
+  /*
+   * Asked again the moment the hand-off finishes.
+   *
+   * On the way back from Google both of these start at once: this panel asks
+   * whether a calendar is connected, and the app posts the token that makes it
+   * so. `calendar.at` changes when the second one lands, which is the cue to
+   * stop believing the answer to the first.
+   */
+  useEffect(() => { look(); }, [look, calendar.at]);
 
   async function connect() {
     setErr(''); setBusy('connect');
@@ -78,8 +85,11 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
     } finally { setBusy(''); }
   }
 
-  const problem = err ? (
-    <p className="err" style={{ marginTop: 12 }}><TriangleAlert size={14} /> {err}</p>
+  /* The panel's own failure, or the one that happened on the way back from
+     Google before this panel existed to see it. */
+  const said = err || (mode === 'account' ? calendar.error : '');
+  const problem = said ? (
+    <p className="err" style={{ marginTop: 12 }}><TriangleAlert size={14} /> {said}</p>
   ) : null;
 
   /* ------------------------------------------------------------- a trip --- */
@@ -108,7 +118,9 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
     <section className="card tset">
       <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Google Calendar</h3>
 
-      {state === null ? (
+      {calendar.saving ? (
+        <p className="tset-hint"><Loader2 size={13} className="spin" /> Finishing the connection…</p>
+      ) : state === null ? (
         <p className="tset-hint"><Loader2 size={13} className="spin" /> Checking…</p>
       ) : !state.available ? (
         <p className="tset-hint">Not set up on this deployment.</p>
@@ -141,14 +153,5 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
 
       {problem}
     </section>
-  );
-}
-
-/** Where to send someone who needs to connect first. */
-export function CalendarElsewhere() {
-  return (
-    <p className="tiny dim">
-      Connect a calendar in <Link href="/account">your account</Link>.
-    </p>
   );
 }
