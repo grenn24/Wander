@@ -82,6 +82,21 @@ const EXAMPLES = [
 ];
 
 /** Nudge a HH:MM by some minutes, staying inside the day. */
+/**
+ * The keys that were actually set, out of a shape that always carries all.
+ *
+ * Strict schemas require every property, so a request to set one gate arrives
+ * with eleven nulls beside it. Writing those through would blank fields nobody
+ * asked about.
+ */
+function onlySet(details) {
+  if (!details || typeof details !== 'object') return {};
+  return Object.entries(details).reduce((o, [k, v]) => {
+    const val = String(v == null ? '' : v).trim();
+    return val ? { ...o, [k]: val } : o;
+  }, {});
+}
+
 function shiftTime(t, minutes) {
   if (!t) return null;
   const [h, m] = String(t).split(':').map(Number);
@@ -143,6 +158,8 @@ function expand(op, activities) {
         start_time: it.start_time || null,
         end_time: it.end_time || null,
         cost: it.cost == null ? null : it.cost,
+        subtype: it.subtype || null,
+        details: it.details || null,
       };
     }).filter(Boolean);
   }
@@ -521,6 +538,8 @@ function CommandBar({ onClose }) {
             start_time: op.start_time,
             end_time: op.end_time,
             category: op.category || 'sightseeing',
+            subtype: op.category === 'transport' ? op.subtype || null : null,
+            details: op.category === 'transport' ? onlySet(op.details) : {},
             location: op.location || '',
             cost: op.cost || 0,
             notes: op.notes || '',
@@ -551,6 +570,15 @@ function CommandBar({ onClose }) {
             if (op.start_time !== null) patch.start_time = op.start_time;
             if (op.end_time !== null) patch.end_time = op.end_time;
             if (op.category != null) patch.category = op.category;
+            if (op.subtype != null) patch.subtype = op.subtype;
+            /*
+             * Merged, not replaced. Setting the gate on a flight should not
+             * wipe the seat number somebody typed last week, and the model is
+             * only ever told to send what it means to change.
+             */
+            if (op.details) {
+              patch.details = { ...(target.details || {}), ...onlySet(op.details) };
+            }
             if (op.location != null) patch.location = op.location;
             if (op.cost != null) patch.cost = op.cost;
             if (op.notes != null) patch.notes = op.notes;

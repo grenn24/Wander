@@ -2,6 +2,24 @@ import {
   aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
+import { TRANSPORT } from '@/lib/transport';
+
+/*
+ * The kinds of journey and the fields each one has, from the app's own table.
+ *
+ * Absent from this schema until now, which is why "change these to flights"
+ * came back as four notes saying so: with no subtype field to set, appending a
+ * line about it was the only move the shape allowed. A model asked to do
+ * something it has no field for will always do the nearest thing it can.
+ */
+const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
+const DETAIL_KEYS = [...new Set(TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)))];
+const DETAILS = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  required: DETAIL_KEYS,
+  properties: DETAIL_KEYS.reduce((o, k) => ({ ...o, [k]: { type: ['string', 'null'] } }), {}),
+};
 
 export const runtime = 'nodejs';
 /*
@@ -35,7 +53,7 @@ const OP = {
   additionalProperties: false,
   required: [
     'kind', 'describe', 'activity_id', 'day', 'title', 'start_time', 'end_time',
-    'category', 'location', 'cost', 'notes',
+    'category', 'subtype', 'details', 'location', 'cost', 'notes',
     'trip_name', 'destination', 'start_date', 'end_date', 'currency', 'budget',
     'minutes', 'to_day', 'items',
   ],
@@ -48,6 +66,13 @@ const OP = {
     start_time: { type: ['string', 'null'], description: '24h HH:MM' },
     end_time: { type: ['string', 'null'] },
     category: { type: ['string', 'null'], enum: [...AI_CATEGORIES, null] },
+    subtype: {
+      type: ['string', 'null'],
+      enum: [...TRANSPORT_IDS, null],
+      description: 'Transport only: which kind of journey it is. A taxi, a Grab or an '
+        + 'airport pick-up is "transfer". Null to leave it as it is.',
+    },
+    details: DETAILS,
     location: { type: ['string', 'null'], description: 'Real, searchable place name' },
     cost: { type: ['number', 'null'] },
     notes: { type: ['string', 'null'] },
@@ -68,9 +93,17 @@ const OP = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['activity_id', 'note_add', 'start_time', 'end_time', 'cost'],
+        required: [
+          'activity_id', 'note_add', 'start_time', 'end_time', 'cost', 'subtype', 'details',
+        ],
         properties: {
           activity_id: { type: 'string', description: 'Exactly as given in the trip listing' },
+          subtype: {
+            type: ['string', 'null'],
+            enum: [...TRANSPORT_IDS, null],
+            description: 'Transport only. Null to leave it alone.',
+          },
+          details: DETAILS,
           note_add: {
             type: ['string', 'null'],
             description: 'One short line to append to the existing notes. Never a rewrite.',
@@ -83,6 +116,25 @@ const OP = {
     },
   },
 };
+
+/*
+ * The sanitiser below names every field it will pass on, which is the right
+ * shape for a route that hands work to a model — but it means a new field has
+ * to be added in four places before it does anything, and forgetting the
+ * fourth looks exactly like the model ignoring the request.
+ */
+function cleanSub(v) {
+  return TRANSPORT_IDS.includes(v) ? v : null;
+}
+
+function cleanDetails(v) {
+  if (!v || typeof v !== 'object') return null;
+  const out = Object.entries(v).reduce((o, [k, val]) => {
+    const t = String(val == null ? '' : val).trim().slice(0, 120);
+    return DETAIL_KEYS.includes(k) && t ? { ...o, [k]: t } : o;
+  }, {});
+  return Object.keys(out).length ? out : null;
+}
 
 /**
  * A question worth interrupting for, asked so it can be answered in a tap.
@@ -182,6 +234,14 @@ Rules:
   "Delete Tokyo Skytree from Day 1", not "Delete an activity".
 - Only use update_trip for trip-level fields: name, destination, dates,
   currency, budget.
+- Transport activities have a kind and their own fields. Setting them is a real
+  edit, not a note: "make these flights" is subtype "flight" on each, and the
+  flight number goes in details.code, the airports in details.from and
+  details.to, the terminal in details.from_terminal, the gate in details.gate.
+  Never write a note describing a change you could have made.
+- details only takes the keys that kind of journey has — a bus has no gate, a
+  flight has no pier. Leave the others null, and send details null when there
+  is nothing to set.
 - Lengthening or shortening the trip is an update_trip on the dates. If that
   would leave activities outside the range, move them too.
 - Times are 24-hour HH:MM. Costs are plain numbers in the trip currency.
@@ -339,6 +399,8 @@ export async function POST(req) {
         start_time: cleanTime(o.start_time),
         end_time: cleanTime(o.end_time),
         category: o.category == null ? null : cleanCategory(o.category),
+        subtype: cleanSub(o.subtype),
+        details: cleanDetails(o.details),
         location: o.location == null ? null : String(o.location).slice(0, 300),
         cost: o.cost == null ? null : Math.max(0, Number(o.cost) || 0),
         notes: o.notes == null ? null : String(o.notes).slice(0, 1000),
@@ -359,6 +421,8 @@ export async function POST(req) {
             start_time: cleanTime(it.start_time),
             end_time: cleanTime(it.end_time),
             cost: it.cost == null ? null : Math.max(0, Number(it.cost) || 0),
+            subtype: cleanSub(it.subtype),
+            details: cleanDetails(it.details),
           } : null
         )).filter(Boolean) : null,
       };
