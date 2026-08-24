@@ -184,7 +184,7 @@ export default function TripTabPage({ params }) {
           <People members={members} online={online} user={user} isOwner={isOwner}
             shareUrl={shareUrl} onRemove={removeMember}
             onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
-          <CalendarLink trip={trip} />
+          <CalendarLink mode="trip" trip={trip} />
         </>
       ) : null}
 

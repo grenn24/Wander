@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Plane, Sun, Moon, SunMoon, ChevronDown, LogOut, House } from 'lucide-react';
+import {
+  Plane, Sun, Moon, SunMoon, ChevronDown, LogOut, House, UserRound,
+} from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
 import Popover from '@/components/Popover';
 import Presence from '@/components/Presence';
@@ -100,6 +102,13 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
           })}
 
           {menu.length ? <div className="menu-rule" /> : null}
+
+          {/* Things about the person rather than the trip: the calendar
+              connection today, and whatever else turns out to belong to an
+              account rather than a plan. */}
+          <Link href="/account" role="menuitem" onClick={() => setOpen(false)}>
+            <UserRound size={15} /> Account
+          </Link>
 
           {/* The front of the site, which is otherwise unreachable once you
               are inside: every route out of here goes further in, and the
