@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound, LayoutGrid, Rows3,
+  MoreHorizontal, Pencil, Copy, Trash2,
 } from 'lucide-react';
+import Popover from '@/components/Popover';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
@@ -31,6 +33,17 @@ export default function TripsHome() {
   const router = useRouter();
   const [trips, setTrips] = useState([]);
   const [view, setView] = useState('cards'); // cards | list
+  /*
+   * The row menu: which trip it belongs to, and what it hangs off.
+   *
+   * Reaching a trip's own settings meant opening the trip first, which is a
+   * long way round for "rename this" or "I made this by mistake". One menu for
+   * the whole list rather than one per card — twenty popovers to move a name
+   * is twenty things mounted for one of them to be used.
+   */
+  const [menuFor, setMenuFor] = useState(null);
+  const [menuEl, setMenuEl] = useState(null);
+  const [confirmKill, setConfirmKill] = useState(null);
   // trip id -> who owns it, for the ones somebody else does.
   const [sharedBy, setSharedBy] = useState({});
   const [loading, setLoading] = useState(true);
@@ -89,6 +102,51 @@ export default function TripsHome() {
     out.current.sort((a, b) => (a.start_date < b.start_date ? -1 : 1));
     return out;
   }, [trips]);
+
+  /**
+   * A copy of a trip, with its activities.
+   *
+   * The days move with the dates rather than being kept: a copy of last
+   * March's trip is almost always next March's, and dates that have already
+   * happened are the first thing anyone would have to change.
+   */
+  async function duplicate(t) {
+    if (!supabase || !user) return;
+    setMenuFor(null);
+    const { data: copy, error } = await supabase.from('trips').insert({
+      owner_id: user.id,
+      name: `${t.name} (copy)`,
+      destination: t.destination,
+      start_date: t.start_date,
+      end_date: t.end_date,
+      currency: t.currency,
+      budget: t.budget,
+      notes: t.notes || '',
+    }).select().single();
+    if (error || !copy) { fail(error || new Error('Could not copy that trip.')); return; }
+
+    const { data: acts } = await supabase.from('activities')
+      .select('day, start_time, end_time, title, category, location, cost, notes,'
+        + ' place_id, photo_ref, sort_order, subtype, details')
+      .eq('trip_id', t.id);
+    if (acts && acts.length) {
+      const { error: actErr } = await supabase.from('activities')
+        .insert(acts.map((a) => ({ ...a, trip_id: copy.id })));
+      if (actErr) fail(actErr);
+    }
+    pushToast(`Copied to "${copy.name}".`);
+    await load();
+  }
+
+  async function kill(t) {
+    if (!supabase) return;
+    setConfirmKill(null);
+    setMenuFor(null);
+    const { error } = await supabase.from('trips').delete().eq('id', t.id);
+    if (error) { fail(error); return; }
+    pushToast(`"${t.name}" deleted.`);
+    await load();
+  }
 
   async function saveTrip(d) {
     if (!supabase || !user) return;
@@ -206,6 +264,19 @@ export default function TripsHome() {
                           <span><Wallet size={13} /> {money(t.budget, t.currency)}</span>
                         ) : null}
                       </span>
+                      <button className="tripcard-more" type="button"
+                        data-tip="Edit, copy, delete"
+                        aria-label={`Actions for ${t.name}`}
+                        aria-expanded={menuFor === t.id}
+                        onClick={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          const same = menuFor === t.id;
+                          setMenuEl(e.currentTarget);
+                          setConfirmKill(null);
+                          setMenuFor(same ? null : t.id);
+                        }}>
+                        <MoreHorizontal size={16} />
+                      </button>
                       <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </Link>
                   );
@@ -216,6 +287,19 @@ export default function TripsHome() {
                     <div className="tripcard-top">
                       <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
                       {shared}
+                      <button className="tripcard-more" type="button"
+                        data-tip="Edit, copy, delete"
+                        aria-label={`Actions for ${t.name}`}
+                        aria-expanded={menuFor === t.id}
+                        onClick={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          const same = menuFor === t.id;
+                          setMenuEl(e.currentTarget);
+                          setConfirmKill(null);
+                          setMenuFor(same ? null : t.id);
+                        }}>
+                        <MoreHorizontal size={16} />
+                      </button>
                       <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </div>
                     <h3 className="tripcard-name">{t.name}</h3>
@@ -233,6 +317,58 @@ export default function TripsHome() {
           )}
         </div>
       </main>
+
+      {/* One menu for the list, anchored to whichever button opened it. */}
+      <Popover anchorEl={menuEl} open={!!menuFor} width={196}
+        onClose={() => { setMenuFor(null); setConfirmKill(null); }}>
+        <div className="act-menu" role="menu">
+          {(() => {
+            const t = trips.find((x) => x.id === menuFor);
+            if (!t) return null;
+            const mine = !!user && t.owner_id === user.id;
+            if (confirmKill === t.id) {
+              return (
+                <>
+                  <p className="menu-who">Delete &ldquo;{t.name}&rdquo;?</p>
+                  <button type="button" role="menuitem" onClick={() => setConfirmKill(null)}>
+                    Keep it
+                  </button>
+                  <button type="button" role="menuitem" className="danger"
+                    onClick={() => kill(t)}>
+                    <Trash2 size={15} /> Yes, delete it
+                  </button>
+                </>
+              );
+            }
+            return (
+              <>
+                <button type="button" role="menuitem"
+                  onClick={() => { setMenuFor(null); setDraft({ ...t }); }}>
+                  <Pencil size={15} /> Edit details
+                </button>
+                <button type="button" role="menuitem" onClick={() => duplicate(t)}>
+                  <Copy size={15} /> Duplicate
+                </button>
+                <Link href={`/trips/${t.id}/settings`} role="menuitem"
+                  onClick={() => setMenuFor(null)}>
+                  <UserRound size={15} /> Sharing &amp; people
+                </Link>
+                {/* Only the owner can, and the database agrees — but offering
+                    it and then failing is worse than not offering it. */}
+                {mine ? (
+                  <>
+                    <div className="menu-rule" />
+                    <button type="button" role="menuitem" className="danger"
+                      onClick={() => setConfirmKill(t.id)}>
+                      <Trash2 size={15} /> Delete trip
+                    </button>
+                  </>
+                ) : null}
+              </>
+            );
+          })()}
+        </div>
+      </Popover>
 
       {draft ? (
         <TripModal draft={draft} onChange={setDraft} onSave={saveTrip} onClose={() => setDraft(null)} />

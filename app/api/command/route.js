@@ -167,6 +167,14 @@ Never emit more than about ten single-activity operations. If a change touches
 more than that, it is a bulk change and one of the kinds above expresses it —
 a long list of update_activity is both slower to write and harder to check.
 
+You may also be given what is already in the traveller's own calendar on
+these dates, under "In their calendar". Those are not part of the trip and you
+cannot change them, but you can be asked to bring one into the trip — "add my
+flight from my calendar", "put the dinner booking in". Do that with an
+add_activity on the day it falls, keeping its title, its time and its place.
+Never add one that is already in the trip, and never invent a calendar entry
+that is not in that list.
+
 Rules:
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
   or improve anything that was not asked about.
@@ -226,6 +234,9 @@ export async function POST(req) {
   const answers = (Array.isArray(body.answers) ? body.answers : [body.answer])
     .filter(Boolean).map((a) => String(a).slice(0, 300)).slice(0, 6);
   const activities = (Array.isArray(body.activities) ? body.activities : []).slice(0, 80);
+  /* What the traveller already has on, sent only when a calendar is connected
+     and only ever for the trip's own dates. */
+  const booked = (Array.isArray(body.calendar) ? body.calendar : []).slice(0, 40);
 
   const listing = activities.map((a) => [
     `id=${a.id}`,
@@ -267,6 +278,16 @@ export async function POST(req) {
     'Activities:',
     listing || '(none yet)',
     '',
+    ...(booked.length ? [
+      'In their calendar (not part of the trip):',
+      ...booked.map((e) => {
+        const day = String(e.start || '').slice(0, 10);
+        const when = e.allDay ? 'all day' : String(e.start || '').slice(11, 16);
+        const where = e.where ? ` @ ${String(e.where).slice(0, 80)}` : '';
+        return `- ${day} ${when} ${String(e.title || 'Busy').slice(0, 80)}${where}`;
+      }),
+      '',
+    ] : []),
     `Instruction: "${instruction}"`,
     ...(answers.length
       ? ['They then answered your questions, in order:', ...answers.map((a) => `- ${a}`)]

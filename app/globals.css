@@ -765,9 +765,25 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .tripcard:hover { border-color: var(--accent); transform: translateY(-2px); }
 .tripcard:hover .tripcard-go { color: var(--accent); transform: translateX(2px); }
 .tripcard-top { display: flex; align-items: center; gap: 6px; }
-/* Whose trip this is, said beside what state it is in — the arrow keeps the
-   far edge, so the pills sit together rather than at opposite ends. */
-.tripcard-top .tripcard-go { margin-left: auto; }
+/* Whose trip this is, said beside what state it is in — the actions and the
+   arrow keep the far edge, so the pills sit together rather than at opposite
+   ends. */
+.tripcard-top .tripcard-more { margin-left: auto; }
+/* Quiet until the card is under the pointer: a menu button on every card is a
+   row of dots competing with the names. */
+.tripcard-more {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px;
+  border-radius: 8px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-3); opacity: 0;
+  transition: opacity .14s var(--ease), background .14s var(--ease), color .14s var(--ease);
+}
+.tripcard:hover .tripcard-more,
+.triprow:hover .tripcard-more,
+.tripcard-more:focus-visible,
+.tripcard-more[aria-expanded="true"] { opacity: 1; }
+.tripcard-more:hover { background: var(--surface-2); color: var(--text-1); }
+/* No hover on a touch screen, so they are simply always there. */
+@media (hover: none) { .tripcard-more { opacity: 1; } }
 /* The heading's right-hand side: a choice of view, then the one action. */
 .page-head-acts { display: flex; align-items: center; gap: 8px; flex: none; }
 .viewswap {
@@ -2066,6 +2082,15 @@ body:has(.lp)::before { display: none; }
 .daybusy-list { display: flex; flex-wrap: wrap; gap: 3px 14px; min-width: 0; }
 .daybusy-one { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daybusy-one b { color: var(--text-1); font-weight: 600; margin-right: 2px; }
+.daybusy-add {
+  display: inline-grid; place-items: center; width: 17px; height: 17px;
+  margin-left: 5px; vertical-align: -3px; border-radius: 5px; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--text-3);
+  transition: color .13s var(--ease), background .13s var(--ease);
+}
+.daybusy-add:hover {
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
 @media (min-width: 641px) { .daybusy { margin-left: 70px; } }
 
 /* Free time between two stops, drawn on the spine. */

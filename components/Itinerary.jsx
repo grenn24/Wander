@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
-  CalendarClock,
+  CalendarClock, Plus,
 } from 'lucide-react';
 import AiSuggest from '@/components/AiSuggest';
 import QuickAdd from '@/components/QuickAdd';
@@ -388,6 +388,23 @@ export default function Itinerary({
                         {e.allDay ? 'All day' : fmtTime(String(e.start).slice(11, 16))}
                       </b>
                       {' '}{e.title}
+                      {/*
+                        * Some of what is in your calendar on these dates is
+                        * the trip — the flight, the hotel, the table you
+                        * booked weeks ago. One press moves it across rather
+                        * than making you retype what you are looking at.
+                        */}
+                      <button className="daybusy-add" type="button"
+                        data-tip="Add to the trip" aria-label={`Add ${e.title} to the trip`}
+                        onClick={() => onAddMany([{
+                          day: d,
+                          title: e.title,
+                          start_time: e.allDay ? null : String(e.start).slice(11, 16),
+                          category: 'other',
+                          location: e.where || '',
+                        }])}>
+                        <Plus size={12} />
+                      </button>
                     </span>
                   ))}
                   {(commitments[d] || []).length > 4 ? (

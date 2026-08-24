@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
+import useCommitments from '@/lib/useCommitments';
 import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
@@ -228,7 +229,7 @@ export function CommandProvider({ children }) {
 function CommandBar({ onClose }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { pushToast, fail } = useApp();
+  const { supabase, pushToast, fail } = useApp();
   const {
     tripId, trip, activities, requestFocus, request,
     addActivities, addPacking, saveActivity, moveActivity, deleteActivity, updateTrip,
@@ -288,6 +289,15 @@ function CommandBar({ onClose }) {
    */
   const [shots, setShots] = useState([]);
   const fileRef = useRef(null);
+
+  /*
+   * What is already in the traveller's own calendar on these dates.
+   *
+   * Sent with the instruction so that "add my flight from my calendar" has
+   * something to refer to. Without it the model was being asked about a
+   * calendar it had never been shown, and could only say no or make one up.
+   */
+  const booked = useCommitments(supabase, trip);
 
   async function take(files) {
     const picked = pickImages(files);
@@ -424,6 +434,8 @@ function CommandBar({ onClose }) {
             currency: trip.currency,
             budget: trip.budget,
           },
+          // Flattened out of the day-keyed shape the itinerary wants.
+          calendar: Object.values(booked).flat().slice(0, 40),
           activities: activities.map((a) => ({
             id: a.id,
             day: a.day,
