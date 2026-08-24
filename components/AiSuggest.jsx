@@ -9,7 +9,11 @@ import { categoryIcon } from '@/lib/icons';
  * written until the traveller picks — a planner that silently inserts things
  * you did not choose is worse than no planner.
  */
-export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', onAdd, onClose }) {
+export default function AiSuggest({
+  // Not `busy` and not `taken`: this component already has both, meaning
+  // "working" and "already added" respectively.
+  trip, day, dayLabel, existing, seed = '', commitments = [], onAdd, onClose,
+}) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [ideas, setIdeas] = useState([]);
@@ -30,6 +34,14 @@ export default function AiSuggest({ trip, day, dayLabel, existing, seed = '', on
           currency: trip.currency,
           dayLabel,
           note: extra || '',
+          /* What the day already owes to something other than this trip. Sent
+             as times and titles so the planner can leave room for them. */
+          busy: commitments.map((e) => ({
+            title: e.title,
+            start: e.start,
+            end: e.end,
+            allDay: e.allDay,
+          })),
           existing: existing.map((a) => ({
             title: a.title, start_time: a.start_time, location: a.location,
           })),

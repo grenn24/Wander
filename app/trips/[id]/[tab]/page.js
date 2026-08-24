@@ -12,6 +12,7 @@ import Budget from '@/components/Budget';
 import Packing from '@/components/Packing';
 import Notes from '@/components/Notes';
 import People from '@/components/People';
+import CalendarLink from '@/components/CalendarLink';
 import ActivityModal from '@/components/ActivityModal';
 import TripModal from '@/components/TripModal';
 import { todayISO } from '@/lib/util';
@@ -179,9 +180,12 @@ export default function TripTabPage({ params }) {
       ) : null}
 
       {tab === 'settings' ? (
-        <People members={members} online={online} user={user} isOwner={isOwner}
-          shareUrl={shareUrl} onRemove={removeMember}
-          onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
+        <>
+          <People members={members} online={online} user={user} isOwner={isOwner}
+            shareUrl={shareUrl} onRemove={removeMember}
+            onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
+          <CalendarLink trip={trip} />
+        </>
       ) : null}
 
       {editing ? (

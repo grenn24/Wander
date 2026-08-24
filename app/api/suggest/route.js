@@ -29,6 +29,8 @@ const SCHEMA = {
   },
 };
 
+const NEWLINE = '\n';
+
 const SYSTEM = `You fill in one day of an existing travel itinerary.
 
 Rules:
@@ -39,7 +41,11 @@ Rules:
 - "location" must be a real place name a map search would find, or blank.
 - Times in 24-hour HH:MM, and only where the timing genuinely matters. Do not
   collide with the times already taken.
-- Costs are per person in the trip currency, 0 when free.`;
+- Costs are per person in the trip currency, 0 when free.
+- Some of the day may already be spoken for by things outside this trip —
+  meetings, calls, a flight somebody else booked. Plan around them: do not put
+  anything in those hours, and if the free stretch is short, suggest less
+  rather than suggesting something that will not fit.`;
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
@@ -59,6 +65,12 @@ export async function POST(req) {
     .map((a) => `- ${a.start_time ? `${a.start_time} ` : ''}${a.title}${a.location ? ` (${a.location})` : ''}`)
     .join('\n');
   const note = String(body.note || '').slice(0, 500);
+  const busy = (Array.isArray(body.busy) ? body.busy : []).slice(0, 20).map((e) => {
+    const when = e && e.allDay
+      ? 'all day'
+      : `${String(e && e.start || '').slice(11, 16)}-${String(e && e.end || '').slice(11, 16)}`;
+    return `${when} ${String((e && e.title) || 'Busy').slice(0, 80)}`;
+  }).join(NEWLINE);
 
   try {
     const out = await askJson({
@@ -70,6 +82,7 @@ export async function POST(req) {
         + `Currency: ${currency}\n`
         + `Day: ${dayLabel}\n`
         + `Already planned that day:\n${existing || '(nothing yet)'}\n`
+        + (busy ? `\nAlready committed elsewhere that day:\n${busy}\n` : '')
         + (note ? `\nThe traveller asks: ${note}` : ''),
       maxTokens: 8000,
     });

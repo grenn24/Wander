@@ -82,6 +82,29 @@ alter table public.activities add column if not exists subtype text;
 alter table public.activities add column if not exists details  jsonb not null default '{}'::jsonb;
 alter table public.trips      add column if not exists cover_ref text;
 
+-- The event this activity became in someone's Google Calendar, so a second
+-- sync updates what it wrote the first time instead of adding it all again.
+alter table public.activities add column if not exists google_event_id text;
+
+-- ------------------------------------------------------- google calendar ---
+-- A long-lived key to somebody's calendar, which is not the same kind of thing
+-- as a trip and is not stored like one.
+--
+-- Row level security is enabled and there are deliberately NO policies: with
+-- RLS on and nothing granted, a user's own JWT can neither read nor write this
+-- table, and neither can anyone else's. Only the service role reaches it, from
+-- route handlers on the server. The browser hands the refresh token over once,
+-- at the moment Google issues it, and never sees it again.
+create table if not exists public.google_tokens (
+  user_id       uuid primary key references auth.users(id) on delete cascade,
+  refresh_token text not null,
+  access_token  text,
+  expires_at    timestamptz,
+  scope         text not null default '',
+  updated_at    timestamptz not null default now()
+);
+alter table public.google_tokens enable row level security;
+
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);
 create index if not exists packing_trip_idx        on public.packing_items (trip_id);
 create index if not exists members_user_idx        on public.trip_members (user_id);

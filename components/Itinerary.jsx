@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
+  CalendarClock,
 } from 'lucide-react';
 import AiSuggest from '@/components/AiSuggest';
 import QuickAdd from '@/components/QuickAdd';
@@ -15,6 +16,8 @@ import {
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
 import { nowMinutes, readDay } from '@/lib/day';
+import useCommitments from '@/lib/useCommitments';
+import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 
 /** Structural stops anchor a day; everything else sits between them. */
@@ -37,6 +40,14 @@ export default function Itinerary({
 }) {
   const today = todayISO();
   const todayIndex = days.indexOf(today);
+  /*
+   * Whatever is already in your own calendar on these dates. Shown at the head
+   * of the day rather than mixed into the plan: it is not part of the trip and
+   * nothing here can move it — it is the shape of the day you have to fit the
+   * trip around.
+   */
+  const { supabase } = useApp();
+  const commitments = useCommitments(supabase, trip);
   const params = useSearchParams();
   const pathname = usePathname();
   // Two ways in: the search bar asks through the trip, and a link from outside
@@ -360,6 +371,34 @@ export default function Itinerary({
               </span>
             </div>
 
+            {/*
+              * Things this trip does not own.
+              *
+              * Under the day's heading and above its plan, in the app's quiet
+              * register, because they are neither activities nor editable —
+              * they are the shape of the day that the trip has to fit around.
+              */}
+            {(commitments[d] || []).length ? (
+              <div className="daybusy">
+                <CalendarClock size={13} aria-hidden="true" />
+                <span className="daybusy-list">
+                  {(commitments[d] || []).slice(0, 4).map((e) => (
+                    <span className="daybusy-one" key={e.id}>
+                      <b className="mono">
+                        {e.allDay ? 'All day' : fmtTime(String(e.start).slice(11, 16))}
+                      </b>
+                      {' '}{e.title}
+                    </span>
+                  ))}
+                  {(commitments[d] || []).length > 4 ? (
+                    <span className="daybusy-one dim">
+                      +{(commitments[d] || []).length - 4} more
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+            ) : null}
+
             <div className="acts">
               {list.map((a, k) => {
                 const cat = categoryOf(a.category);
@@ -451,6 +490,7 @@ export default function Itinerary({
             {suggestFor === d ? (
               <AiSuggest trip={trip} day={d} dayLabel={`Day ${i + 1}, ${fmtDay(d)}`}
                 seed={suggestSeed}
+                commitments={commitments[d] || []}
                 existing={list} onAdd={onAddMany} onClose={() => setSuggestFor(null)} />
             ) : null}
           </section>

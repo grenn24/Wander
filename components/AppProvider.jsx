@@ -8,6 +8,7 @@ import { getClient, readConfig, missingEnv, configWarning } from '@/lib/supabase
 import { humanError } from '@/lib/util';
 import Toasts from '@/components/Toasts';
 import ConfigError from '@/components/ConfigError';
+import { keepCalendar } from '@/lib/gcal';
 import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
 
@@ -77,12 +78,35 @@ export default function AppProvider({ children }) {
 
     let sub;
     let alive = true;
+    // Once per arrival, not once per token refresh.
+    const kept = { current: false };
 
     const settle = (s) => {
       if (!alive) return;
       setSession(s);
       setDisplayName(nameOf(s));
       setPhase(s ? 'ready' : 'signedout');
+
+      /*
+       * Google's tokens exist in this tab for exactly one moment.
+       *
+       * Supabase puts `provider_token` and `provider_refresh_token` on the
+       * session as the OAuth redirect lands and does not keep them — a
+       * refresh a few minutes later has neither. So the instant one appears
+       * it goes to the server, which is the only place it can usefully live.
+       * Failures are quiet on purpose: this fires on every ordinary sign-in
+       * too, and someone who only wanted to log in has nothing to fix.
+       */
+      if (s && s.provider_refresh_token && !kept.current) {
+        kept.current = true;
+        keepCalendar(client, {
+          refresh_token: s.provider_refresh_token,
+          access_token: s.provider_token || '',
+          expires_in: 3600,
+          scope: 'https://www.googleapis.com/auth/calendar.readonly'
+            + ' https://www.googleapis.com/auth/calendar.events',
+        }).catch(() => { kept.current = false; });
+      }
     };
 
     (async () => {
@@ -148,6 +172,32 @@ export default function AppProvider({ children }) {
     if (error) throw error;
   }, [supabase]);
 
+  /**
+   * Asking for the calendar, which is a separate question from signing in.
+   *
+   * Kept apart deliberately: reading somebody's diary is not the price of
+   * entry to a trip planner, and a consent screen listing it at the door would
+   * make it look like one. This runs when they ask for it and not before.
+   *
+   * `access_type=offline` is what makes Google issue a refresh token at all,
+   * and `prompt=consent` is what makes it issue one again for somebody who has
+   * agreed before — without it a reconnection comes back with an hour's access
+   * and no way to renew it.
+   */
+  const connectCalendar = useCallback(async () => {
+    const back = `${window.location.pathname}${window.location.search}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}${back}`,
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly'
+          + ' https://www.googleapis.com/auth/calendar.events',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      },
+    });
+    if (error) throw error;
+  }, [supabase]);
+
   const sendReset = useCallback(async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/trips`,
@@ -168,11 +218,11 @@ export default function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     supabase, user, session, phase, displayName, saveDisplayName,
-    signIn, signUp, signInWithGoogle, sendReset, signOut,
+    signIn, signUp, signInWithGoogle, connectCalendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   }), [
     supabase, user, session, phase, displayName, saveDisplayName,
-    signIn, signUp, signInWithGoogle, sendReset, signOut,
+    signIn, signUp, signInWithGoogle, connectCalendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   ]);
 
