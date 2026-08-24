@@ -2069,30 +2069,6 @@ body:has(.lp)::before { display: none; }
 .act.is-anchor { border-left: 3px solid var(--cat-4); }
 .act.is-anchor .act-title { letter-spacing: -.005em; }
 
-/* Whatever your own calendar already has on this date: not part of the trip,
-   not editable here, and quieter than anything that is. */
-.daybusy {
-  display: flex; align-items: flex-start; gap: 7px;
-  margin: 0 0 8px; padding: 7px 11px; border-radius: 10px;
-  background: color-mix(in srgb, var(--cat-3) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cat-3) 22%, transparent);
-  font-size: 12.5px; color: var(--text-2);
-}
-.daybusy > svg { flex: none; margin-top: 2px; color: var(--cat-3); }
-.daybusy-list { display: flex; flex-wrap: wrap; gap: 3px 14px; min-width: 0; }
-.daybusy-one { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daybusy-one b { color: var(--text-1); font-weight: 600; margin-right: 2px; }
-.daybusy-add {
-  display: inline-grid; place-items: center; width: 17px; height: 17px;
-  margin-left: 5px; vertical-align: -3px; border-radius: 5px; cursor: pointer;
-  border: 1px solid transparent; background: transparent; color: var(--text-3);
-  transition: color .13s var(--ease), background .13s var(--ease);
-}
-.daybusy-add:hover {
-  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-@media (min-width: 641px) { .daybusy { margin-left: 70px; } }
-
 /* Free time between two stops, drawn on the spine. */
 .gap {
   position: relative; margin: 2px 0 2px 26px; padding: 3px 0 3px 20px;

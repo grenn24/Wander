@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
-  CalendarClock, Plus,
 } from 'lucide-react';
 import AiSuggest from '@/components/AiSuggest';
 import QuickAdd from '@/components/QuickAdd';
@@ -31,26 +30,6 @@ import { activityIcon } from '@/lib/icons';
  */
 const ANCHORS = new Set(['lodging']);
 
-/*
- * What kind of thing a calendar entry is.
- *
- * Only ever a guess, and a shallow one — but "Other" for every single import
- * was worse than a guess: it made a hotel booking indistinguishable from a
- * dentist's appointment, and left the planner free to invent a second,
- * vaguer version of the same stay.
- */
-const KINDS = [
-  [/(hotel|hostel|airbnb|ryokan|resort|stay|check[- ]?in|check[- ]?out|inn|lodge)/i, 'lodging'],
-  [/(flight|airport|terminal|train|shinkansen|bus|ferry|transfer|pick[- ]?up|drop[- ]?off)/i, 'transport'],
-  [/(lunch|dinner|breakfast|brunch|restaurant|cafe|café|bar|reservation|omakase|table)/i, 'food'],
-  [/(museum|temple|shrine|gallery|tour|park|garden|zoo|palace|castle)/i, 'sightseeing'],
-];
-
-function guessKind(e) {
-  const hay = `${e.title || ''} ${e.where || ''}`;
-  const hit = KINDS.find(([re]) => re.test(hay));
-  return hit ? hit[1] : 'other';
-}
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
@@ -391,54 +370,6 @@ export default function Itinerary({
                 {dayTotal > 0 ? <span className="mono">{money(dayTotal, trip.currency)}</span> : null}
               </span>
             </div>
-
-            {/*
-              * Things this trip does not own.
-              *
-              * Under the day's heading and above its plan, in the app's quiet
-              * register, because they are neither activities nor editable —
-              * they are the shape of the day that the trip has to fit around.
-              */}
-            {(commitments[d] || []).length ? (
-              <div className="daybusy">
-                <CalendarClock size={13} aria-hidden="true" />
-                <span className="daybusy-list">
-                  {(commitments[d] || []).slice(0, 4).map((e) => (
-                    <span className="daybusy-one" key={e.id}>
-                      <b className="mono">
-                        {e.allDay ? 'All day' : fmtTime(String(e.start).slice(11, 16))}
-                      </b>
-                      {' '}{e.title}
-                      {/*
-                        * Some of what is in your calendar on these dates is
-                        * the trip — the flight, the hotel, the table you
-                        * booked weeks ago. One press moves it across rather
-                        * than making you retype what you are looking at.
-                        */}
-                      <button className="daybusy-add" type="button"
-                        data-tip="Add to the trip" aria-label={`Add ${e.title} to the trip`}
-                        onClick={() => onAddMany([{
-                          day: d,
-                          title: e.title,
-                          start_time: e.allDay ? null : String(e.start).slice(11, 16),
-                          /* A hotel arriving as "Other" is how the same stay
-                             ends up in the trip twice under two names. */
-                          category: guessKind(e),
-                          location: e.where || '',
-                          notes: e.details || '',
-                        }])}>
-                        <Plus size={12} />
-                      </button>
-                    </span>
-                  ))}
-                  {(commitments[d] || []).length > 4 ? (
-                    <span className="daybusy-one dim">
-                      +{(commitments[d] || []).length - 4} more
-                    </span>
-                  ) : null}
-                </span>
-              </div>
-            ) : null}
 
             <div className="acts">
               {list.map((a, k) => {
