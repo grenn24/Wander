@@ -1,5 +1,7 @@
 import { userFromRequest, asUser, notSignedIn } from '@/lib/supabaseServer';
-import { upsertEvent, NeedsReconnect } from '@/lib/googleCal';
+import {
+  upsertEvent, deleteEvent, findTripEvents, stamp, NeedsReconnect,
+} from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -32,7 +34,7 @@ function plusHour(time) {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function eventFor(a, tz) {
+function eventFor(a, tz, tripId) {
   const timed = !!a.start_time;
   const ends = a.end_time && a.end_time > a.start_time ? a.end_time : plusHour(a.start_time);
   return {
@@ -41,7 +43,73 @@ function eventFor(a, tz) {
     description: [a.notes, 'Planned in Wander'].filter(Boolean).join('\n\n').slice(0, 2000),
     start: timed ? at(a.day, a.start_time, tz) : { date: a.day },
     end: timed ? at(a.day, ends, tz) : { date: nextDay(a.day) },
+    // Invisible in the calendar, searchable by us: this is what makes the
+    // events removable again later.
+    extendedProperties: stamp(tripId),
   };
+}
+
+/**
+ * Take this trip back out of the calendar.
+ *
+ * Two sources for what to remove, deliberately. The ids stored on the
+ * activities are the exact answer for everything still in the trip; the search
+ * by mark catches what the trip has since forgotten — an activity deleted here
+ * after it was written there, which would otherwise be left behind for good
+ * with nothing left pointing at it.
+ */
+export async function DELETE(req) {
+  const user = await userFromRequest(req);
+  const db = asUser(req);
+  if (!user || !db) return notSignedIn();
+
+  let body;
+  try {
+    body = await req.json();
+  } catch (e) {
+    return Response.json({ error: 'Malformed request.' }, { status: 400 });
+  }
+  const tripId = String(body.trip_id || '');
+  if (!tripId) return Response.json({ error: 'Which trip?' }, { status: 400 });
+
+  const { data: trip } = await db.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) return Response.json({ error: 'That trip is not yours.' }, { status: 403 });
+
+  const { data: acts } = await db.from('activities')
+    .select('id, google_event_id').eq('trip_id', tripId).not('google_event_id', 'is', null);
+
+  const ids = new Set((acts || []).map((a) => a.google_event_id).filter(Boolean));
+  try {
+    (await findTripEvents(user.id, tripId)).forEach((id) => ids.add(id));
+  } catch (e) {
+    if (e instanceof NeedsReconnect) {
+      return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
+    }
+    // The stored ids are still worth acting on without the search.
+    console.error('[gcal] tag search failed:', e.message);
+  }
+
+  let removed = 0;
+  for (const id of ids) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await deleteEvent(user.id, id);
+      removed += 1;
+    } catch (e) {
+      if (e instanceof NeedsReconnect) {
+        return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
+      }
+      console.error('[gcal] delete failed:', e.message);
+    }
+  }
+
+  /* Cleared whatever happened above: an id that no longer names anything is
+     worse than no id, because the next sync would try to edit a hole. */
+  if ((acts || []).length) {
+    await db.from('activities').update({ google_event_id: null }).eq('trip_id', tripId);
+  }
+
+  return Response.json({ removed });
 }
 
 export async function POST(req) {
@@ -91,7 +159,7 @@ export async function POST(req) {
   for (const a of list) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      const out = await upsertEvent(user.id, eventFor(a, tz), a.google_event_id);
+      const out = await upsertEvent(user.id, eventFor(a, tz, tripId), a.google_event_id);
       if (a.google_event_id) updated += 1; else written += 1;
       if (out && out.id && out.id !== a.google_event_id) {
         // eslint-disable-next-line no-await-in-loop

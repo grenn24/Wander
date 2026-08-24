@@ -1,10 +1,12 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  CalendarClock, Loader2, Check, Link2Off, TriangleAlert,
+  CalendarClock, Loader2, Check, Link2Off, TriangleAlert, CalendarX2,
 } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
-import { calendarStatus, dropCalendar, pushTrip } from '@/lib/gcal';
+import {
+  calendarStatus, dropCalendar, pushTrip, unpushTrip,
+} from '@/lib/gcal';
 
 /**
  * The Google Calendar connection, in two halves that belong in two places.
@@ -18,11 +20,14 @@ import { calendarStatus, dropCalendar, pushTrip } from '@/lib/gcal';
  * `mode` picks which half. Both share the status lookup, so neither has to
  * guess what the other has done.
  */
-export default function CalendarLink({ mode = 'account', trip = null }) {
+export default function CalendarLink({ mode = 'account', trip = null, synced = false }) {
   const { supabase, connectCalendar, calendar, pushToast, fail } = useApp();
   const [state, setState] = useState(null); // null while unknown
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  // Removing events from somebody's real calendar is not an undo away, so it
+  // asks first.
+  const [sure, setSure] = useState(false);
 
   const look = useCallback(async () => {
     if (!supabase) return;
@@ -85,6 +90,21 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
     } finally { setBusy(''); }
   }
 
+  async function unpush() {
+    setErr(''); setBusy('unpush');
+    try {
+      const out = await unpushTrip(supabase, trip.id);
+      setSure(false);
+      pushToast(out.removed
+        ? `${out.removed} event${out.removed === 1 ? '' : 's'} removed from your calendar.`
+        : 'Nothing of this trip was in your calendar.');
+    } catch (e) {
+      if (e.code === 'reconnect') { setErr(e.message); await look(); } else {
+        setErr(e.message || 'Could not remove those events.');
+      }
+    } finally { setBusy(''); }
+  }
+
   /* The panel's own failure, or the one that happened on the way back from
      Google before this panel existed to see it. */
   const said = err || (mode === 'account' ? calendar.error : '');
@@ -101,12 +121,36 @@ export default function CalendarLink({ mode = 'account', trip = null }) {
     return (
       <section className="card tset">
         <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Calendar</h3>
-        <button className="btn primary" type="button" disabled={!!busy} onClick={push}>
-          {busy === 'push' ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
-          {' '}Add this trip to my calendar
-        </button>
+        <div className="chiprow">
+          <button className="btn primary" type="button" disabled={!!busy} onClick={push}>
+            {busy === 'push' ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
+            {' '}Add this trip to my calendar
+          </button>
+
+          {/* Only once there is something there to take out. */}
+          {synced && !sure ? (
+            <button className="btn" type="button" disabled={!!busy}
+              onClick={() => { setErr(''); setSure(true); }}>
+              <CalendarX2 size={15} /> Remove from calendar
+            </button>
+          ) : null}
+          {synced && sure ? (
+            <>
+              <span className="tiny dim">Delete this trip&rsquo;s events?</span>
+              <button className="btn danger" type="button" disabled={!!busy} onClick={unpush}>
+                {busy === 'unpush' ? <Loader2 size={15} className="spin" />
+                  : <CalendarX2 size={15} />}
+                {' '}Delete them
+              </button>
+              <button className="btn ghost" type="button" disabled={!!busy}
+                onClick={() => setSure(false)}>Keep them</button>
+            </>
+          ) : null}
+        </div>
+
         <p className="tiny dim" style={{ margin: '10px 0 0' }}>
-          Times in {zone}. Syncing again updates the same events.
+          Times in {zone}. Syncing again updates the same events rather than adding more,
+          and removing takes out everything this trip put there.
         </p>
         {problem}
       </section>
