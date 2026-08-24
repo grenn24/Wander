@@ -127,32 +127,39 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
     return (
       <section className="card tset">
         <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Calendar</h3>
-        <div className="chiprow">
-          <button className="btn primary" type="button" disabled={!!busy} onClick={push}>
-            {busy === 'push' ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
-            {' '}Add this trip to my calendar
-          </button>
-
-          {/* Only once there is something there to take out. */}
-          {synced && !sure ? (
+        {/*
+          * Asking replaces the row rather than joining it.
+          *
+          * Both actions plus a question and two answers made four controls in
+          * a line, with the loudest of them the one nobody was being asked
+          * about. A confirmation is a moment where there is one question, so
+          * for that moment there is one question — the same shape the rest of
+          * the app uses to ask before it deletes something.
+          */}
+        {sure ? (
+          <div className="chiprow">
             <button className="btn" type="button" disabled={!!busy}
-              onClick={() => { setErr(''); setSure(true); }}>
-              <CalendarX2 size={15} /> Remove from calendar
+              onClick={() => setSure(false)}>Keep them</button>
+            <button className="btn danger-solid" type="button" disabled={!!busy} onClick={unpush}>
+              {busy === 'unpush' ? <Loader2 size={15} className="spin" /> : <CalendarX2 size={15} />}
+              {' '}Yes, remove this trip&rsquo;s events
             </button>
-          ) : null}
-          {synced && sure ? (
-            <>
-              <span className="tiny dim">Delete this trip&rsquo;s events?</span>
-              <button className="btn danger" type="button" disabled={!!busy} onClick={unpush}>
-                {busy === 'unpush' ? <Loader2 size={15} className="spin" />
-                  : <CalendarX2 size={15} />}
-                {' '}Delete them
+          </div>
+        ) : (
+          <div className="chiprow">
+            <button className="btn primary" type="button" disabled={!!busy} onClick={push}>
+              {busy === 'push' ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
+              {' '}Add this trip to my calendar
+            </button>
+            {/* Only once there is something there to take out. */}
+            {synced ? (
+              <button className="btn danger" type="button" disabled={!!busy}
+                onClick={() => { setErr(''); setSure(true); }}>
+                <CalendarX2 size={15} /> Remove from calendar
               </button>
-              <button className="btn ghost" type="button" disabled={!!busy}
-                onClick={() => setSure(false)}>Keep them</button>
-            </>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        )}
 
         <p className="tiny dim" style={{ margin: '10px 0 0' }}>
           Times in {zone}. Syncing again updates the same events rather than adding more,
