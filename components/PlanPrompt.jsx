@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, ArrowUp, Shuffle, ImagePlus, X } from 'lucide-react';
+import { Sparkles, ArrowUp, Shuffle, ImagePlus } from 'lucide-react';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
+import ShotStrip from '@/components/ShotStrip';
 
 /*
  * Where the pictures wait between the two pages.
@@ -182,24 +183,10 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
         </button>
       </form>
 
-      {shots.length ? (
-        <div className="planshots">
-          {shots.map((s, i) => (
-            <div className="planshot" key={`${s.name}-${i}`}>
-              <img src={s.url} alt="" />
-              <span className="planshot-name">{s.name}</span>
-              <button className="planshot-x" type="button" data-tip="Remove"
-                aria-label={`Remove ${s.name}`}
-                onClick={() => {
-                  setShotErr('');
-                  setShots((was) => was.filter((_, at) => at !== i));
-                }}>
-                <X size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <ShotStrip shots={shots} onRemove={(i) => {
+        setShotErr('');
+        setShots((was) => was.filter((_, at) => at !== i));
+      }} />
       {shotErr ? <p className="planshot-err">{shotErr}</p> : null}
 
       <div className="planbox-samples">

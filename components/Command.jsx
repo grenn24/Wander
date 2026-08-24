@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
+import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
@@ -670,21 +671,8 @@ function CommandBar({ onClose }) {
             data-tip="Close  Esc" aria-label="Close" onClick={onClose}><X size={15} /></button>
         </div>
 
-        {shots.length ? (
-          <div className="planshots ck-shots">
-            {shots.map((sh, i) => (
-              <div className="planshot" key={`${sh.name}-${i}`}>
-                <img src={sh.url} alt="" />
-                <span className="planshot-name">{sh.name}</span>
-                <button className="planshot-x" type="button" data-tip="Remove"
-                  aria-label={`Remove ${sh.name}`} disabled={busy}
-                  onClick={() => setShots((was) => was.filter((_, at) => at !== i))}>
-                  <X size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <ShotStrip className="ck-shots" shots={shots} disabled={busy}
+          onRemove={(i) => setShots((was) => was.filter((_, at) => at !== i))} />
 
         {error ? <div className="err ck-err">{error}</div> : null}
 

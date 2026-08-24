@@ -28,6 +28,9 @@ const STEP = 1.6;
  */
 const THUMB = 420;
 
+/** Whatever identifies this picture: a Google reference, or its own data URL. */
+const idOf = (p) => (p && (p.ref || p.url)) || '';
+
 /**
  * How big the full copy needs to be, snapped to three sizes.
  *
@@ -137,6 +140,8 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
     [1, -1].forEach((by) => {
       const at = (index + by + photos.length) % photos.length;
       if (at === index) return;
+      // An attached picture is already here; there is nothing to fetch early.
+      if (photos[at].url) return;
       const img = new Image();
       img.src = `/api/places/photo?ref=${encodeURIComponent(photos[at].ref)}&w=${fullWidth()}`;
     });
@@ -232,7 +237,17 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
 
   if (!mounted) return null;
 
-  const src = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w=${w}`;
+  /*
+   * Two kinds of picture end up in here.
+   *
+   * A place photograph is a Google reference and has to be fetched at a size;
+   * a picture someone attached is already a data URL in this tab's memory and
+   * has no size to ask for. Both are just a src by the time they reach an
+   * <img>, so the difference stops here.
+   */
+  const src = (p, w) => (p && p.url
+    ? p.url
+    : `/api/places/photo?ref=${encodeURIComponent((p && p.ref) || '')}&w=${w}`);
 
   return createPortal((
     <div className={`lightbox${zoomed ? ' is-zoomed' : ''}`}
@@ -275,12 +290,12 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
           */}
         {loaded ? null : <Loader2 size={22} className="spin lb-wait" aria-label="Loading" />}
         <div className="lb-stack">
-          <img className="lb-thumb" key={`t-${shot.ref}`} aria-hidden="true"
-            src={src(shot.ref, THUMB)} alt="" draggable={false}
+          <img className="lb-thumb" key={`t-${idOf(shot)}`} aria-hidden="true"
+            src={src(shot, THUMB)} alt="" draggable={false}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} />
           <img ref={imgRef} className={`lb-full${loaded ? ' is-on' : ''}`}
-            key={shot.ref}
-            src={src(shot.ref, wide)} alt={alt} draggable={false}
+            key={idOf(shot)}
+            src={src(shot, wide)} alt={alt} draggable={false}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
             onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
         </div>

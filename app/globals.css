@@ -1462,30 +1462,34 @@ body::before {
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift),
               0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
-.planshots { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+/* Attached pictures: thumbnails and nothing else. The picture is its own
+   label, so there is no filename to read and the strip stays a glance. */
+.shotstrip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 /* Inside the command bar it sits under the field rather than under a form, so
    it takes the dialog's own gutters. */
 .ck-shots { margin: 0 14px 10px; }
-.planshot {
-  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
-  padding: 5px 10px 5px 5px; border-radius: 12px; max-width: 100%;
-  background: var(--surface-1); border: 1px solid var(--glass-line);
-  box-shadow: inset 0 1px 0 var(--glass-edge);
+.shot { position: relative; flex: none; }
+.shot-open {
+  display: block; padding: 0; width: 58px; height: 58px; cursor: zoom-in;
+  border-radius: 11px; overflow: hidden; background: var(--surface-2);
+  border: 1px solid var(--glass-line);
+  transition: transform .14s var(--spring), border-color .14s var(--ease);
 }
-.planshot img {
-  width: 38px; height: 38px; object-fit: cover; border-radius: 8px; flex: none;
-  background: var(--surface-2);
+.shot-open:hover { transform: translateY(-2px); border-color: var(--accent); }
+.shot-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.shot-open img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Overlaid on the corner rather than beside it: the row is a row of pictures,
+   and a button in the flow would make it a row of controls. */
+.shot-x {
+  position: absolute; top: -5px; right: -5px;
+  display: grid; place-items: center; width: 19px; height: 19px;
+  border-radius: 50%; cursor: pointer;
+  color: var(--text-1); background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 1px 4px rgb(0 0 0 / .35);
 }
-.planshot-name {
-  font-size: 12.5px; color: var(--text-2); min-width: 0; max-width: 12ch;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.planshot-x {
-  flex: none; display: grid; place-items: center; width: 22px; height: 22px;
-  border-radius: 7px; border: none; background: transparent;
-  color: var(--text-3); cursor: pointer;
-}
-.planshot-x:hover { background: var(--surface-2); color: var(--text-1); }
+.shot-x:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+.shot-x:disabled { opacity: .4; cursor: default; }
 .planshot-err { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); }
 /* The pictures, kept in view on the planning screen: they are the whole of the
    brief when nobody typed anything, and the first thing worth checking if the
