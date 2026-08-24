@@ -785,15 +785,24 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   box-shadow: inset 0 1px 0 var(--glass-edge), 0 1px 2px rgb(0 0 0 / .18);
 }
 
-/* One trip per line, name first, so the eye has a column to run down. */
-.triplist { display: flex; flex-direction: column; gap: 6px; }
+/* One trip per line, name first, so the eye has a column to run down.
+ *
+ * No surface and no border: a list of cards is neither one thing nor the
+ * other — it keeps all the weight of the card view while giving up the room
+ * that made cards worth it. A hairline between rows is enough to separate
+ * them, and the whole point of choosing rows is to see more at once.
+ */
+.triplist {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border);
+}
 .triprow {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 13px; border-radius: var(--radius);
-  background: var(--surface-1); border: 1px solid var(--border);
+  padding: 12px 8px; border-bottom: 1px solid var(--border);
   color: inherit; text-decoration: none;
+  transition: background .13s var(--ease);
 }
-.triprow:hover { border-color: var(--border-strong); }
+.triprow:hover { background: var(--surface-1); }
 .triprow:hover .tripcard-go { transform: translateX(2px); color: var(--text-1); }
 .triprow .statuspill { flex: none; }
 .triprow-name {
@@ -810,7 +819,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 /* Narrow enough and a row is a card again: the meta drops under the name
    rather than being squeezed off the end of the line. */
 @media (max-width: 720px) {
-  .triprow { flex-wrap: wrap; row-gap: 6px; }
+  .triprow { flex-wrap: wrap; row-gap: 6px; padding: 12px 4px; }
   /* The name and the way in share the top line; the labels and the dates
      settle underneath, rather than the arrow being stranded on a line of its
      own or the pills landing in a different place on every row. The empty
@@ -1453,8 +1462,12 @@ body::before {
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift),
               0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+.planshots { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+/* Inside the command bar it sits under the field rather than under a form, so
+   it takes the dialog's own gutters. */
+.ck-shots { margin: 0 14px 10px; }
 .planshot {
-  display: inline-flex; align-items: center; gap: 8px; margin-top: 9px;
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
   padding: 5px 10px 5px 5px; border-radius: 12px; max-width: 100%;
   background: var(--surface-1); border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge);
@@ -1464,7 +1477,7 @@ body::before {
   background: var(--surface-2);
 }
 .planshot-name {
-  font-size: 12.5px; color: var(--text-2); min-width: 0;
+  font-size: 12.5px; color: var(--text-2); min-width: 0; max-width: 12ch;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .planshot-x {
@@ -1474,9 +1487,10 @@ body::before {
 }
 .planshot-x:hover { background: var(--surface-2); color: var(--text-1); }
 .planshot-err { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); }
-/* The picture, kept in view on the planning screen: it is the whole of the
-   brief when nobody typed anything, and the one thing worth checking if the
+/* The pictures, kept in view on the planning screen: they are the whole of the
+   brief when nobody typed anything, and the first thing worth checking if the
    plan comes back about the wrong place. */
+.planhead-shots { display: flex; gap: 4px; flex: none; }
 .planhead-shot {
   width: 42px; height: 42px; flex: none; object-fit: cover;
   border-radius: 10px; border: 1px solid var(--glass-line);

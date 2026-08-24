@@ -46,7 +46,13 @@ const SCHEMA = {
   },
 };
 
-const SYSTEM = `You read a photograph and decide whether a trip can be planned from it.
+const SYSTEM = `You read one or more photographs and decide whether a trip can be
+planned from them.
+
+Several pictures are one request, not several: read them together and write a
+single brief covering all of them, in the order they were given. If only some
+of them have anything to do with a trip, work from those and ignore the rest —
+that still counts as usable.
 
 What counts as usable:
 - A written or printed itinerary, list of places, or set of notes — transcribe
@@ -72,11 +78,16 @@ Rules:
 - Do not invent dates, prices or opening hours that are not in the picture.
 - If you are confident about a country or city but not the exact spot, that is
   still usable — say what you are sure of and say what you are not.
-- "read" is always filled in, including when the answer is no.`;
+- "read" is always filled in, including when the answer is no. With several
+  pictures, say what they add up to rather than listing them one by one.`;
 
-/* Big enough for a photograph, small enough that nobody uploads a RAW file
-   through it. The client shrinks before sending; this is the backstop. */
-const MAX_CHARS = 3_000_000;
+/* Big enough for a few photographs, small enough that nobody uploads a RAW
+   file through it. The client shrinks before sending; this is the backstop. */
+const MAX_CHARS = 6_000_000;
+/* Kept in step with MAX_SHOTS in lib/image.js, which is where the reasoning
+   for the number lives. Enforced again here because the client is not the
+   thing being protected. */
+const MAX_IMAGES = 4;
 const KINDS = /^data:image\/(jpeg|jpg|png|webp|gif);base64,/;
 
 export async function POST(req) {
@@ -89,20 +100,23 @@ export async function POST(req) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
 
-  const image = String(body.image || '');
+  // One or several. `image` is still accepted so an older tab mid-session does
+  // not break on deploy.
+  const images = (Array.isArray(body.images) ? body.images : [body.image])
+    .filter(Boolean).map(String).slice(0, MAX_IMAGES);
   const said = String(body.said || '').trim().slice(0, 600);
 
-  if (!image) {
+  if (!images.length) {
     return Response.json({ error: 'No picture came through.' }, { status: 400 });
   }
-  if (!KINDS.test(image)) {
+  if (!images.every((i) => KINDS.test(i))) {
     return Response.json({
-      error: 'That file is not an image Wander can read. JPEG, PNG or WebP work.',
+      error: 'One of those files is not an image Wander can read. JPEG, PNG or WebP work.',
     }, { status: 400 });
   }
-  if (image.length > MAX_CHARS) {
+  if (images.reduce((n, i) => n + i.length, 0) > MAX_CHARS) {
     return Response.json({
-      error: 'That picture is too large. Try one under about 2 MB.',
+      error: 'Those pictures are too large altogether. Try fewer, or smaller ones.',
     }, { status: 413 });
   }
 
@@ -116,11 +130,10 @@ export async function POST(req) {
       user: [
         {
           type: 'text',
-          text: said
-            ? `Read this picture for a trip. The traveller also said: "${said}"`
-            : 'Read this picture for a trip.',
+          text: `Read ${images.length === 1 ? 'this picture' : `these ${images.length} pictures`}`
+            + ` for a trip.${said ? ` The traveller also said: "${said}"` : ''}`,
         },
-        { type: 'image_url', image_url: { url: image, detail: 'high' } },
+        ...images.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
       ],
     });
 
@@ -134,18 +147,19 @@ export async function POST(req) {
            knows what was actually in the picture. The fallback is for the case
            where it decided no and then declined to say why. */
         error: String(out.reason || '').trim().slice(0, 300)
-          || 'I could not find a place in that picture. A photo of somewhere '
-            + 'recognisable, or of a written list of places, works best.',
+          || `I could not find a place in ${images.length === 1 ? 'that picture' : 'those pictures'}. `
+            + 'A photo of somewhere recognisable, or of a written list of places, works best.',
         code: 'unreadable',
       }, { status: 422 });
     }
 
-    const brief = String(out.brief || '').trim().slice(0, 4000);
+    const brief = String(out.brief || '').trim().slice(0, 6000);
     if (!brief) {
       return Response.json({
         usable: false,
         read,
-        error: 'I could see the picture but could not get a trip out of it.',
+        error: `I could see ${images.length === 1 ? 'the picture' : 'the pictures'} `
+          + 'but could not get a trip out of it.',
         code: 'unreadable',
       }, { status: 422 });
     }

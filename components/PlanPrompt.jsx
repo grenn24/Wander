@@ -2,16 +2,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle, ImagePlus, X } from 'lucide-react';
-import { shrink, pickImage, BadImage } from '@/lib/image';
+import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 
 /*
- * Where a picture waits between the two pages.
+ * Where the pictures wait between the two pages.
  *
  * The planner lives at its own address so it can be reloaded and linked to,
- * and an address is no place for a photograph. Session storage carries it
+ * and an address is no place for a photograph. Session storage carries them
  * across the one navigation and is gone when the tab is.
  */
-export const SHOT_KEY = 'wander:plan-shot';
+export const SHOT_KEY = 'wander:plan-shots';
 
 // Short on purpose: they are a nudge, not an example of how much to write.
 export const SAMPLE_PROMPTS = [
@@ -34,7 +34,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
   const [value, setValue] = useState('');
   const [shown, setShown] = useState(() => SAMPLE_PROMPTS.slice(0, 3));
   const [ghost, setGhost] = useState(0);
-  const [shot, setShot] = useState(null); // { url, name }
+  const [shots, setShots] = useState([]); // [{ url, name }]
   const [shotErr, setShotErr] = useState('');
   const [over, setOver] = useState(false); // something is being dragged onto us
   const areaRef = useRef(null);
@@ -48,15 +48,17 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
    * restaurant. Taking that as input costs one button and saves them writing
    * out what they are already holding.
    */
-  async function take(file) {
-    if (!file) return;
+  async function take(files) {
+    const picked = pickImages(files);
+    if (!picked.length) return;
     setShotErr('');
-    try {
-      const url = await shrink(file);
-      setShot({ url, name: file.name || 'picture' });
-    } catch (e) {
-      setShotErr(e instanceof BadImage ? e.message : 'That picture could not be read.');
-      setShot(null);
+    const room = MAX_SHOTS - shots.length;
+    const { ok, failed, over } = await shrinkAll(picked, room);
+    if (ok.length) setShots((was) => [...was, ...ok]);
+    if (over > 0) {
+      setShotErr(`${MAX_SHOTS} pictures is the most I can read at once.`);
+    } else if (failed.length) {
+      setShotErr(failed[0]);
     }
   }
 
@@ -95,19 +97,19 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
   function submit(e) {
     if (e) e.preventDefault();
     const q = value.trim();
-    if (!q && !shot) return;
-    if (shot) {
+    if (!q && !shots.length) return;
+    if (shots.length) {
       try {
-        sessionStorage.setItem(SHOT_KEY, shot.url);
+        sessionStorage.setItem(SHOT_KEY, JSON.stringify(shots.map((s) => s.url)));
       } catch (err) {
-        // A picture too big for the quota, or storage switched off entirely.
-        setShotErr('This browser would not hold the picture. Try describing it instead.');
+        // Too big for the quota, or storage switched off entirely.
+        setShotErr('This browser would not hold the pictures. Try fewer, or describe them.');
         return;
       }
     } else {
       try { sessionStorage.removeItem(SHOT_KEY); } catch (err) { /* nothing to clear */ }
     }
-    router.push(`/plan?q=${encodeURIComponent(q)}${shot ? '&shot=1' : ''}`);
+    router.push(`/plan?q=${encodeURIComponent(q)}${shots.length ? '&shots=1' : ''}`);
   }
 
   function useSample(s) {
@@ -135,7 +137,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
         onDragLeave={() => setOver(false)}
         onDrop={(e) => {
           e.preventDefault(); setOver(false);
-          take(pickImage(e.dataTransfer && e.dataTransfer.files));
+          take(e.dataTransfer && e.dataTransfer.files);
         }}
       >
         {/* In the flow rather than pinned to a corner: an icon positioned by
@@ -151,8 +153,8 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           placeholder={rotate ? '' : 'Where are you going?'}
           onChange={(e) => setValue(e.target.value)}
           onPaste={(e) => {
-            const img = pickImage(e.clipboardData && e.clipboardData.files);
-            if (img) { e.preventDefault(); take(img); }
+            const imgs = pickImages(e.clipboardData && e.clipboardData.files);
+            if (imgs.length) { e.preventDefault(); take(e.clipboardData.files); }
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
@@ -163,29 +165,39 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
             {SAMPLE_PROMPTS[ghost]}
           </span>
         ) : null}
-        <input ref={fileRef} type="file" accept="image/*" hidden
-          onChange={(e) => { take(e.target.files && e.target.files[0]); e.target.value = ''; }} />
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden
+          onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
         <button className="btn ghost planbox-clip" type="button"
-          data-tip="Plan from a picture" aria-label="Attach a picture"
+          disabled={shots.length >= MAX_SHOTS}
+          data-tip={shots.length >= MAX_SHOTS ? `${MAX_SHOTS} is the limit` : 'Add photos'}
+          aria-label="Add photos"
           onClick={() => fileRef.current && fileRef.current.click()}>
           <ImagePlus size={17} />
         </button>
         <button className="btn primary planbox-go" type="submit"
-          disabled={!value.trim() && !shot}
+          disabled={!value.trim() && !shots.length}
           data-tip="Plan this trip for me"
           aria-label="Plan this trip for me">
           <ArrowUp size={17} />
         </button>
       </form>
 
-      {shot ? (
-        <div className="planshot">
-          <img src={shot.url} alt="" />
-          <span className="planshot-name">{shot.name}</span>
-          <button className="planshot-x" type="button" data-tip="Remove"
-            aria-label="Remove the picture" onClick={() => setShot(null)}>
-            <X size={13} />
-          </button>
+      {shots.length ? (
+        <div className="planshots">
+          {shots.map((s, i) => (
+            <div className="planshot" key={`${s.name}-${i}`}>
+              <img src={s.url} alt="" />
+              <span className="planshot-name">{s.name}</span>
+              <button className="planshot-x" type="button" data-tip="Remove"
+                aria-label={`Remove ${s.name}`}
+                onClick={() => {
+                  setShotErr('');
+                  setShots((was) => was.filter((_, at) => at !== i));
+                }}>
+                <X size={13} />
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
       {shotErr ? <p className="planshot-err">{shotErr}</p> : null}

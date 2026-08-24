@@ -6,9 +6,10 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, RotateCcw, CornerDownLeft, Backpack, Printer,
+  Search, ArrowLeft, RotateCcw, CornerDownLeft, Backpack, Printer, ImagePlus,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
+import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
@@ -275,6 +276,28 @@ function CommandBar({ onClose }) {
 
   /* ------------------------------------------------------------ matching --- */
 
+  /*
+   * Pictures attached to the instruction.
+   *
+   * The same idea as the planner's, for the same reason: what you want changed
+   * is often already written down somewhere — a confirmation email, a page of
+   * a guidebook, a friend's message. They are read into words first and then
+   * handed to the command as if they had been typed, so everything downstream
+   * is unchanged.
+   */
+  const [shots, setShots] = useState([]);
+  const fileRef = useRef(null);
+
+  async function take(files) {
+    const picked = pickImages(files);
+    if (!picked.length) return;
+    setError('');
+    const { ok, failed, over } = await shrinkAll(picked, MAX_SHOTS - shots.length);
+    if (ok.length) setShots((was) => [...was, ...ok]);
+    if (over > 0) setError(`${MAX_SHOTS} pictures is the most I can read at once.`);
+    else if (failed.length) setError(failed[0]);
+  }
+
   const term = text.trim().toLowerCase();
   const words = term ? term.split(/\s+/) : [];
 
@@ -296,6 +319,9 @@ function CommandBar({ onClose }) {
    * what to do about it; a word or two leads with what it already matches.
    */
   const rows = useMemo(() => {
+    /* A picture is an instruction, not a search term — there is nothing in the
+       trip it could match against. */
+    if (shots.length) return [{ id: 'do', kind: 'do' }];
     // Nothing typed yet: the things someone might have opened this to start.
     if (!term) {
       return [
@@ -312,7 +338,7 @@ function CommandBar({ onClose }) {
     ];
     return words.length >= SENTENCE || !found.length
       ? [...acts, ...found] : [...found, ...acts];
-  }, [term, hits, words.length]);
+  }, [term, hits, words.length, shots.length]);
 
   useEffect(() => { setActive(0); }, [term]);
 
@@ -338,11 +364,41 @@ function CommandBar({ onClose }) {
    */
   async function run(reply) {
     const first = reply == null;
-    const instruction = first ? text.trim() : pending.current;
-    if (!instruction) return;
+    let instruction = first ? text.trim() : pending.current;
+    if (!instruction && !(first && shots.length)) return;
     const said = first ? [] : [...answers, reply];
     setAnswers(said);
     setBusy(true); setError(''); clearAsk();
+
+    /*
+     * Pictures become words before anything else happens, so a picture nobody
+     * can read fails here — with a sentence about the picture — rather than
+     * being handed to the editor as an empty instruction.
+     */
+    if (first && shots.length) {
+      try {
+        const res = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images: shots.map((sh) => sh.url), said: instruction }),
+        });
+        const seen = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(seen.error || 'Those pictures could not be read.');
+          setBusy(false);
+          return;
+        }
+        const from = shots.length === 1 ? 'From an attached picture:' : 'From attached pictures:';
+        instruction = instruction
+          ? `${instruction}\n\n${from}\n${seen.brief}`
+          : `Add this to the trip.\n\n${from}\n${seen.brief}`;
+        pending.current = instruction;
+      } catch (e) {
+        setError('The connection dropped while reading. Try again.');
+        setBusy(false);
+        return;
+      }
+    }
     /*
      * A trip-wide edit genuinely takes a minute or two. Left to the default,
      * a stalled request hangs forever and then reports the same shrug as a
@@ -567,7 +623,16 @@ function CommandBar({ onClose }) {
 
   return createPortal((
     <div className="ck-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="ck card" role="dialog" aria-modal="true" aria-label="Search or change this trip">
+      <div className="ck card" role="dialog" aria-modal="true"
+        aria-label="Search or change this trip"
+        onPaste={(e) => {
+          if (pickImages(e.clipboardData && e.clipboardData.files).length) {
+            e.preventDefault(); take(e.clipboardData.files);
+          }
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); take(e.dataTransfer && e.dataTransfer.files); }}
+      >
         <div className="ck-top">
           {busy ? <Loader2 size={17} className="spin ck-ico-lead" />
             : <Sparkles size={17} className="ck-ico-lead" />}
@@ -592,9 +657,34 @@ function CommandBar({ onClose }) {
               <RotateCcw size={15} />
             </button>
           ) : null}
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden
+            onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+          <button className="btn ghost sm icon-btn" type="button"
+            disabled={busy || shots.length >= MAX_SHOTS}
+            data-tip={shots.length >= MAX_SHOTS ? `${MAX_SHOTS} is the limit` : 'Add photos'}
+            aria-label="Add photos"
+            onClick={() => fileRef.current && fileRef.current.click()}>
+            <ImagePlus size={15} />
+          </button>
           <button className="btn ghost sm icon-btn" type="button"
             data-tip="Close  Esc" aria-label="Close" onClick={onClose}><X size={15} /></button>
         </div>
+
+        {shots.length ? (
+          <div className="planshots ck-shots">
+            {shots.map((sh, i) => (
+              <div className="planshot" key={`${sh.name}-${i}`}>
+                <img src={sh.url} alt="" />
+                <span className="planshot-name">{sh.name}</span>
+                <button className="planshot-x" type="button" data-tip="Remove"
+                  aria-label={`Remove ${sh.name}`} disabled={busy}
+                  onClick={() => setShots((was) => was.filter((_, at) => at !== i))}>
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {error ? <div className="err ck-err">{error}</div> : null}
 

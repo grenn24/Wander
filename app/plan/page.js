@@ -32,13 +32,16 @@ function Planner() {
   const { supabase, user, fail } = useApp();
   const query = (params.get('q') || '').trim();
   /*
-   * The picture, if there is one, read once on mount and held for the life of
-   * this page. Held rather than consumed, because "try again" has to work and
-   * a picture already cleared cannot be tried again.
+   * The pictures, if there are any, read once on mount and held for the life
+   * of this page. Held rather than consumed, because "try again" has to work
+   * and pictures already cleared cannot be tried again.
    */
-  const [shot] = useState(() => {
-    if (params.get('shot') !== '1' || typeof sessionStorage === 'undefined') return '';
-    try { return sessionStorage.getItem(SHOT_KEY) || ''; } catch (e) { return ''; }
+  const [shots] = useState(() => {
+    if (params.get('shots') !== '1' || typeof sessionStorage === 'undefined') return [];
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(SHOT_KEY) || '[]');
+      return Array.isArray(raw) ? raw.filter((u) => typeof u === 'string' && u) : [];
+    } catch (e) { return []; }
   });
 
   const [meta, setMeta] = useState(null);
@@ -66,7 +69,7 @@ function Planner() {
   }, []);
 
   const run = useCallback(async () => {
-    if (!supabase || !user || (!query && !shot)) return;
+    if (!supabase || !user || (!query && !shots.length)) return;
     setError(''); setNoKey(false); setMeta(null); setDays([]);
     setUnreadable(false); setRead('');
 
@@ -77,34 +80,38 @@ function Planner() {
      */
     let brief = query;
     let saw = '';
-    if (shot) {
+    if (shots.length) {
       setPhase('reading');
       let seen;
       try {
         const res = await fetch('/api/vision', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: shot, said: query }),
+          body: JSON.stringify({ images: shots, said: query }),
         });
         seen = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (seen.code === 'no_key') setNoKey(true);
           if (seen.code === 'unreadable') setUnreadable(true);
           setRead(seen.read || '');
-          setError(seen.error || 'That picture could not be read.');
+          setError(seen.error
+            || `${shots.length === 1 ? 'That picture' : 'Those pictures'} could not be read.`);
           setPhase('error');
           return;
         }
       } catch (e) {
-        setError('The connection dropped while reading the picture. Try again.');
+        setError('The connection dropped while reading. Try again.');
         setPhase('error');
         return;
       }
       saw = seen.read || '';
       setRead(saw);
+      const from = shots.length === 1
+        ? 'From a picture the traveller attached:'
+        : `From ${shots.length} pictures the traveller attached:`;
       brief = query
-        ? `${query}\n\nFrom a picture the traveller attached:\n${seen.brief}`
-        : `From a picture the traveller attached:\n${seen.brief}`;
+        ? `${query}\n\n${from}\n${seen.brief}`
+        : `${from}\n${seen.brief}`;
     }
 
     setPhase('streaming');
@@ -174,7 +181,8 @@ function Planner() {
       end_date: end,
       currency: plan.currency,
       notes: plan.summary
-        ? `Planned from: ${query ? `"${query}"` : `a picture — ${saw || 'attached'}`}`
+        ? `Planned from: ${query ? `"${query}"`
+          : `${shots.length === 1 ? 'a picture' : `${shots.length} pictures`} — ${saw || 'attached'}`}`
           + `\n\n${plan.summary}`
         : '',
     }).select().single();
@@ -240,7 +248,7 @@ function Planner() {
     }
 
     router.replace(`/trips/${trip.id}/itinerary`);
-  }, [supabase, user, query, shot, router, fail, upsertDay]);
+  }, [supabase, user, query, shots, router, fail, upsertDay]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
@@ -255,7 +263,7 @@ function Planner() {
     el.scrollTop = el.scrollHeight;
   }, [days, phase]);
 
-  if (!query && !shot) {
+  if (!query && !shots.length) {
     return (
       <div className="shell">
         <TopBar />
@@ -284,7 +292,14 @@ function Planner() {
         <div className="wrap planwrap">
 
           <div className="planhead">
-            {shot ? <img className="planhead-shot" src={shot} alt="" /> : null}
+            {shots.length ? (
+              <span className="planhead-shots">
+                {shots.map((u, i) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <img className="planhead-shot" src={u} alt="" key={i} />
+                ))}
+              </span>
+            ) : null}
             <span className="planning-ico" aria-hidden="true">
               {phase === 'error'
                 ? (unreadable ? <ImageOff size={18} /> : <TriangleAlert size={18} />)
@@ -293,15 +308,19 @@ function Planner() {
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2 style={{ fontSize: 18 }}>
                 {phase === 'error'
-                  ? (unreadable ? 'I could not read that picture' : 'That did not work')
+                  ? (unreadable
+                    ? `I could not read ${shots.length === 1 ? 'that picture' : 'those pictures'}`
+                    : 'That did not work')
                   : meta && meta.name ? meta.name
-                    : phase === 'reading' ? 'Reading your picture'
+                    : phase === 'reading'
+                      ? `Reading your picture${shots.length === 1 ? '' : 's'}`
                       : 'Planning your trip'}
               </h2>
               <p className="small muted planning-q">
                 {query ? <>&ldquo;{query}&rdquo;</> : null}
                 {query && read ? ' · ' : null}
-                {read || (shot && !query ? 'From your picture' : null)}
+                {read || (shots.length && !query
+                  ? `From your picture${shots.length === 1 ? '' : 's'}` : null)}
               </p>
             </div>
           </div>
@@ -328,7 +347,7 @@ function Planner() {
                   </button>
                 ) : null}
                 {unreadable ? (
-                  <Link className="btn primary" href="/trips">Try another picture</Link>
+                  <Link className="btn primary" href="/trips">Try other pictures</Link>
                 ) : null}
                 <Link className="btn" href="/trips">Build it by hand instead</Link>
               </div>
@@ -397,7 +416,7 @@ function Planner() {
                 {phase === 'reading' ? (
                   <>
                     <Loader2 size={15} className="spin" />
-                    Looking at your picture…
+                    Looking at your picture{shots.length === 1 ? '' : 's'}…
                   </>
                 ) : phase === 'locating' ? (
                   <>
