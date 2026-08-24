@@ -218,6 +218,7 @@ function Planner() {
           title: a.title,
           start_time: a.start_time,
           category: a.category,
+          subtype: a.subtype || null,
           location: a.location,
           cost: a.cost,
           notes: a.notes,

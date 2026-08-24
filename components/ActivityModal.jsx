@@ -97,8 +97,17 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   }, []);
 
   const pinned = draft.lat != null && draft.lng != null && draft.lat !== '';
+  /*
+   * Only what was actually chosen.
+   *
+   * This used to fall back to 'flight' when nothing had been picked, which
+   * meant a taxi to the hotel opened with Flight selected and boxes for the
+   * airline, the flight number and the gate. Nothing had classified it as a
+   * flight — the form had simply defaulted to the top of the list and then
+   * shown the default as though it were an answer.
+   */
   const mode = draft.category === 'transport'
-    ? transportOf(draft.subtype || 'flight') : null;
+    ? transportOf(draft.subtype) : null;
 
   /*
    * Typing looks for matches; only picking one pins the activity.
@@ -226,9 +235,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                     // A bus has no gate. Changing what this is drops what the
                     // last answer carried, rather than keeping fields that
                     // nothing on the form will show.
-                    ...(v === 'transport'
-                      ? (draft.subtype ? {} : { subtype: 'flight' })
-                      : { subtype: null, details: {} }),
+                    // Becoming transport asks how; it does not answer it.
+                    ...(v === 'transport' ? {} : { subtype: null, details: {} }),
                   })}
                   options={CATEGORIES.map((c) => ({
                     value: c.id,
@@ -250,13 +258,18 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 <label className="label" htmlFor="ak">How</label>
                 <Select
                   id="ak" label="How"
-                  value={draft.subtype || 'flight'}
-                  onChange={(v) => set({ subtype: v })}
-                  options={TRANSPORT.map((t) => ({
-                    value: t.id,
-                    label: t.label,
-                    icon: <t.icon size={14} aria-hidden="true" />,
-                  }))}
+                  value={draft.subtype || ''}
+                  // Changing how you are travelling drops what the last answer
+                  // carried: a bus has no gate.
+                  onChange={(v) => set({ subtype: v || null, details: {} })}
+                  options={[
+                    { value: '', label: 'Not said' },
+                    ...TRANSPORT.map((t) => ({
+                      value: t.id,
+                      label: t.label,
+                      icon: <t.icon size={14} aria-hidden="true" />,
+                    })),
+                  ]}
                 />
               </div>
             ) : null}

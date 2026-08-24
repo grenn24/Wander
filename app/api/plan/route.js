@@ -3,11 +3,16 @@ import {
   cleanCategory, cleanTime, askJson,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
+import { TRANSPORT } from '@/lib/transport';
 import { userFromRequest } from '@/lib/supabaseServer';
 import { listEvents, connection } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/* flight, train, bus, ferry, car, transfer — the app's own list, so a new one
+   is offered to the planner the moment it exists rather than a year later. */
+const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
 
 const SCHEMA = {
   type: 'object',
@@ -37,11 +42,17 @@ const SCHEMA = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['title', 'start_time', 'category', 'location', 'cost', 'notes'],
+              required: ['title', 'start_time', 'category', 'subtype', 'location', 'cost', 'notes'],
               properties: {
                 title: { type: 'string' },
                 start_time: { type: ['string', 'null'], description: '24h HH:MM, or null' },
                 category: { type: 'string', enum: AI_CATEGORIES },
+                subtype: {
+                  type: ['string', 'null'],
+                  enum: [...TRANSPORT_IDS, null],
+                  description: 'Only for transport, and only when you know which: a taxi or '
+                    + 'a private car is "transfer", a hired car is "car". Null otherwise.',
+                },
                 location: {
                   type: 'string',
                   description: 'A real, searchable place name. Blank if there is no specific place.',
@@ -67,7 +78,11 @@ Rules:
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
   (opening hours, transport, bookings) and leave others null.
 - Costs are per person in the trip currency, as plain numbers. Use 0 when free.
-- Include travel between cities as a transport activity on the day it happens.
+- Include travel between cities as a transport activity on the day it happens,
+  and say which kind it is in "subtype". A Grab, a taxi or an airport pick-up
+  is "transfer" — it is not a flight. Leave it null if you genuinely cannot
+  tell; a wrong one is worse than none, because it puts an airline and a gate
+  on a car journey.
 - If the request names no dates, choose a sensible near-future start and say so
   in the summary.
 - Write the trip name, destination and summary first, then the days in order.
@@ -137,6 +152,10 @@ function cleanActivity(a, fix) {
     title: String(it.title || '').trim().slice(0, 200) || 'Untitled',
     start_time: cleanTime(it.start_time),
     category: cleanCategory(it.category),
+    // Never on anything else: a subtype on a dinner would show transport
+    // fields on a restaurant.
+    subtype: cleanCategory(it.category) === 'transport'
+      && TRANSPORT_IDS.includes(it.subtype) ? it.subtype : null,
     location: String(it.location || '').trim().slice(0, 300),
     cost: Number.isFinite(Number(it.cost)) ? Math.max(0, Number(it.cost)) : 0,
     notes: String(it.notes || '').trim().slice(0, 1000),
