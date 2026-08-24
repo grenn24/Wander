@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Sparkles, Loader2, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays, Check,
+  ImageOff,
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
+import { SHOT_KEY } from '@/components/PlanPrompt';
 import Loading from '@/components/Loading';
 import { categoryIcon } from '@/lib/icons';
 import {
@@ -29,12 +31,26 @@ function Planner() {
   const router = useRouter();
   const { supabase, user, fail } = useApp();
   const query = (params.get('q') || '').trim();
+  /*
+   * The picture, if there is one, read once on mount and held for the life of
+   * this page. Held rather than consumed, because "try again" has to work and
+   * a picture already cleared cannot be tried again.
+   */
+  const [shot] = useState(() => {
+    if (params.get('shot') !== '1' || typeof sessionStorage === 'undefined') return '';
+    try { return sessionStorage.getItem(SHOT_KEY) || ''; } catch (e) { return ''; }
+  });
 
   const [meta, setMeta] = useState(null);
   const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
-  const [phase, setPhase] = useState('start'); // start | streaming | locating | saving | error
+  // start | reading | streaming | locating | saving | error
+  const [phase, setPhase] = useState('start');
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
+  // What the picture turned out to be, said back so nobody has to guess which
+  // part of it was understood.
+  const [read, setRead] = useState('');
+  const [unreadable, setUnreadable] = useState(false);
   const started = useRef(false);
   const liveRef = useRef(null);
 
@@ -50,15 +66,55 @@ function Planner() {
   }, []);
 
   const run = useCallback(async () => {
-    if (!supabase || !user || !query) return;
-    setError(''); setNoKey(false); setMeta(null); setDays([]); setPhase('streaming');
+    if (!supabase || !user || (!query && !shot)) return;
+    setError(''); setNoKey(false); setMeta(null); setDays([]);
+    setUnreadable(false); setRead('');
+
+    /*
+     * The picture is read before anything is planned, so "I cannot make a trip
+     * out of this" arrives on an empty screen rather than halfway down a
+     * half-written itinerary.
+     */
+    let brief = query;
+    let saw = '';
+    if (shot) {
+      setPhase('reading');
+      let seen;
+      try {
+        const res = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: shot, said: query }),
+        });
+        seen = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (seen.code === 'no_key') setNoKey(true);
+          if (seen.code === 'unreadable') setUnreadable(true);
+          setRead(seen.read || '');
+          setError(seen.error || 'That picture could not be read.');
+          setPhase('error');
+          return;
+        }
+      } catch (e) {
+        setError('The connection dropped while reading the picture. Try again.');
+        setPhase('error');
+        return;
+      }
+      saw = seen.read || '';
+      setRead(saw);
+      brief = query
+        ? `${query}\n\nFrom a picture the traveller attached:\n${seen.brief}`
+        : `From a picture the traveller attached:\n${seen.brief}`;
+    }
+
+    setPhase('streaming');
 
     let plan = null;
     try {
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: query, today: todayISO() }),
+        body: JSON.stringify({ prompt: brief, today: todayISO() }),
       });
 
       if (!res.ok) {
@@ -117,7 +173,10 @@ function Planner() {
       start_date: start,
       end_date: end,
       currency: plan.currency,
-      notes: plan.summary ? `Planned from: "${query}"\n\n${plan.summary}` : '',
+      notes: plan.summary
+        ? `Planned from: ${query ? `"${query}"` : `a picture — ${saw || 'attached'}`}`
+          + `\n\n${plan.summary}`
+        : '',
     }).select().single();
 
     if (tripErr || !trip) {
@@ -181,7 +240,7 @@ function Planner() {
     }
 
     router.replace(`/trips/${trip.id}/itinerary`);
-  }, [supabase, user, query, router, fail, upsertDay]);
+  }, [supabase, user, query, shot, router, fail, upsertDay]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
@@ -196,7 +255,7 @@ function Planner() {
     el.scrollTop = el.scrollHeight;
   }, [days, phase]);
 
-  if (!query) {
+  if (!query && !shot) {
     return (
       <div className="shell">
         <TopBar />
@@ -225,23 +284,32 @@ function Planner() {
         <div className="wrap planwrap">
 
           <div className="planhead">
+            {shot ? <img className="planhead-shot" src={shot} alt="" /> : null}
             <span className="planning-ico" aria-hidden="true">
-              {phase === 'error' ? <TriangleAlert size={18} /> : <Sparkles size={18} />}
+              {phase === 'error'
+                ? (unreadable ? <ImageOff size={18} /> : <TriangleAlert size={18} />)
+                : <Sparkles size={18} />}
             </span>
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2 style={{ fontSize: 18 }}>
-                {phase === 'error' ? 'That did not work'
+                {phase === 'error'
+                  ? (unreadable ? 'I could not read that picture' : 'That did not work')
                   : meta && meta.name ? meta.name
-                    : 'Planning your trip'}
+                    : phase === 'reading' ? 'Reading your picture'
+                      : 'Planning your trip'}
               </h2>
-              <p className="small muted planning-q">&ldquo;{query}&rdquo;</p>
+              <p className="small muted planning-q">
+                {query ? <>&ldquo;{query}&rdquo;</> : null}
+                {query && read ? ' · ' : null}
+                {read || (shot && !query ? 'From your picture' : null)}
+              </p>
             </div>
           </div>
 
           {phase === 'error' ? (
             <div className="card">
               <div className="planning-err">
-                <TriangleAlert size={16} />
+                {unreadable ? <ImageOff size={16} /> : <TriangleAlert size={16} />}
                 <span>{error}</span>
               </div>
               {noKey ? (
@@ -252,10 +320,15 @@ function Planner() {
                 </p>
               ) : null}
               <div className="chiprow" style={{ marginTop: 14 }}>
-                {!noKey ? (
+                {/* Reading the same picture again gets the same answer, so when
+                    the picture is the problem the way forward is another one. */}
+                {!noKey && !unreadable ? (
                   <button className="btn primary" onClick={() => run()}>
                     <RotateCw size={15} /> Try again
                   </button>
+                ) : null}
+                {unreadable ? (
+                  <Link className="btn primary" href="/trips">Try another picture</Link>
                 ) : null}
                 <Link className="btn" href="/trips">Build it by hand instead</Link>
               </div>
@@ -321,7 +394,12 @@ function Planner() {
               </div>
 
               <div className="planfoot">
-                {phase === 'locating' ? (
+                {phase === 'reading' ? (
+                  <>
+                    <Loader2 size={15} className="spin" />
+                    Looking at your picture…
+                  </>
+                ) : phase === 'locating' ? (
                   <>
                     <Loader2 size={15} className="spin" />
                     Finding {totalActs} stop{totalActs === 1 ? '' : 's'} on the map…

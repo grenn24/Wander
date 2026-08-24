@@ -32,7 +32,11 @@ Rules:
 - 15 to 25 items. Practical things people forget, not padding.
 - Quantities reflect the trip length for things like shirts and socks.
 - Skip anything already listed as packed.
-- No duplicates, and keep labels short.`;
+- No duplicates, and keep labels short.
+- If the traveller asked for something specific, that outranks every rule above
+  except the last two. "Hand luggage only" means no full-size bottles and fewer
+  clothes, not a normal list with a note attached. "Just toiletries" means only
+  toiletries, however short the list ends up.`;
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
@@ -51,6 +55,9 @@ export async function POST(req) {
     .slice(0, 60).map((s) => String(s).slice(0, 60)).join(', ');
   const themes = (Array.isArray(body.themes) ? body.themes : [])
     .slice(0, 30).map((s) => String(s).slice(0, 80)).join('; ');
+  // What this particular traveller wants, which the trip's dates and stops
+  // cannot say: hand luggage only, a cold sleeper, taking the baby.
+  const note = String(body.note || '').trim().slice(0, 300);
 
   try {
     const out = await askJson({
@@ -61,7 +68,8 @@ export async function POST(req) {
       user: `Destination: ${destination || 'unspecified'}\n`
         + `Dates: ${dates || 'unspecified'} (${days} day${days === 1 ? '' : 's'})\n`
         + `The itinerary involves: ${themes || 'general travel'}\n`
-        + `Already on the list: ${existing || '(nothing)'}`,
+        + `Already on the list: ${existing || '(nothing)'}`
+        + (note ? `\n\nThe traveller asked for: ${note}` : ''),
       maxTokens: 8000,
     });
 

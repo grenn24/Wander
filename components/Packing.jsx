@@ -22,6 +22,15 @@ export default function Packing({
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState('');
+  /*
+   * What the trip cannot say for itself.
+   *
+   * Dates and stops give the weather and the length; they do not say you are
+   * travelling hand luggage only, that you feel the cold, or that the baby is
+   * coming. Optional, and empty is the ordinary case — the button works the
+   * same whether or not anyone types here.
+   */
+  const [note, setNote] = useState('');
 
   async function generate() {
     setAiBusy(true); setAiErr('');
@@ -35,10 +44,12 @@ export default function Packing({
           days: days ? days.length : 1,
           existing: items.map((i) => i.label),
           themes: (activities || []).map((a) => a.title).slice(0, 30),
+          note: note.trim(),
         }),
       });
       const body = await res.json();
       if (!res.ok) { setAiErr(body.error || 'Could not build a list.'); return; }
+      setNote('');
       const fresh = (body.items || []).filter(
         (i) => !items.some((e) => e.label.toLowerCase() === i.label.toLowerCase()),
       );
@@ -83,13 +94,25 @@ export default function Packing({
           <h2>Packing list</h2>
           <div className="small muted">{packed} of {items.length} packed</div>
         </div>
-        {onAddMany ? (
-          <button className="btn sm" onClick={generate} disabled={aiBusy}>
+      </div>
+
+      {onAddMany ? (
+        <form className="pack-ask" onSubmit={(e) => { e.preventDefault(); generate(); }}>
+          <input
+            className="input" value={note} disabled={aiBusy}
+            aria-label="Anything the list should account for"
+            placeholder={items.length
+              ? 'More of something? Colder nights, a hike, formal dinner…'
+              : 'Anything special? Hand luggage only, hiking, travelling with a baby…'}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button className="btn sm" type="submit" disabled={aiBusy}
+            data-tip={note.trim() ? 'Build with this in mind' : 'Build from the trip'}>
             {aiBusy ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
             {items.length ? ' Suggest more' : ' Build the list'}
           </button>
-        ) : null}
-      </div>
+        </form>
+      ) : null}
       {aiErr ? <div className="err" style={{ marginTop: -8, marginBottom: 12 }}>{aiErr}</div> : null}
 
       {items.length ? (

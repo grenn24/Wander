@@ -1385,6 +1385,51 @@ body::before {
   width: var(--row); height: var(--row); min-height: var(--row);
   padding: 0; border-radius: 13px;
 }
+/* Quieter than the send button and the same size, so the row reads as one
+   control with two ways out of it rather than two competing buttons. */
+.planbox-clip {
+  flex: none; align-self: flex-end;
+  width: var(--row); height: var(--row); min-height: var(--row);
+  padding: 0; border-radius: 13px; color: var(--text-3);
+}
+.planbox-clip:hover { color: var(--accent); }
+/* Dragging a photograph over the box: the whole field is the target, because
+   aiming at a small one while holding a file is a needless test of nerve. */
+.planbox-field.is-over {
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift),
+              0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.planshot {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 9px;
+  padding: 5px 10px 5px 5px; border-radius: 12px; max-width: 100%;
+  background: var(--surface-1); border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.planshot img {
+  width: 38px; height: 38px; object-fit: cover; border-radius: 8px; flex: none;
+  background: var(--surface-2);
+}
+.planshot-name {
+  font-size: 12.5px; color: var(--text-2); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.planshot-x {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: 7px; border: none; background: transparent;
+  color: var(--text-3); cursor: pointer;
+}
+.planshot-x:hover { background: var(--surface-2); color: var(--text-1); }
+.planshot-err { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); }
+/* The picture, kept in view on the planning screen: it is the whole of the
+   brief when nobody typed anything, and the one thing worth checking if the
+   plan comes back about the wrong place. */
+.planhead-shot {
+  width: 42px; height: 42px; flex: none; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--glass-line);
+  background: var(--surface-2);
+}
+
 .planbox.compact .planbox-field {
   --row: 34px; --pad-l: 13px;
   padding: 10px 10px 10px var(--pad-l); border-radius: 15px;
@@ -3030,6 +3075,15 @@ body:has(.lp)::before { display: none; }
 
 /* A group of things to pack. Named the way a person would write it — shouting
    GENERAL at someone about their socks was never the intention. */
+/* The brief and the button that acts on it, in one row: the field is optional,
+   so it must not look like a step you have to complete first. */
+.pack-ask {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin: -4px 0 14px;
+}
+.pack-ask .input { flex: 1 1 220px; min-width: 0; }
+.pack-ask .btn { flex: none; }
+
 .pack-group {
   font-size: 13px; font-weight: 650; letter-spacing: .01em;
   color: var(--text-2); margin-bottom: 8px;
