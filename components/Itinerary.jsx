@@ -31,6 +31,27 @@ import { activityIcon } from '@/lib/icons';
  */
 const ANCHORS = new Set(['lodging']);
 
+/*
+ * What kind of thing a calendar entry is.
+ *
+ * Only ever a guess, and a shallow one — but "Other" for every single import
+ * was worse than a guess: it made a hotel booking indistinguishable from a
+ * dentist's appointment, and left the planner free to invent a second,
+ * vaguer version of the same stay.
+ */
+const KINDS = [
+  [/(hotel|hostel|airbnb|ryokan|resort|stay|check[- ]?in|check[- ]?out|inn|lodge)/i, 'lodging'],
+  [/(flight|airport|terminal|train|shinkansen|bus|ferry|transfer|pick[- ]?up|drop[- ]?off)/i, 'transport'],
+  [/(lunch|dinner|breakfast|brunch|restaurant|cafe|café|bar|reservation|omakase|table)/i, 'food'],
+  [/(museum|temple|shrine|gallery|tour|park|garden|zoo|palace|castle)/i, 'sightseeing'],
+];
+
+function guessKind(e) {
+  const hay = `${e.title || ''} ${e.where || ''}`;
+  const hit = KINDS.find(([re]) => re.test(hay));
+  return hit ? hit[1] : 'other';
+}
+
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
   onEditTrip, onPrint, onAddMany, focus, onFocused,
@@ -400,8 +421,11 @@ export default function Itinerary({
                           day: d,
                           title: e.title,
                           start_time: e.allDay ? null : String(e.start).slice(11, 16),
-                          category: 'other',
+                          /* A hotel arriving as "Other" is how the same stay
+                             ends up in the trip twice under two names. */
+                          category: guessKind(e),
                           location: e.where || '',
+                          notes: e.details || '',
                         }])}>
                         <Plus size={12} />
                       </button>

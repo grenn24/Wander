@@ -1,8 +1,10 @@
 import {
   aiConfigured, notConfigured, aiFailure, aiModel, aiEffort, AI_CATEGORIES,
-  cleanCategory, cleanTime,
+  cleanCategory, cleanTime, askJson,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
+import { userFromRequest } from '@/lib/supabaseServer';
+import { listEvents, connection } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,7 +70,26 @@ Rules:
 - Include travel between cities as a transport activity on the day it happens.
 - If the request names no dates, choose a sensible near-future start and say so
   in the summary.
-- Write the trip name, destination and summary first, then the days in order.`;
+- Write the trip name, destination and summary first, then the days in order.
+
+You may be given "Already in their calendar" — real entries from the
+traveller's own calendar on these dates, each with whatever address and notes
+they wrote on it. These are facts, not suggestions:
+- Use them exactly. The title they gave it, the address they gave it, the time
+  they gave it. Never replace a real address with a vague one, and never write
+  "see calendar" or "details in calendar" — you have the details, so put them
+  in.
+- Never invent a second activity for something already in that list. If they
+  have "Stay at Ascott Star KLCC, 1 Jalan Yap Kwan Seng" then the check-in is
+  that hotel at that address — do not also add a generic "check in to a hotel
+  in the centre". One thing happened; it gets one activity.
+- A multi-day all-day entry is usually where they are staying. Use it for the
+  check-in on the first day and the check-out on the last, with its real
+  address on both, and plan the days around that part of the city.
+- Give them the right category: a hotel is lodging, a flight or a transfer is
+  transport, a meal is food. "other" is for what genuinely fits nowhere.
+- Plan around the times they are busy. Do not schedule anything on top of
+  them.`;
 
 function cleanActivity(a) {
   return {
@@ -79,6 +100,69 @@ function cleanActivity(a) {
     cost: Number.isFinite(Number(a.cost)) ? Math.max(0, Number(a.cost)) : 0,
     notes: String(a.notes || '').trim().slice(0, 1000),
   };
+}
+
+/**
+ * Which dates this request is about, before anything is planned.
+ *
+ * The calendar can only be read for a range, and the range is whatever the
+ * planner is about to decide — so it has to be decided twice, cheaply first.
+ * One sentence in, two fields out, at minimal effort; a second or so in front
+ * of a plan that takes a minute.
+ */
+const WHEN = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['start_date', 'duration_days'],
+  properties: {
+    start_date: {
+      type: ['string', 'null'],
+      description: 'YYYY-MM-DD. Null if the request gives nothing to go on at all.',
+    },
+    duration_days: { type: 'integer', description: 'Whole days, 1 to 30' },
+  },
+};
+
+/**
+ * What the traveller already has on, during the trip they are asking for.
+ *
+ * Returns nothing at all unless they have connected a calendar — no request is
+ * made, and the planner is told nothing. Everything here is best-effort: a trip
+ * planned without the calendar is the behaviour this has always had, and is a
+ * far better outcome than a failure.
+ */
+async function theirCalendar(req, prompt, today) {
+  try {
+    const user = await userFromRequest(req);
+    if (!user) return null;
+    if (!(await connection(user.id))) return null;
+
+    const when = await askJson({
+      schemaName: 'trip_dates',
+      schema: WHEN,
+      system: 'You work out which dates a travel request is about. Today is '
+        + `${today || 'unknown'}. Answer with the start date and how many days.`,
+      task: 'when',
+      maxTokens: 600,
+      user: prompt,
+    });
+    if (!when || !when.start_date) return null;
+
+    const days = Math.min(30, Math.max(1, Number(when.duration_days) || 1));
+    const end = new Date(`${when.start_date}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + days - 1);
+
+    const events = await listEvents(
+      user.id,
+      new Date(`${when.start_date}T00:00:00Z`).toISOString(),
+      new Date(`${end.toISOString().slice(0, 10)}T23:59:59Z`).toISOString(),
+    );
+    if (!events.length) return null;
+    return { from: when.start_date, days, events };
+  } catch (e) {
+    console.error('[plan] calendar lookup skipped:', e.message);
+    return null;
+  }
 }
 
 export async function POST(req) {
@@ -95,6 +179,27 @@ export async function POST(req) {
   }
   if (!prompt) return Response.json({ error: 'Describe the trip you want.' }, { status: 400 });
 
+  const mine = await theirCalendar(req, prompt, today);
+  const calendarBlock = mine ? [
+    '',
+    'Already in their calendar on these dates — use these exactly, and do not',
+    'invent a second activity for anything in this list:',
+    ...mine.events.map((e) => {
+      const day = String(e.start).slice(0, 10);
+      const last = String(e.end || '').slice(0, 10);
+      const span = e.allDay && last && last > day ? ` until ${last}` : '';
+      const when2 = e.allDay ? 'all day' : String(e.start).slice(11, 16);
+      return [
+        `- ${day}${span} ${when2} | ${e.title}`,
+        e.where ? `  address: ${e.where}` : '',
+        e.details ? `  notes: ${e.details}` : '',
+      ].filter(Boolean).join('\n');
+    }),
+    '',
+    `Unless the request clearly says otherwise, start the trip on ${mine.from}`
+      + ` and run it for ${mine.days} day${mine.days === 1 ? '' : 's'}.`,
+  ].join('\n') : '';
+
   let upstream;
   try {
     upstream = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -110,7 +215,11 @@ export async function POST(req) {
         ...(aiEffort('plan') ? { reasoning_effort: aiEffort('plan') } : {}),
         messages: [
           { role: 'system', content: SYSTEM },
-          { role: 'user', content: `Today is ${today || 'unknown'}. Plan this trip:\n\n${prompt}` },
+          {
+            role: 'user',
+            content: `Today is ${today || 'unknown'}. Plan this trip:`
+              + `\n\n${prompt}${calendarBlock}`,
+          },
         ],
         response_format: {
           type: 'json_schema',

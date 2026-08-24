@@ -118,9 +118,22 @@ function Planner() {
 
     let plan = null;
     try {
+      /*
+       * Signed, so the planner can look at the calendar.
+       *
+       * Without this the route has no idea who is asking and cannot fetch
+       * anything on their behalf — which is exactly why the first version of
+       * this planned around a calendar it had never seen.
+       */
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess && sess.session ? sess.session.access_token : '';
+
       const res = await fetch('/api/plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ prompt: brief, today: todayISO() }),
       });
 
