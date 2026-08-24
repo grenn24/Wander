@@ -217,10 +217,13 @@ function Planner() {
           day,
           title: a.title,
           start_time: a.start_time,
+          end_time: a.end_time || null,
           category: a.category,
           subtype: a.subtype || null,
+          details: a.details || {},
           location: a.location,
           cost: a.cost,
+          booking_ref: a.booking_ref || '',
           notes: a.notes,
           sort_order: nextSortOrder(rows, day),
         });
