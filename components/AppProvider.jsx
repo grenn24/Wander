@@ -186,17 +186,48 @@ export default function AppProvider({ children }) {
    */
   const connectCalendar = useCallback(async () => {
     const back = `${window.location.pathname}${window.location.search}`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}${back}`,
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly'
-          + ' https://www.googleapis.com/auth/calendar.events',
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      },
-    });
+    const options = {
+      redirectTo: `${window.location.origin}${back}`,
+      scopes: 'https://www.googleapis.com/auth/calendar.readonly'
+        + ' https://www.googleapis.com/auth/calendar.events',
+      queryParams: { access_type: 'offline', prompt: 'consent' },
+    };
+
+    /*
+     * Linking, not signing in — when there is anyone to link to.
+     *
+     * signInWithOAuth means "sign in as whoever this Google account is". For
+     * somebody who signed up with an email and a password, that is a different
+     * account from the one they are sitting in: they would come back from
+     * Google to an empty trip list, with everything they had written still
+     * there and no longer theirs. Adding a provider to the account already
+     * signed in is a different call.
+     *
+     * If Google is already on the account, there is nothing to link and the
+     * ordinary sign-in is right: it lands on the same user and comes back with
+     * the fresh consent we asked for.
+     */
+    const linked = !!user && (user.identities || []).some((i) => i.provider === 'google');
+    const auth = supabase.auth;
+
+    if (!linked && typeof auth.linkIdentity === 'function') {
+      const { error } = await auth.linkIdentity({ provider: 'google', options });
+      if (!error) return;
+      /*
+       * Manual linking is off in the project settings, which is the default.
+       * Falling through to a plain sign-in would quietly move them to another
+       * account, so this stops and says what to turn on instead.
+       */
+      if (/manual linking|not enabled|disabled/i.test(error.message || '')) {
+        throw new Error('Turn on "Allow manual linking" in Supabase → Authentication → '
+          + 'Sign In / Providers before connecting a calendar to this account.');
+      }
+      throw error;
+    }
+
+    const { error } = await auth.signInWithOAuth({ provider: 'google', options });
     if (error) throw error;
-  }, [supabase]);
+  }, [supabase, user]);
 
   const sendReset = useCallback(async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
