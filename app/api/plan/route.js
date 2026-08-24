@@ -75,10 +75,17 @@ Rules:
 You may be given "Already in their calendar" — real entries from the
 traveller's own calendar on these dates, each with whatever address and notes
 they wrote on it. These are facts, not suggestions:
-- Use them exactly. The title they gave it, the address they gave it, the time
-  they gave it. Never replace a real address with a vague one, and never write
-  "see calendar" or "details in calendar" — you have the details, so put them
-  in.
+- Copy them, do not describe them. The title is theirs, character for
+  character: "Joseph's Wedding" is the title, not "Joseph's Wedding (calendar
+  item)", not "Wedding (morning)", not "Joseph's Wedding — see calendar". Add
+  nothing in brackets. Annotate nothing. If you find yourself explaining where
+  the entry came from, stop: they know, they wrote it.
+- The date and the time are theirs too. An entry at 09:30 on the 7th is an
+  activity at 09:30 on the 7th, even if the day would flow better with it
+  somewhere else. Move your own suggestions around it; never move it.
+- The address is theirs. Never replace a real street address with a district
+  or a city, and never write "see calendar" or "details in calendar" — you have
+  the details, so put them in the notes.
 - Never invent a second activity for something already in that list. If they
   have "Stay at Ascott Star KLCC, 1 Jalan Yap Kwan Seng" then the check-in is
   that hotel at that address — do not also add a generic "check in to a hotel
@@ -91,14 +98,48 @@ they wrote on it. These are facts, not suggestions:
 - Plan around the times they are busy. Do not schedule anything on top of
   them.`;
 
-function cleanActivity(a) {
+/**
+ * Put back what the traveller actually wrote.
+ *
+ * The instructions say to copy a calendar entry verbatim, and the instructions
+ * are not enough on their own: it has already come back as "Joseph's Wedding
+ * (calendar item)" once, and a title someone did not write is a title they
+ * cannot search for. So where a planned activity is recognisably one of their
+ * entries, the name and the address are taken from the entry rather than from
+ * whatever was written about it.
+ *
+ * Containment of the whole title, not a fuzzy match: "Joseph's Wedding
+ * (calendar item)" contains "Joseph's Wedding", and nothing else in a trip
+ * plausibly does.
+ */
+function corrector(events) {
+  const known = (events || [])
+    .map((e) => ({
+      title: String(e.title || '').trim(),
+      low: String(e.title || '').trim().toLowerCase(),
+      where: String(e.where || '').trim(),
+    }))
+    // Short titles like "Gym" would match half an itinerary.
+    .filter((e) => e.low.length >= 5);
+
+  if (!known.length) return (a) => a;
+  return (a) => {
+    const t = String(a.title || '').toLowerCase();
+    const hit = known.find((e) => t.includes(e.low));
+    if (!hit || a.title === hit.title) return a;
+    return { ...a, title: hit.title, location: hit.where || a.location };
+  };
+}
+
+function cleanActivity(a, fix) {
+  const it = fix ? fix(a) : a;
   return {
-    title: String(a.title || '').trim().slice(0, 200) || 'Untitled',
-    start_time: cleanTime(a.start_time),
-    category: cleanCategory(a.category),
-    location: String(a.location || '').trim().slice(0, 300),
-    cost: Number.isFinite(Number(a.cost)) ? Math.max(0, Number(a.cost)) : 0,
-    notes: String(a.notes || '').trim().slice(0, 1000),
+    title: String(it.title || '').trim().slice(0, 200) || 'Untitled',
+    start_time: cleanTime(it.start_time),
+    category: cleanCategory(it.category),
+    location: String(it.location || '').trim().slice(0, 300),
+    cost: Number.isFinite(Number(it.cost)) ? Math.max(0, Number(it.cost)) : 0,
+    notes: String(it.notes || '').trim().slice(0, 1000),
   };
 }
 
@@ -244,6 +285,10 @@ export async function POST(req) {
     );
   }
 
+  // Applied to every activity, streamed and final alike, so the preview and
+  // the saved trip cannot disagree about what something is called.
+  const fix = corrector(mine && mine.events);
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -285,7 +330,7 @@ export async function POST(req) {
           const already = sentCounts.get(idx) || 0;
           for (let k = already; k < acts.length; k += 1) {
             // parsePartial only ever yields complete objects, so this is whole.
-            send({ t: 'act', d: idx, a: cleanActivity(acts[k]) });
+            send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
           }
           if (acts.length > already) sentCounts.set(idx, acts.length);
         });
@@ -331,7 +376,7 @@ export async function POST(req) {
           .map((d) => ({
             day_index: Number(d.day_index),
             theme: String(d.theme || ''),
-            activities: (Array.isArray(d.activities) ? d.activities : []).slice(0, 8).map(cleanActivity),
+            activities: (Array.isArray(d.activities) ? d.activities : []).slice(0, 8).map((x) => cleanActivity(x, fix)),
           }));
 
         send({
