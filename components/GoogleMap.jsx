@@ -527,6 +527,40 @@ export default function GoogleMap({
     const byDay = {};
     const bounds = new L.LatLngBounds();
 
+    /*
+     * Stops that share a spot, fanned out so that neither hides the other.
+     *
+     * A flight out and a flight back leave from the same terminal; a hotel is
+     * the check-in, the check-out and the night in between. All of those
+     * geocode to one point, and one pin was simply drawn on top of the others
+     * — the map said there was one thing at Changi when there were two, and
+     * the one underneath could not be clicked at all.
+     *
+     * The offset is in screen pixels rather than in degrees, so it holds at
+     * every zoom without recomputing, and the marker stays anchored to its
+     * real coordinate: what moves is only how it is drawn, with a short
+     * leader back to the spot they all share.
+     */
+    const NEAR_M = 30;
+    const spots = [];
+    list.forEach((a) => {
+      const at = spots.find((g) => haversine(g.lat, g.lng, a.lat, a.lng) * 1000 <= NEAR_M);
+      if (at) at.items.push(a);
+      else spots.push({ lat: a.lat, lng: a.lng, items: [a] });
+    });
+
+    const fanned = new Map();
+    spots.forEach((g) => {
+      const k = g.items.length;
+      if (k < 2) return;
+      // Enough room for k pins around the circle without them touching again.
+      const r = Math.max(17, Math.round(5 * k));
+      g.items.forEach((a, i) => {
+        const ang = (-90 + (360 / k) * i) * (Math.PI / 180);
+        fanned.set(a.id, { dx: Math.cos(ang) * r, dy: Math.sin(ang) * r, r });
+      });
+    });
+
     list.forEach((a, i) => {
       const el = document.createElement('div');
       el.className = `gmk${sel === a.id ? ' gmk-focus' : ''}`;
@@ -541,8 +575,25 @@ export default function GoogleMap({
       el.dataset.tip = a.title;
       el.setAttribute('aria-label', a.title);
 
+      /* The pin is a rotated teardrop, so the nudge cannot go on the pin —
+         it goes on a wrapper, which keeps the shape and carries the leader. */
+      const fan = fanned.get(a.id);
+      let content = el;
+      if (fan) {
+        content = document.createElement('div');
+        content.className = 'gmk-fan';
+        content.style.setProperty('--dx', `${Math.round(fan.dx)}px`);
+        content.style.setProperty('--dy', `${Math.round(fan.dy)}px`);
+        content.style.setProperty('--len', `${fan.r}px`);
+        content.style.setProperty(
+          '--ang',
+          `${Math.round((Math.atan2(-fan.dy, -fan.dx) * 180) / Math.PI)}deg`,
+        );
+        content.appendChild(el);
+      }
+
       const mark = new L.AdvancedMarkerElement({
-        map, position: { lat: a.lat, lng: a.lng }, content: el,
+        map, position: { lat: a.lat, lng: a.lng }, content,
       });
       mark.__id = a.id;
       mark.__el = el;
