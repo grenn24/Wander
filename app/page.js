@@ -151,6 +151,8 @@ export default async function Landing({ searchParams }) {
         <span>Wander — travel itinerary planner</span>
         <div className="grow" />
         <span className="dim">Maps and places by Google</span>
+        <Link className="dim" href="/privacy">Privacy</Link>
+        <Link className="dim" href="/terms">Terms</Link>
       </footer>
     </div>
   );
