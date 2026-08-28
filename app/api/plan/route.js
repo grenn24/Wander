@@ -9,6 +9,12 @@ import { listEvents, connection } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+/*
+ * A whole itinerary on the better model is a minute or two of work. Left to a
+ * host's default the request is cut off partway and the reader sees a dropped
+ * connection rather than a deadline.
+ */
+export const maxDuration = 300;
 
 /* flight, train, bus, ferry, car, transfer — the app's own list, so a new one
    is offered to the planner the moment it exists rather than a year later. */
