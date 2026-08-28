@@ -37,9 +37,24 @@ const mono = JetBrains_Mono({
   variable: '--font-mono',
 });
 
+/*
+ * Proving to Google that this site is ours.
+ *
+ * Search Console will take either a meta tag or a file at the root. The tag is
+ * the easier of the two to deploy — one environment variable, no rebuild of
+ * anything else — and it has to be on the homepage specifically, which is why
+ * it lives in the root layout rather than on a page.
+ *
+ * Set GOOGLE_SITE_VERIFICATION to the content value Search Console gives you;
+ * without it nothing is emitted.
+ */
+const VERIFY = process.env.GOOGLE_SITE_VERIFICATION || '';
+
 export const metadata = {
   title: 'Wander — travel itinerary planner',
   description: 'Plan trips day by day: timeline, map, budget, packing list. Live collaboration.',
+  ...(VERIFY && !VERIFY.startsWith('REPLACE_WITH')
+    ? { verification: { google: VERIFY } } : {}),
 };
 
 export const viewport = {
