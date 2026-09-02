@@ -1,0 +1,188 @@
+# Wander — handover
+
+Everything a new agent needs before touching this repo. Read it once, in full,
+before the first edit.
+
+---
+
+## 1. What this is
+
+**Wander** — a travel itinerary planner. Next.js 15 (App Router, JavaScript, no
+TypeScript), Supabase (Postgres + Auth + Realtime), deployed on Vercel. Google
+Maps/Places/Routes for anything geographic, OpenAI for anything generative.
+
+- Prod: <https://wander-travel-itinerary-planner.vercel.app>
+- **Pushing to `main` deploys live.** There is no staging.
+
+Layout worth knowing:
+
+| path | what lives there |
+|---|---|
+| `app/api/*` | route handlers — every OpenAI and Google call is server-side |
+| `lib/ai.js` | model/effort routing, the strict-JSON helper `askJson` |
+| `lib/googleCal.js`, `lib/supabaseServer.js` | calendar + service-role access |
+| `components/` | all UI, client components |
+| `supabase/schema.sql` | the whole schema, idempotent |
+
+---
+
+## 2. How the owner wants you to work
+
+- **Ship without asking.** Build, commit and push finished work to `main`
+  automatically. Do not ask for permission to commit. Do not ask "shall I
+  proceed".
+- **Build before every commit.** `npm run build` must pass.
+- **Say what you could not verify.** They would rather hear "this path is
+  untested because I cannot sign in" than a confident claim.
+- **Push back when they are wrong**, with evidence. They respond well to it and
+  badly to agreement they did not earn.
+
+### The procedure that keeps biting
+
+**Stop the dev server before running `npm run build`.** Running a production
+build while `next dev` is up corrupts `.next` and produces phantom 404s,
+"Cannot find module './vendor-chunks/...'", and bogus prerender errors on
+`/404`. The previous agent did this four times and wasted an hour each time.
+
+```
+stop dev  →  npm run build  →  commit + push  →  start dev again
+```
+
+If it happens anyway: `rm -rf .next`, then restart dev.
+
+### Git
+
+Pushes fail with a certificate error unless git uses the Windows cert store.
+If a push fails on SSL, that is the cause.
+
+---
+
+## 3. Hard-won lessons — read these before debugging anything
+
+These are the recurring bug classes in this codebase. Most "the model is being
+stupid" reports turned out to be one of them.
+
+1. **A model with no field for a fact will put the fact in prose.** The single
+   biggest source of complaints. A flight arrived titled
+   `Flight: SIN (T2) → KUL (T1), MH 616 (confirmed)` because the schema had
+   `title` and no `code`, `from`, `from_terminal`. Asked to change a subtype
+   with no `subtype` field, the model wrote *notes about* subtypes. **Before
+   blaming the prompt, check the schema can express the answer.**
+
+2. **Prompt rules are not enough on their own.** Where correctness matters,
+   follow the instruction with deterministic repair. `app/api/plan/route.js`
+   has a `corrector()` that puts calendar titles and addresses back verbatim,
+   because "use them exactly" was read as leave to annotate.
+
+3. **`app/api/command/route.js` has a whitelist sanitiser.** A new field must be
+   added in **four** places or it silently vanishes: the schema, the sanitiser,
+   the `expand()` bulk path, and the apply in `components/Command.jsx`. Missing
+   the sanitiser looks exactly like the model ignoring the request.
+
+4. **`backdrop-filter` creates a containing block for `position: fixed`.** Any
+   fixed overlay inside a glass surface must be portalled to `document.body`.
+   This has caused at least four separate bugs.
+
+5. **Postgres returns `time` columns as `"09:00:00"`, not `"09:00"`.** Appending
+   seconds gave `2026-10-28T09:00:00:00` and Google rejected every timed event.
+
+6. **One-shot effects must not claim before they can act.** Setting a
+   `hasRun` ref and then bailing on a guard means the work never happens —
+   React StrictMode double-invokes in dev and hides it. Bit twice.
+
+7. **Google Places field masks decide the billing tier.** `reviews` puts the
+   call in the top tier, so `rating`, `phone` and `website` ride along free.
+   Photo *references* are free with a search; each photo *drawn* is a billed
+   fetch, and references carry a per-response token so they are not stable ids.
+
+8. **The map is raster.** `NEXT_PUBLIC_MAPS_MAP_ID` is unset, so it falls back
+   to `DEMO_MAP_ID` and `setHeading` is silently ignored. Compass rotation in
+   Traveller mode is written and dormant; it needs a vector Map ID.
+
+---
+
+## 4. What you cannot verify, and why
+
+- **The preview browser is signed out**, and signing in on the owner's behalf is
+  not allowed. Everything behind auth — the trips list, any trip page, the
+  command bar, the account page, the whole Google Calendar feature — cannot be
+  clicked through by you.
+- **Workarounds that do work:** call the API routes directly with `fetch` from
+  the browser console; render real markup against the real stylesheet to check
+  CSS; query the local database directly.
+- **Local Supabase runs in Docker**: `docker exec supabase_db_wander-planner
+  psql -U postgres -d postgres -c "..."`. The local database has test data,
+  including a demo trip `01b42f44-8000-4b6b-81b0-78bfe48bb37b` ("Hakone &
+  Kyoto"). Clean up any rows you insert for testing.
+
+---
+
+## 5. Secrets and safety
+
+- **Never print `.env` or `.env.local` contents.** Mask with
+  `sed 's/=.*/=<set>/'` when you need to see which keys exist.
+- **Never accept an API key pasted into chat.** Tell the owner to put it in
+  `.env.local` and Vercel themselves.
+- ⚠️ **An OpenAI API key leaked in an early session and has still not been
+  rotated.** Remind them.
+- `SUPABASE_SERVICE_ROLE_KEY` bypasses row-level security. Server-only, never
+  `NEXT_PUBLIC_`.
+
+---
+
+## 6. Schema changes
+
+**Always announce them.** Prod is a separate Supabase database the owner updates
+by hand from the dashboard; a schema edit that is not flagged becomes a
+production error days later. `supabase/schema.sql` is fully idempotent, so the
+whole file can be re-run safely — but note that the Supabase SQL editor runs a
+paste as **one transaction**, so one failing statement rolls back the lot.
+
+---
+
+## 7. Outstanding — owner's side, not yours
+
+| item | state |
+|---|---|
+| Rotate the leaked OpenAI key | not done |
+| `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` + Vercel | placeholder |
+| `OPENAI_MODEL_SMART` (turns on the better model for plan + command) | empty |
+| `GOOGLE_SITE_VERIFICATION` | placeholder |
+| Contact email in `app/privacy/page.js` and `app/terms/page.js` | `REPLACE_WITH_YOUR_CONTACT_EMAIL` |
+| Google OAuth verification | **rejected** — `vercel.app` cannot be verified as owned. Needs a custom domain, or stay in Testing mode (refresh tokens then expire every 7 days) |
+| Vector Map ID for compass rotation | optional |
+
+---
+
+## 8. Where the AI work stands
+
+`lib/ai.js` routes seven tasks across two model tiers and three effort levels.
+`plan` and `command` use `OPENAI_MODEL_SMART`; everything else uses
+`OPENAI_MODEL`. Unset, both resolve to the same model and nothing changes.
+
+Every call is **single-shot structured output** — a strict JSON schema, one
+request, deterministic post-processing. There is no tool-use loop anywhere, and
+that is deliberate: it keeps the app streamable, cheap and debuggable.
+
+**The agreed next step, not yet built:** one bounded tool-use pass after the
+plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
+opening hours and closing days, which the planner currently cannot know and
+papers over with "check opening hours" in the notes. If you build it: tool
+errors must be returned as data rather than thrown, and it must propose rather
+than write. The command bar's existing propose-then-approve flow is the pattern
+to copy.
+
+---
+
+## 9. House style
+
+Match the surrounding code — it is consistent and deliberate.
+
+- Comments explain **why**, not what, and often name the bug that caused the
+  line to exist. Keep that; it is why the codebase is debuggable.
+- British spelling in prose and UI copy.
+- UI copy is plain and short. No exclamation marks. Errors say what happened and
+  what to do, never "Oops".
+- Reuse existing patterns before inventing one — there is already a confirm
+  pattern, a popover, a menu, a toast, a tooltip. The previous agent shipped a
+  fourth confirm design and was rightly told off for it.
