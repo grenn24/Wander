@@ -71,7 +71,7 @@ const SCHEMA = {
               additionalProperties: false,
               required: [
                 'title', 'start_time', 'end_time', 'category', 'subtype',
-                'location', 'notes', 'cost', 'booking_ref', 'details',
+                'location', 'notes', 'cost', 'booking_ref', 'details', 'requested',
               ],
               properties: {
                 title: {
@@ -112,6 +112,13 @@ const SCHEMA = {
                   description: 'A confirmation or reference number, only if one is actually '
                     + 'known from the request or the calendar. Never invented.',
                 },
+                requested: {
+                  type: 'boolean',
+                  description: 'True only when this exact activity was requested by the traveller, '
+                    + 'is an explicitly requested journey, or is an existing calendar commitment. '
+                    + 'False for suggested meals, nearby attractions, rest, check-ins, transfers, '
+                    + 'and other filler that the traveller did not name.',
+                },
                 details: DETAILS,
               },
             },
@@ -125,8 +132,17 @@ const SCHEMA = {
 const SYSTEM = `You plan travel itineraries that a real traveller could actually follow.
 
 Rules:
-- Keep each day realistic: 3 to 5 activities, geographically sensible, no zig-zagging
-  across a city and back.
+- The traveller's constraints override every default below. Words such as
+  "only", "exclusively", "nothing else", and "no other activities" are hard
+  limits. Include the named places and explicitly requested journeys only.
+  Do not add meals, attractions, shopping, hotels, transfers, rest blocks, or
+  other filler. Sparse and empty days are correct when the traveller asked for
+  a short fixed list across a longer trip.
+- Set requested true only for an activity explicitly named in the request, an
+  explicitly requested journey, or an existing calendar commitment. Similar,
+  nearby, or normally necessary activities are not requested.
+- When there is no exclusive constraint, keep each day realistic: 3 to 5
+  activities, geographically sensible, no zig-zagging across a city and back.
 - "location" must be a real place name that a map search would find — "Senso-ji,
   Asakusa, Tokyo", not "a nice temple". Leave it blank rather than invent one.
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
@@ -178,6 +194,17 @@ they wrote on it. These are facts, not suggestions:
   transport, a meal is food. "other" is for what genuinely fits nowhere.
 - Plan around the times they are busy. Do not schedule anything on top of
   them.`;
+
+/** Whether the traveller explicitly forbids suggestions beyond their list. */
+function hasExclusiveScope(text) {
+  const value = String(text || '');
+  return /\bONLY\b/.test(value)
+    || /\b(?:only|just)\s+(?:these|those|the\s+(?:following|listed|named))\b/i.test(value)
+    || /\b(?:these|those|following|listed|named)\s+(?:places|activities|stops)?\s*only\b/i.test(value)
+    || /\b(?:nothing|nowhere)\s+else\b/i.test(value)
+    || /\bno\s+(?:other|extra|additional)\s+(?:activities|places|stops|suggestions)\b/i.test(value)
+    || /\bdo(?:n't|\s+not)\s+(?:add|include|suggest|plan)\s+(?:anything|activities|places|stops)\b/i.test(value);
+}
 
 /**
  * Put back what the traveller actually wrote.
@@ -304,6 +331,8 @@ the traveller cares about most.
 Rules:
 - Return at most three questions.
 - Do not ask for something the request already answers.
+- Treat "only", "exclusively", "nothing else", and equivalent wording as a
+  complete instruction. Do not ask how to fill the remaining time.
 - Do not ask generic preference questions just to make conversation.
 - Use a choice when two to four useful defaults cover the likely answers.
 - Include "No preference" when it is a sensible choice.
@@ -401,6 +430,8 @@ ${prompt}`,
     }
   }
 
+  const strictOnly = hasExclusiveScope(prompt);
+
   const mine = await theirCalendar(req, prompt, today);
   const calendarBlock = mine ? [
     '',
@@ -421,6 +452,12 @@ ${prompt}`,
     `Unless the request clearly says otherwise, start the trip on ${mine.from}`
       + ` and run it for ${mine.days} day${mine.days === 1 ? '' : 's'}.`,
   ].join('\n') : '';
+  const scopeBlock = strictOnly ? `
+
+HARD EXCLUSIVE SCOPE:
+The traveller asked for only the activities or journeys they named. Do not fill
+unused time. Every activity not explicitly requested must have requested=false
+and will be removed before the traveller sees it.` : '';
 
   let upstream;
   try {
@@ -440,7 +477,7 @@ ${prompt}`,
           {
             role: 'user',
             content: `Today is ${today || 'unknown'}. Plan this trip:`
-              + `\n\n${prompt}${calendarBlock}`,
+              + `\n\n${prompt}${scopeBlock}${calendarBlock}`,
           },
         ],
         response_format: {
@@ -469,6 +506,9 @@ ${prompt}`,
   // Applied to every activity, streamed and final alike, so the preview and
   // the saved trip cannot disagree about what something is called.
   const fix = corrector(mine && mine.events);
+  const includeActivity = (activity) => !strictOnly || activity.requested === true;
+  const exclusiveSummary = 'Only the places and journeys you requested are included. '
+    + 'The remaining time is left open.';
 
   const encoder = new TextEncoder();
 
@@ -491,7 +531,9 @@ ${prompt}`,
           destination: typeof partial.destination === 'string' ? partial.destination : '',
           currency: typeof partial.currency === 'string' ? partial.currency : '',
           duration_days: Number(partial.duration_days) || 0,
-          summary: typeof partial.summary === 'string' ? partial.summary : '',
+          summary: strictOnly
+            ? exclusiveSummary
+            : (typeof partial.summary === 'string' ? partial.summary : ''),
         };
         const metaKey = JSON.stringify(meta);
         if (metaKey !== sentMeta) { sentMeta = metaKey; send({ t: 'meta', ...meta }); }
@@ -501,17 +543,19 @@ ${prompt}`,
           const idx = Number(d.day_index);
           if (!Number.isInteger(idx) || idx < 1) return;
 
+          const acts = Array.isArray(d.activities) ? d.activities : [];
           const theme = typeof d.theme === 'string' ? d.theme : '';
-          if (sentThemes.get(idx) !== theme) {
+          if ((!strictOnly || acts.some(includeActivity)) && sentThemes.get(idx) !== theme) {
             sentThemes.set(idx, theme);
             send({ t: 'day', i: idx, theme });
           }
 
-          const acts = Array.isArray(d.activities) ? d.activities : [];
           const already = sentCounts.get(idx) || 0;
           for (let k = already; k < acts.length; k += 1) {
             // parsePartial only ever yields complete objects, so this is whole.
-            send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
+            if (includeActivity(acts[k])) {
+              send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
+            }
           }
           if (acts.length > already) sentCounts.set(idx, acts.length);
         });
@@ -557,8 +601,10 @@ ${prompt}`,
           .map((d) => ({
             day_index: Number(d.day_index),
             theme: String(d.theme || ''),
-            activities: (Array.isArray(d.activities) ? d.activities : []).slice(0, 8).map((x) => cleanActivity(x, fix)),
-          }));
+            activities: (Array.isArray(d.activities) ? d.activities : [])
+              .filter(includeActivity).slice(0, 8).map((x) => cleanActivity(x, fix)),
+          }))
+          .filter((d) => !strictOnly || d.activities.length > 0);
 
         send({
           t: 'done',
@@ -568,7 +614,9 @@ ${prompt}`,
             currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
             start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
             duration_days: duration,
-            summary: String(final.summary || '').trim().slice(0, 500),
+            summary: strictOnly
+              ? exclusiveSummary
+              : String(final.summary || '').trim().slice(0, 500),
             days,
           },
         });
