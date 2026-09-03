@@ -63,6 +63,20 @@ create table if not exists public.packing_items (
   created_at timestamptz not null default now()
 );
 
+-- The private conversation Wander uses to remember how a trip was planned and
+-- what its travellers later asked it to change. Messages disappear with the
+-- trip and are readable only by people who can already open that trip.
+create table if not exists public.trip_agent_messages (
+  id         uuid primary key default gen_random_uuid(),
+  trip_id    uuid not null references public.trips(id) on delete cascade,
+  user_id    uuid references auth.users(id) on delete set null,
+  role       text not null check (role in ('user', 'assistant')),
+  kind       text not null default 'message',
+  content    text not null,
+  meta       jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 -- ------------------------------------------------- v1 -> v2 column adds ----
 alter table public.trip_members add column if not exists display_name text;
 alter table public.trips        add column if not exists share_code   text;
@@ -108,6 +122,7 @@ alter table public.google_tokens enable row level security;
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);
 create index if not exists packing_trip_idx        on public.packing_items (trip_id);
 create index if not exists members_user_idx        on public.trip_members (user_id);
+create index if not exists agent_messages_trip_idx on public.trip_agent_messages (trip_id, created_at);
 
 -- ------------------------------------------------------- helper functions ---
 create or replace function public.gen_share_code()
@@ -234,12 +249,14 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete
   on public.trips, public.trip_members, public.activities, public.packing_items
   to authenticated;
+grant select, insert on public.trip_agent_messages to authenticated;
 
 -- --------------------------------------------------------------- row-level ---
 alter table public.trips         enable row level security;
 alter table public.trip_members  enable row level security;
 alter table public.activities    enable row level security;
 alter table public.packing_items enable row level security;
+alter table public.trip_agent_messages enable row level security;
 
 drop policy if exists trips_select on public.trips;
 create policy trips_select on public.trips for select to authenticated
@@ -285,16 +302,25 @@ create policy packing_all on public.packing_items for all to authenticated
   using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
+drop policy if exists agent_messages_select on public.trip_agent_messages;
+create policy agent_messages_select on public.trip_agent_messages for select to authenticated
+  using (public.is_trip_member(trip_id));
+
+drop policy if exists agent_messages_insert on public.trip_agent_messages;
+create policy agent_messages_insert on public.trip_agent_messages for insert to authenticated
+  with check (public.is_trip_member(trip_id) and user_id = auth.uid());
+
 -- ---------------------------------------------------------------- realtime ---
 alter table public.trips         replica identity full;
 alter table public.trip_members  replica identity full;
 alter table public.activities    replica identity full;
 alter table public.packing_items replica identity full;
+alter table public.trip_agent_messages replica identity full;
 
 do $do$
 declare t text;
 begin
-  foreach t in array array['trips','trip_members','activities','packing_items'] loop
+  foreach t in array array['trips','trip_members','activities','packing_items','trip_agent_messages'] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     exception when others then null;

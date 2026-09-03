@@ -11,7 +11,7 @@ const CONTACT = 'REPLACE_WITH_YOUR_CONTACT_EMAIL';
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy Policy" updated="24 August 2026">
+    <LegalPage title="Privacy Policy" updated="3 September 2026">
       <p>
         Wander is a travel itinerary planner. This policy describes what it stores, what it
         sends elsewhere, and how to have it deleted. It is written to be read rather than
@@ -28,7 +28,8 @@ export default function Privacy() {
         <li>
           <b>Your trips.</b> Everything you put in them: trip names, destinations, dates,
           budgets and notes; activities with their times, places, coordinates, costs, booking
-          references and notes; packing lists.
+          references and notes; packing lists; and the requests and answers in that trip's
+          Wander conversation.
         </li>
         <li>
           <b>Who you share a trip with.</b> The display name and email address of each person
@@ -120,9 +121,9 @@ export default function Privacy() {
         </li>
         <li>
           <b>OpenAI</b> — turns your requests into plans. It receives what you type or attach,
-          the trip and its activities when you ask for a change, and calendar entries within
-          the trip&rsquo;s dates when a calendar is connected. It does not receive your email
-          address or your account.
+          recent Wander conversation for that trip, the trip and its activities when you ask
+          for a change, and calendar entries within the trip&rsquo;s dates when a calendar is
+          connected. It does not receive your email address or your account.
         </li>
         <li>
           <b>Google Maps Platform</b> — draws maps, searches for places, supplies place photos,

@@ -11,6 +11,7 @@ import Popover from '@/components/Popover';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
+import ConfirmModal from '@/components/ConfirmModal';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
 import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
@@ -360,26 +361,12 @@ export default function TripsHome() {
 
       {/* One menu for the list, anchored to whichever button opened it. */}
       <Popover anchorEl={menuEl} open={!!menuFor} width={196}
-        onClose={() => { setMenuFor(null); setConfirmKill(null); }}>
+        onClose={() => setMenuFor(null)}>
         <div className="act-menu" role="menu">
           {(() => {
             const t = trips.find((x) => x.id === menuFor);
             if (!t) return null;
             const mine = !!user && t.owner_id === user.id;
-            if (confirmKill === t.id) {
-              return (
-                <>
-                  <p className="menu-who">Delete &ldquo;{t.name}&rdquo;?</p>
-                  <button type="button" role="menuitem" onClick={() => setConfirmKill(null)}>
-                    Keep it
-                  </button>
-                  <button type="button" role="menuitem" className="danger"
-                    onClick={() => kill(t)}>
-                    <Trash2 size={15} /> Yes, delete it
-                  </button>
-                </>
-              );
-            }
             return (
               <>
                 <button type="button" role="menuitem"
@@ -399,7 +386,7 @@ export default function TripsHome() {
                   <>
                     <div className="menu-rule" />
                     <button type="button" role="menuitem" className="danger"
-                      onClick={() => setConfirmKill(t.id)}>
+                      onClick={() => { setConfirmKill(t); setMenuFor(null); }}>
                       <Trash2 size={15} /> Delete trip
                     </button>
                   </>
@@ -412,6 +399,13 @@ export default function TripsHome() {
 
       {draft ? (
         <TripModal draft={draft} onChange={setDraft} onSave={saveTrip} onClose={() => setDraft(null)} />
+      ) : null}
+
+      {confirmKill ? (
+        <ConfirmModal title="Delete trip?" confirmLabel="Delete trip"
+          onClose={() => setConfirmKill(null)} onConfirm={() => kill(confirmKill)}>
+          <p>Delete "{confirmKill.name}" and its itinerary, packing list, and shared access? This cannot be undone.</p>
+        </ConfirmModal>
       ) : null}
     </div>
   );

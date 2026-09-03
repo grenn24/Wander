@@ -3799,3 +3799,58 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   body::before, .aurora-blob, .aurora-sheen { animation: none !important; }
 }
+
+.confirm-backdrop { z-index: 140; }
+.confirm-modal { max-width: 420px; }
+.confirm-copy { color: var(--text-2); line-height: 1.6; }
+.confirm-copy p { margin: 0; }
+
+.planning-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-2);
+}
+.planning-check svg { color: var(--accent); }
+.planquestions { padding: 20px; }
+.planquestions-intro { margin: 0 0 18px; }
+.planq {
+  min-width: 0;
+  margin: 0;
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.planq legend {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-bottom: 11px;
+  padding: 0;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 650;
+}
+.planq legend span {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  font-size: 11px;
+}
+.planq-text { min-height: 72px; }
+.planquestions-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+@media (max-width: 520px) {
+  .planquestions { padding: 16px; }
+  .planquestions-actions .btn { flex: 1; }
+}

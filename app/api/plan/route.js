@@ -267,6 +267,51 @@ const WHEN = {
   },
 };
 
+const BRIEF_CHECK = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ready', 'questions'],
+  properties: {
+    ready: { type: 'boolean' },
+    questions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'ask', 'kind', 'options'],
+        properties: {
+          id: { type: 'string', description: 'Short stable key such as dates or pace' },
+          ask: { type: 'string', description: 'One direct question under sixteen words' },
+          kind: { type: 'string', enum: ['choice', 'text'] },
+          options: {
+            type: 'array',
+            description: 'Two to four short answers for choice, empty for text',
+            items: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+};
+
+const BRIEF_SYSTEM = `You check a travel request before an itinerary is built.
+
+Ask only about missing information that would materially change the trip. The
+most useful facts are exact timing or trip length, who is travelling and any
+mobility needs, pace, budget level, fixed bookings, and the one or two things
+the traveller cares about most.
+
+Rules:
+- Return at most three questions.
+- Do not ask for something the request already answers.
+- Do not ask generic preference questions just to make conversation.
+- Use a choice when two to four useful defaults cover the likely answers.
+- Include "No preference" when it is a sensible choice.
+- Use text only for an exact date, place, budget, booking, or constraint that
+  cannot be represented honestly as a short choice.
+- Set ready true and return no questions when the request already has enough
+  information for a good plan.`;
+
 /**
  * What the traveller already has on, during the trip they are asking for.
  *
@@ -314,14 +359,47 @@ export async function POST(req) {
 
   let prompt = '';
   let today = '';
+  let mode = '';
   try {
     const body = await req.json();
-    prompt = String(body.prompt || '').trim().slice(0, 2000);
+    prompt = String(body.prompt || '').trim().slice(0, 6000);
     today = String(body.today || '').slice(0, 10);
+    mode = String(body.mode || '');
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
   if (!prompt) return Response.json({ error: 'Describe the trip you want.' }, { status: 400 });
+
+  if (mode === 'clarify') {
+    try {
+      const out = await askJson({
+        schemaName: 'trip_brief_check',
+        schema: BRIEF_CHECK,
+        system: BRIEF_SYSTEM,
+        task: 'brief',
+        maxTokens: 1800,
+        user: `Today is ${today || 'unknown'}.
+
+Travel request:
+${prompt}`,
+      });
+      const questions = (Array.isArray(out.questions) ? out.questions : []).slice(0, 3)
+        .map((q, i) => {
+          const options = (Array.isArray(q.options) ? q.options : [])
+            .map((o) => String(o || '').trim().slice(0, 80)).filter(Boolean).slice(0, 4);
+          return {
+            id: String(q.id || `question-${i + 1}`).replace(/[^a-z0-9_-]/gi, '').slice(0, 32)
+              || `question-${i + 1}`,
+            ask: String(q.ask || '').trim().slice(0, 180),
+            kind: q.kind === 'text' || options.length < 2 ? 'text' : 'choice',
+            options,
+          };
+        }).filter((q) => q.ask);
+      return Response.json({ ready: !!out.ready || !questions.length, questions });
+    } catch (e) {
+      return aiFailure(e, 'brief');
+    }
+  }
 
   const mine = await theirCalendar(req, prompt, today);
   const calendarBlock = mine ? [

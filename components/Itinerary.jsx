@@ -9,6 +9,7 @@ import QuickAdd from '@/components/QuickAdd';
 import PlacePhoto from '@/components/PlacePhoto';
 import Select from '@/components/Select';
 import Popover from '@/components/Popover';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
   shortPlace, minutesBetween, fmtDuration,
@@ -59,6 +60,7 @@ export default function Itinerary({
   const [clock, setClock] = useState(nowMinutes);
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
+  const [deleteAct, setDeleteAct] = useState(null);
   const lastMenuAct = useRef(null);
   const [activeDay, setActiveDay] = useState(null);
   const [suggestFor, setSuggestFor] = useState(null);
@@ -522,12 +524,20 @@ export default function Itinerary({
               <Copy size={15} /> Duplicate
             </button>
             <button type="button" className="danger"
-              onClick={() => { onDelete(menuAct); setMenuFor(null); }}>
+              onClick={() => { setDeleteAct(menuAct); setMenuFor(null); }}>
               <Trash2 size={15} /> Delete
             </button>
           </div>
         ) : null}
       </Popover>
+
+      {deleteAct ? (
+        <ConfirmModal title="Delete activity?" confirmLabel="Delete activity"
+          onClose={() => setDeleteAct(null)}
+          onConfirm={() => { onDelete(deleteAct); setDeleteAct(null); }}>
+          <p>Delete "{deleteAct.title}" from this trip? You can undo it from the message afterwards.</p>
+        </ConfirmModal>
+      ) : null}
     </div>
   );
 }

@@ -11,7 +11,7 @@ import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import { SHOT_KEY } from '@/components/PlanPrompt';
 import Loading from '@/components/Loading';
-import { categoryIcon } from '@/lib/icons';
+import { activityIcon } from '@/lib/icons';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
 } from '@/lib/util';
@@ -46,8 +46,9 @@ function Planner() {
 
   const [meta, setMeta] = useState(null);
   const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
-  // start | reading | streaming | locating | saving | error
+  // start | reading | clarifying | streaming | locating | saving | error
   const [phase, setPhase] = useState('start');
+  const [briefCheck, setBriefCheck] = useState(null);
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
   // What the picture turned out to be, said back so nobody has to guess which
@@ -56,6 +57,7 @@ function Planner() {
   const [unreadable, setUnreadable] = useState(false);
   const started = useRef(false);
   const liveRef = useRef(null);
+  const lastBrief = useRef('');
 
   const upsertDay = useCallback((i, patch) => {
     setDays((prev) => {
@@ -68,19 +70,21 @@ function Planner() {
     });
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (preparedBrief = '') => {
     if (!supabase || !user || (!query && !shots.length)) return;
     setError(''); setNoKey(false); setMeta(null); setDays([]);
-    setUnreadable(false); setRead('');
+    setUnreadable(false);
+    setBriefCheck(null);
+    if (!preparedBrief) setRead('');
 
     /*
      * The picture is read before anything is planned, so "I cannot make a trip
      * out of this" arrives on an empty screen rather than halfway down a
      * half-written itinerary.
      */
-    let brief = query;
+    let brief = preparedBrief || query;
     let saw = '';
-    if (shots.length) {
+    if (shots.length && !preparedBrief) {
       setPhase('reading');
       let seen;
       try {
@@ -114,6 +118,33 @@ function Planner() {
         : `${from}\n${seen.brief}`;
     }
 
+    if (!preparedBrief) {
+      setPhase('clarifying');
+      try {
+        const res = await fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'clarify', prompt: brief, today: todayISO() }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (body.code === 'no_key') setNoKey(true);
+          setError(body.error || 'Could not check the trip details.');
+          setPhase('error');
+          return;
+        }
+        if (body.questions && body.questions.length) {
+          setBriefCheck({ brief, questions: body.questions, answers: {} });
+          return;
+        }
+      } catch (e) {
+        setError('The connection dropped while checking the trip details. Try again.');
+        setPhase('error');
+        return;
+      }
+    }
+
+    lastBrief.current = brief;
     setPhase('streaming');
 
     let plan = null;
@@ -193,11 +224,7 @@ function Planner() {
       start_date: start,
       end_date: end,
       currency: plan.currency,
-      notes: plan.summary
-        ? `Planned from: ${query ? `"${query}"`
-          : `${shots.length === 1 ? 'a picture' : `${shots.length} pictures`} — ${saw || 'attached'}`}`
-          + `\n\n${plan.summary}`
-        : '',
+      notes: '',
     }).select().single();
 
     if (tripErr || !trip) {
@@ -206,6 +233,21 @@ function Planner() {
       setPhase('error');
       return;
     }
+
+    // The prompt belongs to the agent conversation, not to the trip's notes.
+    // Saving both sides means later requests can refer to an earlier choice.
+    const { error: historyErr } = await supabase.from('trip_agent_messages').insert([
+      {
+        trip_id: trip.id, user_id: user.id, role: 'user', kind: 'initial_prompt',
+        content: brief.slice(0, 4000), meta: { pictures: shots.length },
+      },
+      {
+        trip_id: trip.id, user_id: user.id, role: 'assistant', kind: 'initial_plan',
+        content: String(plan.summary || 'Initial itinerary created.').slice(0, 4000),
+        meta: { name: plan.name, destination: plan.destination, duration_days: plan.duration_days },
+      },
+    ]);
+    if (historyErr) console.error('[agent history] could not save initial brief:', historyErr.message);
 
     const rows = [];
     plan.days.forEach((d) => {
@@ -287,6 +329,25 @@ function Planner() {
     el.scrollTop = el.scrollHeight;
   }, [days, phase]);
 
+  function answerBrief(id, value) {
+    setBriefCheck((current) => (current ? {
+      ...current,
+      answers: { ...current.answers, [id]: value },
+    } : current));
+  }
+
+  function continuePlanning(skip = false) {
+    if (!briefCheck) return;
+    const details = skip ? [] : briefCheck.questions.map((q) => {
+      const answer = String(briefCheck.answers[q.id] || '').trim();
+      return answer ? `${q.ask}\n${answer}` : '';
+    }).filter(Boolean);
+    const full = details.length
+      ? `${briefCheck.brief}\n\nTraveller answers:\n${details.join('\n\n')}`
+      : briefCheck.brief;
+    run(full);
+  }
+
   if (!query && !shots.length) {
     return (
       <div className="shell">
@@ -308,6 +369,9 @@ function Planner() {
 
   const totalActs = days.reduce((s, d) => s + d.activities.length, 0);
   const expected = meta && meta.duration_days ? meta.duration_days : 0;
+  const answeredBrief = briefCheck
+    ? briefCheck.questions.every((q) => String(briefCheck.answers[q.id] || '').trim())
+    : false;
 
   return (
     <div className="shell">
@@ -335,6 +399,8 @@ function Planner() {
                   ? (unreadable
                     ? `I could not read ${shots.length === 1 ? 'that picture' : 'those pictures'}`
                     : 'That did not work')
+                  : phase === 'clarifying'
+                    ? (briefCheck ? 'A few details first' : 'Checking your trip brief')
                   : meta && meta.name ? meta.name
                     : phase === 'reading'
                       ? `Reading your picture${shots.length === 1 ? '' : 's'}`
@@ -349,7 +415,53 @@ function Planner() {
             </div>
           </div>
 
-          {phase === 'error' ? (
+          {phase === 'clarifying' ? (
+            briefCheck ? (
+              <form className="card planquestions"
+                onSubmit={(e) => { e.preventDefault(); if (answeredBrief) continuePlanning(); }}>
+                <p className="small muted planquestions-intro">
+                  These answers affect the route enough that guessing would produce the wrong trip.
+                </p>
+                {briefCheck.questions.map((q, i) => (
+                  <fieldset className="planq" key={q.id}>
+                    <legend><span>{i + 1}</span>{q.ask}</legend>
+                    {q.kind === 'choice' ? (
+                      <div className="cmdq-opts">
+                        {q.options.map((option) => {
+                          const selected = briefCheck.answers[q.id] === option;
+                          return (
+                            <button type="button" key={option}
+                              className={`cmdq-opt${selected ? ' is-on' : ''}`}
+                              aria-pressed={selected}
+                              onClick={() => answerBrief(q.id, option)}>
+                              <span className="cmdq-opt-label">{option}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <textarea className="textarea planq-text" rows={2} enterKeyHint="enter"
+                        value={briefCheck.answers[q.id] || ''}
+                        placeholder="Type your answer"
+                        onChange={(e) => answerBrief(q.id, e.target.value)} />
+                    )}
+                  </fieldset>
+                ))}
+                <div className="planquestions-actions">
+                  <button className="btn" type="button" onClick={() => continuePlanning(true)}>
+                    Skip for now
+                  </button>
+                  <button className="btn primary" type="submit" disabled={!answeredBrief}>
+                    Plan my trip
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="card planning-check">
+                <Loader2 size={16} className="spin" /> Checking the details that shape the trip…
+              </div>
+            )
+          ) : phase === 'error' ? (
             <div className="card">
               <div className="planning-err">
                 {unreadable ? <ImageOff size={16} /> : <TriangleAlert size={16} />}
@@ -366,7 +478,7 @@ function Planner() {
                 {/* Reading the same picture again gets the same answer, so when
                     the picture is the problem the way forward is another one. */}
                 {!noKey && !unreadable ? (
-                  <button className="btn primary" onClick={() => run()}>
+                  <button className="btn primary" onClick={() => run(lastBrief.current)}>
                     <RotateCw size={15} /> Try again
                   </button>
                 ) : null}
@@ -411,7 +523,7 @@ function Planner() {
                     </div>
                     {d.activities.map((a, k) => {
                       const cat = categoryOf(a.category);
-                      const Icon = categoryIcon(cat.id);
+                      const Icon = activityIcon(a);
                       return (
                         <div className="planact" key={`${d.index}-${k}`}>
                           <span className="planact-time mono">

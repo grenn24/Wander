@@ -149,6 +149,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           className="planbox-input"
           value={value}
           rows={1}
+          enterKeyHint="enter"
           autoFocus={autoFocus}
           aria-label="Describe the trip you want"
           placeholder={rotate ? '' : 'Where are you going?'}
@@ -156,9 +157,6 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           onPaste={(e) => {
             const imgs = pickImages(e.clipboardData && e.clipboardData.files);
             if (imgs.length) { e.preventDefault(); take(e.clipboardData.files); }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
         />
         {rotate && !value ? (

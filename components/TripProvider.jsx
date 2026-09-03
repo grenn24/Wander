@@ -26,6 +26,7 @@ export default function TripProvider({ tripId, children }) {
   const [activities, setActivities] = useState([]);
   const [packing, setPacking] = useState([]);
   const [members, setMembers] = useState([]);
+  const [agentHistory, setAgentHistory] = useState([]);
   const [online, setOnline] = useState([]);
   const [loadedId, setLoadedId] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -59,11 +60,13 @@ export default function TripProvider({ tripId, children }) {
     if (!supabase || !id) return;
     const mine = token.current + 1;
     token.current = mine;
-    const [t, a, p, m] = await Promise.all([
+    const [t, a, p, m, h] = await Promise.all([
       supabase.from('trips').select('*').eq('id', id).maybeSingle(),
       supabase.from('activities').select('*').eq('trip_id', id),
       supabase.from('packing_items').select('*').eq('trip_id', id).order('created_at'),
       supabase.from('trip_members').select('*').eq('trip_id', id),
+      supabase.from('trip_agent_messages').select('*').eq('trip_id', id)
+        .order('created_at', { ascending: true }).limit(60),
     ]);
     if (mine !== token.current) return; // superseded
     if (t.error) { fail(t.error); return; }
@@ -73,6 +76,7 @@ export default function TripProvider({ tripId, children }) {
     if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
     if (!p.error) setPacking(p.data || []);
     if (!m.error) setMembers(m.data || []);
+    if (!h.error) setAgentHistory(h.data || []);
     setLoadedId(id);
   }, [supabase, fail]);
 
@@ -96,6 +100,7 @@ export default function TripProvider({ tripId, children }) {
     ch.on('postgres_changes', { event: '*', schema: 'public', table: 'activities', filter }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'packing_items', filter }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members', filter }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_agent_messages', filter }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, refresh)
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
@@ -269,6 +274,27 @@ export default function TripProvider({ tripId, children }) {
     return data ? data.length : 0;
   }, [supabase, tripId, fail]);
 
+  /* Messages are append-only. That keeps later requests tied to what was
+     actually said at the time, including questions the agent asked. */
+  const appendAgentMessage = useCallback(async ({ role, kind, content, meta = {} }) => {
+    if (!supabase || !tripId || !user || !content) return null;
+    const row = {
+      trip_id: tripId,
+      user_id: user.id,
+      role: role === 'assistant' ? 'assistant' : 'user',
+      kind: kind || 'message',
+      content: String(content).slice(0, 4000),
+      meta,
+    };
+    const { data, error } = await supabase.from('trip_agent_messages').insert(row).select().single();
+    if (error) {
+      console.error('[agent history] could not save message:', error.message);
+      return null;
+    }
+    if (data) setAgentHistory((prev) => [...prev, data].slice(-60));
+    return data || null;
+  }, [supabase, tripId, user]);
+
   const deleteActivity = useCallback(async (act) => {
     if (!supabase || !act || !act.id) return;
     const snapshot = { ...act };
@@ -368,20 +394,20 @@ export default function TripProvider({ tripId, children }) {
   const clearIntent = useCallback(() => setIntent(null), []);
 
   const value = useMemo(() => ({
-    tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner,
+    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, isOwner,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     reload: () => load(tripId),
     setTrip,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
-    tripId, trip, days, activities, packing, members, online, ready, notFound, isOwner, load,
+    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, isOwner, load,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, updateTrip,
+    setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   ]);
 

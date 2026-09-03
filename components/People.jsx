@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Copy, Check, Trash2, LogOut, Share2, Link2, Users } from 'lucide-react';
 import { colorFor, initials } from '@/lib/util';
+import ConfirmModal from '@/components/ConfirmModal';
 
 /**
  * Trip settings: who can reach this trip, who is on it, and how to get rid of
@@ -29,7 +30,7 @@ export default function People({
 }) {
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pending, setPending] = useState(null);
   const onlineIds = online.map((o) => o.id);
 
   // Asked after mount: navigator.share does not exist on the server, and on
@@ -114,7 +115,10 @@ export default function People({
                 </div>
                 {here ? <span className="pulse" data-tip="Online now" /> : null}
                 {isOwner && !isMe ? (
-                  <button className="btn ghost sm" onClick={() => onRemove(m.user_id)}>Remove</button>
+                  <button className="btn ghost sm"
+                    onClick={() => setPending({ kind: 'member', uid: m.user_id, label })}>
+                    Remove
+                  </button>
                 ) : null}
               </div>
             );
@@ -130,18 +134,9 @@ export default function People({
           icon={Trash2}
           hint="Removes the itinerary, packing list and everyone's access. This cannot be undone."
         >
-          {confirmDelete ? (
-            <div className="chiprow">
-              <button className="btn" onClick={() => setConfirmDelete(false)}>Keep it</button>
-              <button className="btn danger-solid" onClick={onDeleteTrip}>
-                Yes, delete this trip
-              </button>
-            </div>
-          ) : (
-            <button className="btn danger" onClick={() => setConfirmDelete(true)}>
-              <Trash2 size={15} /> Delete trip
-            </button>
-          )}
+          <button className="btn danger" onClick={() => setPending({ kind: 'trip' })}>
+            <Trash2 size={15} /> Delete trip
+          </button>
         </Section>
       ) : (
         <Section
@@ -149,11 +144,35 @@ export default function People({
           icon={LogOut}
           hint="Removes it from your trips. Everyone else keeps it, and the share link still works."
         >
-          <button className="btn danger" onClick={onLeaveTrip}>
+          <button className="btn danger" onClick={() => setPending({ kind: 'leave' })}>
             <LogOut size={15} /> Leave trip
           </button>
         </Section>
       )}
+
+      {pending ? (
+        <ConfirmModal
+          title={pending.kind === 'trip' ? 'Delete trip?'
+            : pending.kind === 'leave' ? 'Leave this trip?' : 'Remove traveller?'}
+          confirmLabel={pending.kind === 'trip' ? 'Delete trip'
+            : pending.kind === 'leave' ? 'Leave trip' : 'Remove access'}
+          onClose={() => setPending(null)}
+          onConfirm={() => {
+            const action = pending;
+            setPending(null);
+            if (action.kind === 'trip') onDeleteTrip();
+            else if (action.kind === 'leave') onLeaveTrip();
+            else onRemove(action.uid);
+          }}>
+          <p>
+            {pending.kind === 'trip'
+              ? "This removes the itinerary, packing list, conversation history, and everyone's access. It cannot be undone."
+              : pending.kind === 'leave'
+                ? 'The trip disappears from your account. Everyone else keeps access.'
+                : `Remove ${pending.label} from this trip? They can rejoin with the share link.`}
+          </p>
+        </ConfirmModal>
+      ) : null}
     </div>
   );
 }

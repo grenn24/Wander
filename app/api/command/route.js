@@ -230,6 +230,9 @@ that is not in that list.
 Rules:
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
   or improve anything that was not asked about.
+- Past conversation is context. Use it when the current instruction refers to
+  an earlier request, decision, or answer. Never repeat an old edit unless the
+  current instruction asks for it.
 - "describe" is what a person will read before approving, so make it specific:
   "Delete Tokyo Skytree from Day 1", not "Delete an activity".
 - Only use update_trip for trip-level fields: name, destination, dates,
@@ -285,7 +288,7 @@ export async function POST(req) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
 
-  const instruction = String(body.instruction || '').trim().slice(0, 600);
+  const instruction = String(body.instruction || '').trim().slice(0, 2000);
   if (!instruction) return Response.json({ error: 'Nothing to do.' }, { status: 400 });
 
   const trip = body.trip || {};
@@ -297,6 +300,11 @@ export async function POST(req) {
   /* What the traveller already has on, sent only when a calendar is connected
      and only ever for the trip's own dates. */
   const booked = (Array.isArray(body.calendar) ? body.calendar : []).slice(0, 40);
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-16).map((m) => ({
+    role: m && m.role === 'assistant' ? 'Wander' : 'Traveller',
+    kind: String((m && m.kind) || 'message').slice(0, 40),
+    content: String((m && m.content) || '').trim().slice(0, 700),
+  })).filter((m) => m.content);
 
   const listing = activities.map((a) => [
     `id=${a.id}`,
@@ -346,6 +354,11 @@ export async function POST(req) {
         const where = e.where ? ` @ ${String(e.where).slice(0, 80)}` : '';
         return `- ${day} ${when} ${String(e.title || 'Busy').slice(0, 80)}${where}`;
       }),
+      '',
+    ] : []),
+    ...(history.length ? [
+      'Past conversation about this trip, oldest first:',
+      ...history.map((m) => `- ${m.role} [${m.kind}]: ${m.content}`),
       '',
     ] : []),
     `Instruction: "${instruction}"`,

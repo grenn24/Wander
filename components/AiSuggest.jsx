@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2, Plus, X, RotateCw } from 'lucide-react';
 import { categoryOf, fmtTime } from '@/lib/util';
-import { categoryIcon } from '@/lib/icons';
+import { activityIcon } from '@/lib/icons';
 
 /**
  * Asks for ideas for one day and shows them as a reviewable list. Nothing is
@@ -116,7 +116,7 @@ export default function AiSuggest({
           <div className="suggest-list">
             {ideas.map((idea, i) => {
               const cat = categoryOf(idea.category);
-              const Icon = categoryIcon(cat.id);
+              const Icon = activityIcon(idea);
               const state = taken[i];
               return (
                 <div className={`suggest-item${state === 'done' ? ' is-done' : ''}`} key={`${idea.title}-${i}`}>

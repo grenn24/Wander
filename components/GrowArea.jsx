@@ -9,11 +9,11 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react'
  * these fields are where people explain themselves. It starts one line tall and
  * grows to a cap set in CSS, after which it scrolls.
  *
- * Enter sends, because these sit in forms where that is the obvious gesture;
- * Shift+Enter is the way to a second line.
+ * Enter always starts a new paragraph. Ctrl/Command+Enter remains available
+ * as a desktop shortcut for fields that provide an onSubmit handler.
  */
 const GrowArea = forwardRef(function GrowArea(
-  { value, onSubmit, className = 'input', ...rest }, ref,
+  { value, onSubmit, onKeyDown, className = 'input', ...rest }, ref,
 ) {
   const inner = useRef(null);
   useImperativeHandle(ref, () => inner.current, []);
@@ -38,8 +38,10 @@ const GrowArea = forwardRef(function GrowArea(
       rows={1}
       className={`grow-area ${className}`}
       value={value}
+      enterKeyHint="enter"
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
+        if (onKeyDown) onKeyDown(e);
+        if (!e.defaultPrevented && e.key === 'Enter' && (e.metaKey || e.ctrlKey) && onSubmit) {
           e.preventDefault();
           onSubmit();
         }

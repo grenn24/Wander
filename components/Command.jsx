@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, RotateCcw, CornerDownLeft, Backpack, Printer, ImagePlus,
+  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
@@ -15,7 +15,7 @@ import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
-import { categoryIcon } from '@/lib/icons';
+import { activityIcon, categoryIcon } from '@/lib/icons';
 
 /**
  * One box for everything you might type at this trip.
@@ -248,7 +248,7 @@ function CommandBar({ onClose }) {
   const pathname = usePathname();
   const { supabase, pushToast, fail } = useApp();
   const {
-    tripId, trip, activities, requestFocus, request,
+    tripId, trip, activities, agentHistory, appendAgentMessage, requestFocus, request,
     addActivities, addPacking, saveActivity, moveActivity, deleteActivity, updateTrip,
   } = useTrip();
 
@@ -427,6 +427,15 @@ function CommandBar({ onClose }) {
         return;
       }
     }
+    pending.current = instruction;
+    if (first) {
+      await appendAgentMessage({
+        role: 'user', kind: 'change_request', content: instruction,
+        meta: { pictures: shots.length },
+      });
+    } else {
+      await appendAgentMessage({ role: 'user', kind: 'clarification_answer', content: reply });
+    }
     /*
      * A trip-wide edit genuinely takes a minute or two. Left to the default,
      * a stalled request hangs forever and then reports the same shrug as a
@@ -453,6 +462,11 @@ function CommandBar({ onClose }) {
           },
           // Flattened out of the day-keyed shape the itinerary wants.
           calendar: Object.values(booked).flat().slice(0, 40),
+          history: agentHistory.slice(-24).map((m) => ({
+            role: m.role,
+            kind: m.kind,
+            content: m.content,
+          })),
           activities: activities.map((a) => ({
             id: a.id,
             day: a.day,
@@ -471,15 +485,27 @@ function CommandBar({ onClose }) {
       if (!res.ok) { setError(body.error || 'Could not work that out.'); return; }
       if (!body.understood && body.question) {
         pending.current = instruction;
+        await appendAgentMessage({
+          role: 'assistant', kind: 'clarification', content: body.question.ask,
+          meta: { question: body.question },
+        });
         setQuestion(body.question);
         setTyping(body.question.kind === 'text');
         setTimeout(() => askRef.current && askRef.current.focus(), 0);
         return;
       }
       if (!body.ops.length) {
+        await appendAgentMessage({
+          role: 'assistant', kind: 'result',
+          content: body.summary || 'No changes were needed.',
+        });
         setError('Nothing in the trip needed changing for that.');
         return;
       }
+      await appendAgentMessage({
+        role: 'assistant', kind: 'proposal', content: body.summary || 'Proposed trip changes.',
+        meta: { ops: body.ops },
+      });
       setPlan({ summary: body.summary, ops: body.ops });
     } catch (e) {
       setError(e.name === 'AbortError'
@@ -590,6 +616,11 @@ function CommandBar({ onClose }) {
       }
 
       if (additions.length) await addActivities(additions);
+      await appendAgentMessage({
+        role: 'assistant', kind: 'applied',
+        content: `${done} change${done === 1 ? '' : 's'} applied.`,
+        meta: { summary: plan.summary, ops: plan.ops },
+      });
       pushToast(`${done} change${done === 1 ? '' : 's'} applied.`);
       onClose();
     } catch (e) {
@@ -608,16 +639,6 @@ function CommandBar({ onClose }) {
     else if (row.kind === 'print') { onClose(); setTimeout(() => window.print(), 60); }
   }
 
-  function onKeyDown(e) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault(); setActive((i) => Math.min(rows.length - 1, i + 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault(); setActive((i) => Math.max(0, i - 1));
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault(); choose(rows[active]);
-    }
-  }
-
   if (!trip || !ready) return null;
 
   // The preview lists intents; this is how many activities they land on.
@@ -631,7 +652,7 @@ function CommandBar({ onClose }) {
     const pick = { onMouseEnter: () => setActive(i), onMouseDown: (e) => { e.preventDefault(); choose(r); } };
     if (r.kind === 'act') {
       const cat = categoryOf(r.act.category);
-      const Icon = categoryIcon(cat.id);
+      const Icon = activityIcon(r.act);
       const place = shortPlace(r.act.location);
       return (
         <li key={r.id} role="option" aria-selected={on}
@@ -684,7 +705,7 @@ function CommandBar({ onClose }) {
             disabled={busy}
             placeholder="Search this trip, or say what to change…"
             aria-label="Search this trip, or say what to change"
-            onKeyDown={onKeyDown}
+            onSubmit={() => run()}
             onChange={(e) => {
               setText(e.target.value); setError(''); setPlan(null);
               // A new sentence is a new conversation; the old answers were
@@ -707,6 +728,13 @@ function CommandBar({ onClose }) {
             onClick={() => fileRef.current && fileRef.current.click()}>
             <ImagePlus size={15} />
           </button>
+          {(text.trim() || shots.length) && !answered ? (
+            <button className="btn primary sm icon-btn ck-send" type="button"
+              disabled={busy} data-tip="Ask Wander  Ctrl+Enter"
+              aria-label="Ask Wander" onClick={() => run()}>
+              <ArrowUp size={15} />
+            </button>
+          ) : null}
           <button className="btn ghost sm icon-btn" type="button"
             data-tip="Close  Esc" aria-label="Close" onClick={onClose}><X size={15} /></button>
         </div>
@@ -740,7 +768,7 @@ function CommandBar({ onClose }) {
 
         {showList && term ? (
           <p className="ck-foot">
-            <CornerDownLeft size={12} />
+            <ArrowUp size={12} />
             {hits.length
               ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in this trip`
               : 'Nothing in this trip matches — the model can still do it'}
