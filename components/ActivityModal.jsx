@@ -50,6 +50,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   const [geoErr, setGeoErr] = useState('');
   const [active, setActive] = useState(-1);
   const [confirm, setConfirm] = useState(''); // '' | 'delete' | 'discard'
+  const [mapExpanded, setMapExpanded] = useState(false);
   // What the map panel has made of the words so far, so the field can say it.
   const [guess, setGuess] = useState({ busy: false, place: null });
   const pristine = useRef(JSON.stringify(draft));
@@ -77,8 +78,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   const canSave = draft.id ? dirty : !!(draft.title || '').trim();
 
   useModalChrome({
-    onEscape: attemptClose,
-    onSubmit: () => { if (canSave) onSave(draft); },
+    onEscape: () => { if (mapExpanded) closeMap(); else attemptClose(); },
+    onSubmit: () => { if (!mapExpanded && canSave) onSave(draft); },
   });
 
   /*
@@ -178,6 +179,13 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
   const pick = (patch) => set(patch);
 
+  function closeMap() {
+    setMapExpanded(false);
+    requestAnimationFrame(() => {
+      if (boxRef.current) boxRef.current.focus({ preventScroll: true });
+    });
+  }
+
   /* Below three characters there is nothing to look up, so there is nothing
      for the guess to be about — and last search's answer must not hang around
      describing this one. */
@@ -186,13 +194,15 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
   /* One panel, two homes. Only ever rendered once — two of these would be two
      Google maps competing for the same activity. */
-  const where = (compact) => (
-    <ActivityMap draft={draft} onPick={pick} onGuess={setGuess} compact={compact} />
+  const where = (compact, expanded = false) => (
+    <ActivityMap draft={draft} onPick={pick} onGuess={setGuess} compact={compact}
+      expanded={expanded} onExpand={expanded ? undefined : () => setMapExpanded(true)} />
   );
 
   return (
     <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
       <div className={`modal${beside ? ' modal-wide' : ''}`} ref={boxRef} tabIndex={-1}
+        aria-hidden={mapExpanded ? 'true' : undefined}
         role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">
           <h3>{draft.id ? 'Edit activity' : 'New activity'}</h3>
@@ -383,7 +393,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 ) : null}
               </p>
 
-              {under ? where(true) : null}
+              {under && !mapExpanded ? where(true) : null}
             </div>
 
             <div className="field">
@@ -400,7 +410,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
             </div>
           </div>
 
-          {beside ? (
+          {beside && !mapExpanded ? (
             <aside className="modal-aside" aria-label="Where this is">
               <span className="label">Where this is</span>
               {where(false)}
@@ -441,6 +451,27 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
           )}
         </div>
       </div>
+
+      {mapExpanded ? (
+        <div className="amap-expanded-backdrop"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeMap(); }}>
+          <section className="amap-expanded-shell" role="dialog" aria-modal="true"
+            aria-labelledby="amap-expanded-title">
+            <header className="amap-expanded-head">
+              <div>
+                <span className="label">Map location</span>
+                <h3 id="amap-expanded-title">
+                  {draft.title || draft.location || 'Activity location'}
+                </h3>
+              </div>
+              <button className="btn ghost" type="button" onClick={closeMap} autoFocus>
+                <X size={15} /> Close
+              </button>
+            </header>
+            <div className="amap-expanded-map">{where(!wide, true)}</div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

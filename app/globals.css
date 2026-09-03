@@ -2768,10 +2768,24 @@ body:has(.lp)::before { display: none; }
 
 .amap { margin-top: 11px; }
 .amap-el {
-  height: 176px; border-radius: 12px; overflow: hidden;
+  position: relative; height: 176px; border-radius: 12px; overflow: hidden;
   border: 1px solid var(--border); background: var(--surface-2);
 }
-.amap-el .map-el { height: 100%; }
+.amap-el .map-el { position: relative; z-index: 1; height: 100%; }
+.amap-expand-hit {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 10px; border: 0; background: transparent; color: var(--text-1);
+  cursor: zoom-in;
+}
+.amap-expand-hit span {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--surface-1);
+  box-shadow: var(--lift); font-size: 12px; font-weight: 650;
+}
+.amap-expand-hit:hover span { border-color: var(--border-strong); }
+.amap-expand-hit:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: -3px; }
 .amap-note {
   display: flex; align-items: flex-start; gap: 6px; margin: 7px 0 0;
 }
@@ -2796,6 +2810,46 @@ body:has(.lp)::before { display: none; }
   .modal-wide .modal-aside .label { display: block; margin-bottom: 7px; }
   .modal-wide .amap { margin-top: 0; }
   .modal-wide .amap-el, .modal-wide .amap-blank { height: 292px; }
+}
+
+.amap-expanded-backdrop {
+  position: fixed; inset: 0; z-index: 10;
+  display: grid; place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: color-mix(in srgb, #0a0a0f 62%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.amap-expanded-shell {
+  display: flex; flex-direction: column;
+  width: min(1120px, 100%); height: min(860px, 100%); min-height: 0;
+  overflow: hidden; border: 1px solid var(--border); border-radius: 22px;
+  background: var(--surface-1); box-shadow: var(--lift-lg);
+}
+.amap-expanded-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  flex: none; padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.amap-expanded-head > div { min-width: 0; }
+.amap-expanded-head .label { display: block; margin-bottom: 2px; }
+.amap-expanded-head h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amap-expanded-map { flex: 1; min-height: 0; }
+.amap.is-expanded {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; margin: 0;
+}
+.amap.is-expanded .amap-el {
+  flex: 1; min-height: 280px; height: auto; border: 0; border-radius: 0;
+}
+.amap.is-expanded .amap-note { flex: none; margin: 0; padding: 10px 14px; }
+
+@media (max-width: 699px) {
+  .amap-expanded-backdrop { padding: 0; }
+  .amap-expanded-shell { width: 100%; height: 100%; border: 0; border-radius: 0; }
+  .amap-expanded-head {
+    padding: calc(12px + env(safe-area-inset-top))
+      calc(14px + env(safe-area-inset-right)) 12px
+      calc(14px + env(safe-area-inset-left));
+  }
 }
 
 /* --------------------------------------------------------- place photos --- */

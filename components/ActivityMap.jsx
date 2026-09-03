@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Loader2, Crosshair } from 'lucide-react';
+import { MapPin, Loader2, Crosshair, Maximize2 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import PlaceFacts from '@/components/PlaceFacts';
@@ -31,7 +31,9 @@ const NO_PHOTOS = [];
  * Double-clicking the map moves the pin, which is the only way to correct a
  * spot that is nearly right without deleting the words and starting again.
  */
-export default function ActivityMap({ draft, onPick, onGuess, compact = false }) {
+export default function ActivityMap({
+  draft, onPick, onGuess, compact = false, expanded = false, onExpand,
+}) {
   const [probe, setProbe] = useState(null); // best guess for text with no pin
   const [busy, setBusy] = useState(false);
   const [mapErr, setMapErr] = useState('');
@@ -138,10 +140,10 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
   }
 
   return (
-    <div className={`amap${compact ? ' is-compact' : ''}`}>
+    <div className={`amap${compact ? ' is-compact' : ''}${expanded ? ' is-expanded' : ''}`}>
       {at ? (
         <>
-          <div className="amap-el">
+          <div className={`amap-el${onExpand ? ' can-expand' : ''}`}>
             <GoogleMap
               key={scheme}
               /* A marker means a decision has been made. Until one has, the
@@ -165,9 +167,15 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
                  wheel and a one-finger drag. Under the location field it is a
                  band in a scrolling form, where doing that would trap the
                  page. */
-              gestures={compact ? 'cooperative' : 'greedy'}
+              gestures={expanded || !compact ? 'greedy' : 'cooperative'}
               onError={setMapErr}
             />
+            {onExpand ? (
+              <button className="amap-expand-hit" type="button" onClick={onExpand}
+                aria-label="Expand map">
+                <span><Maximize2 size={14} /> Expand map</span>
+              </button>
+            ) : null}
           </div>
 
           {mapErr ? <p className="tiny dim amap-note">{mapErr}</p> : null}
@@ -178,15 +186,21 @@ export default function ActivityMap({ draft, onPick, onGuess, compact = false })
               {/* Two fingers pan under the form, one finger scrolls it — so
                   do not tell a phone to drag. */}
               <span className="tiny dim">
-                {compact
-                  ? 'Double-tap the map to move the pin.'
-                  : 'Drag to look around; double-click to move the pin.'}
+                {onExpand
+                  ? 'Open the map to move the pin.'
+                  : compact
+                    ? 'Drag to look around; double-tap to move the pin.'
+                    : 'Drag to look around; double-click to move the pin.'}
               </span>
             </p>
           ) : null}
 
-          <ActivityPhotos title={draft.title} photos={shots} preview={!pinned} />
-          {pinned ? <PlaceFacts details={facts} /> : null}
+          {!expanded ? (
+            <>
+              <ActivityPhotos title={draft.title} photos={shots} preview={!pinned} />
+              {pinned ? <PlaceFacts details={facts} /> : null}
+            </>
+          ) : null}
         </>
       ) : (
         <div className="amap-blank">
