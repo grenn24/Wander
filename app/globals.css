@@ -3905,6 +3905,27 @@ body::before {
   font-size: 11px;
 }
 .planq-text { min-height: 72px; }
+.place-review-query { margin: -4px 0 10px 32px; overflow-wrap: anywhere; }
+.place-review-options { display: grid; gap: 8px; }
+.place-review-option {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; padding: 11px 12px; text-align: left;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-1); color: var(--text-1); cursor: pointer;
+}
+.place-review-option:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.place-review-option.is-on {
+  border-color: var(--accent); background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.place-review-option > svg { flex: none; margin-top: 2px; color: var(--accent); }
+.place-review-option > span { min-width: 0; }
+.place-review-option strong, .place-review-option small { display: block; }
+.place-review-option strong { font-size: 13.5px; }
+.place-review-option small {
+  margin-top: 2px; color: var(--text-2); font-size: 12px; line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .planquestions-actions {
   display: flex;
   justify-content: flex-end;

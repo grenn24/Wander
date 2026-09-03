@@ -46,9 +46,10 @@ function Planner() {
 
   const [meta, setMeta] = useState(null);
   const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
-  // start | reading | clarifying | streaming | locating | saving | error
+  // start | reading | clarifying | streaming | locating | reviewing | saving | error
   const [phase, setPhase] = useState('start');
   const [briefCheck, setBriefCheck] = useState(null);
+  const [placeReview, setPlaceReview] = useState(null);
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
   // What the picture turned out to be, said back so nobody has to guess which
@@ -61,6 +62,7 @@ function Planner() {
   const abortRef = useRef(null);
   const cancelledRef = useRef(false);
   const pendingTripRef = useRef(null);
+  const placeReviewResolveRef = useRef(null);
 
   const discardPendingTrip = useCallback(async () => {
     const tripId = pendingTripRef.current;
@@ -76,6 +78,10 @@ function Planner() {
   const cancelPlanning = useCallback(() => {
     cancelledRef.current = true;
     if (abortRef.current) abortRef.current.abort();
+    if (placeReviewResolveRef.current) {
+      placeReviewResolveRef.current(null);
+      placeReviewResolveRef.current = null;
+    }
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     discardPendingTrip();
     router.replace('/trips');
@@ -101,6 +107,7 @@ function Planner() {
     setError(''); setNoKey(false); setMeta(null); setDays([]);
     setUnreadable(false);
     setBriefCheck(null);
+    setPlaceReview(null);
     if (!preparedBrief) setRead('');
 
     /*
@@ -276,28 +283,65 @@ function Planner() {
     if (rows.length) {
       setPhase('locating');
       const targets = rows
-        .map((r, i) => ({ id: String(i), query: r.location }))
+        .map((r, i) => ({
+          id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
+        }))
         .filter((t) => t.query);
       if (targets.length) {
         try {
           const res = await fetch('/api/places/resolve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: targets, bias: plan.destination }),
+            body: JSON.stringify({
+              items: targets, bias: plan.destination, reviewAmbiguous: true,
+            }),
             signal: controller.signal,
           });
           if (res.ok) {
             const { results } = await res.json();
+            const uncertain = [];
             (results || []).forEach((r) => {
               if (!r.found) return;
               const row = rows[Number(r.id)];
               if (!row) return;
+              if (r.ambiguous && Array.isArray(r.candidates) && r.candidates.length) {
+                uncertain.push({
+                  id: r.id,
+                  rowIndex: Number(r.id),
+                  title: row.title,
+                  query: row.location,
+                  reason: r.resolution_reason || '',
+                  candidates: r.candidates,
+                });
+                return;
+              }
               row.lat = r.lat;
               row.lng = r.lng;
               if (r.place_id) row.place_id = r.place_id;
               if (r.photo_ref) row.photo_ref = r.photo_ref;
               if (r.label) row.location = r.label;
             });
+
+            if (uncertain.length) {
+              const choices = await new Promise((resolve) => {
+                placeReviewResolveRef.current = resolve;
+                setPlaceReview({ items: uncertain, selected: {} });
+                setPhase('reviewing');
+              });
+              placeReviewResolveRef.current = null;
+              if (!choices || cancelledRef.current) return;
+              choices.forEach(({ rowIndex, candidate }) => {
+                if (!candidate) return;
+                const row = rows[rowIndex];
+                if (!row) return;
+                row.lat = candidate.lat;
+                row.lng = candidate.lng;
+                row.place_id = candidate.place_id || null;
+                row.photo_ref = candidate.photo_ref || null;
+                row.location = candidate.label || row.location;
+              });
+              setPlaceReview(null);
+            }
           }
         } catch (e) {
           if (cancelledRef.current || e.name === 'AbortError') return;
@@ -413,6 +457,29 @@ function Planner() {
     run(full);
   }
 
+  function chooseResolvedPlace(itemId, placeId) {
+    setPlaceReview((current) => (current ? {
+      ...current,
+      selected: { ...current.selected, [itemId]: placeId },
+    } : current));
+  }
+
+  function continueAfterPlaceReview() {
+    if (!placeReview || !placeReviewResolveRef.current) return;
+    const choices = placeReview.items.map((item) => {
+      const placeId = placeReview.selected[item.id];
+      return {
+        rowIndex: item.rowIndex,
+        candidate: placeId === '__none'
+          ? null
+          : item.candidates.find((candidate) => candidate.place_id === placeId) || null,
+      };
+    });
+    const resume = placeReviewResolveRef.current;
+    placeReviewResolveRef.current = null;
+    resume(choices);
+  }
+
   if (!query && !shots.length) {
     return (
       <div className="shell">
@@ -436,6 +503,9 @@ function Planner() {
   const expected = meta && meta.duration_days ? meta.duration_days : 0;
   const answeredBrief = briefCheck
     ? briefCheck.questions.every((q) => String(briefCheck.answers[q.id] || '').trim())
+    : false;
+  const reviewedPlaces = placeReview
+    ? placeReview.items.every((item) => !!placeReview.selected[item.id])
     : false;
 
   return (
@@ -466,6 +536,8 @@ function Planner() {
                     : 'That did not work')
                   : phase === 'clarifying'
                     ? (briefCheck ? 'A few details first' : 'Checking your trip brief')
+                  : phase === 'reviewing'
+                    ? 'Check these locations'
                   : meta && meta.name ? meta.name
                     : phase === 'reading'
                       ? `Reading your picture${shots.length === 1 ? '' : 's'}`
@@ -530,6 +602,50 @@ function Planner() {
                 <Loader2 size={16} className="spin" /> Checking the details that shape the trip…
               </div>
             )
+          ) : phase === 'reviewing' && placeReview ? (
+            <form className="card planquestions place-review"
+              onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
+              <p className="small muted planquestions-intro">
+                I found more than one plausible match. Choose the right branch before I save the trip.
+              </p>
+              {placeReview.items.map((item, i) => (
+                <fieldset className="planq" key={item.id}>
+                  <legend><span>{i + 1}</span>{item.title}</legend>
+                  <p className="tiny dim place-review-query">Requested location: {item.query}</p>
+                  <div className="place-review-options">
+                    {item.candidates.map((candidate) => {
+                      const selected = placeReview.selected[item.id] === candidate.place_id;
+                      return (
+                        <button type="button" className={`place-review-option${selected ? ' is-on' : ''}`}
+                          key={candidate.place_id} aria-pressed={selected}
+                          onClick={() => chooseResolvedPlace(item.id, candidate.place_id)}>
+                          <MapPin size={15} aria-hidden="true" />
+                          <span>
+                            <strong>{candidate.name || candidate.label}</strong>
+                            <small>{candidate.label}</small>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <button type="button"
+                      className={`place-review-option${placeReview.selected[item.id] === '__none' ? ' is-on' : ''}`}
+                      aria-pressed={placeReview.selected[item.id] === '__none'}
+                      onClick={() => chooseResolvedPlace(item.id, '__none')}>
+                      <MapPin size={15} aria-hidden="true" />
+                      <span>
+                        <strong>None of these</strong>
+                        <small>Keep the location text without placing a pin.</small>
+                      </span>
+                    </button>
+                  </div>
+                </fieldset>
+              ))}
+              <div className="planquestions-actions">
+                <button className="btn primary" type="submit" disabled={!reviewedPlaces}>
+                  Continue planning
+                </button>
+              </div>
+            </form>
           ) : phase === 'error' ? (
             <div className="card">
               <div className="planning-err">
