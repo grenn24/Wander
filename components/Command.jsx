@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus,
+  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, MapPin,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
@@ -256,6 +256,8 @@ function CommandBar({ onClose }) {
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState(null); // { summary, ops }
+  const [placeReview, setPlaceReview] = useState(null);
+  const [pendingApply, setPendingApply] = useState(null);
   const [question, setQuestion] = useState(null); // { ask, header, kind, options }
   const [answers, setAnswers] = useState([]); // every reply so far, in order
   const [picked, setPicked] = useState([]); // multi-select, before Continue
@@ -279,7 +281,8 @@ function CommandBar({ onClose }) {
   }, []);
 
   const startOver = useCallback(() => {
-    setText(''); setPlan(null); setAnswers([]); setError(''); setActive(0);
+    setText(''); setPlan(null); setPlaceReview(null); setPendingApply(null);
+    setAnswers([]); setError(''); setActive(0);
     clearAsk();
     pending.current = '';
     if (inputRef.current) inputRef.current.focus();
@@ -548,15 +551,18 @@ function CommandBar({ onClose }) {
     request(kind);
   }
 
-  async function apply() {
+  /** Write a fully reviewed proposal. No trip mutation happens before this. */
+  async function commitChanges(expanded, resolved = {}) {
     if (!plan) return;
-    setBusy(true);
+    setBusy(true); setError('');
     const byId = new Map(activities.map((a) => [String(a.id), a]));
     const additions = [];
     let done = 0;
 
     try {
-      for (const op of plan.ops.flatMap((o) => expand(o, activities))) {
+      for (let opIndex = 0; opIndex < expanded.length; opIndex += 1) {
+        const op = expanded[opIndex];
+        const place = resolved[`op-${opIndex}`];
         if (op.kind === 'add_activity') {
           additions.push({
             day: op.day || trip.start_date,
@@ -566,7 +572,11 @@ function CommandBar({ onClose }) {
             category: op.category || 'sightseeing',
             subtype: op.category === 'transport' ? op.subtype || null : null,
             details: op.category === 'transport' ? onlySet(op.details) : {},
-            location: op.location || '',
+            location: (place && place.label) || op.location || '',
+            lat: place ? place.lat : null,
+            lng: place ? place.lng : null,
+            place_id: place ? place.place_id : null,
+            photo_ref: place ? place.photo_ref : null,
             cost: op.cost || 0,
             notes: op.notes || '',
           });
@@ -605,7 +615,26 @@ function CommandBar({ onClose }) {
             if (op.details) {
               patch.details = { ...(target.details || {}), ...onlySet(op.details) };
             }
-            if (op.location != null) patch.location = op.location;
+            if (op.location != null) {
+              const changed = String(op.location || '').trim().toLowerCase()
+                !== String(target.location || '').trim().toLowerCase();
+              patch.location = op.location;
+              if (changed) {
+                // An address and its pin are one fact. Keeping the old pin
+                // after changing only the text makes the map confidently wrong.
+                patch.lat = null;
+                patch.lng = null;
+                patch.place_id = null;
+                patch.photo_ref = null;
+                if (place) {
+                  patch.lat = place.lat;
+                  patch.lng = place.lng;
+                  patch.place_id = place.place_id || null;
+                  patch.photo_ref = place.photo_ref || null;
+                  patch.location = place.label || op.location;
+                }
+              }
+            }
             if (op.cost != null) patch.cost = op.cost;
             if (op.notes != null) patch.notes = op.notes;
             if (op.day) patch.day = op.day;
@@ -630,6 +659,111 @@ function CommandBar({ onClose }) {
     }
   }
 
+  /**
+   * Resolve every new or changed place before saving. Certain matches proceed
+   * automatically; plausible alternatives stop here for a human decision.
+   */
+  async function apply() {
+    if (!plan) return;
+    const expanded = plan.ops.flatMap((o) => expand(o, activities));
+    const byId = new Map(activities.map((a) => [String(a.id), a]));
+    let destination = trip.destination || '';
+    expanded.forEach((op) => {
+      if (op.kind === 'update_trip' && op.destination != null) destination = op.destination;
+    });
+
+    const targets = [];
+    expanded.forEach((op, opIndex) => {
+      let target;
+      if (op.kind === 'add_activity') {
+        target = {
+          id: `op-${opIndex}`, query: op.location, title: op.title,
+          category: op.category, day: op.day || trip.start_date,
+        };
+      } else if (op.kind === 'update_activity' && op.location != null) {
+        const current = byId.get(String(op.activity_id));
+        const changed = current && String(op.location || '').trim().toLowerCase()
+          !== String(current.location || '').trim().toLowerCase();
+        if (changed) {
+          target = {
+            id: `op-${opIndex}`, query: op.location, title: op.title || current.title,
+            category: op.category || current.category, day: op.day || current.day,
+          };
+        }
+      }
+      if (target && String(target.query || '').trim()) targets.push(target);
+    });
+
+    if (!targets.length) {
+      await commitChanges(expanded);
+      return;
+    }
+
+    setBusy(true); setError('');
+    try {
+      const res = await fetch('/api/places/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: targets, bias: destination, reviewAmbiguous: true,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not verify those locations.');
+
+      const resolved = {};
+      const uncertain = [];
+      (body.results || []).forEach((result) => {
+        if (!result.found) {
+          resolved[result.id] = null;
+          return;
+        }
+        const request = targets.find((item) => item.id === result.id);
+        if (result.ambiguous && Array.isArray(result.candidates) && result.candidates.length) {
+          uncertain.push({
+            id: result.id,
+            title: request ? request.title : 'Activity',
+            query: request ? request.query : '',
+            reason: result.resolution_reason || '',
+            candidates: result.candidates,
+          });
+        } else {
+          resolved[result.id] = result;
+        }
+      });
+
+      if (uncertain.length) {
+        setPendingApply({ expanded, resolved });
+        setPlaceReview({ items: uncertain, selected: {} });
+        return;
+      }
+      await commitChanges(expanded, resolved);
+    } catch (e) {
+      setError(e.message || 'Could not verify those locations. Nothing was saved.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function chooseResolvedPlace(id, placeId) {
+    setPlaceReview((review) => (review ? {
+      ...review, selected: { ...review.selected, [id]: placeId },
+    } : review));
+  }
+
+  async function continueAfterPlaceReview() {
+    if (!placeReview || !pendingApply) return;
+    const resolved = { ...pendingApply.resolved };
+    placeReview.items.forEach((item) => {
+      const choice = placeReview.selected[item.id];
+      resolved[item.id] = choice === '__none__'
+        ? null : item.candidates.find((candidate) => candidate.place_id === choice) || null;
+    });
+    const expanded = pendingApply.expanded;
+    setPlaceReview(null); setPendingApply(null);
+    await commitChanges(expanded, resolved);
+  }
+
   function choose(row) {
     if (!row || busy) return;
     if (row.kind === 'act') go(row.act);
@@ -643,6 +777,8 @@ function CommandBar({ onClose }) {
 
   // The preview lists intents; this is how many activities they land on.
   const edits = plan ? plan.ops.flatMap((o) => expand(o, activities)).length : 0;
+  const reviewedPlaces = placeReview
+    ? placeReview.items.every((item) => !!placeReview.selected[item.id]) : false;
   const answered = !!question || !!plan;
   const showList = !answered && !busy;
 
@@ -708,6 +844,7 @@ function CommandBar({ onClose }) {
             onSubmit={() => run()}
             onChange={(e) => {
               setText(e.target.value); setError(''); setPlan(null);
+              setPlaceReview(null); setPendingApply(null);
               // A new sentence is a new conversation; the old answers were
               // about a question nobody is being asked any more.
               setAnswers([]); clearAsk(); pending.current = '';
@@ -853,7 +990,57 @@ function CommandBar({ onClose }) {
           </div>
         ) : null}
 
-        {plan ? (
+        {plan && placeReview ? (
+          <form className="cmd-plan ck-pad cmd-place-review"
+            onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
+            <p className="small muted cmd-summary">
+              I found more than one plausible match. Choose the right place before I apply anything.
+            </p>
+            {placeReview.items.map((item, i) => (
+              <fieldset className="planq" key={item.id}>
+                <legend><span>{i + 1}</span>{item.title}</legend>
+                <p className="tiny dim place-review-query">Requested location: {item.query}</p>
+                <div className="place-review-options">
+                  {item.candidates.map((candidate) => {
+                    const selected = placeReview.selected[item.id] === candidate.place_id;
+                    return (
+                      <button type="button"
+                        className={`place-review-option${selected ? ' is-on' : ''}`}
+                        key={candidate.place_id} aria-pressed={selected}
+                        onClick={() => chooseResolvedPlace(item.id, candidate.place_id)}>
+                        <MapPin size={15} aria-hidden="true" />
+                        <span>
+                          <strong>{candidate.name || candidate.label}</strong>
+                          <small>{candidate.label}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button type="button"
+                    className={`place-review-option${placeReview.selected[item.id] === '__none__' ? ' is-on' : ''}`}
+                    aria-pressed={placeReview.selected[item.id] === '__none__'}
+                    onClick={() => chooseResolvedPlace(item.id, '__none__')}>
+                    <MapPin size={15} aria-hidden="true" />
+                    <span>
+                      <strong>None of these</strong>
+                      <small>Keep the location text without placing a pin.</small>
+                    </span>
+                  </button>
+                </div>
+              </fieldset>
+            ))}
+            <div className="cmd-actions">
+              <span className="tiny dim">Nothing saved yet</span>
+              <button className="btn sm" type="button" disabled={busy}
+                onClick={() => { setPlaceReview(null); setPendingApply(null); }}>
+                Back
+              </button>
+              <button className="btn sm primary" type="submit" disabled={busy || !reviewedPlaces}>
+                {busy ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Apply changes
+              </button>
+            </div>
+          </form>
+        ) : plan ? (
           <div className="cmd-plan ck-pad">
             {plan.summary ? <p className="small muted cmd-summary">{plan.summary}</p> : null}
             <ul className="cmd-ops">
