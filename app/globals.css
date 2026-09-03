@@ -1740,6 +1740,8 @@ body:has(.lp)::before { display: none; }
 /* -------------------------------------------------- live plan streaming -- */
 .planwrap { max-width: 640px; }
 .planhead { display: flex; gap: 12px; align-items: flex-start; margin: 32px 0 14px; }
+.planhead-copy { min-width: 0; flex: 1; }
+.plan-cancel { flex: none; margin-left: auto; }
 .planmeta {
   display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px;
   color: var(--text-2); margin-bottom: 12px;
@@ -1786,6 +1788,11 @@ body:has(.lp)::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .planact { animation: none; }
   .planlive { scroll-behavior: auto; }
+}
+
+@media (max-width: 420px) {
+  .plan-cancel { width: 36px; padding-inline: 0; }
+  .plan-cancel span { display: none; }
 }
 
 /* ------------------------------------------------------------- photos --- */

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Sparkles, Loader2, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays, Check,
-  ImageOff,
+  ImageOff, X,
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
@@ -58,6 +58,28 @@ function Planner() {
   const started = useRef(false);
   const liveRef = useRef(null);
   const lastBrief = useRef('');
+  const abortRef = useRef(null);
+  const cancelledRef = useRef(false);
+  const pendingTripRef = useRef(null);
+
+  const discardPendingTrip = useCallback(async () => {
+    const tripId = pendingTripRef.current;
+    if (!tripId || !supabase) return;
+    const { error: discardErr } = await supabase.from('trips').delete().eq('id', tripId);
+    if (discardErr) {
+      console.error('[planner] could not discard cancelled trip:', discardErr.message);
+      return;
+    }
+    if (pendingTripRef.current === tripId) pendingTripRef.current = null;
+  }, [supabase]);
+
+  const cancelPlanning = useCallback(() => {
+    cancelledRef.current = true;
+    if (abortRef.current) abortRef.current.abort();
+    try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
+    discardPendingTrip();
+    router.replace('/trips');
+  }, [discardPendingTrip, router]);
 
   const upsertDay = useCallback((i, patch) => {
     setDays((prev) => {
@@ -72,6 +94,10 @@ function Planner() {
 
   const run = useCallback(async (preparedBrief = '') => {
     if (!supabase || !user || (!query && !shots.length)) return;
+    cancelledRef.current = false;
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setError(''); setNoKey(false); setMeta(null); setDays([]);
     setUnreadable(false);
     setBriefCheck(null);
@@ -92,6 +118,7 @@ function Planner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ images: shots, said: query }),
+          signal: controller.signal,
         });
         seen = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -104,6 +131,7 @@ function Planner() {
           return;
         }
       } catch (e) {
+        if (cancelledRef.current || e.name === 'AbortError') return;
         setError('The connection dropped while reading. Try again.');
         setPhase('error');
         return;
@@ -125,6 +153,7 @@ function Planner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'clarify', prompt: brief, today: todayISO() }),
+          signal: controller.signal,
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -138,6 +167,7 @@ function Planner() {
           return;
         }
       } catch (e) {
+        if (cancelledRef.current || e.name === 'AbortError') return;
         setError('The connection dropped while checking the trip details. Try again.');
         setPhase('error');
         return;
@@ -166,6 +196,7 @@ function Planner() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ prompt: brief, today: todayISO() }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -207,6 +238,7 @@ function Planner() {
         }
       }
     } catch (e) {
+      if (cancelledRef.current || e.name === 'AbortError') return;
       setError('The connection dropped while planning. Try again.');
       setPhase('error');
       return;
@@ -217,45 +249,12 @@ function Planner() {
     const start = plan.start_date || addDays(todayISO(), 21);
     const end = addDays(start, Math.max(0, plan.duration_days - 1));
 
-    const { data: trip, error: tripErr } = await supabase.from('trips').insert({
-      owner_id: user.id,
-      name: plan.name,
-      destination: plan.destination,
-      start_date: start,
-      end_date: end,
-      currency: plan.currency,
-      notes: '',
-    }).select().single();
-
-    if (tripErr || !trip) {
-      fail(tripErr || new Error('Could not create the trip.'));
-      setError('Could not save the trip.');
-      setPhase('error');
-      return;
-    }
-
-    // The prompt belongs to the agent conversation, not to the trip's notes.
-    // Saving both sides means later requests can refer to an earlier choice.
-    const { error: historyErr } = await supabase.from('trip_agent_messages').insert([
-      {
-        trip_id: trip.id, user_id: user.id, role: 'user', kind: 'initial_prompt',
-        content: brief.slice(0, 4000), meta: { pictures: shots.length },
-      },
-      {
-        trip_id: trip.id, user_id: user.id, role: 'assistant', kind: 'initial_plan',
-        content: String(plan.summary || 'Initial itinerary created.').slice(0, 4000),
-        meta: { name: plan.name, destination: plan.destination, duration_days: plan.duration_days },
-      },
-    ]);
-    if (historyErr) console.error('[agent history] could not save initial brief:', historyErr.message);
-
     const rows = [];
     plan.days.forEach((d) => {
       const day = addDays(start, d.day_index - 1);
       if (day > end) return;
       d.activities.forEach((a) => {
         rows.push({
-          trip_id: trip.id,
           day,
           title: a.title,
           start_time: a.start_time,
@@ -285,6 +284,7 @@ function Planner() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: targets, bias: plan.destination }),
+            signal: controller.signal,
           });
           if (res.ok) {
             const { results } = await res.json();
@@ -299,22 +299,87 @@ function Planner() {
               if (r.label) row.location = r.label;
             });
           }
-        } catch (e) { /* the map can still resolve these later */ }
+        } catch (e) {
+          if (cancelledRef.current || e.name === 'AbortError') return;
+          // The map can still resolve these later.
+        }
       }
-      setPhase('saving');
-      const cover = rows.find((r) => r.photo_ref);
-      if (cover) {
-        // The first recognisable stop becomes the trip thumbnail. The trips
-        // page still falls back to its first photographed activity for older
-        // plans that predate cover_ref.
-        await supabase.from('trips').update({ cover_ref: cover.photo_ref }).eq('id', trip.id);
-      }
-      const { error: actErr } = await supabase.from('activities').insert(rows);
-      if (actErr) fail(actErr); // a trip with no activities still beats losing it
     }
 
+    if (cancelledRef.current) return;
+    setPhase('saving');
+
+    // Nothing is written until the itinerary and its locations are ready.
+    const { data: trip, error: tripErr } = await supabase.from('trips').insert({
+      owner_id: user.id,
+      name: plan.name,
+      destination: plan.destination,
+      start_date: start,
+      end_date: end,
+      currency: plan.currency,
+      notes: '',
+    }).select().single();
+
+    if (tripErr || !trip) {
+      if (cancelledRef.current) return;
+      fail(tripErr || new Error('Could not create the trip.'));
+      setError('Could not save the trip.');
+      setPhase('error');
+      return;
+    }
+
+    pendingTripRef.current = trip.id;
+    if (cancelledRef.current) {
+      await discardPendingTrip();
+      return;
+    }
+
+    // The prompt belongs to the agent conversation, not to the trip's notes.
+    // Saving both sides means later requests can refer to an earlier choice.
+    const { error: historyErr } = await supabase.from('trip_agent_messages').insert([
+      {
+        trip_id: trip.id, user_id: user.id, role: 'user', kind: 'initial_prompt',
+        content: brief.slice(0, 4000), meta: { pictures: shots.length },
+      },
+      {
+        trip_id: trip.id, user_id: user.id, role: 'assistant', kind: 'initial_plan',
+        content: String(plan.summary || 'Initial itinerary created.').slice(0, 4000),
+        meta: { name: plan.name, destination: plan.destination, duration_days: plan.duration_days },
+      },
+    ]);
+    if (historyErr) console.error('[agent history] could not save initial brief:', historyErr.message);
+    if (cancelledRef.current) {
+      await discardPendingTrip();
+      return;
+    }
+
+    const cover = rows.find((r) => r.photo_ref);
+    if (cover) {
+      // The first recognisable stop becomes the trip thumbnail. The trips
+      // page still falls back to its first photographed activity for older
+      // plans that predate cover_ref.
+      await supabase.from('trips').update({ cover_ref: cover.photo_ref }).eq('id', trip.id);
+    }
+
+    if (cancelledRef.current) {
+      await discardPendingTrip();
+      return;
+    }
+
+    if (rows.length) {
+      rows.forEach((row) => { row.trip_id = trip.id; });
+      const { error: actErr } = await supabase.from('activities').insert(rows);
+      if (actErr && !cancelledRef.current) fail(actErr);
+    }
+
+    if (cancelledRef.current) {
+      await discardPendingTrip();
+      return;
+    }
+    pendingTripRef.current = null;
+    try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     router.replace(`/trips/${trip.id}/itinerary`);
-  }, [supabase, user, query, shots, router, fail, upsertDay]);
+  }, [supabase, user, query, shots, router, fail, upsertDay, discardPendingTrip]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
@@ -393,7 +458,7 @@ function Planner() {
                 ? (unreadable ? <ImageOff size={18} /> : <TriangleAlert size={18} />)
                 : <Sparkles size={18} />}
             </span>
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="planhead-copy">
               <h2 style={{ fontSize: 18 }}>
                 {phase === 'error'
                   ? (unreadable
@@ -413,6 +478,10 @@ function Planner() {
                   ? `From your picture${shots.length === 1 ? '' : 's'}` : null)}
               </p>
             </div>
+            <button className="btn ghost plan-cancel" type="button" onClick={cancelPlanning}
+              aria-label="Cancel planning and discard this trip">
+              <X size={15} /> <span>Cancel</span>
+            </button>
           </div>
 
           {phase === 'clarifying' ? (
