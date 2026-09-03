@@ -3762,11 +3762,18 @@ body::before {
 }
 .daychip { border-radius: 14px; }
 .daychip:hover { transform: translateY(-1px); }
-.daychip.is-on, .daychip[aria-current="true"] {
+.daystrip .daychip.active, .daystrip .daychip[aria-current="true"] {
   color: var(--surface-1);
   background: var(--text-1);
   border-color: var(--text-1);
+  box-shadow: none;
 }
+.daystrip .daychip.active .daychip-d,
+.daystrip .daychip[aria-current="true"] .daychip-d {
+  color: var(--surface-1);
+  opacity: .7;
+}
+.daystrip .daychip.active.today::after { background: var(--accent); }
 
 /* Landing motion remains, but only as a brief response to the user. */
 .aurora-blob, .aurora-sheen { animation: none !important; transform: none !important; }
