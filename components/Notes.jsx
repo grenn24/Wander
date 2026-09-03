@@ -49,7 +49,6 @@ export default function Notes({ trip, activities, onSave }) {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const refs = activities.filter((a) => (a.booking_ref || '').trim());
-  const withNotes = activities.filter((a) => (a.notes || '').trim());
 
   return (
     <div>
@@ -99,19 +98,6 @@ export default function Notes({ trip, activities, onSave }) {
         </div>
       ) : null}
 
-      {withNotes.length ? (
-        <div className="card" style={{ marginTop: 14 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>Activity notes</h3>
-          {withNotes.map((a) => (
-            <div key={a.id} style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>
-                {a.title} <span className="dim tiny">{fmtDay(a.day)}</span>
-              </div>
-              <div className="small muted" style={{ whiteSpace: 'pre-wrap' }}>{a.notes}</div>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
