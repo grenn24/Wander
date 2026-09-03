@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound, LayoutGrid, Rows3,
-  MoreHorizontal, Pencil, Copy, Trash2,
+  MoreHorizontal, Pencil, Copy, Trash2, Users,
 } from 'lucide-react';
 import Popover from '@/components/Popover';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import TripModal from '@/components/TripModal';
 import PlanPrompt from '@/components/PlanPrompt';
+import PlacePhoto from '@/components/PlacePhoto';
 import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
@@ -32,7 +33,9 @@ export default function TripsHome() {
   const { supabase, user, fail, pushToast } = useApp();
   const router = useRouter();
   const [trips, setTrips] = useState([]);
-  const [view, setView] = useState('cards'); // cards | list
+  const [view, setView] = useState('list'); // cards | list
+  const [covers, setCovers] = useState({});
+  const [memberCounts, setMemberCounts] = useState({});
   /*
    * The row menu: which trip it belongs to, and what it hangs off.
    *
@@ -55,6 +58,28 @@ export default function TripsHome() {
     if (error) fail(error); else setTrips(data || []);
     setLoading(false);
 
+    const tripIds = (data || []).map((t) => t.id);
+    if (!tripIds.length) {
+      setCovers({});
+      setMemberCounts({});
+      setSharedBy({});
+      return;
+    }
+
+    // Older trips may not have a cover_ref yet. Their first located stop gives
+    // the list a useful thumbnail without changing the trip itself.
+    const { data: photos } = await supabase.from('activities')
+      .select('trip_id, photo_ref, day, sort_order')
+      .in('trip_id', tripIds)
+      .not('photo_ref', 'is', null)
+      .order('day', { ascending: true })
+      .order('sort_order', { ascending: true });
+    const nextCovers = {};
+    (photos || []).forEach((a) => {
+      if (!nextCovers[a.trip_id] && a.photo_ref) nextCovers[a.trip_id] = a.photo_ref;
+    });
+    setCovers(nextCovers);
+
     /*
      * Whose trips these are.
      *
@@ -63,19 +88,24 @@ export default function TripsHome() {
      * the moment before you change something in somebody else's plan. Asked
      * for only when there is something to ask about, and never for your own.
      */
-    const theirs = (data || []).filter((t) => t.owner_id !== (user && user.id));
-    if (!theirs.length) { setSharedBy({}); return; }
-    const { data: owners } = await supabase.from('trip_members')
-      .select('trip_id, display_name, email')
-      .eq('role', 'owner')
-      .in('trip_id', theirs.map((t) => t.id));
+    const theirs = new Set(
+      (data || []).filter((t) => t.owner_id !== (user && user.id)).map((t) => t.id),
+    );
+    const { data: members } = await supabase.from('trip_members')
+      .select('trip_id, display_name, email, role')
+      .in('trip_id', tripIds);
     const by = {};
-    (owners || []).forEach((o) => {
-      by[o.trip_id] = o.display_name
-        || (o.email || '').split('@')[0]
-        || 'someone else';
+    const counts = {};
+    (members || []).forEach((m) => {
+      counts[m.trip_id] = (counts[m.trip_id] || 0) + 1;
+      if (m.role === 'owner' && theirs.has(m.trip_id)) {
+        by[m.trip_id] = m.display_name
+          || (m.email || '').split('@')[0]
+          || 'someone else';
+      }
     });
     setSharedBy(by);
+    setMemberCounts(counts);
   }, [supabase, fail, user]);
 
   useEffect(() => { load(); }, [load]);
@@ -86,7 +116,7 @@ export default function TripsHome() {
     try {
       const saved = localStorage.getItem(VIEW_KEY);
       if (saved === 'list' || saved === 'cards') setView(saved);
-    } catch (e) { /* storage off; cards it is */ }
+    } catch (e) { /* storage off; use the default list */ }
   }, []);
 
   function chooseView(v) {
@@ -122,6 +152,7 @@ export default function TripsHome() {
       currency: t.currency,
       budget: t.budget,
       notes: t.notes || '',
+      cover_ref: t.cover_ref || covers[t.id] || null,
     }).select().single();
     if (error || !copy) { fail(error || new Error('Could not copy that trip.')); return; }
 
@@ -242,6 +273,8 @@ export default function TripsHome() {
               {ordered.map((t) => {
                 const status = tripStatus(t);
                 const from = sharedBy[t.id];
+                const people = memberCounts[t.id] || 1;
+                const coverRef = t.cover_ref || covers[t.id] || null;
                 const shared = from ? (
                   <span className="sharedpill" data-tip={`${from} owns this trip`}>
                     <UserRound size={11} aria-hidden="true" />
@@ -254,30 +287,37 @@ export default function TripsHome() {
                 if (view === 'list') {
                   return (
                     <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="triprow">
-                      <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
-                      <span className="triprow-name">{t.name}</span>
-                      {shared}
-                      <span className="triprow-meta">
-                        <span><CalendarDays size={13} /> {fmtRange(t.start_date, t.end_date)}</span>
-                        {t.destination ? <span><MapPin size={13} /> {t.destination}</span> : null}
-                        {t.budget != null ? (
-                          <span><Wallet size={13} /> {money(t.budget, t.currency)}</span>
-                        ) : null}
+                      <PlacePhoto photoRef={coverRef} category="other" icon={MapPin}
+                        size={52} rounded={16} alt="" />
+                      <span className="triprow-main">
+                        <span className="triprow-name">{t.name}</span>
+                        <span className="triprow-meta">
+                          {t.destination ? <span><MapPin size={13} /> {t.destination}</span> : null}
+                          <span><CalendarDays size={13} /> {fmtRange(t.start_date, t.end_date)}</span>
+                          <span><Users size={13} /> {people} traveller{people === 1 ? '' : 's'}</span>
+                          {shared}
+                          {t.budget != null ? (
+                            <span><Wallet size={13} /> {money(t.budget, t.currency)}</span>
+                          ) : null}
+                        </span>
                       </span>
-                      <button className="tripcard-more" type="button"
-                        data-tip="Edit, copy, delete"
-                        aria-label={`Actions for ${t.name}`}
-                        aria-expanded={menuFor === t.id}
-                        onClick={(e) => {
-                          e.preventDefault(); e.stopPropagation();
-                          const same = menuFor === t.id;
-                          setMenuEl(e.currentTarget);
-                          setConfirmKill(null);
-                          setMenuFor(same ? null : t.id);
-                        }}>
-                        <MoreHorizontal size={16} />
-                      </button>
-                      <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
+                      <span className="triprow-end">
+                        <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
+                        <button className="tripcard-more" type="button"
+                          data-tip="Edit, copy, delete"
+                          aria-label={`Actions for ${t.name}`}
+                          aria-expanded={menuFor === t.id}
+                          onClick={(e) => {
+                            e.preventDefault(); e.stopPropagation();
+                            const same = menuFor === t.id;
+                            setMenuEl(e.currentTarget);
+                            setConfirmKill(null);
+                            setMenuFor(same ? null : t.id);
+                          }}>
+                          <MoreHorizontal size={16} />
+                        </button>
+                        <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
+                      </span>
                     </Link>
                   );
                 }

@@ -6,8 +6,9 @@ import Reveal from '@/components/Reveal';
 import LiveMock from '@/components/LiveMock';
 import FeatureGrid from '@/components/FeatureGrid';
 import LandingAccount from '@/components/LandingAccount';
+import BrandMark from '@/components/BrandMark';
 import {
-  Plane, CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
+  CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
 } from 'lucide-react';
 
@@ -45,7 +46,7 @@ export default async function Landing({ searchParams }) {
       <header className="lp-nav">
         <div className="lp-nav-in">
           <span className="brand-link" style={{ pointerEvents: 'none' }}>
-            <span className="brand-mark" aria-hidden="true"><Plane size={16} /></span>
+            <BrandMark />
             <span className="brand-word">Wander</span>
           </span>
           <div className="grow" />
@@ -147,7 +148,7 @@ export default async function Landing({ searchParams }) {
       </main>
 
       <footer className="lp-foot">
-        <span className="brand-mark" aria-hidden="true"><Plane size={14} /></span>
+        <BrandMark className="brand-mark-small" />
         <span>Wander — travel itinerary planner</span>
         <div className="grow" />
         <span className="dim">Maps and places by Google</span>

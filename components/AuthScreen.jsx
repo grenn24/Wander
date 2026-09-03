@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { Plane, Loader2, Mail, ArrowLeft } from 'lucide-react';
+import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
+import BrandMark from '@/components/BrandMark';
 
 /**
  * The way in. Shown by AppProvider in place of the app whenever there is no
@@ -111,7 +112,7 @@ export default function AuthScreen() {
     <div className="gate authgate">
       <div className="auth card">
         <div className="auth-brand">
-          <span className="brand-mark" aria-hidden="true"><Plane size={17} /></span>
+          <BrandMark />
           <span className="brand-word">Wander</span>
         </div>
 

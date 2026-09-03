@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plane } from 'lucide-react';
+import BrandMark from '@/components/BrandMark';
 
 /**
  * The frame both legal pages share.
@@ -14,7 +14,7 @@ export default function LegalPage({ title, updated, children }) {
     <div className="shell">
       <header className="lp-top">
         <Link href="/" className="brand-link" aria-label="Wander — home">
-          <span className="brand-mark" aria-hidden="true"><Plane size={16} /></span>
+          <BrandMark />
           <span className="brand-word">Wander</span>
         </Link>
         <div className="grow" />

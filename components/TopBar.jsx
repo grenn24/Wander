@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Plane, Sun, Moon, SunMoon, ChevronDown, LogOut, House, UserRound,
+  Sun, Moon, SunMoon, ChevronDown, LogOut, House, UserRound,
 } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
+import BrandMark from '@/components/BrandMark';
 import Popover from '@/components/Popover';
 import Presence from '@/components/Presence';
 import { initials } from '@/lib/util';
@@ -57,7 +58,7 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
     <header className="topbar" ref={ref}>
       <Link href="/trips" className="brand-link" data-tip="All trips"
         aria-label="Wander — all trips">
-        <span className="brand-mark" aria-hidden="true"><Plane size={16} /></span>
+        <BrandMark />
         <span className="brand-word">Wander</span>
       </Link>
 

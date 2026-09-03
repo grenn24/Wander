@@ -1,5 +1,5 @@
 'use client';
-import { Plane } from 'lucide-react';
+import BrandMark from '@/components/BrandMark';
 
 export default function ConfigError({ kind, fatal, missing, warning, apiUrl }) {
   // "Failed to fetch" means nothing answered at that URL — a different problem
@@ -10,7 +10,7 @@ export default function ConfigError({ kind, fatal, missing, warning, apiUrl }) {
     <div className="gate">
       <div className="gate-card card">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true"><Plane size={17} /></span>
+          <BrandMark />
           <h1>Wander</h1>
         </div>
 

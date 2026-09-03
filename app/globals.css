@@ -1,90 +1,90 @@
 :root {
   color-scheme: light;
-  --surface-0: #f5f4f1;
-  --surface-1: #fcfcfb;
-  --surface-2: #f0efec;
-  --border:    #e2e0da;
-  --border-strong: #cfccc3;
-  --text-1: #0b0b0b;
-  --text-2: #52514e;
-  --text-3: #85837c;
-  --accent:   #2a78d6;
-  --accent-ink: #1c5cab;
-  --accent-soft: #e8f0fc;
-  --danger: #d03b3b;
-  --good:   #0ca30c;
-  --warn:   #a8761f;
-  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
-  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7;
-  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.18);
-  --radius: 12px;
+  --surface-0: #f4efe5;
+  --surface-1: #fbf8f1;
+  --surface-2: #eee6d8;
+  --border:    #ddd2c0;
+  --border-strong: #c8baa4;
+  --text-1: #29231d;
+  --text-2: #6f655a;
+  --text-3: #8f8274;
+  --accent:   #a34f35;
+  --accent-ink: #783621;
+  --accent-soft: #f2ddd3;
+  --danger: #a74235;
+  --good:   #687052;
+  --warn:   #a8792d;
+  --cat-1: #a45b42; --cat-2: #b47b3d; --cat-3: #687052; --cat-4: #8b6c5c;
+  --cat-5: #ad6d61; --cat-6: #747a56; --cat-7: #79685c;
+  --shadow: 0 2px 4px rgba(73,54,36,.06), 0 18px 48px -28px rgba(73,54,36,.30);
+  --radius: 18px;
   /* --- glass ------------------------------------------------------------ */
-  --glass: rgba(255,255,255,.58);
-  --glass-strong: rgba(255,255,255,.76);
-  --glass-edge: rgba(255,255,255,.85);
-  --glass-line: rgba(255,255,255,.72);
-  --glass-blur: 20px;
-  --glass-sat: 175%;
-  --lift: 0 12px 32px -14px rgba(20,20,30,.42);
-  --lift-lg: 0 26px 60px -22px rgba(20,20,30,.5);
+  --glass: #fbf8f1;
+  --glass-strong: #fffdf8;
+  --glass-edge: transparent;
+  --glass-line: #ddd2c0;
+  --glass-blur: 0px;
+  --glass-sat: 100%;
+  --lift: 0 12px 34px -26px rgba(73,54,36,.34);
+  --lift-lg: 0 24px 58px -32px rgba(73,54,36,.46);
   --aura-1: var(--accent);
   --aura-2: var(--cat-3);
   --aura-3: var(--cat-5);
-  --aura-strength: 17%;
+  --aura-strength: 7%;
   --ease: cubic-bezier(.2,.8,.3,1);
   --spring: cubic-bezier(.34,1.4,.64,1);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface-0: #121211;
-  --surface-1: #1a1a19;
-  --surface-2: #232322;
-  --border:    #33332f;
-  --border-strong: #47463f;
-  --text-1: #ffffff;
-  --text-2: #c3c2b7;
-  --text-3: #918f84;
-  --accent:   #3987e5;
-  --accent-ink: #86b6ef;
-  --accent-soft: #16283f;
-  --danger: #e66767;
-  --good:   #0ca30c;
-  --warn:   #c99a44;
+  --surface-0: #181612;
+  --surface-1: #201d18;
+  --surface-2: #302b24;
+  --border:    #3d372e;
+  --border-strong: #51483c;
+  --text-1: #f4eee3;
+  --text-2: #b9ae9f;
+  --text-3: #8d8377;
+  --accent:   #d47a5e;
+  --accent-ink: #f0aa91;
+  --accent-soft: #482c24;
+  --danger: #e08070;
+  --good:   #a9b08b;
+  --warn:   #d2a657;
   /* Muted for dark. Saturated fills that look crisp on white turn into glare
      against a dark surface, and a page with seven of them at full strength
      reads as a chart rather than an itinerary. Same hues, less shouting —
      enough to tell the categories apart, not enough to compete with the
      content. */
-  --cat-1: #4f7cab; --cat-2: #b06c47; --cat-3: #3f8a6d; --cat-4: #9c8047;
-  --cat-5: #a96b83; --cat-6: #4e8259; --cat-7: #7871a3;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
-  --glass: rgba(38,38,42,.55);
-  --glass-strong: rgba(30,30,34,.78);
-  --glass-edge: rgba(255,255,255,.14);
-  --glass-line: rgba(255,255,255,.10);
-  --lift: 0 12px 32px -14px rgba(0,0,0,.7);
-  --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
-  --aura-strength: 21%;
+  --cat-1: #c9775e; --cat-2: #c49152; --cat-3: #909978; --cat-4: #ad8d7a;
+  --cat-5: #bc7d70; --cat-6: #959d72; --cat-7: #9d8c7e;
+  --shadow: 0 2px 4px rgba(0,0,0,.28), 0 18px 48px -28px rgba(0,0,0,.72);
+  --glass: #201d18;
+  --glass-strong: #28241e;
+  --glass-edge: transparent;
+  --glass-line: #3d372e;
+  --lift: 0 12px 34px -26px rgba(0,0,0,.76);
+  --lift-lg: 0 24px 58px -32px rgba(0,0,0,.88);
+  --aura-strength: 8%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #232322;
-    --border: #33332f; --border-strong: #47463f;
-    --text-1: #ffffff; --text-2: #c3c2b7; --text-3: #918f84;
-    --accent: #3987e5; --accent-ink: #86b6ef; --accent-soft: #16283f;
-    --danger: #e66767;
+    --surface-0: #181612; --surface-1: #201d18; --surface-2: #302b24;
+    --border: #3d372e; --border-strong: #51483c;
+    --text-1: #f4eee3; --text-2: #b9ae9f; --text-3: #8d8377;
+    --accent: #d47a5e; --accent-ink: #f0aa91; --accent-soft: #482c24;
+    --danger: #e08070; --good: #a9b08b; --warn: #d2a657;
     /* Same muting as the explicit dark theme above. */
-    --cat-1: #4f7cab; --cat-2: #b06c47; --cat-3: #3f8a6d; --cat-4: #9c8047;
-    --cat-5: #a96b83; --cat-6: #4e8259; --cat-7: #7871a3;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
-  --glass: rgba(38,38,42,.55);
-  --glass-strong: rgba(30,30,34,.78);
-  --glass-edge: rgba(255,255,255,.14);
-  --glass-line: rgba(255,255,255,.10);
-  --lift: 0 12px 32px -14px rgba(0,0,0,.7);
-  --lift-lg: 0 26px 60px -22px rgba(0,0,0,.8);
-  --aura-strength: 21%;
+    --cat-1: #c9775e; --cat-2: #c49152; --cat-3: #909978; --cat-4: #ad8d7a;
+    --cat-5: #bc7d70; --cat-6: #959d72; --cat-7: #9d8c7e;
+    --shadow: 0 2px 4px rgba(0,0,0,.28), 0 18px 48px -28px rgba(0,0,0,.72);
+    --glass: #201d18;
+    --glass-strong: #28241e;
+    --glass-edge: transparent;
+    --glass-line: #3d372e;
+    --lift: 0 12px 34px -26px rgba(0,0,0,.76);
+    --lift-lg: 0 24px 58px -32px rgba(0,0,0,.88);
+    --aura-strength: 8%;
   }
 }
 
@@ -3517,4 +3517,278 @@ body:has(.lp)::before { display: none; }
   align-items: center; justify-content: center; gap: 10px; text-align: center;
   padding: 24px; color: var(--text-3); font-size: 14px; line-height: 1.55;
   max-width: 34ch; margin-inline: auto;
+}
+
+/* ========================================================== warm earth --- */
+/* The product is intentionally quiet: opaque surfaces, warm materials and
+   rounded controls. Colour identifies actions and status instead of coating
+   every panel. */
+body::before {
+  background:
+    radial-gradient(38% 36% at 8% 2%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 72%),
+    radial-gradient(34% 32% at 92% 6%, color-mix(in srgb, var(--cat-3) 5%, transparent), transparent 74%);
+  filter: none;
+  animation: none;
+}
+
+.topbar, .rail, .tabbar, .lp-nav { background: var(--surface-1); }
+.modal, .act-menu, .toast, .cmd, .ck, .sel-list, .tf-list, .geo-list {
+  background: var(--glass-strong);
+}
+.topbar, .rail, .tabbar, .lp-nav, .modal, .act-menu, .toast, .cmd, .ck,
+.sel-list, .tf-list, .geo-list, .card, .tripcard, .lp-card, .lp-steps li,
+.lp-points li, .pack-item, .person, .nearby, .mock, .day-head, .planbox-field,
+.sharedpill, .tag, .statuspill, .daychip, .today-badge, .rv-locate {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.card, .tripcard, .lp-card, .lp-steps li, .lp-points li, .pack-item,
+.person, .nearby, .mock {
+  background: var(--surface-1);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.modal, .act-menu, .toast, .cmd, .ck, .sel-list, .tf-list, .geo-list,
+.rv-locate { border-color: var(--border); box-shadow: var(--lift); }
+.modal { border-radius: 24px 24px 0 0; }
+@media (min-width: 700px) { .modal { border-radius: 24px; } }
+.modal-head, .modal-foot {
+  background: var(--glass-strong);
+  border-color: var(--border);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.btn {
+  border-radius: 14px;
+  box-shadow: none;
+  transition: background .14s var(--ease), border-color .14s var(--ease),
+              transform .14s var(--spring);
+}
+.btn.primary {
+  color: var(--surface-1);
+  background: var(--text-1);
+  background-image: none;
+  border-color: var(--text-1);
+  box-shadow: none;
+}
+.btn.primary:hover {
+  color: var(--surface-1);
+  background: color-mix(in srgb, var(--text-1) 88%, var(--accent));
+  background-image: none;
+  border-color: transparent;
+}
+.btn.lg { border-radius: 16px; }
+.btn.sm { border-radius: 11px; }
+.input, .select, .textarea, .quickadd-in, .trip-pick { border-radius: 14px; }
+
+/* A simple route-shaped w: neutral enough to sit beside every screen, with
+   one terracotta stop as the only decorative note. */
+.brand-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+  color: var(--surface-1);
+  background: var(--text-1);
+  background-image: none;
+  box-shadow: none;
+}
+.brand-letter {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-size: 23px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+.brand-stop {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.brand-mark-small { width: 28px; height: 28px; border-radius: 10px; }
+.brand-mark-small .brand-letter { font-size: 19px; }
+.brand-mark-small .brand-stop { right: 6px; bottom: 6px; width: 3px; height: 3px; }
+.brand-word { font-size: 21px; }
+
+/* The rail stays labelled on desktop, but no longer takes a card's worth of
+   horizontal space. */
+@media (min-width: 861px) {
+  .rail { width: 164px; padding: 13px 9px; }
+}
+.rail a, .rail button {
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 13px;
+}
+.rail a:hover, .rail button:hover { transform: none; }
+.rail a[aria-current="true"], .rail button[aria-current="true"] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+/* Trips are recognition-first: image and name lead, supporting facts sit in
+   one cluster below, and state plus navigation stay together at the edge. */
+.main-plain .wrap { max-width: 1080px; }
+.triplist { border-color: var(--border); }
+.triprow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 11px 4px;
+  border-color: var(--border);
+  border-radius: 0;
+}
+.triprow:hover { background: color-mix(in srgb, var(--surface-1) 68%, transparent); }
+.triprow > .photo { align-self: center; border-radius: 16px !important; }
+.triprow-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.triprow-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.triprow-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px 16px;
+  margin: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.35;
+  white-space: normal;
+}
+.triprow-meta span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.triprow-end { display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
+.triprow .tripcard-more { margin: 0; }
+.triprow .statuspill { flex: none; }
+.tripcard { border-radius: 22px; }
+.tripcard:hover { transform: translateY(-1px); box-shadow: var(--lift); }
+
+@media (max-width: 720px) {
+  .triprow {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+    row-gap: 0;
+    padding: 11px 2px;
+  }
+  .triprow::after { content: none; }
+  .triprow > .photo { display: flex; width: 48px !important; height: 48px !important; border-radius: 15px !important; }
+  .triprow-main { gap: 4px; }
+  .triprow-name { order: initial; flex: none; font-size: 19px; }
+  .triprow-meta { margin: 0; gap: 4px 10px; }
+  .triprow-end { gap: 2px; }
+  .triprow .statuspill { display: none; }
+  .triprow .tripcard-go { order: initial; margin-left: 0; }
+}
+
+/* A continuous itinerary. Times form the left column; the thin route line is
+   kept clear of the image column so both remain easy to scan. */
+.day { margin-bottom: 28px; }
+.day-head {
+  margin-inline: -8px;
+  padding: 8px;
+  border-radius: 0;
+  background: var(--surface-0);
+}
+.day-num { padding: 3px 9px; border-radius: 999px; }
+.day-date {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1.15;
+}
+.acts { position: relative; gap: 0; }
+.act {
+  gap: 14px;
+  padding: 12px 7px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.act:hover {
+  transform: none;
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  box-shadow: none;
+}
+.act .photo { margin-right: 4px; border-radius: 15px !important; }
+.act.is-anchor { border-left: 0; }
+.act.is-anchor .photo { box-shadow: 0 0 0 2px var(--cat-4); }
+.day-add { margin-top: 10px; border-radius: 14px; }
+
+@media (min-width: 641px) {
+  .acts::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    bottom: 18px;
+    left: 63px;
+    width: 1px;
+    background: var(--border);
+  }
+  .act { z-index: 1; }
+  .act-when { z-index: 1; }
+}
+@media (max-width: 460px) {
+  .act .photo { display: flex; width: 48px !important; height: 48px !important; }
+}
+
+.daystrip {
+  background: var(--surface-0);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.daychip { border-radius: 14px; }
+.daychip:hover { transform: translateY(-1px); }
+.daychip.is-on, .daychip[aria-current="true"] {
+  color: var(--surface-1);
+  background: var(--text-1);
+  border-color: var(--text-1);
+}
+
+/* Landing motion remains, but only as a brief response to the user. */
+.aurora-blob, .aurora-sheen { animation: none !important; transform: none !important; }
+.aurora-blob { opacity: .18; filter: blur(90px); }
+.lp-hero h1 { color: var(--text-1); background: none; }
+.lp-eyebrow { background: var(--accent-soft); box-shadow: none; }
+.lp-card, .lp-steps li, .lp-points li { border-radius: 22px; }
+.lp-card::after { display: none; }
+.lp-card:hover { transform: translateY(-1px); box-shadow: var(--lift); }
+.lp-card-ico { background: var(--accent-soft); box-shadow: none; }
+.lp-step-n { background: var(--text-1); background-image: none; box-shadow: none; }
+.lp-band { background: var(--surface-1); }
+.planbox-field {
+  border-radius: 22px;
+  background: var(--surface-1);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.planbox-field:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+.reveal { transition-duration: .38s; }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, .aurora-blob, .aurora-sheen { animation: none !important; }
 }

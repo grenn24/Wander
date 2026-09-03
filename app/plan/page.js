@@ -260,6 +260,13 @@ function Planner() {
         } catch (e) { /* the map can still resolve these later */ }
       }
       setPhase('saving');
+      const cover = rows.find((r) => r.photo_ref);
+      if (cover) {
+        // The first recognisable stop becomes the trip thumbnail. The trips
+        // page still falls back to its first photographed activity for older
+        // plans that predate cover_ref.
+        await supabase.from('trips').update({ cover_ref: cover.photo_ref }).eq('id', trip.id);
+      }
       const { error: actErr } = await supabase.from('activities').insert(rows);
       if (actErr) fail(actErr); // a trip with no activities still beats losing it
     }

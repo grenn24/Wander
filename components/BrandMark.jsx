@@ -1,0 +1,8 @@
+export default function BrandMark({ className = '' }) {
+  return (
+    <span className={`brand-mark${className ? ` ${className}` : ''}`} aria-hidden="true">
+      <span className="brand-letter">w</span>
+      <span className="brand-stop" />
+    </span>
+  );
+}
