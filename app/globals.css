@@ -2781,6 +2781,11 @@ body:has(.lp)::before { display: none; }
   border: 1px solid var(--border); background: var(--surface-2);
 }
 .amap-el .map-el { position: relative; z-index: 1; height: 100%; }
+.amap-static { width: 100%; height: 100%; }
+/* Keep the entire Google image visible, including its attribution. */
+.amap-static img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.amap-static-status { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 50px 18px 18px; text-align: center; color: var(--text-2); font-size: 12px; }
+.amap-static-status small { color: var(--text-3); }
 .amap-expand-hit {
   position: absolute; inset: 0; z-index: 2;
   display: flex; align-items: flex-start; justify-content: flex-end;

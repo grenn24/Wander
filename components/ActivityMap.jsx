@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MapPin, Loader2, Crosshair, Maximize2 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
+import StaticActivityMap from '@/components/StaticActivityMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import PlaceFacts from '@/components/PlaceFacts';
 import { searchPlaces, reverseGeocode, placeDetails, cachedDetails } from '@/lib/geo';
@@ -89,8 +90,6 @@ export default function ActivityMap({
     onGuess({ busy, place: probe || null });
   }, [onGuess, busy, probe]);
 
-  if (!googleMapsAvailable()) return null;
-
   const at = pinned ? { lat, lng } : probe ? { lat: probe.lat, lng: probe.lng } : null;
 
   /*
@@ -138,12 +137,15 @@ export default function ActivityMap({
     }
   }
 
+  if (!googleMapsAvailable()) return null;
+
   return (
     <div className={`amap${compact ? ' is-compact' : ''}${expanded ? ' is-expanded' : ''}`}>
       {at ? (
         <>
           <div className={`amap-el${onExpand ? ' can-expand' : ''}`}>
-            <GoogleMap
+            {!expanded ? <StaticActivityMap at={at} pinned={pinned}
+              category={draft.category || 'sightseeing'} compact={compact} title={draft.title} /> : <GoogleMap
               showAppearance={!onExpand}
               /* A marker means a decision has been made. Until one has, the
                  map only goes to the neighbourhood. */
@@ -168,7 +170,7 @@ export default function ActivityMap({
                  page. */
               gestures={expanded || !compact ? 'greedy' : 'cooperative'}
               onError={setMapErr}
-            />
+            />}
             {onExpand ? (
               <button className="amap-expand-hit" type="button" onClick={onExpand}
                 aria-label="Expand map">
