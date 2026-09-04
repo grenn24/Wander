@@ -9,15 +9,16 @@ export async function POST(req) {
   try { body = await req.json(); } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
-  const lat = Number(body.lat);
-  const lng = Number(body.lng);
+  const lat = typeof body?.lat === 'number' ? body.lat : NaN;
+  const lng = typeof body?.lng === 'number' ? body.lng : NaN;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return Response.json({ error: 'Need a point to search around.' }, { status: 400 });
   }
   try {
-    const places = await nearbyPlaces(lat, lng, String(body.kind || ''), Number(body.radius) || 900);
+    const places = await nearbyPlaces(lat, lng, String(body.kind || ''), Number(body.radius) || 900, body.bounds ?? null);
     return Response.json({ places });
   } catch (e) {
+    if (e.status === 400) return Response.json({ error: e.message }, { status: 400 });
     return placesFailure(e, 'nearby');
   }
 }

@@ -15,6 +15,7 @@ import GoogleMap, {
 } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
+import { viewportChanged } from '@/lib/explore';
 
 
 export default function MapView({
@@ -159,12 +160,14 @@ export default function MapView({
    * search again instead, and this does the same.
    */
   useEffect(() => {
-    if (!kind || !mapsReady) { setPlaces([]); setSearchedAt(null); return undefined; }
+    if (!kind || !mapsReady) { setPlaces([]); setSearchedAt(null); setPlacesBusy(false); return undefined; }
     const at = viewRef.current;
     if (!at) return undefined; // the map has not settled yet; the kick below retries
     let alive = true;
     setPlacesBusy(true);
-    nearby(at.lat, at.lng, kind, at.radius)
+    setErr('');
+    setPlaces([]);
+    nearby(at.lat, at.lng, kind, at.radius, at.bounds)
       .then((list) => { if (alive) setPlaces(list); })
       .catch((e) => { if (alive) { setPlaces([]); setErr(e.message); } })
       .finally(() => {
@@ -193,6 +196,8 @@ export default function MapView({
       const found = await searchPlaces(q, anchor);
       const withDistance = found.map((h, i) => ({
         id: h.place_id || `${h.lat},${h.lng},${i}`,
+        place_id: h.place_id,
+        location: h.label,
         name: h.name || h.label,
         detail: h.label,
         lat: h.lat,
@@ -291,6 +296,7 @@ export default function MapView({
       lng: seed.lng,
       category: seed.category || 'sightseeing',
       photo_ref: seed.photo_ref || null,
+      place_id: seed.place_id || null,
       cost: 0,
     });
     setDropped(null);
@@ -300,11 +306,12 @@ export default function MapView({
     const cat = NEARBY_KINDS.find((k) => k.id === pl.kind);
     newAt({
       title: pl.name,
-      location: pl.detail ? `${pl.name} · ${pl.detail}` : pl.name,
+      location: pl.location || pl.detail || pl.name,
       lat: pl.lat,
       lng: pl.lng,
-      category: cat ? cat.category : 'sightseeing',
+      category: pl.category || (cat ? cat.category : 'sightseeing'),
       photo_ref: pl.photo_ref,
+      place_id: pl.place_id,
     });
   }
 
@@ -314,24 +321,13 @@ export default function MapView({
 
   /** Far enough from where these results came from to be worth asking again. */
   const strayed = !!(showingFinds && searchedAt && view && !findsBusy
-    && haversine(view.lat, view.lng, searchedAt.lat, searchedAt.lng) * 1000
-      > searchedAt.radius * 0.6);
+    && viewportChanged(searchedAt, view));
 
   /** Ask again for wherever the map is now, in whichever mode is running. */
   function redo() {
     if (query.trim()) runSearch();
     else if (kind) setEpoch((n) => n + 1);
   }
-  /*
-   * Zoomed out to the whole trip, the centre of the view is usually farmland
-   * between two cities, and "nearby" honestly means nearby that. Better to say
-   * so than to return a list of places an hour's drive apart and look broken.
-   *
-   * The threshold is three times the 4km the search itself reaches, not the
-   * moment the reach is exceeded: a city-wide view is half-covered and returns
-   * things 200m away, so warning there would be crying wolf.
-   */
-  const viewTooWide = !!anchor && anchor.spanKm > 12;
 
   /*
    * Clicking a marker selects a row that may be twenty rows down a panel, or
@@ -520,16 +516,6 @@ export default function MapView({
         </div>
 
         <div className="mappanel-body">
-          {/* Only when it is actually a problem. Explaining that the search
-              follows the map is a caption on something you find out by using
-              it once; that the view has outrun the search is not. */}
-          {viewTooWide && showingFinds ? (
-            <p className="tiny dim mapside-where">
-              <Crosshair size={12} aria-hidden="true" />
-              the view is wider than search reaches — zoom into a neighbourhood
-            </p>
-          ) : null}
-
           {!mapsReady ? (
             <p className="small muted" style={{ marginTop: 0 }}>
               Nearby search needs the Google keys as well.
@@ -542,21 +528,19 @@ export default function MapView({
                 </div>
               ) : finds.length === 0 ? (
                 <p className="small muted">
-                  {viewTooWide
-                    ? 'Nothing near the middle of this view. Zoom into a place first.'
-                    : 'Nothing like that around here.'}
+                  {err ? 'Search could not finish. Adjust the map or try again.' : 'No matching places found in this view.'}
                 </p>
               ) : finds.map((pl) => (
                 <div className={`nearby${pickedPlace === pl.id ? ' is-focus' : ''}`} key={pl.id}
                   role="button" tabIndex={0}
                   onClick={() => setPickedPlace(pl.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter') setPickedPlace(pl.id); }}>
-                  <PlacePhoto photoRef={pl.photo_ref} category="other" size={38} alt="" />
+                  <PlacePhoto photoRef={pl.photo_ref} category={pl.category || 'other'} size={38} alt="" />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div className="nearby-name">{pl.name}</div>
                     <div className="tiny dim">
                       {pl.detail ? `${pl.detail} · ` : ''}
-                      {pl.km != null ? `${fmtKm(pl.km)} away` : ''}
+                      {pl.km != null ? `${fmtKm(pl.km)} from map centre` : ''}
                     </div>
                   </div>
                   <button className="btn sm icon-btn"

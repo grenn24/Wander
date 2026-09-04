@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { haversine } from '@/lib/geo';
+import { NEARBY_KINDS } from '@/lib/explore';
 import { categoryIcon } from '@/lib/icons';
 import MapAppearance, { useMapPreferences } from '@/components/MapAppearance';
 import { mapColorScheme } from '@/lib/mapPreferences';
@@ -328,10 +329,8 @@ function GoogleMapCanvas({
         report({
           lat: c.lat(),
           lng: c.lng(),
-          // Clamped to what the Places API will actually search...
-          radius: Math.round(Math.min(4000, Math.max(300, km * 1000))),
-          // ...and unclamped, so the page can admit when the view is wider
-          // than the search can reach.
+          radius: Math.round(Math.min(50000, Math.max(300, km * 1000))),
+          bounds: b ? b.toJSON() : null,
           spanKm: km,
         });
       });
@@ -822,7 +821,7 @@ function GoogleMapCanvas({
     const bits = [];
     if (p.detail) bits.push(p.detail);
     if (p.rating) bits.push(`★ ${Number(p.rating).toFixed(1)}`);
-    if (p.km != null) bits.push(`${p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`} away`);
+    if (p.km != null) bits.push(`${p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`} from map centre`);
 
     openInfo(anchor, {
       title: p.name,
@@ -891,9 +890,7 @@ function GoogleMapCanvas({
 
 /** Nearby kinds are not categories; this is the bridge for marker colour. */
 function catForKind(kind) {
-  return ({
-    food: 'food', sights: 'sightseeing', transit: 'transport', shops: 'shopping',
-  })[kind] || 'other';
+  return NEARBY_KINDS.find((k) => k.id === kind)?.category || 'other';
 }
 
 function escapeHtml(s) {
