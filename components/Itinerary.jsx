@@ -370,9 +370,11 @@ export default function Itinerary({
               <span className="day-date">{fmtDay(d)}</span>
               {d === today ? <span className="today-badge">Today</span> : null}
               {activities.filter((a) => stayOnDay(a, d)).map((a) => {
-                const detail = `${a.title}\nCheck-in: ${fmtDayTiny(a.details.check_in_date)}${a.details.check_in_time ? `, ${fmtTime(a.details.check_in_time)}` : ''}\nCheckout: ${fmtDayTiny(a.details.check_out_date)}${a.details.check_out_time ? `, ${fmtTime(a.details.check_out_time)}` : ''}${a.location ? `\n${a.location}` : ''}`;
+                const hotelName = a.title.replace(/^stay\s+at\s+/i, '');
+                const dates = `${fmtDayTiny(a.details.check_in_date)} – ${fmtDayTiny(a.details.check_out_date)}`;
                 return <button key={a.id} type="button" className="stay-indicator"
-                  data-tip={detail} aria-label={`Hotel for tonight: ${detail}. Open booking.`}
+                  data-tip={hotelName} data-tip-detail={dates} data-tip-kind="stay"
+                  aria-label={`Hotel for tonight: ${hotelName}, ${dates}. Open booking.`}
                   onClick={() => onEdit(a)}>
                   <BedDouble size={17} aria-hidden="true" />
                 </button>;

@@ -102,4 +102,8 @@ test('UI and AI paths retain shared booking metadata and accessible nonmoving ho
   assert.match(read('app/api/command/route.js'), /...LODGING_KEYS/);
   assert.match(read('app/globals.css'), /prefers-reduced-motion: reduce/);
   assert.match(read('app/globals.css'), /\.act \{ transition: background-color 220ms/);
+  assert.match(read('components/Itinerary.jsx'), /data-tip=\{hotelName\} data-tip-detail=\{dates\}/);
+  assert.doesNotMatch(read('components/Itinerary.jsx'), /data-tip=\{detail\}/);
+  assert.match(read('app/globals.css'), /\.act\.is-anchor \.photo \{ box-shadow: none; border: 0; \}/);
+  assert.match(read('app/globals.css'), /\.tip-stay-name[^}]*-webkit-line-clamp: 2/);
 });

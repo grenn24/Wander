@@ -58,7 +58,8 @@ export default function Tips() {
       const wait = now || Date.now() - shownAt.current < CHAIN ? 0 : DELAY;
       timer.current = setTimeout(() => {
         if (held.current !== el || !el.isConnected) return;
-        setTip({ text: el.getAttribute('data-tip'), box: el.getBoundingClientRect() });
+        setTip({ text: el.getAttribute('data-tip'), box: el.getBoundingClientRect(),
+          kind: el.getAttribute('data-tip-kind'), detail: el.getAttribute('data-tip-detail') });
       }, wait);
     };
 
@@ -144,6 +145,11 @@ export default function Tips() {
   if (!mounted || !tip || !tip.text) return null;
 
   return createPortal((
-    <div className="tip" ref={boxRef} role="tooltip" aria-hidden="true">{tip.text}</div>
+    <div className={`tip${tip.kind === 'stay' ? ' tip-stay' : ''}`} ref={boxRef} role="tooltip" aria-hidden="true">
+      {tip.kind === 'stay' ? <>
+        <span className="tip-stay-name">{tip.text}</span>
+        <span className="tip-stay-dates">{tip.detail}</span>
+      </> : tip.text}
+    </div>
   ), document.body);
 }

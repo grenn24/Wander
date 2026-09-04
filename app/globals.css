@@ -3233,6 +3233,9 @@ body:has(.lp)::before { display: none; }
   transition: opacity .12s ease, transform .12s var(--spring);
 }
 .tip.is-on { opacity: 1; transform: none; }
+.tip.tip-stay { width: 272px; max-width: calc(100vw - 24px); padding: 11px 13px; border-radius: 13px; text-align: left; white-space: normal; }
+.tip-stay-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; font-weight: 600; line-height: 1.45; }
+.tip-stay-dates { display: block; margin-top: 5px; font-size: 11px; font-weight: 400; color: var(--text-2); }
 .tip[data-above="true"] { transform: translateY(2px); }
 .tip[data-above="true"].is-on { transform: none; }
 @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
@@ -3871,7 +3874,7 @@ body::before {
   .act:focus-visible .photo svg, .stay-indicator:hover svg { transform: none; }
 }
 .act.is-anchor { border-left: 0; }
-.act.is-anchor .photo { box-shadow: 0 0 0 2px var(--cat-4); }
+.act.is-anchor .photo { box-shadow: none; border: 0; }
 .day-add { margin-top: 10px; border-radius: 14px; }
 
 @media (min-width: 641px) {
