@@ -2,19 +2,13 @@
 import { useEffect, useState } from 'react';
 import { Layers } from 'lucide-react';
 import Select from '@/components/Select';
-import { MAP_PREFERENCE_KEY, normalizeMapPreferences } from '@/lib/mapPreferences';
+import { MAP_PREFERENCE_KEY, MAP_TYPE_OPTIONS, normalizeMapPreferences } from '@/lib/mapPreferences';
 
 const CHANGE = 'wander-map-preferences-change';
 const THEMES = [
   { value: 'auto', label: 'Follow app' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
-];
-const TYPES = [
-  { value: 'roadmap', label: 'Road' },
-  { value: 'satellite', label: 'Satellite' },
-  { value: 'hybrid', label: 'Satellite with labels' },
-  { value: 'terrain', label: 'Terrain' },
 ];
 
 function readPreferences() {
@@ -64,7 +58,7 @@ export default function MapAppearance({ preferences, onChange }) {
         </div>
         <div className="map-appearance-field">
           <span>Map type</span>
-          <Select label="Map type" value={preferences.type} options={TYPES}
+          <Select label="Map type" value={preferences.type} options={MAP_TYPE_OPTIONS}
             onChange={(type) => onChange({ type })} />
         </div>
         <p>{imagery ? 'Satellite imagery keeps its natural colours. Your theme applies to road and terrain maps.'
