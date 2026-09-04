@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
-import useCommitments from '@/lib/useCommitments';
 import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
@@ -310,14 +309,6 @@ function CommandBar({ onClose }) {
   const [shots, setShots] = useState([]);
   const fileRef = useRef(null);
 
-  /*
-   * What is already in the traveller's own calendar on these dates.
-   *
-   * Sent with the instruction so that "add my flight from my calendar" has
-   * something to refer to. Without it the model was being asked about a
-   * calendar it had never been shown, and could only say no or make one up.
-   */
-  const booked = useCommitments(supabase, trip);
 
   async function take(files) {
     const picked = pickImages(files);
@@ -448,10 +439,13 @@ function CommandBar({ onClose }) {
     const stop = new AbortController();
     const gaveUp = setTimeout(() => stop.abort(), 180000);
     try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) { setError('Sign in again to make changes.'); return; }
       const res = await fetch('/api/command', {
         method: 'POST',
         signal: stop.signal,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           instruction,
           answers: said,
@@ -463,8 +457,6 @@ function CommandBar({ onClose }) {
             currency: trip.currency,
             budget: trip.budget,
           },
-          // Flattened out of the day-keyed shape the itinerary wants.
-          calendar: Object.values(booked).flat().slice(0, 40),
           history: agentHistory.slice(-24).map((m) => ({
             role: m.role,
             kind: m.kind,
@@ -502,7 +494,7 @@ function CommandBar({ onClose }) {
           role: 'assistant', kind: 'result',
           content: body.summary || 'No changes were needed.',
         });
-        setError('Nothing in the trip needed changing for that.');
+        setError(body.summary || 'Nothing in the trip needed changing for that.');
         return;
       }
       await appendAgentMessage({

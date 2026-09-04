@@ -4,6 +4,9 @@ import {
 } from '@/lib/ai';
 import { TRANSPORT } from '@/lib/transport';
 import { publicAgentText } from '@/lib/agentText';
+import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
+import { commandCalendar } from '@/lib/googleCal';
+import { calendarContext, explicitlyNeedsCalendar } from '@/lib/commandCalendar';
 
 /*
  * The kinds of journey and the fields each one has, from the app's own table.
@@ -227,6 +230,18 @@ flight from my calendar", "put the dinner booking in". Do that with an
 add_activity on the day it falls, keeping its title, its time and its place.
 Never add one that is already in the trip, and never invent a calendar entry
 that is not in that list.
+Match bookings using trip dates, destination, title, address AND description.
+If one booking clearly matches, propose adding it without asking which entry.
+Several records can describe one stay (confirmation, check-in and checkout):
+reconcile these rather than treating them as competing hotels. Sequential stays
+can all be relevant; do not invent a choice between them.
+Ask only if genuinely conflicting bookings remain, offering their actual names
+and dates as choices, never an empty "which hotel?" question.
+Preserve the address, reservation details and check-in/checkout dates. A
+multi-day stay is not a same-day activity: keep the stay range in notes and
+propose check-in/checkout on their respective days within the trip. Do not
+invent times for all-day entries. If no matching booking exists, say what was
+searched and ask for the missing booking details, not which unseen entry.
 
 Rules:
 - Internal activity IDs and Google place IDs are only for structured fields.
@@ -284,6 +299,8 @@ function trim(value, limit) {
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
+  const user = await userFromRequest(req);
+  if (!user) return notSignedIn();
 
   let body;
   try {
@@ -301,9 +318,22 @@ export async function POST(req) {
   const answers = (Array.isArray(body.answers) ? body.answers : [body.answer])
     .filter(Boolean).map((a) => String(a).slice(0, 300)).slice(0, 6);
   const activities = (Array.isArray(body.activities) ? body.activities : []).slice(0, 80);
-  /* What the traveller already has on, sent only when a calendar is connected
-     and only ever for the trip's own dates. */
-  const booked = (Array.isArray(body.calendar) ? body.calendar : []).slice(0, 40);
+  // Await a fresh authenticated lookup, not a background UI hook. An empty
+  // calendar and a failed lookup must never look the same to the agent.
+  let booked = [];
+  let calendarStatus = 'ready';
+  try {
+    booked = await commandCalendar(user.id, trip);
+  } catch (e) {
+    calendarStatus = e.code === 'reconnect' ? 'not connected or expired' : 'unavailable';
+    if (explicitlyNeedsCalendar(instruction, answers)) {
+      const message = e.code === 'reconnect'
+        ? 'Connect or reconnect Google Calendar in your account, then try again.'
+        : ['calendar_limit', 'calendar_range'].includes(e.code) ? e.message
+          : 'Could not read your calendar just now. Please try again.';
+      return Response.json({ error: message, code: e.code || 'calendar_unavailable' }, { status: e.code === 'reconnect' ? 409 : 502 });
+    }
+  }
   const history = (Array.isArray(body.history) ? body.history : []).slice(-16).map((m) => ({
     role: m && m.role === 'assistant' ? 'Wander' : 'Traveller',
     kind: String((m && m.kind) || 'message').slice(0, 40),
@@ -350,16 +380,8 @@ export async function POST(req) {
     'Activities:',
     listing || '(none yet)',
     '',
-    ...(booked.length ? [
-      'In their calendar (not part of the trip):',
-      ...booked.map((e) => {
-        const day = String(e.start || '').slice(0, 10);
-        const when = e.allDay ? 'all day' : String(e.start || '').slice(11, 16);
-        const where = e.where ? ` @ ${String(e.where).slice(0, 80)}` : '';
-        return `- ${day} ${when} ${String(e.title || 'Busy').slice(0, 80)}${where}`;
-      }),
-      '',
-    ] : []),
+    calendarContext(booked, calendarStatus),
+    '',
     ...(history.length ? [
       'Past conversation about this trip, oldest first:',
       ...history.map((m) => `- ${m.role} [${m.kind}]: ${m.content}`),
