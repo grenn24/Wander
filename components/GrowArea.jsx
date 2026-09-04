@@ -1,5 +1,6 @@
 'use client';
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { handleMessageEnter } from '@/lib/messageKeyboard';
 
 /**
  * A text field that grows with what is written in it.
@@ -9,8 +10,8 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react'
  * these fields are where people explain themselves. It starts one line tall and
  * grows to a cap set in CSS, after which it scrolls.
  *
- * Enter always starts a new paragraph. Ctrl/Command+Enter remains available
- * as a desktop shortcut for fields that provide an onSubmit handler.
+ * Desktop Enter submits; Shift+Enter and mobile Enter start a paragraph.
+ * Fields without onSubmit always remain ordinary multiline textareas.
  */
 const GrowArea = forwardRef(function GrowArea(
   { value, onSubmit, onKeyDown, className = 'input', ...rest }, ref,
@@ -41,10 +42,7 @@ const GrowArea = forwardRef(function GrowArea(
       enterKeyHint="enter"
       onKeyDown={(e) => {
         if (onKeyDown) onKeyDown(e);
-        if (!e.defaultPrevented && e.key === 'Enter' && (e.metaKey || e.ctrlKey) && onSubmit) {
-          e.preventDefault();
-          onSubmit();
-        }
+        if (!rest.disabled) handleMessageEnter(e, onSubmit);
       }}
       {...rest}
     />

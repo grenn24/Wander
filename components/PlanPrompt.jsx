@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle, ImagePlus } from 'lucide-react';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import ShotStrip from '@/components/ShotStrip';
+import { handleMessageEnter } from '@/lib/messageKeyboard';
 
 /*
  * Where the pictures wait between the two pages.
@@ -154,6 +155,7 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
           aria-label="Describe the trip you want"
           placeholder={rotate ? '' : 'Where are you going?'}
           onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => handleMessageEnter(e, submit)}
           onPaste={(e) => {
             const imgs = pickImages(e.clipboardData && e.clipboardData.files);
             if (imgs.length) { e.preventDefault(); take(e.clipboardData.files); }

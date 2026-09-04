@@ -859,7 +859,7 @@ function CommandBar({ onClose }) {
           </button>
           {(text.trim() || shots.length) && !answered ? (
             <button className="btn primary sm icon-btn ck-send" type="button"
-              disabled={busy} data-tip="Ask Wander  Ctrl+Enter"
+              disabled={busy} data-tip="Ask Wander"
               aria-label="Ask Wander" onClick={() => run()}>
               <ArrowUp size={15} />
             </button>

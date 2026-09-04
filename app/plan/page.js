@@ -10,6 +10,7 @@ import {
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import { SHOT_KEY } from '@/components/PlanPrompt';
+import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import { activityIcon } from '@/lib/icons';
 import {
@@ -584,6 +585,7 @@ function Planner() {
                       <textarea className="textarea planq-text" rows={2} enterKeyHint="enter"
                         value={briefCheck.answers[q.id] || ''}
                         placeholder="Type your answer"
+                        onKeyDown={(e) => handleMessageEnter(e, () => { if (answeredBrief) continuePlanning(); })}
                         onChange={(e) => answerBrief(q.id, e.target.value)} />
                     )}
                   </fieldset>
