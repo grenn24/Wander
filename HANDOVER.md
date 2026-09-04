@@ -184,6 +184,9 @@ Match the surrounding code — it is consistent and deliberate.
 - Never use native/default dropdowns (`<select>`). Use `components/Select.jsx`
   and the shared popover styling for all dropdown choices, including map controls.
   Preserve keyboard navigation, accessible labels, and light/dark theme support.
+- Floating map panels and command surfaces use subtle frosted glass, with
+  readable text and opaque fallbacks for reduced transparency. Keep other
+  warm-earth surfaces opaque unless the owner asks otherwise.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm
