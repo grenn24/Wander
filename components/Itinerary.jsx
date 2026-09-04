@@ -12,7 +12,7 @@ import Popover from '@/components/Popover';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
-  shortPlace, minutesBetween, fmtDuration,
+  shortPlace, activityGap, fmtDuration,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
 import { nowMinutes, readDay } from '@/lib/day';
@@ -391,9 +391,7 @@ export default function Itinerary({
               {list.map((a, k) => {
                 const cat = categoryOf(a.category);
                 const prev = list[k - 1];
-                const gapMins = prev && prev.start_time && a.start_time
-                  ? minutesBetween(prev.end_time || prev.start_time, a.start_time)
-                  : null;
+                const gapMins = activityGap(prev, a);
                 const place = shortPlace(a.location);
                 // A flight's gate is worth more on the row than the address of
                 // the airport it leaves from.
@@ -402,8 +400,10 @@ export default function Itinerary({
 
                 return (
                   <div key={a._entryId || a.id}>
-                    {gapMins != null && gapMins >= 90 ? (
-                      <div className="gap">{fmtDuration(gapMins)} free</div>
+                    {gapMins != null ? (
+                      <div className="gap"><Clock size={13} aria-hidden="true" />
+                        <span>{fmtDuration(gapMins)} between activities</span>
+                      </div>
                     ) : null}
 
                     <div id={`act-${a._entryId || a.id}`}
