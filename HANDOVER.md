@@ -195,7 +195,8 @@ to copy.
 ### General
 
 - Activity editors mount `StaticActivityMap` until expansion; only the expanded
-  panel mounts `GoogleMap`. Static previews use the authenticated
+  panel mounts `GoogleMap`. Previews always use light road maps; saved map type
+  and theme preferences apply only to interactive maps. Static previews use the authenticated
   `/api/maps/static` proxy. Configure server-only `MAPS_STATIC_API_KEY`, or allow
   Maps Static API on the existing `GEOCODING_API_KEY` / `PLACES_API_KEY` fallback.
   The API must also be enabled in Google Cloud. A rejected static request shows

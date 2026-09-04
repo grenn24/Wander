@@ -2,21 +2,16 @@
 import { useEffect, useState } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
-import { useMapPreferences } from '@/components/MapAppearance';
-import { useMapScheme, catColor } from '@/components/GoogleMap';
-import { mapColorScheme } from '@/lib/mapPreferences';
+import { catColor } from '@/components/GoogleMap';
 
 export default function StaticActivityMap({ at, pinned, category, compact, title }) {
   const { supabase } = useApp();
-  const [preferences] = useMapPreferences();
-  const appScheme = useMapScheme();
-  const scheme = mapColorScheme(preferences.theme, appScheme);
   const [ready, setReady] = useState(false);
   const [result, setResult] = useState(null);
   useEffect(() => { setReady(true); }, []);
   const color = ready ? catColor(category).replace('#', '') : '';
   const query = new URLSearchParams({ lat: String(at.lat), lng: String(at.lng),
-    type: preferences.type, theme: scheme.toLowerCase(), pin: pinned ? '1' : '0',
+    type: 'roadmap', theme: 'light', pin: pinned ? '1' : '0',
     compact: compact ? '1' : '0', color }).toString();
 
   useEffect(() => {

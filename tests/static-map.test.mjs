@@ -10,7 +10,7 @@ test('static preview requires valid finite coordinates, including zero', () => {
     assert.equal(options(q), null);
   }
 });
-test('preview uses saved map mode, labelled satellite and bounded dimensions', () => {
+test('static map endpoint supports labelled satellite and bounded dimensions', () => {
   const url = staticMapURL(options('lat=22.54&lng=114.11&type=hybrid&compact=1'), 'test-key');
   assert.equal(url.hostname, 'maps.googleapis.com');
   assert.equal(url.pathname, '/maps/api/staticmap');
@@ -18,6 +18,14 @@ test('preview uses saved map mode, labelled satellite and bounded dimensions', (
   assert.equal(url.searchParams.get('size'), '640x320');
   assert.equal(url.searchParams.get('scale'), '2');
   assert.equal(url.searchParams.has('markers'), false);
+});
+test('activity preview always requests light road maps independently of saved preferences', () => {
+  const source = readFileSync(new URL('../components/StaticActivityMap.jsx', import.meta.url), 'utf8');
+  assert.match(source, /type: 'roadmap', theme: 'light'/);
+  assert.doesNotMatch(source, /useMapPreferences|useMapScheme|mapColorScheme/);
+  const url = staticMapURL(options('lat=22.54&lng=114.11&type=roadmap&theme=light'), 'test-key');
+  assert.equal(url.searchParams.get('maptype'), 'roadmap');
+  assert.equal(url.searchParams.has('style'), false);
 });
 test('only confirmed coordinates receive a marker', () => {
   const url = staticMapURL(options('lat=22.54&lng=114.11&pin=1&color=aabbcc'), 'test-key');
