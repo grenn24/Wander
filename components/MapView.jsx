@@ -67,12 +67,6 @@ export default function MapView({
     [activities],
   );
 
-  /* Nothing to go on at all — needs a location before it can be shown. */
-  const placeless = useMemo(
-    () => activities.filter((a) => !(a.location || '').trim() && a.lat == null),
-    [activities],
-  );
-
   /** Consecutive legs within a day, for the route line and the distances. */
   const legs = useMemo(() => {
     const out = {};
@@ -636,22 +630,6 @@ export default function MapView({
             </p>
           )}
 
-          {placeless.length ? (
-            <>
-              <div className="mapside-sep" />
-              <div className="mappanel-title">
-                <h3 className="mapside-h">Without a location</h3>
-              </div>
-              <p className="tiny dim" style={{ margin: '0 0 8px' }}>
-                Nothing written down yet, so there is nothing to put on the map.
-              </p>
-              <div className="chiprow">
-                {placeless.map((a) => (
-                  <button key={a.id} className="btn sm" onClick={() => onEdit(a)}>{a.title}</button>
-                ))}
-              </div>
-            </>
-          ) : null}
         </div>
       </aside>
 
