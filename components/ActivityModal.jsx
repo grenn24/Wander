@@ -5,6 +5,7 @@ import { CATEGORIES, fmtDay } from '@/lib/util';
 import { TRANSPORT, transportOf } from '@/lib/transport';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
+import { hasStayDates, lodgingError, cleanLodging } from '@/lib/lodging';
 import ActivityMap from '@/components/ActivityMap';
 import TimeField from '@/components/TimeField';
 import { googleMapsAvailable } from '@/components/GoogleMap';
@@ -75,11 +76,19 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
    * a toast and tells everyone else on the trip that something changed, all
    * for no change at all. A new one needs a name before it is anything.
    */
-  const canSave = draft.id ? dirty : !!(draft.title || '').trim();
+  const stayError = draft.category === 'lodging' ? lodgingError(draft.details) : '';
+  const canSave = !stayError && (draft.id ? dirty : !!(draft.title || '').trim());
+  const outsideStay = hasStayDates(draft) && ['check_in_date', 'check_out_date']
+    .some((key) => draft.details[key] && !days.includes(draft.details[key]));
+  function save() {
+    if (!canSave) return;
+    if (outsideStay && confirm !== 'outside') { setConfirm('outside'); return; }
+    onSave(draft);
+  }
 
   useModalChrome({
     onEscape: () => { if (mapExpanded) closeMap(); else attemptClose(); },
-    onSubmit: () => { if (!mapExpanded && canSave) onSave(draft); },
+    onSubmit: () => { if (!mapExpanded && !confirm) save(); },
   });
 
   /*
@@ -219,7 +228,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
             </div>
 
             <div className="row">
-              <div className="field">
+              {!hasStayDates(draft) ? <div className="field">
                 <label className="label" htmlFor="ad">Day</label>
                 <Select
                   id="ad" label="Day"
@@ -234,19 +243,20 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                     hint: fmtDay(d),
                   }))}
                 />
-              </div>
+              </div> : null}
               <div className="field">
                 <label className="label" htmlFor="ac">Type</label>
                 <Select
                   id="ac" label="Type"
                   value={draft.category || 'sightseeing'}
-                  onChange={(v) => set({
+                  onChange={(v) => v !== (draft.category || 'sightseeing') && set({
                     category: v,
                     // A bus has no gate. Changing what this is drops what the
                     // last answer carried, rather than keeping fields that
                     // nothing on the form will show.
                     // Becoming transport asks how; it does not answer it.
-                    ...(v === 'transport' ? {} : { subtype: null, details: {} }),
+                    subtype: null,
+                    details: v === 'lodging' ? cleanLodging({ check_in_date: '' }) : {},
                   })}
                   options={CATEGORIES.map((c) => ({
                     value: c.id,
@@ -299,7 +309,34 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
               </div>
             ) : null}
 
+            {draft.category === 'lodging' ? (
+              <div className="lodging-fields">
+                <div className="row">
+                  {['check_in', 'check_out'].map((phase) => {
+                    const label = phase === 'check_in' ? 'Check-in' : 'Checkout';
+                    return <div className="field" key={phase}>
+                      <label className="label" htmlFor={phase}>{label} date (optional)</label>
+                      <input className="input" type="date" id={phase}
+                        value={draft.details?.[`${phase}_date`] || ''}
+                        onChange={(e) => set({ details: { ...(draft.details || {}),
+                          [`${phase}_date`]: e.target.value } })} />
+                      <label className="label" htmlFor={`${phase}-time`}>{label} time (optional)</label>
+                      <TimeField id={`${phase}-time`} label={`${label} time`}
+                        value={draft.details?.[`${phase}_time`] || ''}
+                        onChange={(value) => set({ details: { ...(draft.details || {}),
+                          [`${phase}_time`]: value } })} />
+                    </div>;
+                  })}
+                </div>
+                <p className="small muted">One booking, shared by both entries. Days between show a hotel icon, not another activity.</p>
+                {hasStayDates(draft) && !draft.details.check_in_date && !draft.details.check_out_date
+                  ? <p className="small muted">No dates set: this booking will appear under Unscheduled lodging.</p> : null}
+                {stayError ? <p className="err" role="alert">{stayError}</p> : null}
+              </div>
+            ) : null}
+
             <div className="row">
+              {!hasStayDates(draft) ? <>
               <div className="field">
                 <label className="label" htmlFor="as">Start</label>
                 <TimeField id="as" label="Start" value={draft.start_time || ''}
@@ -310,6 +347,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 <TimeField id="ae" label="End" value={draft.end_time || ''}
                   onChange={(v) => set({ end_time: v })} />
               </div>
+              </> : null}
               <div className="field">
                 <label className="label" htmlFor="ax">Cost ({currency})</label>
                 <input id="ax" className="input mono" inputMode="decimal" value={draft.cost ?? ''}
@@ -419,7 +457,13 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
         </div>
 
         <div className="modal-foot">
-          {confirm === 'discard' ? (
+          {confirm === 'outside' ? (
+            <>
+              <span className="small muted" style={{ marginRight: 'auto' }}>Some booking dates are outside this trip. Keep the full booking without changing the trip dates?</span>
+              <button className="btn" onClick={() => setConfirm('')}>Keep editing</button>
+              <button className="btn primary" onClick={save}>Keep booking dates</button>
+            </>
+          ) : confirm === 'discard' ? (
             <>
               <span className="small muted" style={{ marginRight: 'auto' }}>Discard your changes?</span>
               <button className="btn" onClick={() => setConfirm('')}>Keep editing</button>
@@ -442,9 +486,9 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 {dirty ? 'Cancel' : 'Close'}
               </button>
               <button className="btn primary" disabled={!canSave}
-                data-tip={canSave ? undefined
-                  : draft.id ? 'Nothing has changed yet' : 'Give it a name first'}
-                onClick={() => onSave(draft)}>
+                data-tip={stayError || (canSave ? undefined
+                  : draft.id ? 'Nothing has changed yet' : 'Give it a name first')}
+                onClick={save}>
                 {draft.id ? 'Save' : 'Add activity'}
               </button>
             </>

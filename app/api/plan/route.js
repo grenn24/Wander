@@ -5,6 +5,7 @@ import {
 import { parsePartial } from '@/lib/partialJson';
 import { publicAgentText } from '@/lib/agentText';
 import { TRANSPORT } from '@/lib/transport';
+import { LODGING_KEYS, cleanLodging } from '@/lib/lodging';
 import { userFromRequest } from '@/lib/supabaseServer';
 import { listEvents, connection } from '@/lib/googleCal';
 
@@ -33,7 +34,7 @@ const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
  * (T1), MH 616 (confirmed)": five structured facts and an annotation, jammed
  * into the one box on offer. Give it the boxes and it stops writing prose.
  */
-const DETAIL_KEYS = [...new Set(TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)))];
+const DETAIL_KEYS = [...new Set([...TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)), ...LODGING_KEYS])];
 
 const DETAILS = {
   type: 'object',
@@ -159,7 +160,7 @@ Rules:
   details.from_terminal, the gate is details.gate, the seat is details.seat.
   The title is "Flight to Kuala Lumpur" — not "Flight: SIN (T2) → KUL (T1),
   MH 616". Put nothing in brackets after a title.
-- details is only for transport, and only the keys that kind of transport has:
+- details is for lodging dates (below) or transport, and only the keys that kind of transport has:
   a bus has no gate and a flight has no pier. Leave the rest null.
 - Include travel between cities as a transport activity on the day it happens,
   and say which kind it is in "subtype". A Grab, a taxi or an airport pick-up
@@ -188,9 +189,13 @@ they wrote on it. These are facts, not suggestions:
   have "Stay at Ascott Star KLCC, 1 Jalan Yap Kwan Seng" then the check-in is
   that hotel at that address — do not also add a generic "check in to a hotel
   in the centre". One thing happened; it gets one activity.
-- A multi-day all-day entry is usually where they are staying. Use it for the
-  check-in on the first day and the check-out on the last, with its real
-  address on both, and plan the days around that part of the city.
+- A hotel stay is ONE lodging record, never separate saved check-in/checkout
+  records or daily stay activities. Set details.check_in_date/check_out_date
+  (YYYY-MM-DD) and optional check_in_time/check_out_time (HH:MM) from confirmed
+  booking information. Unknown values stay null. Put the record on check-in
+  day, or checkout day if only that is known. The app derives both entries and
+  intervening-night icons. Store the cost once. Do not guess times or dates.
+  Preserve dates outside the trip; never silently extend or shorten a booking.
 - Give them the right category: a hotel is lodging, a flight or a transfer is
   transport, a meal is food. "other" is for what genuinely fits nowhere.
 - Plan around the times they are busy. Do not schedule anything on top of
@@ -242,6 +247,7 @@ function corrector(events) {
 
 /** The filled-in details of a journey, and nothing else. */
 function cleanDetails(a) {
+  if (cleanCategory(a.category) === 'lodging') return cleanLodging(a.details);
   if (cleanCategory(a.category) !== 'transport') return {};
   const mode = TRANSPORT.find((t) => t.id === a.subtype);
   if (!mode) return {};

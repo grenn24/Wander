@@ -7,6 +7,7 @@ import { useApp } from '@/components/AppProvider';
 import { dayRange, sortActs, parseQuickAdd, nextSortOrder } from '@/lib/util';
 import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
+import { lodgingPayload, moveStay } from '@/lib/lodging';
 
 const Ctx = createContext(null);
 
@@ -155,6 +156,7 @@ export default function TripProvider({ tripId, children }) {
        */
       subtype: draft.category === 'transport' ? draft.subtype || null : null,
       details: draft.category === 'transport' && draft.details ? draft.details : {},
+      ...lodgingPayload(draft),
       updated_at: new Date().toISOString(),
     };
   }
@@ -193,7 +195,7 @@ export default function TripProvider({ tripId, children }) {
 
   const moveActivity = useCallback(async (act, day) => {
     if (!supabase || !day || day === act.day) return;
-    const patch = { day, sort_order: nextSortOrder(activities, day), updated_at: new Date().toISOString() };
+    const patch = { day, ...moveStay(act, day), sort_order: nextSortOrder(activities, day), updated_at: new Date().toISOString() };
     setActivities((prev) => prev.map((a) => (a.id === act.id ? { ...a, ...patch } : a)).sort(sortActs));
     const { error } = await supabase.from('activities').update(patch).eq('id', act.id);
     if (error) { fail(error); load(tripId); }
@@ -263,6 +265,7 @@ export default function TripProvider({ tripId, children }) {
         cost: Number(d.cost || 0),
         subtype: d.category === 'transport' ? d.subtype || null : null,
         details: d.category === 'transport' && d.details ? d.details : {},
+        ...lodgingPayload(d),
         booking_ref: d.booking_ref || '',
         notes: d.notes || '',
         place_id: d.place_id || null,

@@ -3817,6 +3817,35 @@ body::before {
   box-shadow: none;
 }
 .act .photo { margin-right: 4px; border-radius: 15px !important; }
+/* Feedback changes paint, not row geometry, so surrounding stops stay put. */
+.act { transition: background-color 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms ease; }
+.act .photo img, .act .photo svg { transition: transform 300ms cubic-bezier(.2,.7,.2,1); }
+.act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stay-indicator {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border); color: var(--text-2);
+  background: color-mix(in srgb, var(--cat-4) 12%, transparent); cursor: pointer;
+  transition: background-color 220ms ease, color 220ms ease, box-shadow 220ms ease;
+}
+.stay-indicator svg { transition: transform 280ms cubic-bezier(.2,.7,.2,1); }
+.stay-indicator:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.lodging-fields .field { gap: 8px; min-width: 0; }
+.lodging-fields .input { min-width: 0; }
+.unscheduled-stay { width: 100%; text-align: left; color: var(--text-1); font: inherit; cursor: pointer; }
+.unscheduled-stay .act-body { display: flex; flex-direction: column; gap: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .act:hover .photo img, .act:focus-visible .photo img { transform: scale(1.045); }
+  .act:hover .photo svg, .act:focus-visible .photo svg { transform: scale(1.06); }
+  .stay-indicator:hover { background: color-mix(in srgb, var(--cat-4) 26%, var(--surface-0)); color: var(--text-1); }
+  .stay-indicator:hover svg { transform: scale(1.08); }
+}
+@media (pointer: coarse) { .stay-indicator { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  .act, .act .photo img, .act .photo svg, .stay-indicator, .stay-indicator svg { transition: none !important; }
+  .act:hover .photo img, .act:focus-visible .photo img, .act:hover .photo svg,
+  .act:focus-visible .photo svg, .stay-indicator:hover svg { transform: none; }
+}
 .act.is-anchor { border-left: 0; }
 .act.is-anchor .photo { box-shadow: 0 0 0 2px var(--cat-4); }
 .day-add { margin-top: 10px; border-radius: 14px; }

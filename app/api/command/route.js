@@ -3,6 +3,7 @@ import {
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { TRANSPORT } from '@/lib/transport';
+import { LODGING_KEYS } from '@/lib/lodging';
 import { publicAgentText } from '@/lib/agentText';
 import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 import { commandCalendar } from '@/lib/googleCal';
@@ -18,7 +19,7 @@ import { requestTiming } from '@/lib/requestTiming';
  * something it has no field for will always do the nearest thing it can.
  */
 const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
-const DETAIL_KEYS = [...new Set(TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)))];
+const DETAIL_KEYS = [...new Set([...TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)), ...LODGING_KEYS])];
 const DETAILS = {
   type: ['object', 'null'],
   additionalProperties: false,
@@ -136,7 +137,7 @@ function cleanDetails(v) {
   if (!v || typeof v !== 'object') return null;
   const out = Object.entries(v).reduce((o, [k, val]) => {
     const t = String(val == null ? '' : val).trim().slice(0, 120);
-    return DETAIL_KEYS.includes(k) && t ? { ...o, [k]: t } : o;
+    return DETAIL_KEYS.includes(k) && (t || (LODGING_KEYS.includes(k) && val === '')) ? { ...o, [k]: t } : o;
   }, {});
   return Object.keys(out).length ? out : null;
 }
@@ -239,8 +240,18 @@ can all be relevant; do not invent a choice between them.
 Ask only if genuinely conflicting bookings remain, offering their actual names
 and dates as choices, never an empty "which hotel?" question.
 Preserve the address, reservation details and check-in/checkout dates. A
-multi-day stay is not a same-day activity: keep the stay range in notes and
-propose check-in/checkout on their respective days within the trip. Do not
+multi-day stay is ONE lodging activity, never two saved activities or a daily
+stay. Put YYYY-MM-DD dates in details.check_in_date and details.check_out_date;
+optional HH:MM times in details.check_in_time and details.check_out_time. The
+app derives both itinerary entries and intervening-night icons from one record.
+Set day to the known check-in date, otherwise checkout, otherwise the trip start.
+Keep cost once on that record. If either endpoint is outside the trip, first ask
+whether to extend the trip or keep the full booking with out-of-range entries
+listed separately. Never silently extend or truncate. If dates conflict, ask.
+Unknown dates/times stay null; never infer coverage from one endpoint. Update an
+existing hotel record instead of adding a duplicate. For a lodging date change,
+use update_activity with details, not move_activity. An empty string clears a
+lodging date/time; null leaves an existing value unchanged. Do not
 invent times for all-day entries. If no matching booking exists, say what was
 searched and ask for the missing booking details, not which unseen entry.
 
@@ -262,7 +273,7 @@ Rules:
   flight number goes in details.code, the airports in details.from and
   details.to, the terminal in details.from_terminal, the gate in details.gate.
   Never write a note describing a change you could have made.
-- details only takes the keys that kind of journey has — a bus has no gate, a
+- Except for the lodging fields described above, details only takes the keys that kind of journey has — a bus has no gate, a
   flight has no pier. Leave the others null, and send details null when there
   is nothing to set.
 - Lengthening or shortening the trip is an update_trip on the dates. If that
@@ -354,6 +365,8 @@ async function handleCommand(req, timing) {
     a.title,
     a.category,
     a.location ? `at ${a.location}` : '',
+    a.details ? `details=${JSON.stringify(a.details)}` : '',
+    a.notes ? `notes=${String(a.notes).slice(0, 1000)}` : '',
     a.cost ? `${a.cost}` : '',
   ].filter(Boolean).join(' | ')).join('\n');
 

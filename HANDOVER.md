@@ -176,6 +176,24 @@ to copy.
 
 ## 9. House style
 
+### Lodging bookings
+
+- A lodging booking is one activity row. Its existing `details` JSONB holds
+  optional `check_in_date`, `check_out_date` (YYYY-MM-DD), `check_in_time` and
+  `check_out_time`. No additional migration is needed.
+- `lib/lodging.js` derives itinerary endpoints with `_source` pointing to the
+  original record. Never persist a projected entry or duplicate its cost.
+  Both endpoints and intervening-day bed icons open the original editor.
+- Only a complete, valid range implies covered nights. Endpoint days have
+  activity rows; intermediate days have icons. Structured bookings with no
+  dates appear under Unscheduled lodging. Legacy note-only lodging is unchanged.
+- Preserve out-of-trip booking dates; the editor confirms keeping them without
+  changing trip dates. The change agent should ask before extending a trip.
+- Keep lodging fields in planner/command schemas, sanitizers, client payloads,
+  and save paths. `tests/lodging.test.mjs` covers projection and persistence rules.
+
+### General
+
 Match the surrounding code — it is consistent and deliberate.
 
 - Comments explain **why**, not what, and often name the bug that caused the

@@ -13,6 +13,7 @@ import { SHOT_KEY } from '@/components/PlanPrompt';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import { activityIcon } from '@/lib/icons';
+import { lodgingPayload } from '@/lib/lodging';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
 } from '@/lib/util';
@@ -270,6 +271,7 @@ function Planner() {
           category: a.category,
           subtype: a.subtype || null,
           details: a.details || {},
+          ...lodgingPayload({ ...a, day }),
           location: a.location,
           cost: a.cost,
           booking_ref: a.booking_ref || '',

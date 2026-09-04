@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock,
+  MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock, BedDouble,
 } from 'lucide-react';
 import AiSuggest from '@/components/AiSuggest';
 import QuickAdd from '@/components/QuickAdd';
@@ -19,6 +19,7 @@ import { nowMinutes, readDay } from '@/lib/day';
 import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
+import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -86,8 +87,8 @@ export default function Itinerary({
    */
   const onToday = days.includes(today);
   const live = onToday
-    ? readDay(activities.filter((a) => a.day === today), clock).now : null;
-  const liveId = live ? String(live.id) : null;
+    ? readDay(itineraryEntries(activities).filter((a) => a.day === today), clock).now : null;
+  const liveId = live ? String(live._entryId || live.id) : null;
 
   const wantId = (focus && focus.id) || urlFocus || null;
   // The key is what makes a repeat request a new one: the same activity asked
@@ -297,7 +298,8 @@ export default function Itinerary({
 
   const byDay = {};
   days.forEach((d) => { byDay[d] = []; });
-  activities.forEach((a) => { if (!byDay[a.day]) byDay[a.day] = []; byDay[a.day].push(a); });
+  const entries = itineraryEntries(activities);
+  entries.forEach((a) => { if (!byDay[a.day]) byDay[a.day] = []; byDay[a.day].push(a); });
 
   // Keep the last one while the menu animates shut, or its contents would
   // blink away a frame after you clicked.
@@ -305,7 +307,9 @@ export default function Itinerary({
   if (openAct) lastMenuAct.current = openAct;
   const menuAct = openAct || lastMenuAct.current;
 
-  const stray = activities.filter((a) => !days.includes(a.day));
+  const stray = entries.filter((a) => !days.includes(a.day));
+  const unscheduled = activities.filter((a) => hasStayDates(a)
+    && !a.details.check_in_date && !a.details.check_out_date);
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
   const planned = days.filter((d) => (byDay[d] || []).length).length;
 
@@ -365,6 +369,14 @@ export default function Itinerary({
               <span className="day-num">Day {i + 1}</span>
               <span className="day-date">{fmtDay(d)}</span>
               {d === today ? <span className="today-badge">Today</span> : null}
+              {activities.filter((a) => stayOnDay(a, d)).map((a) => {
+                const detail = `${a.title}\nCheck-in: ${fmtDayTiny(a.details.check_in_date)}${a.details.check_in_time ? `, ${fmtTime(a.details.check_in_time)}` : ''}\nCheckout: ${fmtDayTiny(a.details.check_out_date)}${a.details.check_out_time ? `, ${fmtTime(a.details.check_out_time)}` : ''}${a.location ? `\n${a.location}` : ''}`;
+                return <button key={a.id} type="button" className="stay-indicator"
+                  data-tip={detail} aria-label={`Hotel for tonight: ${detail}. Open booking.`}
+                  onClick={() => onEdit(a)}>
+                  <BedDouble size={17} aria-hidden="true" />
+                </button>;
+              })}
               <span className="grow" />
               <span className="day-facts">
                 {span ? <span><Clock size={12} /> {span}</span> : null}
@@ -387,19 +399,23 @@ export default function Itinerary({
                   ? transportLine(a.subtype, a.details) : '';
 
                 return (
-                  <div key={a.id}>
+                  <div key={a._entryId || a.id}>
                     {gapMins != null && gapMins >= 90 ? (
                       <div className="gap">{fmtDuration(gapMins)} free</div>
                     ) : null}
 
-                    <div id={`act-${a.id}`}
+                    <div id={`act-${a._entryId || a.id}`}
                       className={`act${ANCHORS.has(cat.id) ? ' is-anchor' : ''}`
                         + `${flash === String(a.id) ? ' is-found' : ''}`
-                        + `${liveId === String(a.id) ? ' is-live' : ''}`
+                        + `${liveId === String(a._entryId || a.id) ? ' is-live' : ''}`
                         + `${opening === String(a.id) ? ' is-opening' : ''}`}
                       role="button" tabIndex={0}
-                      onClick={() => onEdit(a)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
+                      onClick={() => onEdit(a._source || a)}
+                      onKeyDown={(e) => {
+                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault(); onEdit(a._source || a);
+                        }
+                      }}>
                       <div className="act-when">
                         {a.start_time ? (
                           <span className="act-t mono">{fmtTime(a.start_time)}</span>
@@ -414,7 +430,7 @@ export default function Itinerary({
                       <div className="act-body">
                         <div className="act-title">{a.title}</div>
                         <div className="act-meta">
-                          <span className={`cattag cat-${cat.id}`}>{cat.label}</span>
+                          <span className={`cattag cat-${cat.id}`}>{a._phase === 'check_in' ? 'Check-in' : a._phase === 'check_out' ? 'Checkout' : cat.label}</span>
                           {leg ? <span className="act-leg mono">{leg}</span> : null}
                           {!leg && place ? (
                             <span className="act-place"><MapPin size={11} />{place}</span>
@@ -471,6 +487,17 @@ export default function Itinerary({
         );
       })}
 
+      {unscheduled.length ? (
+        <section className="day">
+          <div className="day-head"><span className="day-date">Unscheduled lodging</span></div>
+          {unscheduled.map((a) => <button type="button" className="act unscheduled-stay"
+            key={a.id} id={`act-${a.id}`} onClick={() => onEdit(a)}>
+            <BedDouble size={20} /><span className="act-body"><span className="act-title">{a.title}</span>
+              <span className="small muted">Add check-in or checkout dates</span></span>
+          </button>)}
+        </section>
+      ) : null}
+
       {stray.length ? (
         <section className="day">
           <div className="day-head"><span className="day-date">Outside the trip dates</span></div>
@@ -480,18 +507,18 @@ export default function Itinerary({
           </p>
           <div className="acts">
             {stray.map((a) => (
-              <div className={`act${flash === String(a.id) ? ' is-found' : ''}`} key={a.id}
-                id={`act-${a.id}`}
-                role="button" tabIndex={0} onClick={() => onEdit(a)}
-                onKeyDown={(e) => { if (e.key === 'Enter') onEdit(a); }}>
+              <div className={`act${flash === String(a.id) ? ' is-found' : ''}`} key={a._entryId || a.id}
+                id={`act-${a._entryId || a.id}`}
+                role="button" tabIndex={0} onClick={() => onEdit(a._source || a)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && e.key === 'Enter') onEdit(a._source || a); }}>
                 <div className="act-when"><span className="act-t mono">{fmtDayTiny(a.day)}</span></div>
                 <div className="act-body">
                   <div className="act-title">{a.title}</div>
-                  <div className="act-meta">{fmtDay(a.day)}</div>
+                  <div className="act-meta">{a._phase === 'check_in' ? 'Check-in · ' : a._phase === 'check_out' ? 'Checkout · ' : ''}{fmtDay(a.day)}</div>
                 </div>
                 <div className="act-menu-wrap" onClick={(e) => e.stopPropagation()}>
-                  <button className="btn sm" type="button" onClick={() => onMove(a, days[0])}>
-                    Move to Day 1
+                  <button className="btn sm" type="button" onClick={() => a._source ? onEdit(a._source) : onMove(a, days[0])}>
+                    {a._source ? 'Edit booking dates' : 'Move to Day 1'}
                   </button>
                 </div>
               </div>
@@ -508,7 +535,8 @@ export default function Itinerary({
         onClose={() => setMenuFor(null)}>
         {menuAct ? (
           <div className="act-menu">
-            <div className="act-menu-row">
+            {hasStayDates(menuAct) ? <button type="button"
+              onClick={() => { onEdit(menuAct); setMenuFor(null); }}>Edit booking dates</button> : <div className="act-menu-row">
               <span>Move to</span>
               <Select
                 value={menuAct.day}
@@ -518,7 +546,7 @@ export default function Itinerary({
                 }))}
                 onChange={(dd) => { onMove(menuAct, dd); setMenuFor(null); }}
               />
-            </div>
+            </div>}
             <button type="button"
               onClick={() => { onDuplicate(menuAct); setMenuFor(null); }}>
               <Copy size={15} /> Duplicate

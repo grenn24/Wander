@@ -16,6 +16,7 @@ import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import { activityIcon, categoryIcon } from '@/lib/icons';
+import { LODGING_KEYS, cleanLodging, moveStay } from '@/lib/lodging';
 
 /**
  * One box for everything you might type at this trip.
@@ -93,7 +94,7 @@ function onlySet(details) {
   if (!details || typeof details !== 'object') return {};
   return Object.entries(details).reduce((o, [k, v]) => {
     const val = String(v == null ? '' : v).trim();
-    return val ? { ...o, [k]: val } : o;
+    return val || (LODGING_KEYS.includes(k) && v === '') ? { ...o, [k]: val } : o;
   }, {});
 }
 
@@ -476,6 +477,8 @@ function CommandBar({ onClose }) {
             // every token in the question is time before the answer starts.
             location: shortPlace(a.location),
             cost: a.cost,
+            details: a.details,
+            notes: a.category === 'lodging' ? a.notes : undefined,
           })),
         }),
       });
@@ -566,7 +569,8 @@ function CommandBar({ onClose }) {
             end_time: op.end_time,
             category: op.category || 'sightseeing',
             subtype: op.category === 'transport' ? op.subtype || null : null,
-            details: op.category === 'transport' ? onlySet(op.details) : {},
+            details: op.category === 'lodging' ? cleanLodging({ check_in_date: '', ...onlySet(op.details) })
+              : op.category === 'transport' ? onlySet(op.details) : {},
             location: (place && place.label) || op.location || '',
             lat: place ? place.lat : null,
             lng: place ? place.lng : null,
@@ -632,7 +636,10 @@ function CommandBar({ onClose }) {
             }
             if (op.cost != null) patch.cost = op.cost;
             if (op.notes != null) patch.notes = op.notes;
-            if (op.day) patch.day = op.day;
+            if (op.day) {
+              patch.day = op.day;
+              if (!op.details) Object.assign(patch, moveStay(target, op.day));
+            }
             await saveActivity(patch); // eslint-disable-line no-await-in-loop
           }
           done += 1;
