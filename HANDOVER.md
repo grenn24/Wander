@@ -103,17 +103,19 @@ stupid" reports turned out to be one of them.
 
 ## 4. What you cannot verify, and why
 
-- **The preview browser is signed out**, and signing in on the owner's behalf is
-  not allowed. Everything behind auth — the trips list, any trip page, the
-  command bar, the account page, the whole Google Calendar feature — cannot be
-  clicked through by you.
+- **Use visible browser tests.** The owner has authorised seeding a dedicated
+  local tester account and trips for authenticated E2E checks. Never use their
+  real trips as test data. Keep the test tab visible and mark it as a deliverable
+  so they can inspect it afterwards. A local-only Notes E2E Tester account and
+  an `E2E — notes autosave` trip were created for the notes regression checks.
 - **Workarounds that do work:** call the API routes directly with `fetch` from
   the browser console; render real markup against the real stylesheet to check
   CSS; query the local database directly.
 - **Local Supabase runs in Docker**: `docker exec supabase_db_wander-planner
   psql -U postgres -d postgres -c "..."`. The local database has test data,
   including a demo trip `01b42f44-8000-4b6b-81b0-78bfe48bb37b` ("Hakone &
-  Kyoto"). Clean up any rows you insert for testing.
+  Kyoto"). Clean up temporary rows; reusable fixtures must stay under a
+  dedicated tester account.
 
 ---
 
@@ -193,6 +195,11 @@ to copy.
   and save paths. `tests/lodging.test.mjs` covers projection and persistence rules.
 
 ### General
+
+- Notes autosave is coordinated by `lib/notesSync.js`: register own writes
+  before optimistic updates, serialize saves, preserve newer drafts, and pause
+  pending autosaves for genuine conflicts. Save failures must return `false`
+  to the editor, not display a false Saved status. Covered by notes-sync tests.
 
 - Activity editors mount `StaticActivityMap` until expansion; only the expanded
   panel mounts `GoogleMap`. Previews always use light road maps; saved map type

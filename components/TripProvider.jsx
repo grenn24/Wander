@@ -402,12 +402,13 @@ export default function TripProvider({ tripId, children }) {
   }, [supabase, tripId, fail, load]);
 
   const saveNotes = useCallback(async (text) => {
-    if (!supabase || !tripId) return;
+    if (!supabase || !tripId) return false;
     setTrip((prev) => (prev ? { ...prev, notes: text } : prev));
     const { error } = await supabase.from('trips')
       .update({ notes: text, updated_at: new Date().toISOString() }).eq('id', tripId);
-    if (error) fail(error);
-  }, [supabase, tripId, fail]);
+    if (error) { fail(error); load(tripId); return false; }
+    return true;
+  }, [supabase, tripId, fail, load]);
 
   const removeMember = useCallback(async (uid) => {
     if (!supabase || !tripId) return;
