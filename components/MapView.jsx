@@ -11,7 +11,7 @@ import {
   NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, {
-  googleMapsAvailable, catColor, dayColor, useMapScheme,
+  googleMapsAvailable, catColor, dayColor,
 } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
@@ -21,9 +21,6 @@ export default function MapView({
   trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '',
 }) {
   const mapsReady = googleMapsAvailable();
-  // Keyed on, not just passed: Google settles the colour scheme when the map is
-  // built, so switching theme has to build another one.
-  const scheme = useMapScheme();
   const [err, setErr] = useState('');
   const [day, setDay] = useState('all');
   const [focused, setFocused] = useState(null);
@@ -374,7 +371,6 @@ export default function MapView({
       <div className="mapcanvas">
         {mapsReady ? (
           <GoogleMap
-            key={scheme}
             stops={stops}
             places={places}
             focused={focused}

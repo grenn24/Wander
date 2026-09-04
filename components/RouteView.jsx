@@ -5,7 +5,7 @@ import {
   X, Loader2, Footprints, TrainFront, Car, LocateFixed, Navigation,
   ExternalLink, MapPin,
 } from 'lucide-react';
-import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
+import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
 
@@ -45,7 +45,6 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   const [legs, setLegs] = useState({}); // mode -> result
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const scheme = useMapScheme();
 
   /*
    * Where you are, asked for the moment this opens — which is the one moment
@@ -207,7 +206,6 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
           </p>
         ) : googleMapsAvailable() ? (
           <GoogleMap
-            key={scheme}
             /* A fresh array every render is a redraw every render, and this
                screen re-renders on every position fix. */
             stops={dest}

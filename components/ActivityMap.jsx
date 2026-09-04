@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { MapPin, Loader2, Crosshair, Maximize2 } from 'lucide-react';
-import GoogleMap, { googleMapsAvailable, catColor, useMapScheme } from '@/components/GoogleMap';
+import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import ActivityPhotos from '@/components/ActivityPhotos';
 import PlaceFacts from '@/components/PlaceFacts';
 import { searchPlaces, reverseGeocode, placeDetails, cachedDetails } from '@/lib/geo';
@@ -41,7 +41,6 @@ export default function ActivityMap({
   // with the place already asked for, so by the time this mounts the answer is
   // usually sitting there and the panel can be right the first time.
   const [facts, setFacts] = useState(() => cachedDetails(draft.place_id));
-  const scheme = useMapScheme();
 
   const lat = Number(draft.lat);
   const lng = Number(draft.lng);
@@ -145,7 +144,7 @@ export default function ActivityMap({
         <>
           <div className={`amap-el${onExpand ? ' can-expand' : ''}`}>
             <GoogleMap
-              key={scheme}
+              showAppearance={!onExpand}
               /* A marker means a decision has been made. Until one has, the
                  map only goes to the neighbourhood. */
               stops={pinned ? [{

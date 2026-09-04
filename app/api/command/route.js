@@ -3,6 +3,7 @@ import {
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { TRANSPORT } from '@/lib/transport';
+import { publicAgentText } from '@/lib/agentText';
 
 /*
  * The kinds of journey and the fields each one has, from the app's own table.
@@ -228,6 +229,9 @@ Never add one that is already in the trip, and never invent a calendar entry
 that is not in that list.
 
 Rules:
+- Internal activity IDs and Google place IDs are only for structured fields.
+  Never put them in questions, headers, options, summaries or descriptions.
+  Identify places using their names, dates and readable addresses instead.
 - Emit only the edits the instruction actually calls for. Do not tidy, reorder
   or improve anything that was not asked about.
 - Past conversation is context. Use it when the current instruction refers to
@@ -380,16 +384,16 @@ export async function POST(req) {
     if (!out.understood && out.question) {
       const q = out.question;
       const options = (Array.isArray(q.options) ? q.options : []).slice(0, 4).map((o) => ({
-        label: String((o && o.label) || '').slice(0, 80),
-        detail: o && o.detail ? String(o.detail).slice(0, 160) : '',
+        label: publicAgentText(o && o.label, activities).slice(0, 80),
+        detail: publicAgentText(o && o.detail, activities).slice(0, 160),
       })).filter((o) => o.label);
       return Response.json({
         understood: false,
         question: {
           // Cut at a word, never mid-syllable: a question that ends "or do yo"
           // reads like the app broke rather than like the model ran long.
-          ask: trim(q.ask || 'Which did you mean?', 240),
-          header: String(q.header || '').slice(0, 28),
+          ask: trim(publicAgentText(q.ask, activities) || 'Which place did you mean?', 240),
+          header: publicAgentText(q.header, activities).slice(0, 28),
           // A list with nothing in it is a box with a label; ask for words.
           kind: options.length && q.kind !== 'text' ? (q.kind === 'multi' ? 'multi' : 'choice') : 'text',
           options,
@@ -405,7 +409,7 @@ export async function POST(req) {
       if (needsId && !known.has(String(o.activity_id))) return null;
       return {
         kind: o.kind,
-        describe: String(o.describe || '').slice(0, 160),
+        describe: publicAgentText(o.describe, activities).slice(0, 160),
         activity_id: o.activity_id || null,
         day: /^\d{4}-\d{2}-\d{2}$/.test(o.day || '') ? o.day : null,
         title: o.title == null ? null : String(o.title).slice(0, 200),
@@ -443,7 +447,7 @@ export async function POST(req) {
 
     return Response.json({
       understood: true,
-      summary: String(out.summary || '').slice(0, 300),
+      summary: publicAgentText(out.summary, activities).slice(0, 300),
       ops,
     });
   } catch (e) {

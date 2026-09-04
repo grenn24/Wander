@@ -3,6 +3,7 @@ import {
   cleanCategory, cleanTime, askJson,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
+import { publicAgentText } from '@/lib/agentText';
 import { TRANSPORT } from '@/lib/transport';
 import { userFromRequest } from '@/lib/supabaseServer';
 import { listEvents, connection } from '@/lib/googleCal';
@@ -330,6 +331,8 @@ the traveller cares about most.
 
 Rules:
 - Return at most three questions.
+- Never show internal activity IDs or Google place IDs in questions or options.
+  Use readable place names and addresses instead.
 - Do not ask for something the request already answers.
 - Treat "only", "exclusively", "nothing else", and equivalent wording as a
   complete instruction. Do not ask how to fill the remaining time.
@@ -415,11 +418,11 @@ ${prompt}`,
       const questions = (Array.isArray(out.questions) ? out.questions : []).slice(0, 3)
         .map((q, i) => {
           const options = (Array.isArray(q.options) ? q.options : [])
-            .map((o) => String(o || '').trim().slice(0, 80)).filter(Boolean).slice(0, 4);
+            .map((o) => publicAgentText(o).slice(0, 80)).filter(Boolean).slice(0, 4);
           return {
             id: String(q.id || `question-${i + 1}`).replace(/[^a-z0-9_-]/gi, '').slice(0, 32)
               || `question-${i + 1}`,
-            ask: String(q.ask || '').trim().slice(0, 180),
+            ask: publicAgentText(q.ask).slice(0, 180),
             kind: q.kind === 'text' || options.length < 2 ? 'text' : 'choice',
             options,
           };

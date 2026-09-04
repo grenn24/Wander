@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { haversine } from '@/lib/geo';
 import { categoryIcon } from '@/lib/icons';
+import MapAppearance, { useMapPreferences } from '@/components/MapAppearance';
+import { mapColorScheme } from '@/lib/mapPreferences';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -152,7 +154,22 @@ function loadMaps() {
  * order, a dashed route per day, a separate layer for nearby results, and a
  * click anywhere to drop a new stop.
  */
-export default function GoogleMap({
+export default function GoogleMap({ showAppearance = true, ...props }) {
+  const appScheme = useMapScheme();
+  const [preferences, updatePreferences] = useMapPreferences();
+  const camera = useRef(null);
+  const scheme = mapColorScheme(preferences.theme, appScheme);
+  return (
+    <>
+      <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
+        mapType={preferences.type} camera={camera} />
+      {showAppearance ? <MapAppearance preferences={preferences} onChange={updatePreferences} /> : null}
+    </>
+  );
+}
+
+function GoogleMapCanvas({
+  scheme, mapType, camera,
   stops, places, focused, focusedPlace,
   // Two different questions, so two different answers: a stop is coloured by
   // the day it belongs to, a suggestion by what kind of place it is.
@@ -224,6 +241,8 @@ export default function GoogleMap({
   // Whether the map has ever been aimed. The first fit is ours to make; after
   // that the view belongs to whoever is looking at it.
   const fitted = useRef(false);
+  const initialCamera = useRef(camera.current);
+  const restoreCamera = useRef(camera.current);
   const [ready, setReady] = useState(false);
 
   // Latest props, so drawing never closes over a stale render.
@@ -244,7 +263,8 @@ export default function GoogleMap({
         center: { lat: 35.68, lng: 139.76 },
         zoom: 4,
         mapId: MAP_ID,
-        colorScheme: readScheme(),
+        colorScheme: scheme,
+        mapTypeId: mapType,
         // Where a double click drops a pin it cannot also zoom: one gesture,
         // two answers, and you get whichever the map felt like.
         disableDoubleClickZoom: !!latest.current.onDropPin,
@@ -291,6 +311,12 @@ export default function GoogleMap({
        */
       mapRef.current.addListener('idle', () => {
         applyFit();
+        const current = mapRef.current;
+        const center = current.getCenter();
+        if (center) camera.current = {
+          center: { lat: center.lat(), lng: center.lng() },
+          zoom: current.getZoom(), heading: current.getHeading() || 0,
+        };
         const report = latest.current.onViewport;
         if (!report) return;
         const map = mapRef.current;
@@ -330,9 +356,26 @@ export default function GoogleMap({
       });
       setReady(true);
     }).catch((e) => { if (!dead && onError) onError(e.message); });
-    return () => { dead = true; };
+    return () => {
+      dead = true;
+      if (info.current) info.current.close();
+      stopMarks.current.forEach((mark) => { mark.map = null; });
+      placeMarks.current.forEach((mark) => { mark.map = null; });
+      lines.current.forEach((line) => line.setMap(null));
+      if (route.current) route.current.setMap(null);
+      if (mine.current) mine.current.map = null;
+      if (mapRef.current) window.google.maps.event.clearInstanceListeners(mapRef.current);
+      mapRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (ready && mapRef.current) {
+      told.current = false;
+      mapRef.current.setMapTypeId(mapType);
+    }
+  }, [ready, mapType]);
 
   useEffect(() => {
     if (ready) drawStops();
@@ -442,6 +485,20 @@ export default function GoogleMap({
     map.setHeading(follow && heading != null ? heading : 0);
   }, [ready, follow, heading]);
 
+  // Restore after the initial marker/route/focus effects too: changing only
+  // appearance must not zoom back to a selected stop or the whole route.
+  useEffect(() => {
+    if (!ready || !restoreCamera.current) return;
+    const saved = restoreCamera.current;
+    restoreCamera.current = null;
+    if (latest.current.follow) return;
+    owedFit.current = null;
+    initialCamera.current = null;
+    mapRef.current.setCenter(saved.center);
+    mapRef.current.setZoom(saved.zoom);
+    mapRef.current.setHeading(saved.heading);
+  }, [ready]);
+
   /** Apply an owed fit, but only once the map is big enough to have an opinion. */
   function applyFit() {
     const map = mapRef.current;
@@ -449,6 +506,14 @@ export default function GoogleMap({
     const want = owedFit.current;
     if (!map || !want || !el || !el.clientHeight || !el.clientWidth) return;
     owedFit.current = null;
+    if (initialCamera.current && !latest.current.follow) {
+      map.setCenter(initialCamera.current.center);
+      map.setZoom(initialCamera.current.zoom);
+      map.setHeading(initialCamera.current.heading);
+      initialCamera.current = null;
+      fitted.current = true;
+      return;
+    }
     if (want.center) {
       if (!fitted.current) {
         map.setCenter(want.center);
