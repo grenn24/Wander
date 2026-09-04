@@ -1,9 +1,21 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Layers } from 'lucide-react';
+import Select from '@/components/Select';
 import { MAP_PREFERENCE_KEY, normalizeMapPreferences } from '@/lib/mapPreferences';
 
 const CHANGE = 'wander-map-preferences-change';
+const THEMES = [
+  { value: 'auto', label: 'Follow app' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+const TYPES = [
+  { value: 'roadmap', label: 'Road' },
+  { value: 'satellite', label: 'Satellite' },
+  { value: 'hybrid', label: 'Satellite with labels' },
+  { value: 'terrain', label: 'Terrain' },
+];
 
 function readPreferences() {
   try { return normalizeMapPreferences(JSON.parse(localStorage.getItem(MAP_PREFERENCE_KEY))); }
@@ -45,21 +57,16 @@ export default function MapAppearance({ preferences, onChange }) {
     }}>
       <summary><Layers size={15} aria-hidden="true" /> Map appearance</summary>
       <div className="map-appearance-options">
-        <label>Map theme
-          <select value={preferences.theme} onChange={(e) => onChange({ theme: e.target.value })}>
-            <option value="auto">Follow app</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label>Map type
-          <select value={preferences.type} onChange={(e) => onChange({ type: e.target.value })}>
-            <option value="roadmap">Road</option>
-            <option value="satellite">Satellite</option>
-            <option value="hybrid">Satellite with labels</option>
-            <option value="terrain">Terrain</option>
-          </select>
-        </label>
+        <div className="map-appearance-field">
+          <span>Map theme</span>
+          <Select label="Map theme" value={preferences.theme} options={THEMES}
+            onChange={(theme) => onChange({ theme })} />
+        </div>
+        <div className="map-appearance-field">
+          <span>Map type</span>
+          <Select label="Map type" value={preferences.type} options={TYPES}
+            onChange={(type) => onChange({ type })} />
+        </div>
         <p>{imagery ? 'Satellite imagery keeps its natural colours. Your theme applies to road and terrain maps.'
           : 'Saved on this device, separately from the app theme.'}</p>
       </div>

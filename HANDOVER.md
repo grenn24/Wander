@@ -181,6 +181,9 @@ Match the surrounding code — it is consistent and deliberate.
 - Comments explain **why**, not what, and often name the bug that caused the
   line to exist. Keep that; it is why the codebase is debuggable.
 - British spelling in prose and UI copy.
+- Never use native/default dropdowns (`<select>`). Use `components/Select.jsx`
+  and the shared popover styling for all dropdown choices, including map controls.
+  Preserve keyboard navigation, accessible labels, and light/dark theme support.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm
