@@ -32,6 +32,10 @@ test('only confirmed coordinates receive a marker', () => {
   assert.equal(url.searchParams.get('markers'), 'color:0xaabbcc|label:1|22.54,114.11');
   assert.equal(url.searchParams.get('zoom'), '15');
 });
+test('legacy unlabelled static requests also resolve to labelled satellite', () => {
+  const url = staticMapURL(options('lat=0&lng=0&type=satellite'), 'test-key');
+  assert.equal(url.searchParams.get('maptype'), 'hybrid');
+});
 test('dark road/terrain styles do not alter satellite imagery', () => {
   for (const type of ['roadmap', 'terrain', 'hybrid', 'satellite']) {
     const url = staticMapURL(options(`lat=0&lng=0&type=${type}&theme=dark`), 'test-key');

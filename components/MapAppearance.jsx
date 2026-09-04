@@ -40,7 +40,7 @@ export function useMapPreferences() {
 }
 
 export default function MapAppearance({ preferences, onChange }) {
-  const imagery = ['satellite', 'hybrid'].includes(preferences.type);
+  const imagery = preferences.type === 'hybrid';
   return (
     <details className="map-appearance" onKeyDown={(event) => {
       if (event.key === 'Escape') {
