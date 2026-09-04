@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Layers } from 'lucide-react';
+import { Layers, X } from 'lucide-react';
 import Select from '@/components/Select';
 import { MAP_PREFERENCE_KEY, MAP_TYPE_OPTIONS, normalizeMapPreferences } from '@/lib/mapPreferences';
 
@@ -50,6 +50,12 @@ export default function MapAppearance({ preferences, onChange }) {
       }
     }}>
       <summary><Layers size={15} aria-hidden="true" /> Map appearance</summary>
+      <button type="button" className="btn icon-btn map-appearance-close" aria-label="Close map appearance"
+        onClick={(event) => {
+          const panel = event.currentTarget.closest('details');
+          panel.open = false;
+          panel.querySelector('summary').focus();
+        }}><X size={16} aria-hidden="true" /></button>
       <div className="map-appearance-options">
         <div className="map-appearance-field">
           <span>Map theme</span>

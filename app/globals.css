@@ -3073,6 +3073,13 @@ body:has(.lp)::before { display: none; }
   cursor: pointer; list-style: none; font-weight: 600;
 }
 .map-appearance summary::-webkit-details-marker { display: none; }
+.map-appearance[open] summary { padding-right: 46px; min-height: 44px; }
+.map-appearance .map-appearance-close {
+  display: none; position: absolute; top: 5px; right: 5px;
+  width: 34px; height: 34px; padding: 0; border: 0; background: transparent;
+}
+.map-appearance[open] .map-appearance-close { display: inline-flex; }
+.map-appearance .map-appearance-close:hover { background: var(--surface-2); }
 .map-appearance summary:focus-visible { outline: 2px solid var(--accent); border-radius: 14px; }
 .map-appearance-options { padding: 0 12px 12px; width: 238px; max-width: 100%; }
 .map-appearance-field { display: grid; gap: 5px; margin-top: 9px; }
