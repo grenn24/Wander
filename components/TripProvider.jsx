@@ -5,6 +5,8 @@ import {
 } from 'react';
 import { useApp } from '@/components/AppProvider';
 import { dayRange, sortActs, parseQuickAdd, nextSortOrder } from '@/lib/util';
+import { createSerialQueue } from '@/lib/asyncWork';
+import { mergeAgentHistory } from '@/lib/agentHistory';
 
 const Ctx = createContext(null);
 
@@ -27,6 +29,11 @@ export default function TripProvider({ tripId, children }) {
   const [packing, setPacking] = useState([]);
   const [members, setMembers] = useState([]);
   const [agentHistory, setAgentHistory] = useState([]);
+  const historyQueue = useRef(null);
+  if (!historyQueue.current) historyQueue.current = createSerialQueue();
+  const pendingHistory = useRef(new Map());
+  const historyScope = useRef(null);
+  historyScope.current = `${tripId}:${user?.id || ''}`;
   const [online, setOnline] = useState([]);
   const [loadedId, setLoadedId] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -66,7 +73,7 @@ export default function TripProvider({ tripId, children }) {
       supabase.from('packing_items').select('*').eq('trip_id', id).order('created_at'),
       supabase.from('trip_members').select('*').eq('trip_id', id),
       supabase.from('trip_agent_messages').select('*').eq('trip_id', id)
-        .order('created_at', { ascending: true }).limit(60),
+        .order('created_at', { ascending: false }).limit(60),
     ]);
     if (mine !== token.current) return; // superseded
     if (t.error) { fail(t.error); return; }
@@ -76,9 +83,12 @@ export default function TripProvider({ tripId, children }) {
     if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
     if (!p.error) setPacking(p.data || []);
     if (!m.error) setMembers(m.data || []);
-    if (!h.error) setAgentHistory(h.data || []);
+    if (!h.error) setAgentHistory((prev) => mergeAgentHistory(h.data || [], [
+      ...prev.filter((row) => row.trip_id === id),
+      ...[...pendingHistory.current.values()].filter((row) => row.trip_id === id && row.user_id === user?.id),
+    ]));
     setLoadedId(id);
-  }, [supabase, fail]);
+  }, [supabase, fail, user?.id]);
 
   useEffect(() => { load(tripId); }, [tripId, load]);
 
@@ -282,9 +292,12 @@ export default function TripProvider({ tripId, children }) {
 
   /* Messages are append-only. That keeps later requests tied to what was
      actually said at the time, including questions the agent asked. */
-  const appendAgentMessage = useCallback(async ({ role, kind, content, meta = {} }) => {
-    if (!supabase || !tripId || !user || !content) return null;
+  const appendAgentMessage = useCallback(({ role, kind, content, meta = {} }) => {
+    if (!supabase || !tripId || !user || !content) return Promise.resolve(null);
+    const scope = `${tripId}:${user.id}`;
     const row = {
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
       trip_id: tripId,
       user_id: user.id,
       role: role === 'assistant' ? 'assistant' : 'user',
@@ -292,14 +305,25 @@ export default function TripProvider({ tripId, children }) {
       content: String(content).slice(0, 4000),
       meta,
     };
-    const { data, error } = await supabase.from('trip_agent_messages').insert(row).select().single();
-    if (error) {
-      console.error('[agent history] could not save message:', error.message);
-      return null;
-    }
-    if (data) setAgentHistory((prev) => [...prev, data].slice(-60));
-    return data || null;
-  }, [supabase, tripId, user]);
+    // Keep follow-ups aware of messages immediately, even while the database
+    // is slow. Realtime refreshes must not erase entries still being saved.
+    pendingHistory.current.set(row.id, row);
+    setAgentHistory((prev) => mergeAgentHistory(prev, [row]));
+    return historyQueue.current(async () => {
+      try {
+        const { data, error } = await supabase.from('trip_agent_messages').insert(row).select().single();
+        if (error) throw error;
+        pendingHistory.current.delete(row.id);
+        if (data && historyScope.current === scope) setAgentHistory((prev) =>
+          mergeAgentHistory(prev.filter((message) => message.id !== data.id), [data]));
+        return data || null;
+      } catch (error) {
+        console.error('[agent history] message save failed');
+        if (historyScope.current === scope) pushToast('This conversation entry could not be saved. It is still available in this session.');
+        return null;
+      }
+    });
+  }, [supabase, tripId, user, pushToast]);
 
   const deleteActivity = useCallback(async (act) => {
     if (!supabase || !act || !act.id) return;

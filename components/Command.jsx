@@ -426,12 +426,12 @@ function CommandBar({ onClose }) {
     }
     pending.current = instruction;
     if (first) {
-      await appendAgentMessage({
+      void appendAgentMessage({
         role: 'user', kind: 'change_request', content: instruction,
         meta: { pictures: shots.length },
       });
     } else {
-      await appendAgentMessage({ role: 'user', kind: 'clarification_answer', content: reply });
+      void appendAgentMessage({ role: 'user', kind: 'clarification_answer', content: reply });
     }
     /*
      * A trip-wide edit genuinely takes a minute or two. Left to the default,
@@ -483,7 +483,7 @@ function CommandBar({ onClose }) {
       if (!res.ok) { setError(body.error || 'Could not work that out.'); return; }
       if (!body.understood && body.question) {
         pending.current = instruction;
-        await appendAgentMessage({
+        void appendAgentMessage({
           role: 'assistant', kind: 'clarification', content: body.question.ask,
           meta: { question: body.question },
         });
@@ -493,14 +493,14 @@ function CommandBar({ onClose }) {
         return;
       }
       if (!body.ops.length) {
-        await appendAgentMessage({
+        void appendAgentMessage({
           role: 'assistant', kind: 'result',
           content: body.summary || 'No changes were needed.',
         });
         setError(body.summary || 'Nothing in the trip needed changing for that.');
         return;
       }
-      await appendAgentMessage({
+      void appendAgentMessage({
         role: 'assistant', kind: 'proposal', content: body.summary || 'Proposed trip changes.',
         meta: { ops: body.ops },
       });

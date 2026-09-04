@@ -94,8 +94,8 @@ test('calendar intent carries through follow-ups while ordinary edits remain pos
 test('command authenticates and awaits calendar before AI, with no client diary or forty-event truncation', () => {
   const route = readFileSync(new URL('../app/api/command/route.js', import.meta.url), 'utf8');
   const client = readFileSync(new URL('../components/Command.jsx', import.meta.url), 'utf8');
-  assert.ok(route.indexOf('await userFromRequest(req)') < route.indexOf('await commandCalendar(user.id, trip)'));
-  assert.ok(route.indexOf('await commandCalendar(user.id, trip)') < route.indexOf('await askJson('));
+  assert.ok(route.indexOf("timing.measure('auth'") < route.indexOf("timing.measure('calendar'"));
+  assert.ok(route.indexOf("timing.measure('calendar'") < route.indexOf("timing.measure('ai'"));
   assert.doesNotMatch(route, /body\.calendar/);
   assert.doesNotMatch(client, /useCommitments|Object\.values\(booked\)/);
   assert.match(client, /Authorization: `Bearer \$\{token\}`/);

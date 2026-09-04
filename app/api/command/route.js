@@ -7,6 +7,7 @@ import { publicAgentText } from '@/lib/agentText';
 import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 import { commandCalendar } from '@/lib/googleCal';
 import { calendarContext, explicitlyNeedsCalendar } from '@/lib/commandCalendar';
+import { requestTiming } from '@/lib/requestTiming';
 
 /*
  * The kinds of journey and the fields each one has, from the app's own table.
@@ -298,8 +299,14 @@ function trim(value, limit) {
 }
 
 export async function POST(req) {
+  const timing = requestTiming();
+  try { return timing.finish(await handleCommand(req, timing)); }
+  catch (error) { return timing.finish(aiFailure(error, 'command')); }
+}
+
+async function handleCommand(req, timing) {
   if (!aiConfigured()) return notConfigured();
-  const user = await userFromRequest(req);
+  const user = await timing.measure('auth', () => userFromRequest(req));
   if (!user) return notSignedIn();
 
   let body;
@@ -323,7 +330,7 @@ export async function POST(req) {
   let booked = [];
   let calendarStatus = 'ready';
   try {
-    booked = await commandCalendar(user.id, trip);
+    booked = await timing.measure('calendar', () => commandCalendar(user.id, trip));
   } catch (e) {
     calendarStatus = e.code === 'reconnect' ? 'not connected or expired' : 'unavailable';
     if (explicitlyNeedsCalendar(instruction, answers)) {
@@ -394,14 +401,14 @@ export async function POST(req) {
   ].join('\n');
 
   try {
-    const out = await askJson({
+    const out = await timing.measure('ai', () => askJson({
       schemaName: 'trip_edits',
       schema: SCHEMA,
       system: SYSTEM,
       task: 'command',
       user: prompt,
       maxTokens: 12000,
-    });
+    }));
 
     if (!out.understood && out.question) {
       const q = out.question;
