@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CURRENCIES, dayRange } from '@/lib/util';
 import Select from '@/components/Select';
+import DateField from '@/components/DateField';
 import { useModalChrome } from '@/lib/useModal';
 
 export default function TripModal({ draft, onChange, onSave, onClose }) {
@@ -57,13 +58,12 @@ export default function TripModal({ draft, onChange, onSave, onClose }) {
           <div className="row">
             <div className="field">
               <label className="label" htmlFor="ts">Start</label>
-              <input id="ts" className="input" type="date" value={start}
-                onChange={(e) => setStart(e.target.value)} />
+              <DateField id="ts" label="Trip start" value={start} onChange={setStart} />
             </div>
             <div className="field">
               <label className="label" htmlFor="te">End</label>
-              <input id="te" className="input" type="date" value={end} min={start || undefined}
-                onChange={(e) => set({ end_date: e.target.value })} />
+              <DateField id="te" label="Trip end" value={end} min={start || undefined}
+                onChange={(value) => set({ end_date: value })} />
             </div>
           </div>
           {badRange ? (

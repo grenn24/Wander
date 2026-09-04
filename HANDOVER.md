@@ -202,6 +202,8 @@ Match the surrounding code — it is consistent and deliberate.
 - Never use native/default dropdowns (`<select>`). Use `components/Select.jsx`
   and the shared popover styling for all dropdown choices, including map controls.
   Preserve keyboard navigation, accessible labels, and light/dark theme support.
+- Native browser date/time pickers are also prohibited. Use `DateField.jsx`
+  for calendars and `TimeField.jsx` for times; no date/time/month/week inputs.
 - Floating map panels and command surfaces use subtle frosted glass, with
   readable text and opaque fallbacks for reduced transparency. Keep other
   warm-earth surfaces opaque unless the owner asks otherwise.

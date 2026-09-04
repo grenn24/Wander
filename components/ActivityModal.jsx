@@ -5,6 +5,7 @@ import { CATEGORIES, fmtDay } from '@/lib/util';
 import { TRANSPORT, transportOf } from '@/lib/transport';
 import { searchPlaces } from '@/lib/geo';
 import Select from '@/components/Select';
+import DateField from '@/components/DateField';
 import { hasStayDates, lodgingError, cleanLodging } from '@/lib/lodging';
 import ActivityMap from '@/components/ActivityMap';
 import TimeField from '@/components/TimeField';
@@ -316,10 +317,10 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                     const label = phase === 'check_in' ? 'Check-in' : 'Checkout';
                     return <div className="field" key={phase}>
                       <label className="label" htmlFor={phase}>{label} date (optional)</label>
-                      <input className="input" type="date" id={phase}
+                      <DateField id={phase} label={`${label} date`} initialDate={draft.day || days[0]}
                         value={draft.details?.[`${phase}_date`] || ''}
-                        onChange={(e) => set({ details: { ...(draft.details || {}),
-                          [`${phase}_date`]: e.target.value } })} />
+                        onChange={(value) => set({ details: { ...(draft.details || {}),
+                          [`${phase}_date`]: value } })} />
                       <label className="label" htmlFor={`${phase}-time`}>{label} time (optional)</label>
                       <TimeField id={`${phase}-time`} label={`${label} time`}
                         value={draft.details?.[`${phase}_time`] || ''}

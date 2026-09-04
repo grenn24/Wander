@@ -18,5 +18,8 @@ test('UI uses custom dropdowns, never native select elements', async () => {
   for (const file of files) {
     assert.doesNotMatch(await readFile(file, 'utf8'), /<select(?:\s|>)/,
       `${file.pathname} must use components/Select.jsx`);
+    const code = (await readFile(file, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(code, /<input\b[^>]*\btype\s*=\s*["'](?:date|datetime-local|time|month|week)["']/,
+      `${file.pathname} must use DateField.jsx or TimeField.jsx`);
   }
 });
