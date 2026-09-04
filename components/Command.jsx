@@ -9,6 +9,7 @@ import {
   Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, MapPin,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
+import { focusCommandField, holdCommandPage } from '@/lib/commandFocus';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
@@ -268,10 +269,12 @@ function CommandBar({ onClose }) {
   const askRef = useRef(null);
   const pending = useRef('');
 
+  useEffect(() => holdCommandPage(document), []);
+
   // Portals need a DOM to aim at, so nothing escapes during SSR.
   useEffect(() => {
     setReady(true);
-    const t = setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
+    const t = setTimeout(() => focusCommandField(inputRef.current), 20);
     return () => clearTimeout(t);
   }, []);
 
@@ -284,7 +287,7 @@ function CommandBar({ onClose }) {
     setAnswers([]); setError(''); setActive(0);
     clearAsk();
     pending.current = '';
-    if (inputRef.current) inputRef.current.focus();
+    focusCommandField(inputRef.current);
   }, [clearAsk]);
 
   useEffect(() => {
@@ -486,7 +489,7 @@ function CommandBar({ onClose }) {
         });
         setQuestion(body.question);
         setTyping(body.question.kind === 'text');
-        setTimeout(() => askRef.current && askRef.current.focus(), 0);
+        setTimeout(() => focusCommandField(askRef.current), 0);
         return;
       }
       if (!body.ops.length) {
@@ -889,7 +892,7 @@ function CommandBar({ onClose }) {
             <div className="cmd-examples">
               {EXAMPLES.map((x) => (
                 <button key={x} type="button" className="samplechip"
-                  onClick={() => { setText(x); inputRef.current.focus(); }}>{x}</button>
+                  onClick={() => { setText(x); focusCommandField(inputRef.current); }}>{x}</button>
               ))}
             </div>
           </div>
@@ -965,7 +968,7 @@ function CommandBar({ onClose }) {
                   <button type="button" className="linkbtn" disabled={busy}
                     onClick={() => {
                       setTyping(true);
-                      setTimeout(() => askRef.current && askRef.current.focus(), 0);
+                    setTimeout(() => focusCommandField(askRef.current), 0);
                     }}>
                     Something else…
                   </button>

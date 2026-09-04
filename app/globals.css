@@ -2197,10 +2197,9 @@ body:has(.lp)::before { display: none; }
   backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
-  transition: transform .16s var(--spring), border-color .16s var(--ease);
+  transition: border-color .16s var(--ease), color .16s var(--ease);
 }
 .cmd-pill:hover {
-  transform: translateX(-50%) translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   color: var(--text-1);
 }
@@ -2278,7 +2277,6 @@ body:has(.lp)::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .cmd { animation: none; }
   .cmd-pill { transition: none; }
-  .cmd-pill:hover { transform: translateX(-50%); }
 }
 @media print { .cmd-pill { display: none !important; } }
 
@@ -2677,23 +2675,29 @@ body:has(.lp)::before { display: none; }
  * reads well centred on a desktop, so there is no second design to maintain.
  */
 .ck-back {
+  --ck-top: clamp(24px, 9svh, 80px);
   position: fixed; inset: 0; z-index: 90;
   background: rgba(10,10,10,.5);
   -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   /* flex-start, or the panel stretches to the height of the backdrop and
      hangs a column of empty card under its own last row. */
   display: flex; justify-content: center; align-items: flex-start;
-  padding: max(9vh, 40px) 16px 24px;
+  padding: var(--ck-top) 16px 24px;
+  overflow: hidden; overscroll-behavior: none;
   animation: fadein .14s var(--ease);
 }
 @keyframes fadein { from { opacity: 0; } }
 
 .ck {
-  width: min(600px, 100%); max-height: min(74vh, 660px);
+  width: min(600px, 100%);
+  max-height: min(660px, calc(100dvh - var(--ck-top) - 24px));
+  flex: none; min-height: 0;
+  scrollbar-gutter: stable; overflow-anchor: none; overscroll-behavior: contain;
   display: flex; flex-direction: column; padding: 0; overflow: hidden auto;
-  animation: cmdin .16s var(--ease);
+  animation: fadein .16s var(--ease);
 }
 .ck-top {
+  flex: none;
   display: flex; align-items: flex-start; gap: 10px;
   padding: 11px 11px 11px 15px; border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 2; background: var(--surface-1);
@@ -3156,9 +3160,10 @@ body:has(.lp)::before { display: none; }
   .mappanel-head .mapkinds::-webkit-scrollbar { display: none; }
   .mappanel-head .mapkinds .btn { flex: none; }
 
-  /* The command pill lives above the sheet rather than on it. */
+  /* Anchor to the collapsed sheet, not its animated height. Opening search
+     results must not move the shortcut to a different part of the screen. */
   .shell:has(.mapstage) .cmd-pill {
-    bottom: calc(var(--tabbar-h) + var(--sheet-h) + 12px);
+    bottom: calc(var(--tabbar-h) + 148px + 12px);
   }
 }
 @media (max-width: 1000px) and (prefers-reduced-motion: reduce) {
