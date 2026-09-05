@@ -585,7 +585,7 @@ export default function MapView({
                 </div>
               ))}
             </div>
-          ) : <p className="map-explore-hint small muted">Find a place to eat, a sight to see or something nearby. Search above or choose a category.</p>}
+          ) : <p className="map-explore-hint small muted">Search or choose a category to explore nearby.</p>}
 
           </div>
 
