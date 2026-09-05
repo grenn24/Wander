@@ -52,8 +52,21 @@ function TripChrome({ tripId, children }) {
     };
     const ro = new ResizeObserver(read);
     ro.observe(el);
+    // ViewportInsets settles the Safari toolbar offset after viewport events.
+    // Its CSS update moves the footer without resizing the footer itself.
+    const insets = new MutationObserver(read);
+    insets.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    read();
     window.addEventListener('resize', read);
-    return () => { ro.disconnect(); window.removeEventListener('resize', read); };
+    window.visualViewport?.addEventListener('resize', read);
+    window.visualViewport?.addEventListener('scroll', read);
+    return () => {
+      ro.disconnect();
+      insets.disconnect();
+      window.removeEventListener('resize', read);
+      window.visualViewport?.removeEventListener('resize', read);
+      window.visualViewport?.removeEventListener('scroll', read);
+    };
   }, []);
 
   const segments = pathname.split('/').filter(Boolean);

@@ -278,6 +278,11 @@ Match the surrounding code — it is consistent and deliberate.
 - The small-screen tab bar shares the floating controls' glass treatment and
   solid reduced-transparency fallback. Mobile photo tiles stay inline-grid:
   changing them to flex loses horizontal centring for fallback activity icons.
+- The mobile map sheet keeps its handle outside a single scrolling content
+  area, including dropped-pin details and search controls. Collapsing hides
+  dropped-pin details and stops; opening a new pin scrolls back to its actions.
+  Its height is capped by the available map space and clears the measured
+  footer, with a conservative CSS fallback before measurement.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm

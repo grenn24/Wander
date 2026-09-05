@@ -49,6 +49,12 @@ export default function MapView({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
+  const panelScrollRef = useRef(null);
+
+  // A newly dropped pin must not open below the list's previous scroll position.
+  useEffect(() => {
+    if (dropped && panelScrollRef.current) panelScrollRef.current.scrollTop = 0;
+  }, [dropped]);
 
   const inDay = useCallback(
     (a) => day === 'all' || a.day === day,
@@ -465,9 +471,9 @@ export default function MapView({
           </span>
         </button>
 
-        <div className="mappanel-head">
+        <div className="mappanel-scroll" ref={panelScrollRef}>
           {dropped ? (
-            <div className="card notice mapside-drop">
+            <div className="card notice mapside-drop mappanel-drop">
               <div className="spread" style={{ alignItems: 'flex-start' }}>
                 <div style={{ minWidth: 0 }}>
                   <strong className="small">{dropped.name || 'Dropped point'}</strong>
@@ -486,6 +492,7 @@ export default function MapView({
             </div>
           ) : null}
 
+        <div className="mappanel-head">
           <form className="mapfind" onSubmit={(e) => { runSearch(e); reveal(); }}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
             <input
@@ -641,6 +648,7 @@ export default function MapView({
             </p>
           )}
 
+        </div>
         </div>
       </aside>
 
