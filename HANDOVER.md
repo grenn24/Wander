@@ -267,6 +267,10 @@ Match the surrounding code — it is consistent and deliberate.
 - Anchor the command shortcut with viewport units, not percentage offsets:
   page scrollbars otherwise shift it sideways between the map and itinerary.
   Keep its bottom offset shared across routes.
+- The map stop list groups by day with matching pin colours and preserves the
+  visible marker numbering. Transfer connectors stay within each day; distances
+  are straight-line estimates, not routed distances. Stop cards use a light
+  translucent fill without their own backdrop blur inside the glass panel.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm

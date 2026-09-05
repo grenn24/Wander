@@ -81,10 +81,19 @@ export default function MapView({
     return out;
   }, [stops]);
 
-  const totalKm = useMemo(
-    () => Object.values(legs).reduce((s, k) => s + k, 0),
-    [legs],
-  );
+  const stopGroups = useMemo(() => {
+    const groups = new Map();
+    stops.forEach((activity, index) => {
+      if (!groups.has(activity.day)) {
+        groups.set(activity.day, { day: activity.day, stops: [], km: 0 });
+      }
+      const group = groups.get(activity.day);
+      // Keep the number from the complete visible list so it matches the pin.
+      group.stops.push({ activity, number: index + 1 });
+      group.km += legs[activity.id] || 0;
+    });
+    return [...groups.values()];
+  }, [stops, legs]);
 
   /* ------------------------------------------------- resolve locations --- */
   const resolving = useRef(false);
@@ -556,57 +565,83 @@ export default function MapView({
 
           <div className="mappanel-title">
             <h3 className="mapside-h">
-              {day === 'all' ? 'Every stop, in order' : `Day ${days.indexOf(day) + 1}, in order`}
+              Your stops
             </h3>
             <span className="tiny dim">
               {stops.length} stop{stops.length === 1 ? '' : 's'}
-              {totalKm > 0 ? ` · ${fmtKm(totalKm)}` : ''}
               {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
             </span>
           </div>
 
           {stops.length ? (
             <div className="stoplist">
-              {stops.map((a, i) => {
-                const cat = categoryOf(a.category);
-                const leg = legs[a.id];
-                return (
-                  <div key={a.id}>
-                    {leg != null ? (
-                      <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
-                        {leg > 60 ? <TriangleAlert size={12} />
-                          : leg > 5 ? <TrainFront size={12} />
-                            : <Footprints size={12} />}
-                        {fmtKm(leg)}
-                        {leg > 60 ? ' — a long way for one day'
-                          : leg > 5 ? ' — too far to walk'
-                            : ` · ${walkMinutes(leg)} min walk`}
-                      </div>
-                    ) : null}
-                    <div id={`stop-${a.id}`}
-                      className={`stop${focused === a.id ? ' is-focus' : ''}`
-                        + `${opening === String(a.id) ? ' is-opening' : ''}`}
-                      data-tip={focused === a.id ? 'Open' : 'Show on map'}
-                      role="button" tabIndex={0}
-                      onClick={() => focus(a)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') focus(a); }}>
-                      <span className="stop-n">{i + 1}</span>
-                      <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={38} alt={a.title} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div className="stop-name">{a.title}</div>
-                        <div className="tiny dim">
-                          {fmtDayTiny(a.day)}{a.start_time ? ` · ${fmtTime(a.start_time)}` : ''}
-                        </div>
-                      </div>
-                      <button className="btn ghost sm icon-btn"
-                        data-tip="Edit" aria-label={`Edit ${a.title}`}
-                        onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-                        <SquarePen size={14} />
-                      </button>
-                    </div>
+              {stopGroups.map((group) => (
+                <section className="map-day-group" key={group.day || 'undated'}
+                  aria-labelledby={`map-day-${group.day || 'undated'}`}
+                  style={{ '--day-colour': dayColor(days.indexOf(group.day), days.length) }}>
+                  <div className="map-day-head">
+                    <h4 id={`map-day-${group.day || 'undated'}`}>
+                      <span className="map-day-dot" aria-hidden="true" />
+                      {days.includes(group.day) ? `Day ${days.indexOf(group.day) + 1}` : 'Other stops'}
+                      {group.day ? <span className="map-day-date">{fmtDayTiny(group.day)}</span> : null}
+                    </h4>
+                    <span className="map-day-summary">
+                      {group.stops.length} stop{group.stops.length === 1 ? '' : 's'}
+                      {group.km > 0 ? ` · ≈ ${fmtKm(group.km)} between stops` : ''}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="map-day-stops">
+                    {group.stops.map(({ activity: a, number }) => {
+                      const cat = categoryOf(a.category);
+                      const leg = legs[a.id];
+                      return (
+                        <div key={a.id}>
+                          {leg != null ? (
+                            <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
+                              {leg > 60 ? <TriangleAlert size={15} aria-hidden="true" />
+                                : leg > 5 ? <TrainFront size={15} aria-hidden="true" />
+                                  : <Footprints size={15} aria-hidden="true" />}
+                              <div className="map-leg-detail">
+                                <strong>≈ {fmtKm(leg)}</strong>
+                                <span>{leg > 60 ? 'Long transfer · check travel time'
+                                  : leg > 5 ? 'Consider public transport or a taxi'
+                                    : `About ${Math.max(1, walkMinutes(leg))} min walk`}</span>
+                              </div>
+                            </div>
+                          ) : null}
+                          <div id={`stop-${a.id}`}
+                            className={`stop${focused === a.id ? ' is-focus' : ''}`
+                              + `${opening === String(a.id) ? ' is-opening' : ''}`}
+                            data-tip={focused === a.id ? 'Open' : 'Show on map'}
+                            role="button" tabIndex={0}
+                            onClick={() => focus(a)}
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return;
+                              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(a); }
+                            }}>
+                            <span className="stop-n">{number}</span>
+                            <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={38} alt={a.title} />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div className="stop-name">{a.title}</div>
+                              <div className="map-stop-meta">
+                                {a.start_time ? fmtTime(a.start_time) : 'Time not set'}
+                              </div>
+                            </div>
+                            <button className="btn ghost sm icon-btn"
+                              data-tip="Edit" aria-label={`Edit ${a.title}`}
+                              onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+                              <SquarePen size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+              {Object.keys(legs).length ? (
+                <p className="map-distance-note">Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
+              ) : null}
             </div>
           ) : (
             <p className="small muted" style={{ marginTop: 0 }}>

@@ -4096,8 +4096,11 @@ body::before {
     background: color-mix(in srgb, var(--surface-1) 16%, transparent);
     border-color: color-mix(in srgb, var(--text-1) 12%, transparent);
   }
-  .mappanel .stop:not(.is-focus), .mappanel .mapfind, .cmd-pill kbd {
+  .mappanel .mapfind, .cmd-pill kbd {
     background: color-mix(in srgb, var(--surface-1) 36%, transparent);
+  }
+  .mappanel .stop:not(.is-focus) {
+    background: color-mix(in srgb, var(--surface-1) 18%, transparent);
   }
   .mappanel .stop.is-focus {
     background: color-mix(in srgb, var(--accent-soft) 86%, transparent);
@@ -4117,6 +4120,33 @@ body::before {
   .mappanel .stop.is-focus { background: var(--accent-soft); }
   .ck-back { background: rgb(10 10 10 / .6); }
 }
+/* Day sections make the route legible without joining separate days together. */
+.mappanel .stoplist { gap: 24px; }
+.map-day-head { padding: 0 4px 10px; }
+.map-day-head h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; font-size: 14px; font-weight: 650; color: var(--text-1); }
+.map-day-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--day-colour); box-shadow: 0 0 0 3px color-mix(in srgb, var(--day-colour) 15%, transparent); flex: none; }
+.map-day-date { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--overlay-muted); }
+.map-day-summary { display: block; padding-left: 16px; font-size: 11.5px; color: var(--overlay-muted); }
+.map-day-stops { display: grid; gap: 6px; }
+/* Only the outer panel blurs the map; another blur on each row darkens the
+   nested glass and makes a low-opacity fill look like a solid card. */
+.mappanel .stop { gap: 9px; padding: 12px 9px; border-radius: 14px; border-color: color-mix(in srgb, var(--text-1) 9%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.mappanel .stop:hover { border-color: color-mix(in srgb, var(--text-1) 28%, transparent); transform: none; }
+.mappanel .stop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mappanel .stop.is-focus { border-color: var(--accent); }
+.mappanel .stop-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.4; font-size: 13px; overflow-wrap: anywhere; }
+.mappanel .stop-n { background: color-mix(in srgb, var(--day-colour) 14%, transparent); color: var(--text-1); font-size: 10.5px; }
+.mappanel .stop.is-focus .stop-n { background: var(--accent); color: #fff; }
+.map-stop-meta { margin-top: 4px; font-size: 12px; color: var(--overlay-muted); }
+.mappanel .stop > .icon-btn { width: 30px; min-width: 30px; color: var(--overlay-muted); }
+.mappanel .leg { gap: 9px; margin: 0 0 6px 19px; padding: 9px 8px 9px 19px; color: var(--text-1); font-size: 12px; }
+.mappanel .leg::before { left: 0; border-left: 2px dotted color-mix(in srgb, var(--text-1) 30%, transparent); }
+.mappanel .leg > svg { flex: none; color: var(--overlay-muted); }
+.map-leg-detail { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; line-height: 1.5; }
+.map-leg-detail strong { font-weight: 600; white-space: nowrap; }
+.map-leg-detail > span { color: var(--overlay-muted); font-size: 11.5px; }
+.mappanel .leg-far > svg { color: var(--accent-ink); }
+.map-distance-note { margin: -8px 4px 0; font-size: 11px; line-height: 1.5; color: var(--overlay-muted); }
 /* Planning estimates and travel-day shortcuts use the same warm surfaces. */
 .budget-split { margin-top: 18px; }
 .split-members { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0; }
