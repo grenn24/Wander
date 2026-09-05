@@ -3792,7 +3792,7 @@ body::before {
     padding: 11px 2px;
   }
   .triprow::after { content: none; }
-  .triprow > .photo { display: flex; width: 48px !important; height: 48px !important; border-radius: 15px !important; }
+  .triprow > .photo { display: inline-grid; width: 48px !important; height: 48px !important; border-radius: 15px !important; }
   .triprow-main { gap: 4px; }
   .triprow-name { order: initial; flex: none; font-size: 19px; }
   .triprow-meta { margin: 0; gap: 4px 10px; }
@@ -3905,7 +3905,9 @@ body::before {
   .act-when { z-index: 1; }
 }
 @media (max-width: 460px) {
-  .act .photo { display: flex; width: 48px !important; height: 48px !important; }
+  /* Keep the photo's grid centring when restoring it on phones. Flex leaves
+     fallback glyphs against the left edge even with place-items: center. */
+  .act .photo { display: inline-grid; width: 48px !important; height: 48px !important; }
 }
 
 .daystrip {
@@ -4031,7 +4033,7 @@ body::before {
 
 /* A shared glass lens for floating controls. Gradients catch the light without
    extra layers over the controls or fading text, icons and day colours. */
-:is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo) {
+:is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar) {
   --overlay-muted: color-mix(in srgb, var(--text-2) 80%, var(--text-1));
   --lens-light: linear-gradient(135deg, rgb(255 255 255 / .16),
     rgb(255 255 255 / .025) 38%, transparent 60%, rgb(255 255 255 / .07));
@@ -4082,9 +4084,10 @@ body::before {
 .cmd-pill, .cmd-pill kbd, .ck .muted, .ck .dim, .ck-empty {
   color: var(--overlay-muted);
 }
+.tabbar a:not([aria-current="true"]) { color: var(--overlay-muted); }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo) {
+  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar) {
     background: var(--lens-light), color-mix(in srgb, var(--surface-1) 72%, transparent);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
     backdrop-filter: blur(22px) saturate(180%);
@@ -4109,7 +4112,7 @@ body::before {
 
 /* Keep both the lens and its nested surfaces solid when requested. */
 @media (prefers-reduced-transparency: reduce) {
-  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo),
+  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar),
   .mappanel-head, .ck-top, .mappanel .stop:not(.is-focus),
   .mappanel .mapfind, .cmd-pill kbd {
     background: var(--surface-1);

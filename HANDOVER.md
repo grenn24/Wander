@@ -275,6 +275,9 @@ Match the surrounding code — it is consistent and deliberate.
   to the map and itinerary. Itinerary transfers sit beside time gaps and appear
   even for back-to-back activities; missing coordinates do not create a route.
   `activityDistance` validates coordinates and same-day boundaries.
+- The small-screen tab bar shares the floating controls' glass treatment and
+  solid reduced-transparency fallback. Mobile photo tiles stay inline-grid:
+  changing them to flex loses horizontal centring for fallback activity icons.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm
