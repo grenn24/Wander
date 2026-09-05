@@ -9,6 +9,7 @@ import { humanError } from '@/lib/util';
 import Toasts from '@/components/Toasts';
 import ConfigError from '@/components/ConfigError';
 import { keepCalendar } from '@/lib/gcal';
+import { clearDownloads, setDownloadOwner } from '@/public/offline-store';
 import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
 
@@ -93,6 +94,8 @@ export default function AppProvider({ children }) {
 
     const settle = (s) => {
       if (!alive) return;
+      if (s?.user?.id) setDownloadOwner(s.user.id).catch(() => {});
+      else clearDownloads().catch(() => {});
       setSession(s);
       setDisplayName(nameOf(s));
       setPhase(s ? 'ready' : 'signedout');
@@ -265,9 +268,11 @@ export default function AppProvider({ children }) {
      * still on a gated route just replaces the app with the sign-in form,
      * which reads as being bounced rather than as having left.
      */
+    try { await clearDownloads(); }
+    catch { pushToast('Could not clear offline storage. Clear this site’s browser data to remove any downloads.'); }
     router.replace('/');
     await supabase.auth.signOut();
-  }, [supabase, router]);
+  }, [supabase, router, pushToast]);
 
   const value = useMemo(() => ({
     supabase, user, session, phase, displayName, saveDisplayName,

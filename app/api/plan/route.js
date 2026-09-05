@@ -4,6 +4,7 @@ import {
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
 import { publicAgentText } from '@/lib/agentText';
+import { validZone } from '@/public/trip-time';
 import { TRANSPORT } from '@/lib/transport';
 import { LODGING_KEYS, cleanLodging } from '@/lib/lodging';
 import { userFromRequest } from '@/lib/supabaseServer';
@@ -36,6 +37,7 @@ const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
  */
 const DETAIL_KEYS = [...new Set([...TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)), ...LODGING_KEYS])];
 
+// Flight clocks belong to their endpoints, never to the browser.
 const DETAILS = {
   type: 'object',
   additionalProperties: false,
@@ -46,10 +48,11 @@ const DETAILS = {
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['name', 'destination', 'currency', 'start_date', 'duration_days', 'summary', 'days'],
+  required: ['name', 'destination', 'timezone', 'currency', 'start_date', 'duration_days', 'summary', 'days'],
   properties: {
     name: { type: 'string', description: 'Short trip name, e.g. "Japan, December"' },
     destination: { type: 'string', description: 'Places visited, e.g. "Tokyo & Kyoto"' },
+    timezone: { type: ['string', 'null'], description: 'IANA time zone of the main destination, e.g. Asia/Tokyo. Null if uncertain.' },
     currency: { type: 'string', description: 'ISO 4217 code sensible for the destination' },
     start_date: {
       type: ['string', 'null'],
@@ -149,6 +152,7 @@ Rules:
   Asakusa, Tokyo", not "a nice temple". Leave it blank rather than invent one.
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
   (opening hours, transport, bookings) and leave others null.
+- For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line journeys. Never guess a missing booking time.
 - Costs are per person in the trip currency, as plain numbers. Use 0 when free,
   and give a real estimate rather than 0 for things that plainly cost money.
 - Fill in every field you have an answer for. An end time wherever the length
@@ -620,6 +624,7 @@ and will be removed before the traveller sees it.` : '';
           plan: {
             name: String(final.name || '').trim().slice(0, 120) || 'New trip',
             destination: String(final.destination || '').trim().slice(0, 200),
+            timezone: validZone(final.timezone) ? final.timezone : null,
             currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
             start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
             duration_days: duration,

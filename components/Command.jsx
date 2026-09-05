@@ -459,6 +459,7 @@ function CommandBar({ onClose }) {
             start_date: trip.start_date,
             end_date: trip.end_date,
             currency: trip.currency,
+            timezone: trip.timezone,
             budget: trip.budget,
           },
           history: agentHistory.slice(-24).map((m) => ({
@@ -587,6 +588,7 @@ function CommandBar({ onClose }) {
           if (op.start_date) patch.start_date = op.start_date;
           if (op.end_date) patch.end_date = op.end_date;
           if (op.currency) patch.currency = op.currency;
+          if (op.timezone) patch.timezone = op.timezone;
           if (op.budget != null) patch.budget = op.budget;
           if (Object.keys(patch).length) {
             await updateTrip(patch); // eslint-disable-line no-await-in-loop

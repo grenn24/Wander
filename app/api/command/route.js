@@ -2,6 +2,7 @@ import {
   aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
+import { validZone } from '@/public/trip-time';
 import { TRANSPORT } from '@/lib/transport';
 import { LODGING_KEYS } from '@/lib/lodging';
 import { publicAgentText } from '@/lib/agentText';
@@ -20,6 +21,7 @@ import { requestTiming } from '@/lib/requestTiming';
  */
 const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
 const DETAIL_KEYS = [...new Set([...TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)), ...LODGING_KEYS])];
+// Flight clocks belong to their endpoints, never to the browser.
 const DETAILS = {
   type: ['object', 'null'],
   additionalProperties: false,
@@ -60,7 +62,7 @@ const OP = {
   required: [
     'kind', 'describe', 'activity_id', 'day', 'title', 'start_time', 'end_time',
     'category', 'subtype', 'details', 'location', 'cost', 'notes',
-    'trip_name', 'destination', 'start_date', 'end_date', 'currency', 'budget',
+    'trip_name', 'destination', 'start_date', 'end_date', 'currency', 'timezone', 'budget',
     'minutes', 'to_day', 'items',
   ],
   properties: {
@@ -86,6 +88,7 @@ const OP = {
     destination: { type: ['string', 'null'] },
     start_date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
     end_date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+    timezone: { type: ['string', 'null'], description: 'update_trip only: IANA destination time zone, e.g. Asia/Tokyo. Null to leave unchanged.' },
     currency: { type: ['string', 'null'], description: 'ISO 4217' },
     budget: { type: ['number', 'null'] },
     minutes: {
@@ -278,6 +281,7 @@ Rules:
   is nothing to set.
 - Lengthening or shortening the trip is an update_trip on the dates. If that
   would leave activities outside the range, move them too.
+- Flight start_time and end_time are local to details.departure_timezone and details.arrival_timezone (IANA zones). Include details.arrival_date as YYYY-MM-DD, including date-line and overnight journeys. Preserve unspecified zones; never substitute the browser zone.
 - Times are 24-hour HH:MM. Costs are plain numbers in the trip currency.
 - "location" must be a real place name a map search would find, or null.
 - If the instruction is ambiguous in a way that changes which activities are
@@ -394,6 +398,7 @@ async function handleCommand(req, timing) {
     `Destination: ${trip.destination || 'unspecified'}`,
     `Dates: ${trip.start_date} to ${trip.end_date}`,
     `Currency: ${trip.currency || 'SGD'}`,
+    `Destination time zone: ${trip.timezone || 'not set'}`,
     `Budget: ${trip.budget == null ? 'none' : trip.budget}`,
     dayNames.length ? `Days: ${dayNames.join(', ')}` : '',
     '',
@@ -467,6 +472,7 @@ async function handleCommand(req, timing) {
         destination: o.destination == null ? null : String(o.destination).slice(0, 200),
         start_date: /^\d{4}-\d{2}-\d{2}$/.test(o.start_date || '') ? o.start_date : null,
         end_date: /^\d{4}-\d{2}-\d{2}$/.test(o.end_date || '') ? o.end_date : null,
+        timezone: validZone(o.timezone) ? o.timezone : null,
         currency: /^[A-Z]{3}$/.test(o.currency || '') ? o.currency : null,
         budget: o.budget == null ? null : Math.max(0, Number(o.budget) || 0),
         // A day either way is as far as a shift can sensibly reach.

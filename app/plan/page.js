@@ -364,6 +364,7 @@ function Planner() {
       start_date: start,
       end_date: end,
       currency: plan.currency,
+      timezone: plan.timezone || null,
       notes: '',
     }).select().single();
 

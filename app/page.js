@@ -25,7 +25,7 @@ const FEATURES = [
   { icon: Wallet, title: 'Costs as you go', body: 'Price a stop and the budget builds itself.' },
   { icon: Backpack, title: 'Packing, shared', body: 'One list everyone ticks off.' },
   { icon: NotebookPen, title: 'Notes and refs', body: 'Confirmations beside the plan, not in a chat.' },
-  { icon: Printer, title: 'Works on the plane', body: 'Print it. No signal needed.' },
+  { icon: Printer, title: 'Ready without signal', body: 'Download your trip or print a copy.' },
 ];
 
 const STEPS = [
@@ -74,8 +74,8 @@ export default async function Landing({ searchParams }) {
             </Reveal>
             <Reveal as="ul" className="lp-ticks" delay={390}>
               <li><Check size={15} /> Free and open source</li>
-              <li><Check size={15} /> Your own database</li>
-              <li><Check size={15} /> Works offline on paper</li>
+              <li><Check size={15} /> Bookings and notes together</li>
+              <li><Check size={15} /> Download for offline access</li>
             </Reveal>
           </div>
 
@@ -120,7 +120,7 @@ export default async function Landing({ searchParams }) {
               </Reveal>
               <Reveal as="li" delay={200}>
                 <ShieldCheck size={17} />
-                <div><strong>Row-level security</strong><span>The database decides who sees what.</span></div>
+                <div><strong>Your plans stay together</strong><span>Bookings, notes and addresses shared with your travel companions.</span></div>
               </Reveal>
             </ul>
           </div>

@@ -36,6 +36,7 @@ export default function PrintView({ trip, days, activities, packing, members }) 
           {total > 0 ? ` · ${money(total, currency)} planned` : ''}
           {trip.budget != null ? ` of ${money(trip.budget, currency)}` : ''}
         </div>
+        {trip.timezone ? <div className="p-sub">Local times in {trip.timezone}. Flights use their departure and arrival zones.</div> : null}
         {members && members.length ? (
           <div className="p-sub">
             Travelling: {members.map((m) => m.display_name || m.email || 'Guest').join(', ')}
@@ -71,6 +72,10 @@ export default function PrintView({ trip, days, activities, packing, members }) 
                     {a.booking_ref ? ` · ref ${a.booking_ref}` : ''}
                   </div>
                   {(a.notes || '').trim() ? <div className="p-notes">{a.notes}</div> : null}
+                  {a.subtype === 'flight' ? <div className="p-notes">
+                    Departure: {a.day} · {a.details?.departure_timezone || 'time zone not set'}.
+                    {' '}Arrival: {a.details?.arrival_date || 'date not set'} · {a.details?.arrival_timezone || 'time zone not set'}.
+                  </div> : null}
                 </div>
               </div>
             ))}

@@ -1,11 +1,24 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart3, Table2, Settings } from 'lucide-react';
 import { CATEGORIES, categoryOf, fmtDay, money } from '@/lib/util';
+import { splitBudget } from '@/lib/budgetSplit';
 import { categoryIcon } from '@/lib/icons';
 
-export default function Budget({ trip, days, activities, onEditTrip }) {
+export default function Budget({ trip, days, activities, members = [], onSplitChange, onEditTrip }) {
   const [view, setView] = useState('chart');
+  const [selected, setSelected] = useState(trip.budget_member_ids ?? null);
+  const [saving, setSaving] = useState(false);
+  const [splitMessage, setSplitMessage] = useState('');
+  useEffect(() => { setSelected(trip.budget_member_ids ?? null); }, [trip.id, trip.budget_member_ids]);
+  const memberIds = members.map((m) => m.user_id);
+  const included = selected == null ? memberIds : selected.filter((id) => memberIds.includes(id));
+  async function saveSplit() {
+    setSaving(true); setSplitMessage('');
+    try { const ok = await onSplitChange(selected); setSplitMessage(ok ? 'Split saved for everyone on this trip.' : 'Could not save the split. Try again.'); }
+    catch { setSplitMessage('Could not save the split. Try again.'); }
+    finally { setSaving(false); }
+  }
   const currency = trip.currency || 'SGD';
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
   const budget = trip.budget == null ? null : Number(trip.budget);
@@ -90,6 +103,30 @@ export default function Budget({ trip, days, activities, onEditTrip }) {
           </div>
         </div>
       ) : null}
+
+      <section className="card budget-split" aria-labelledby="split-title">
+        <h3 id="split-title">Split between travellers</h3>
+        <p className="small muted">Divide the planned total equally among selected trip members. This is a planning estimate; payments and balances are not tracked.</p>
+        <label className="split-member"><input type="checkbox" checked={selected == null} disabled={saving}
+          onChange={(e) => { setSelected(e.target.checked ? null : [...included]); setSplitMessage(''); }} />
+          Include everyone, including new members</label>
+        <div className="split-members">
+          {members.map((m) => <label key={m.user_id} className="split-member">
+            <input type="checkbox" checked={included.includes(m.user_id)} disabled={saving}
+              onChange={(e) => { setSelected(e.target.checked ? [...included, m.user_id] : included.filter((id) => id !== m.user_id)); setSplitMessage(''); }} />
+            {m.display_name || m.email || 'Traveller'}
+          </label>)}
+        </div>
+        {included.length ? <div className="split-shares">
+          {splitBudget(total, included, currency).map(({ id, amount }) => <div className="spread" key={id}>
+            <span>{members.find((m) => m.user_id === id)?.display_name || members.find((m) => m.user_id === id)?.email || 'Traveller'}</span>
+            <strong className="mono">{new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)}</strong>
+          </div>)}
+          <p className="tiny dim">{money(total, currency)} across {included.length} {included.length === 1 ? 'person' : 'people'}. Rounding is distributed so shares add up to the total.</p>
+        </div> : <p className="small muted">Select at least one traveller to calculate a share.</p>}
+        {onSplitChange ? <button className="btn" disabled={saving || !included.length} onClick={saveSplit}>{saving ? 'Saving…' : 'Save split'}</button> : null}
+        {splitMessage ? <p className="small muted" role="status">{splitMessage}</p> : null}
+      </section>
 
       {view === 'chart' ? (
         <>

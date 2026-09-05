@@ -1,6 +1,7 @@
 import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
 import ViewportInsets from '@/components/ViewportInsets';
 import Tips from '@/components/Tips';
+import OfflineNotice from '@/components/OfflineNotice';
 import './globals.css';
 
 /*
@@ -75,6 +76,7 @@ export default function RootLayout({ children }) {
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ViewportInsets />
+        <OfflineNotice />
         {children}
         {/* One tooltip for the whole app, at the root so the landing page has
             it too — it is outside the provider that wraps everything else. */}

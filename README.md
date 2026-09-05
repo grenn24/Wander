@@ -3,6 +3,42 @@
 Day-by-day trips with a map, budget, packing list, shared notes and live
 multi-user editing. Next.js on Vercel, Supabase for data + auth + realtime.
 
+## Destination times, member splits and offline trips
+
+Apply `supabase/migrations/20260905090000_trip_timezone_budget_split.sql` to the
+hosted database **before deploying this version**. The local database has this
+migration. It adds nullable `trips.timezone` and `trips.budget_member_ids`; it
+does not guess zones for existing trips. The full schema also contains both.
+
+- Trip settings → Edit trip details: choose the destination’s IANA time zone.
+  AI-created plans can supply it. Calendar export uses that saved zone, never
+  the browser zone. Flights store departure/arrival zones and a local arrival
+  date in `activities.details`; enter these in the flight editor. Missing or
+  invalid timing produces an actionable calendar-sync error. Existing calendar
+  events need another sync after setting the correct zone.
+- Budget: divide the existing planned total equally among selected members.
+  Save the selection for collaborators, or include everyone automatically.
+  Shares respect the currency’s precision and sum to the rounded total. This
+  is an estimate, not a record of payments or debts.
+- During trip dates, Today opens Traveller mode with the current/next activity
+  and directions. Both use the destination clock, including overnight flights.
+- Trip settings → Download for offline: explicitly save a read-only snapshot
+  in IndexedDB. A service worker caches the independent `/offline.html` reader
+  and its assets, so it can start without Next, Supabase or a login connection.
+  Failed full-page navigations open that reader. The offline banner and Your
+  trips → Downloaded trips also link to it. Update or remove a saved copy from
+  trip settings. Signing out clears this browser’s downloads.
+
+Downloads include booking references and notes: use a personal device. They
+are not encrypted separately from browser storage, do not update automatically,
+and can be removed by the browser. Maps, photos, editing and live directions
+need a connection. Cache only the reader assets, never authenticated pages,
+API responses or Google imagery. Bump the cache version in `public/sw.js` when
+changing reader assets; its script is served with `Cache-Control: no-store`.
+
+Implementation references: [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers)
+and [Google Calendar event times](https://developers.google.com/workspace/calendar/api/v3/reference/events).
+
 ## Configuration
 
 The app reads its Supabase connection from two environment variables. There is

@@ -4,6 +4,7 @@ import { X, Loader2, MapPin } from 'lucide-react';
 import { CATEGORIES, fmtDay } from '@/lib/util';
 import { TRANSPORT, transportOf } from '@/lib/transport';
 import { searchPlaces } from '@/lib/geo';
+import TimezoneField from '@/components/TimezoneField';
 import Select from '@/components/Select';
 import DateField from '@/components/DateField';
 import { hasStayDates, lodgingError, cleanLodging } from '@/lib/lodging';
@@ -297,7 +298,17 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
 
             {mode ? (
               <div className="row tfields">
-                {mode.fields.map((f) => (
+                {mode.fields.map((f) => f.type === 'timezone' ? (
+                  <TimezoneField key={f.k} id={`tf-${f.k}`} label={f.label}
+                    value={draft.details?.[f.k] || ''}
+                    onChange={(value) => set({ details: { ...(draft.details || {}), [f.k]: value } })} />
+                ) : f.type === 'date' ? (
+                  <div className="field" key={f.k}>
+                    <label className="label" htmlFor={`tf-${f.k}`}>{f.label}</label>
+                    <DateField id={`tf-${f.k}`} label={f.label} value={draft.details?.[f.k] || ''}
+                      initialDate={draft.day} onChange={(value) => set({ details: { ...(draft.details || {}), [f.k]: value } })} />
+                  </div>
+                ) : (
                   <div className="field" key={f.k}>
                     <label className="label" htmlFor={`tf-${f.k}`}>{f.label}</label>
                     <input id={`tf-${f.k}`} className="input" placeholder={f.ph}
@@ -339,13 +350,13 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
             <div className="row">
               {!hasStayDates(draft) ? <>
               <div className="field">
-                <label className="label" htmlFor="as">Start</label>
-                <TimeField id="as" label="Start" value={draft.start_time || ''}
+                <label className="label" htmlFor="as">{draft.subtype === 'flight' ? 'Departure (local)' : 'Start'}</label>
+                <TimeField id="as" label={draft.subtype === 'flight' ? 'Departure (local)' : 'Start'} value={draft.start_time || ''}
                   onChange={(v) => set({ start_time: v })} />
               </div>
               <div className="field">
-                <label className="label" htmlFor="ae">End</label>
-                <TimeField id="ae" label="End" value={draft.end_time || ''}
+                <label className="label" htmlFor="ae">{draft.subtype === 'flight' ? 'Arrival (local)' : 'End'}</label>
+                <TimeField id="ae" label={draft.subtype === 'flight' ? 'Arrival (local)' : 'End'} value={draft.end_time || ''}
                   onChange={(v) => set({ end_time: v })} />
               </div>
               </> : null}

@@ -11,11 +11,11 @@ import Select from '@/components/Select';
 import Popover from '@/components/Popover';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
-  categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs, todayISO,
+  categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
   shortPlace, activityGap, fmtDuration,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
-import { nowMinutes, readDay } from '@/lib/day';
+import { clockAt, tripNow } from '@/public/trip-time';
 import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
@@ -40,7 +40,7 @@ export default function Itinerary({
   // does nothing visible for half a second reads as a click that missed.
   opening = '',
 }) {
-  const today = todayISO();
+  const today = clockAt(trip.timezone).day;
   const todayIndex = days.indexOf(today);
   /*
    * Whatever is already in your own calendar on these dates. Shown at the head
@@ -58,7 +58,7 @@ export default function Itinerary({
   const [flash, setFlash] = useState(null);
   // Re-read on a timer so the marked row moves with the day rather than with
   // whenever the page last happened to render.
-  const [clock, setClock] = useState(nowMinutes);
+  const [clock, setClock] = useState(() => new Date());
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
   const [deleteAct, setDeleteAct] = useState(null);
@@ -87,7 +87,7 @@ export default function Itinerary({
    */
   const onToday = days.includes(today);
   const live = onToday
-    ? readDay(itineraryEntries(activities).filter((a) => a.day === today), clock).now : null;
+    ? tripNow(trip, itineraryEntries(activities), clock).now : null;
   const liveId = live ? String(live._entryId || live.id) : null;
 
   const wantId = (focus && focus.id) || urlFocus || null;
@@ -238,10 +238,9 @@ export default function Itinerary({
   }, [wantKey, focusHere]);
 
   useEffect(() => {
-    if (!onToday) return undefined;
-    const t = setInterval(() => setClock(nowMinutes()), 30000);
+    const t = setInterval(() => setClock(new Date()), 30000);
     return () => clearInterval(t);
-  }, [onToday]);
+  }, []);
 
   /*
    * Opening a trip already under way should land where the day has got to, not

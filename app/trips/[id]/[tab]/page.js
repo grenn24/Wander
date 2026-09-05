@@ -8,6 +8,8 @@ import { useTrip } from '@/components/TripProvider';
 import { isTripTab, resolveTab } from '@/lib/icons';
 import Itinerary from '@/components/Itinerary';
 import MapView from '@/components/MapView';
+import OfflineDownload from '@/components/OfflineDownload';
+import { removeDownload } from '@/public/offline-store';
 import Budget from '@/components/Budget';
 import Packing from '@/components/Packing';
 import Notes from '@/components/Notes';
@@ -28,11 +30,11 @@ export default function TripTabPage({ params }) {
   const router = useRouter();
   const { supabase, user, fail, pushToast } = useApp();
   const {
-    trip, days, activities, packing, members, online, isOwner, setTrip,
+    trip, days, activities, packing, members, online, isOwner,
     focusReq, clearFocus, intent, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addActivities, addPackingItems,
-    addPacking, updatePacking, deletePacking, saveNotes, removeMember,
+    addPacking, updatePacking, deletePacking, saveNotes, removeMember, updateTrip,
   } = useTrip();
 
   const [editing, setEditing] = useState(null);
@@ -105,19 +107,21 @@ export default function TripTabPage({ params }) {
       start_date: start,
       end_date: end,
       currency: d.currency || 'SGD',
+      timezone: d.timezone || null,
       budget: d.budget === '' || d.budget == null ? null : Number(d.budget),
       updated_at: new Date().toISOString(),
     };
-    setTrip((prev) => ({ ...prev, ...payload }));
-    setTripDraft(null);
-    const { error } = await supabase.from('trips').update(payload).eq('id', trip.id);
-    if (error) fail(error); else pushToast('Trip updated.');
+    if (await updateTrip(payload)) {
+      setTripDraft(null);
+      pushToast('Trip updated.');
+    }
   }
 
   async function deleteTrip() {
     if (!supabase) return;
     const { error } = await supabase.from('trips').delete().eq('id', trip.id);
     if (error) { fail(error); return; }
+    await removeDownload(trip.id).catch(() => {});
     pushToast('Trip deleted.');
     router.push('/trips');
   }
@@ -128,6 +132,7 @@ export default function TripTabPage({ params }) {
       .eq('trip_id', trip.id).eq('user_id', user.id);
     if (error) { fail(error); return; }
     pushToast('You have left the trip.');
+    await removeDownload(trip.id).catch(() => {});
     router.push('/trips');
   }
 
@@ -164,7 +169,8 @@ export default function TripTabPage({ params }) {
       ) : null}
 
       {tab === 'budget' ? (
-        <Budget trip={trip} days={days} activities={activities}
+        <Budget trip={trip} days={days} activities={activities} members={members}
+          onSplitChange={(budget_member_ids) => updateTrip({ budget_member_ids })}
           onEditTrip={() => setTripDraft({ ...trip })} />
       ) : null}
 
@@ -181,9 +187,15 @@ export default function TripTabPage({ params }) {
 
       {tab === 'settings' ? (
         <>
+          <section className="card tset">
+            <h3 className="tset-h">Trip details</h3>
+            <p className="tset-hint">{trip.timezone ? `Local times in ${trip.timezone}` : 'Choose the destination time zone before adding the trip to your calendar.'}</p>
+            <button className="btn" onClick={() => setTripDraft({ ...trip })}>Edit trip details</button>
+          </section>
           <People members={members} online={online} user={user} isOwner={isOwner}
             shareUrl={shareUrl} onRemove={removeMember}
             onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
+          <OfflineDownload />
           <CalendarLink mode="trip" trip={trip}
             synced={activities.some((a) => a.google_event_id)} />
         </>

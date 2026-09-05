@@ -9,9 +9,10 @@ import { useTrip } from '@/components/TripProvider';
 import { activityIcon } from '@/lib/icons';
 import { transportLine } from '@/lib/transport';
 import {
-  fmtDayTiny, fmtTime, money, shortPlace, sortActs, todayISO,
+  fmtDayTiny, fmtTime, money, shortPlace,
 } from '@/lib/util';
-import { nowMinutes, readDay, toMinutes, until } from '@/lib/day';
+import { until } from '@/lib/day';
+import { tripNow } from '@/public/trip-time';
 
 /**
  * The trip, while you are on it.
@@ -43,7 +44,7 @@ function directions(act) {
 
 export default function Tourist({ onClose }) {
   const { trip, days, activities } = useTrip();
-  const [at, setAt] = useState(nowMinutes);
+  const [date, setDate] = useState(() => new Date());
   const [ready, setReady] = useState(false);
   const [routeTo, setRouteTo] = useState(null); // the stop being routed to
 
@@ -51,7 +52,7 @@ export default function Tourist({ onClose }) {
 
   // The clock is the only thing on this screen that changes by itself.
   useEffect(() => {
-    const t = setInterval(() => setAt(nowMinutes()), 30000);
+    const t = setInterval(() => setDate(new Date()), 30000);
     return () => clearInterval(t);
   }, []);
 
@@ -67,18 +68,9 @@ export default function Tourist({ onClose }) {
 
   if (!ready || !trip) return null;
 
-  const today = todayISO();
-  /*
-   * Away from the trip's dates there is no "now", so the screen shows day one
-   * and says so — a preview rather than an error, and the reason this is
-   * reachable before anyone has left home.
-   */
-  const live = days.includes(today);
-  const day = live ? today : days[0];
-  const list = activities.filter((a) => a.day === day).slice().sort(sortActs);
-  const { now, next } = readDay(list, live ? at : -1);
+  const { live, day, minutes: at, now, next, minutesUntil: away } = tripNow(trip, activities, date);
+  const list = activities.filter((a) => a.day === day);
   const dayNo = days.indexOf(day) + 1;
-  const away = next ? (toMinutes(next.start_time) ?? 0) - at : null;
 
   /*
    * The middle of the screen is whatever is closest to hand: what you are
@@ -92,7 +84,7 @@ export default function Tourist({ onClose }) {
   const place = lead ? shortPlace(lead.location) : '';
   const leg = lead && lead.category === 'transport'
     ? transportLine(lead.subtype, lead.details) : '';
-  const leadAway = !onIt && live && lead ? (toMinutes(lead.start_time) ?? 0) - at : null;
+  const leadAway = !onIt && live && lead ? away : null;
   const leadTo = onIt ? '' : directions(lead);
   const afterTo = directions(after);
 
@@ -113,6 +105,7 @@ export default function Tourist({ onClose }) {
       </header>
 
       <main className="today-now">
+        <p className="tiny dim">{trip.timezone ? `Local time · ${trip.timezone}` : "Set the destination time zone in trip settings to show what is happening now."}</p>
         {lead ? (
           <>
             <span className="today-mark" aria-hidden="true"><Icon size={26} /></span>
@@ -126,6 +119,10 @@ export default function Tourist({ onClose }) {
               {lead.end_time ? ` – ${fmtTime(lead.end_time)}` : ''}
             </p>
             {leg ? <p className="today-leg mono">{leg}</p> : null}
+            {lead.subtype === 'flight' ? <p className="small muted">
+              Depart {lead.day} · {lead.details?.departure_timezone || 'zone not set'}<br />
+              Arrive {lead.details?.arrival_date || 'date not set'} · {lead.details?.arrival_timezone || 'zone not set'}
+            </p> : null}
             {place ? <p className="today-place"><MapPin size={14} /> {place}</p> : null}
             {lead.booking_ref ? <p className="today-ref mono">{lead.booking_ref}</p> : null}
             {Number(lead.cost) > 0 ? (

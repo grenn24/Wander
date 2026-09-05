@@ -3,11 +3,12 @@
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Settings, Binoculars } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Download, Settings, Binoculars } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
 import { CommandProvider, CommandTrigger } from '@/components/Command';
+import TodayButton from '@/components/TodayButton';
 import Tourist from '@/components/Tourist';
 import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
 
@@ -98,6 +99,7 @@ function TripChrome({ tripId, children }) {
           )}
           menu={[
             { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
+            { id: 'offline', label: 'Download for offline', icon: Download, href: `/trips/${tripId}/settings` },
             { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
             { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
           ]}
@@ -122,6 +124,7 @@ function TripChrome({ tripId, children }) {
           )}
         </TopBar>
 
+        <TodayButton trip={trip} activities={activities} onOpen={() => setTouring(true)} />
         <div className="body">
           <nav className="rail" aria-label="Trip sections">
             {TRIP_NAV.map((t) => {

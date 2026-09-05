@@ -10,6 +10,7 @@ import {
 import Popover from '@/components/Popover';
 import { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
+import { removeDownload } from '@/public/offline-store';
 import TripModal from '@/components/TripModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import PlanPrompt from '@/components/PlanPrompt';
@@ -151,6 +152,7 @@ export default function TripsHome() {
       start_date: t.start_date,
       end_date: t.end_date,
       currency: t.currency,
+      timezone: t.timezone || null,
       budget: t.budget,
       notes: t.notes || '',
       cover_ref: t.cover_ref || covers[t.id] || null,
@@ -176,6 +178,7 @@ export default function TripsHome() {
     setMenuFor(null);
     const { error } = await supabase.from('trips').delete().eq('id', t.id);
     if (error) { fail(error); return; }
+    await removeDownload(t.id).catch(() => {});
     pushToast(`"${t.name}" deleted.`);
     await load();
   }
@@ -190,6 +193,7 @@ export default function TripsHome() {
       start_date: start,
       end_date: end,
       currency: d.currency || 'SGD',
+      timezone: d.timezone || null,
       budget: d.budget === '' || d.budget == null ? null : Number(d.budget),
       updated_at: new Date().toISOString(),
     };
@@ -225,6 +229,7 @@ export default function TripsHome() {
               </div>
             </div>
             <div className="page-head-acts">
+              <a className="btn" href="/offline.html">Downloaded trips</a>
               {/* Only worth offering once there is a list to have an opinion
                   about. */}
               {trips.length > 1 ? (

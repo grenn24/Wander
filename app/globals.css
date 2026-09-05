@@ -4074,3 +4074,19 @@ body::before {
     backdrop-filter: none;
   }
 }
+/* Planning estimates and travel-day shortcuts use the same warm surfaces. */
+.budget-split { margin-top: 18px; }
+.split-members { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0; }
+.split-member { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.split-member input { width: 18px; height: 18px; accent-color: var(--accent); }
+.split-shares { border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 12px; }
+.split-shares .spread { gap: 16px; padding: 6px 0; }
+.today-entry { display: flex; align-items: center; gap: 14px; width: calc(100% - 32px); max-width: 1180px; margin: 14px auto; padding: 16px 20px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-1); color: var(--text-1); text-align: left; cursor: pointer; font: inherit; }
+.today-entry > span:first-of-type { display: grid; gap: 3px; min-width: 0; }
+.today-entry > span:first-of-type > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-2); }
+.today-entry-action { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; flex-shrink: 0; }
+.today-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.offline-notice { position: relative; z-index: 40; padding: 12px 20px; background: var(--surface-1); border-bottom: 1px solid var(--border); text-align: center; font-size: 14px; }
+.offline-notice a { text-decoration: underline; }
+@media (max-width: 600px) { .today-entry { padding: 12px; flex-wrap: wrap; gap: 10px; } .today-entry > span:first-of-type { flex: 1; } .today-entry-action { width: 100%; padding-left: 32px; } }
+@media print { .today-entry, .offline-notice, .offline-download { display: none !important; } }

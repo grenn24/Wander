@@ -123,7 +123,7 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
     // Nothing to offer until the account has a calendar on it, and no reason
     // to advertise the feature from inside a trip.
     if (!state || !state.connected) return null;
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const zone = trip?.timezone;
     return (
       <section className="card tset">
         <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Calendar</h3>
@@ -147,7 +147,7 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
           </div>
         ) : (
           <div className="chiprow">
-            <button className="btn primary" type="button" disabled={!!busy} onClick={push}>
+            <button className="btn primary" type="button" disabled={!!busy || !zone} onClick={push}>
               {busy === 'push' ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
               {' '}Add this trip to my calendar
             </button>
@@ -162,7 +162,7 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
         )}
 
         <p className="tiny dim" style={{ margin: '10px 0 0' }}>
-          Times in {zone}. Syncing again updates the same events rather than adding more,
+          {zone ? `Times in ${zone}; flights use their departure and arrival zones.` : 'Choose a destination time zone in trip settings to sync.'} Syncing again updates the same events rather than adding more,
           and removing takes out everything this trip put there.
         </p>
         {problem}

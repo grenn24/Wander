@@ -7,6 +7,7 @@ import { useApp } from '@/components/AppProvider';
 import { dayRange, sortActs, parseQuickAdd, nextSortOrder } from '@/lib/util';
 import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
+import { removeDownload } from '@/public/offline-store';
 import { lodgingPayload, moveStay } from '@/lib/lodging';
 
 const Ctx = createContext(null);
@@ -78,7 +79,7 @@ export default function TripProvider({ tripId, children }) {
     ]);
     if (mine !== token.current) return; // superseded
     if (t.error) { fail(t.error); return; }
-    if (!t.data) { setNotFound(true); setLoadedId(id); return; }
+    if (!t.data) { removeDownload(id).catch(() => {}); setNotFound(true); setLoadedId(id); return; }
     setNotFound(false);
     setTrip(t.data);
     if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
@@ -398,7 +399,8 @@ export default function TripProvider({ tripId, children }) {
     const clean = { ...patch, updated_at: new Date().toISOString() };
     setTrip((prev) => (prev ? { ...prev, ...clean } : prev));
     const { error } = await supabase.from('trips').update(clean).eq('id', tripId);
-    if (error) { fail(error); load(tripId); }
+    if (error) { fail(error); load(tripId); return false; }
+    return true;
   }, [supabase, tripId, fail, load]);
 
   const saveNotes = useCallback(async (text) => {

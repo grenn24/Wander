@@ -96,6 +96,9 @@ alter table public.activities add column if not exists subtype text;
 alter table public.activities add column if not exists details  jsonb not null default '{}'::jsonb;
 alter table public.trips      add column if not exists cover_ref text;
 
+alter table public.trips add column if not exists timezone text;
+alter table public.trips add column if not exists budget_member_ids uuid[];
+
 -- The event this activity became in someone's Google Calendar, so a second
 -- sync updates what it wrote the first time instead of adding it all again.
 alter table public.activities add column if not exists google_event_id text;

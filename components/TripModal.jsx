@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CURRENCIES, dayRange } from '@/lib/util';
+import TimezoneField from '@/components/TimezoneField';
 import Select from '@/components/Select';
 import DateField from '@/components/DateField';
 import { useModalChrome } from '@/lib/useModal';
@@ -55,6 +56,8 @@ export default function TripModal({ draft, onChange, onSave, onClose }) {
               placeholder="Tokyo & Nagoya" onKeyDown={onEnter}
               onChange={(e) => set({ destination: e.target.value })} />
           </div>
+          <TimezoneField id="trip-timezone" value={draft.timezone} onChange={(timezone) => set({ timezone })} />
+          <p className="tiny dim">Use the destination’s local time. Flights have their own departure and arrival zones.</p>
           <div className="row">
             <div className="field">
               <label className="label" htmlFor="ts">Start</label>

@@ -213,6 +213,41 @@ to copy.
 
 Match the surrounding code — it is consistent and deliberate.
 
+### Destination times, splits and offline access (5 September 2026)
+
+- Before deploying, apply `supabase/migrations/20260905090000_trip_timezone_budget_split.sql`
+  to the hosted database. It is applied locally. Existing zones stay null until
+  chosen in Trip settings → Edit trip details; never use the browser zone for
+  calendar export. New planner output includes the destination IANA zone.
+- `public/trip-time.js` is shared by Next and the independent offline reader.
+  Flight endpoint zones and local arrival date live in `activities.details`.
+  Calendar events include absolute instants and the endpoint IANA zones.
+- Budget splits divide the existing total. `budget_member_ids = null` means all
+  current members; otherwise use the selected current members. Round using the
+  currency precision and distribute the remainder, rather than rounding every
+  person's share independently.
+- Downloads are explicit read-only IndexedDB snapshots, with an independent
+  cached reader at `/offline.html`. Never cache authenticated Next pages, APIs,
+  tokens, share codes or Google imagery. Clear downloads on sign-out; show their
+  saved date. Bump `public/sw.js`'s cache version when changing reader assets.
+- Local RLS persistence smoke test: pipe `tests/travel-storage.sql` into the
+  local Docker Postgres with `psql -v ON_ERROR_STOP=1`. It uses the dedicated
+  Notes E2E Tester and rolls back all fixtures.
+- Validation: 88 Node tests, production build, authenticated local database
+  smoke test, and visible browser checks. The reader opened and reloaded with
+  Next stopped; sign-out removed downloads. Member selection survived reload,
+  flight endpoint zones survived editing, and a phone-width viewport had no
+  horizontal overflow. A real Google Calendar write and a physical phone were
+  not tested.
+- On this Windows setup, build and start Next from the resolved project path
+  (`C:/Users/Hoo Di Heng/OneDrive/Documents/Computer Science/Projects/Web Apps/wander-planner`).
+  Mixing the E: alias with the resolved path produced duplicate absolute paths
+  in Next's manifest lookup, despite a successful build.
+- A reusable fictional trip is retained under Travel E2E Tester:
+  `0fd0ae3f-91a8-4d6f-8a90-eea84cebd85a`. Local-only fixture login details are in
+  untracked `tmp/travel-e2e.json`. It was seeded through ordinary local sign-up,
+  with no admin or production credentials.
+
 - Comments explain **why**, not what, and often name the bug that caused the
   line to exist. Keep that; it is why the codebase is debuggable.
 - British spelling in prose and UI copy.

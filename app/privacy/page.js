@@ -11,7 +11,7 @@ const CONTACT = 'REPLACE_WITH_YOUR_CONTACT_EMAIL';
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy Policy" updated="3 September 2026">
+    <LegalPage title="Privacy Policy" updated="5 September 2026">
       <p>
         Wander is a travel itinerary planner. This policy describes what it stores, what it
         sends elsewhere, and how to have it deleted. It is written to be read rather than
@@ -38,6 +38,13 @@ export default function Privacy() {
         <li>
           <b>Google Calendar access, only if you connect it.</b> See the section below.
         </li>
+        <li>
+          <b>Offline downloads, only when you request them.</b> The itinerary, addresses,
+          booking references, notes and packing list are saved in this browser on your device.
+          Anyone who can use that browser can read them without signing in again. They are
+          snapshots: later changes and access removals cannot reach a device while it is offline.
+          Remove a copy from Downloaded trips or sign out of Wander to clear this browser’s downloads.
+        </li>
       </ul>
 
       <h2>What Wander does not store</h2>
@@ -52,9 +59,8 @@ export default function Privacy() {
         </li>
         <li>
           <b>Advertising or analytics data.</b> There are no advertising cookies, no trackers
-          and no analytics service. The only thing kept in your browser is the token that
-          keeps you signed in and a couple of preferences, such as whether you like trips as
-          cards or as a list.
+          and no analytics service. Your browser keeps your sign-in token, display preferences
+          and any trips you explicitly download for offline access.
         </li>
       </ul>
 
