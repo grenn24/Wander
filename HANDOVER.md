@@ -256,9 +256,14 @@ Match the surrounding code — it is consistent and deliberate.
   Preserve keyboard navigation, accessible labels, and light/dark theme support.
 - Native browser date/time pickers are also prohibited. Use `DateField.jsx`
   for calendars and `TimeField.jsx` for times; no date/time/month/week inputs.
-- Floating map panels and command surfaces use subtle frosted glass, with
-  readable text and opaque fallbacks for reduced transparency. Keep other
-  warm-earth surfaces opaque unless the owner asks otherwise.
+- Floating map panels, map day chips, Map appearance, Search this area and
+  command surfaces share a Liquid Glass-inspired CSS treatment: translucent
+  tint, saturated backdrop blur, light gradients and inset edge highlights.
+  Keep readable text, selected-day accents and opaque reduced-transparency
+  fallbacks. Other warm-earth surfaces stay opaque. The command scrim must
+  not filter its own backdrop or it prevents the panel from sampling the page.
+- The map shell fills the viewport using flex sizing, including the variable
+  Today banner height, so the phone's bottom sheet stays above its navigation.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm

@@ -4032,14 +4032,53 @@ body::before {
   .planquestions-actions .btn { flex: 1; }
 }
 
-/* Floating map and command surfaces: frosted, without fading their contents.
-   Keep this scoped so the rest of the warm-earth UI remains opaque. */
-.mappanel, .cmd-pill, .ck {
+/* A shared glass lens for floating controls. Gradients catch the light without
+   extra layers over the controls or fading text, icons and day colours. */
+:is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo) {
   --overlay-muted: color-mix(in srgb, var(--text-2) 80%, var(--text-1));
+  --lens-light: linear-gradient(135deg, rgb(255 255 255 / .16),
+    rgb(255 255 255 / .025) 38%, transparent 60%, rgb(255 255 255 / .07));
   background: var(--surface-1);
-  border-color: color-mix(in srgb, var(--text-1) 16%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .18),
-    0 12px 36px -16px rgb(0 0 0 / .3);
+  border-color: color-mix(in srgb, var(--text-1) 20%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .42),
+    inset 1px 0 0 rgb(255 255 255 / .14),
+    inset 0 -1px 0 rgb(255 255 255 / .09),
+    0 2px 5px rgb(0 0 0 / .06), 0 12px 32px -16px rgb(0 0 0 / .38);
+}
+.mapdays .daychip.active {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 65%, white);
+}
+.mapdays .daychip:not(.active) .daychip-d {
+  color: var(--overlay-muted);
+}
+:is(.cmd-pill, .mapredo, .mapdays .daychip):hover,
+.map-appearance:has(summary:hover) {
+  border-color: color-mix(in srgb, var(--text-1) 36%, transparent);
+}
+.map-appearance[open] { border-radius: 18px; }
+.mappanel { border-radius: 22px; }
+.ck { border-radius: 26px; }
+/* The Today banner has a variable height. Let the map fill the space left
+   below it instead of adding a full viewport and hiding the bottom sheet. */
+.shell:has(.mapstage) {
+  height: calc(100dvh - var(--vv-bottom, 0px));
+  min-height: 0;
+}
+.shell:has(.mapstage) > :is(.topbar, .today-entry) { flex-shrink: 0; }
+.shell:has(.mapstage) .rail { height: auto; align-self: stretch; }
+.main:has(.mapstage), .wrap:has(.mapstage) { display: flex; min-height: 0; }
+.wrap:has(.mapstage) { flex: 1; min-width: 0; }
+.wrap > .mapstage { flex: 1; min-width: 0; height: auto; }
+@media (max-width: 1000px) {
+  .mappanel { border-radius: 22px 22px 0 0; }
+}
+/* Let the command lens sample the page: filtering its parent creates a
+   backdrop boundary and would leave the panel looking flat. */
+.ck-back {
+  background: rgb(10 10 10 / .28);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .mappanel .muted, .mappanel .dim, .mappanel .mapside-h,
 .mappanel .mapside-where, .mappanel .mappanel-grab-label,
@@ -4048,31 +4087,38 @@ body::before {
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .mappanel, .cmd-pill, .ck {
-    background: color-mix(in srgb, var(--surface-1) 82%, transparent);
-    -webkit-backdrop-filter: blur(24px) saturate(145%);
-    backdrop-filter: blur(24px) saturate(145%);
+  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo) {
+    background: var(--lens-light), color-mix(in srgb, var(--surface-1) 72%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
+  }
+  .mapdays .daychip.active {
+    background: var(--lens-light), color-mix(in srgb, var(--accent) 88%, transparent);
   }
   .mappanel-head, .ck-top {
-    background: color-mix(in srgb, var(--surface-1) 28%, transparent);
+    background: color-mix(in srgb, var(--surface-1) 16%, transparent);
     border-color: color-mix(in srgb, var(--text-1) 12%, transparent);
   }
   .mappanel .stop:not(.is-focus), .mappanel .mapfind, .cmd-pill kbd {
-    background: color-mix(in srgb, var(--surface-1) 48%, transparent);
+    background: color-mix(in srgb, var(--surface-1) 36%, transparent);
   }
   .mappanel .stop.is-focus {
     background: color-mix(in srgb, var(--accent-soft) 86%, transparent);
   }
 }
 
-/* A solid fallback is intentional: reduced transparency must win over the
-   enhancement, including the command panel's earlier warm-earth overrides. */
+/* Keep both the lens and its nested surfaces solid when requested. */
 @media (prefers-reduced-transparency: reduce) {
-  .mappanel, .cmd-pill, .ck {
+  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo),
+  .mappanel-head, .ck-top, .mappanel .stop:not(.is-focus),
+  .mappanel .mapfind, .cmd-pill kbd {
     background: var(--surface-1);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  .mapdays .daychip.active { background: var(--accent); }
+  .mappanel .stop.is-focus { background: var(--accent-soft); }
+  .ck-back { background: rgb(10 10 10 / .6); }
 }
 /* Planning estimates and travel-day shortcuts use the same warm surfaces. */
 .budget-split { margin-top: 18px; }
