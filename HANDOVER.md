@@ -264,6 +264,9 @@ Match the surrounding code — it is consistent and deliberate.
   not filter its own backdrop or it prevents the panel from sampling the page.
 - The map shell fills the viewport using flex sizing, including the variable
   Today banner height, so the phone's bottom sheet stays above its navigation.
+- Anchor the command shortcut with viewport units, not percentage offsets:
+  page scrollbars otherwise shift it sideways between the map and itinerary.
+  Keep its bottom offset shared across routes.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm

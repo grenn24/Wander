@@ -2186,7 +2186,9 @@ body:has(.lp)::before { display: none; }
 /* ========================================================= command bar --- */
 /* Floats over the workspace on every trip tab, clear of the mobile tab bar. */
 .cmd-pill {
-  position: fixed; z-index: 55; left: 50%; transform: translateX(-50%);
+  /* Percentages centre inside the space left by the page scrollbar. Viewport
+     units keep this shortcut still across long pages, maps and scroll locks. */
+  position: fixed; z-index: 55; left: 50vw; transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom) + var(--vv-bottom, 0px));
 }
 @media (max-width: 860px) {
@@ -2221,11 +2223,10 @@ body:has(.lp)::before { display: none; }
    goes to the accessible name instead. */
 @media (max-width: 640px) {
   .cmd-pill {
-    /* viewport-fit=cover lets the page run under the rounded corners and the
-       notch, so a fixed 14px from the edge is 14px from the *screen*, not from
-       the usable area. In landscape on a notched phone that put this half
-       under the bezel. */
-    left: auto; right: max(14px, env(safe-area-inset-right)); transform: none;
+    /* Keep one screen-edge anchor even when a scrollbar appears. Leave room
+       for classic scrollbars and respect the notch in landscape. */
+    left: calc(100vw - max(30px, env(safe-area-inset-right)) - 52px);
+    right: auto; transform: none;
     width: 52px; height: 52px; padding: 0; border-radius: 50%;
     justify-content: center; box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
   }
@@ -3177,11 +3178,7 @@ body:has(.lp)::before { display: none; }
   .mappanel-head .mapkinds::-webkit-scrollbar { display: none; }
   .mappanel-head .mapkinds .btn { flex: none; }
 
-  /* Anchor to the collapsed sheet, not its animated height. Opening search
-     results must not move the shortcut to a different part of the screen. */
-  .shell:has(.mapstage) .cmd-pill {
-    bottom: calc(var(--tabbar-h) + 148px + 12px);
-  }
+  /* The command shortcut keeps its shared viewport position on every tab. */
 }
 @media (max-width: 1000px) and (prefers-reduced-motion: reduce) {
   .mappanel { transition: none; }
