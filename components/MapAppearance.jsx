@@ -49,7 +49,9 @@ export default function MapAppearance({ preferences, onChange }) {
         event.currentTarget.querySelector('summary').focus();
       }
     }}>
-      <summary><Layers size={15} aria-hidden="true" /> Map appearance</summary>
+      <summary aria-label="Map appearance">
+        <Layers size={15} aria-hidden="true" /><span className="map-appearance-label">Map appearance</span>
+      </summary>
       <button type="button" className="btn icon-btn map-appearance-close" aria-label="Close map appearance"
         onClick={(event) => {
           const panel = event.currentTarget.closest('details');

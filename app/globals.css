@@ -3153,6 +3153,8 @@ body:has(.lp)::before { display: none; }
 
   .mapstage { height: calc(100dvh - var(--topbar-h) - var(--vv-bottom, 0px)); }
   .mapdays { max-width: calc(100% - 24px); right: 12px; }
+  .map-appearance-label { display: none; }
+  .map-appearance:not([open]) summary { width: 44px; height: 44px; padding: 0; justify-content: center; }
 
   .mappanel {
     top: auto; left: 0; right: 0; width: auto;
