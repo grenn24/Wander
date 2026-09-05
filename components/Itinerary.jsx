@@ -20,6 +20,8 @@ import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
+import { activityDistance } from '@/lib/geo';
+import TravelEstimate from '@/components/TravelEstimate';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -391,6 +393,7 @@ export default function Itinerary({
                 const cat = categoryOf(a.category);
                 const prev = list[k - 1];
                 const gapMins = activityGap(prev, a);
+                const distance = activityDistance(prev, a);
                 const place = shortPlace(a.location);
                 // A flight's gate is worth more on the row than the address of
                 // the airport it leaves from.
@@ -399,9 +402,18 @@ export default function Itinerary({
 
                 return (
                   <div key={a._entryId || a.id}>
-                    {gapMins != null ? (
-                      <div className="gap"><Clock size={13} aria-hidden="true" />
-                        <span>{fmtDuration(gapMins)} between activities</span>
+                    {gapMins != null || distance != null ? (
+                      <div className="gap itinerary-between">
+                        {distance != null ? (
+                          <div className="itinerary-leg"
+                            data-tip="Straight-line distance. Actual routes may take longer.">
+                            <TravelEstimate km={distance} />
+                          </div>
+                        ) : null}
+                        {gapMins != null ? <span className="itinerary-gap-time">
+                          <Clock size={13} aria-hidden="true" />
+                          {fmtDuration(gapMins)} between activities
+                        </span> : null}
                       </div>
                     ) : null}
 
@@ -463,6 +475,10 @@ export default function Itinerary({
                 );
               })}
             </div>
+
+            {list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
+              <p className="itinerary-distance-note">Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
+            ) : null}
 
             <QuickAdd
               day={d}

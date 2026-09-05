@@ -1,13 +1,13 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Compass, MapPinOff, Loader2, Plus, SquarePen, X, Footprints, TrainFront, TriangleAlert,
+  Compass, MapPinOff, Loader2, Plus, SquarePen, X,
   Search, Crosshair, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { categoryOf, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
 import { activityIcon, categoryIcon } from '@/lib/icons';
 import {
-  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, walkMinutes, placeDetails,
+  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
   NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, {
@@ -16,6 +16,7 @@ import GoogleMap, {
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
 import { viewportChanged } from '@/lib/explore';
+import TravelEstimate from '@/components/TravelEstimate';
 
 
 export default function MapView({
@@ -73,9 +74,8 @@ export default function MapView({
     const out = {};
     let prev = null;
     stops.forEach((a) => {
-      if (prev && prev.day === a.day) {
-        out[a.id] = haversine(prev.lat, prev.lng, a.lat, a.lng);
-      }
+      const km = activityDistance(prev, a);
+      if (km != null) out[a.id] = km;
       prev = a;
     });
     return out;
@@ -598,15 +598,7 @@ export default function MapView({
                         <div key={a.id}>
                           {leg != null ? (
                             <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
-                              {leg > 60 ? <TriangleAlert size={15} aria-hidden="true" />
-                                : leg > 5 ? <TrainFront size={15} aria-hidden="true" />
-                                  : <Footprints size={15} aria-hidden="true" />}
-                              <div className="map-leg-detail">
-                                <strong>≈ {fmtKm(leg)}</strong>
-                                <span>{leg > 60 ? 'Long transfer · check travel time'
-                                  : leg > 5 ? 'Consider public transport or a taxi'
-                                    : `About ${Math.max(1, walkMinutes(leg))} min walk`}</span>
-                              </div>
+                              <TravelEstimate km={leg} />
                             </div>
                           ) : null}
                           <div id={`stop-${a.id}`}

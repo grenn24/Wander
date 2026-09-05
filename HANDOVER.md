@@ -271,6 +271,10 @@ Match the surrounding code — it is consistent and deliberate.
   visible marker numbering. Transfer connectors stay within each day; distances
   are straight-line estimates, not routed distances. Stop cards use a light
   translucent fill without their own backdrop blur inside the glass panel.
+- `TravelEstimate.jsx` supplies the same distance and walking/transport labels
+  to the map and itinerary. Itinerary transfers sit beside time gaps and appear
+  even for back-to-back activities; missing coordinates do not create a route.
+  `activityDistance` validates coordinates and same-day boundaries.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm
