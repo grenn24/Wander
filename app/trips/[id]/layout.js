@@ -94,7 +94,7 @@ function TripChrome({ tripId, children }) {
   }
 
   return (
-    <CommandProvider>
+    <CommandProvider floating={active !== 'map'}>
       <div className="shell">
         <TopBar
           online={online}

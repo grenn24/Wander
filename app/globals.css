@@ -3126,6 +3126,8 @@ body:has(.lp)::before { display: none; }
 }
 .mappanel-grab { display: none; }
 .mappanel-scroll { display: contents; }
+.mappanel-compact, .mappanel-views, .map-explore-hint { display: none; }
+.map-explore-results, .map-stops { display: contents; }
 .mappanel-drop { margin: 12px 12px 0; flex: none; }
 .mappanel-head {
   flex: none; padding: 12px; border-bottom: 1px solid var(--glass-line);
@@ -3146,7 +3148,7 @@ body:has(.lp)::before { display: none; }
 
 /* ---- phones: a sheet, in two honest heights ------------------------------ */
 @media (max-width: 1000px) {
-  .shell:has(.mapstage) { --sheet-h: 148px; }
+  .shell:has(.mapstage) { --sheet-h: 72px; }
   .shell:has(.mapstage.is-open) { --sheet-h: min(60dvh, 480px); }
 
   .mapstage { height: calc(100dvh - var(--topbar-h) - var(--vv-bottom, 0px)); }
@@ -3154,6 +3156,7 @@ body:has(.lp)::before { display: none; }
 
   .mappanel {
     top: auto; left: 0; right: 0; width: auto;
+    z-index: 9;
     bottom: calc(var(--tabbar-h) - var(--vv-bottom, 0px) + 8px);
     height: var(--sheet-h);
     max-height: calc(100% - var(--tabbar-h) + var(--vv-bottom, 0px) - 20px);
@@ -3172,21 +3175,32 @@ body:has(.lp)::before { display: none; }
     display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
   }
   .mappanel-head { padding: 8px 12px 12px; }
+  .mappanel-compact { display: flex; gap: 8px; align-items: center; padding: 10px; height: 100%; }
+  .mappanel-compact button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 14px; font: inherit; cursor: pointer; }
+  .map-explore-trigger { flex: 1; min-width: 0; border: 0; padding: 0 10px; background: transparent; color: var(--text-1); }
+  .map-explore-trigger span { flex: 1; text-align: left; font-size: 14px; }
+  .map-stops-trigger { flex: none; border: 1px solid color-mix(in srgb, var(--text-1) 15%, transparent); padding: 0 12px; background: color-mix(in srgb, var(--surface-1) 24%, transparent); color: var(--text-1); font-size: 12px !important; }
+  .mappanel-views { display: flex; gap: 4px; margin: 0 12px 8px; padding: 4px; flex: none; border-radius: 14px; background: color-mix(in srgb, var(--surface-1) 26%, transparent); }
+  .mappanel-views button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--overlay-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .mappanel-views button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-1); box-shadow: 0 2px 5px rgb(0 0 0 / .1); }
+  .mappanel-views button span { font-size: 11px; opacity: .75; }
+  .mappanel-compact button:focus-visible, .mappanel-views button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mapstage.is-open .mappanel-compact { display: none; }
+  .mapstage:not(.is-open) :is(.mappanel-grab, .mappanel-views, .mappanel-scroll) { display: none; }
+  .mappanel[data-view="stops"] .map-explore, .mappanel[data-view="explore"] .map-stops { display: none; }
+  .mappanel .mapside-sep { display: none; }
+  .map-explore-hint { display: block; margin: 0; line-height: 1.6; }
   /* The handle stays visible; everything below it shares one scroll area.
      A long address must never crowd its Add button out of the fixed header. */
   .mappanel-scroll { display: block; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 12px; }
   .mappanel-body { overflow: visible; flex: none; }
   .mapstage:not(.is-open) :is(.mappanel-body, .mappanel-drop) { display: none; }
-  /* One scrolling row, not two wrapped ones: every extra row of chips is a
-     row of map, and the sheet is only worth collapsing if it collapses small. */
+  /* Categories only appear in the expanded Explore view, so expose every
+     choice without requiring a second, horizontal scrolling gesture. */
   .mappanel-head .mapkinds {
-    flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;
-    scrollbar-width: none; -ms-overflow-style: none;
+    flex-wrap: wrap;
   }
-  .mappanel-head .mapkinds::-webkit-scrollbar { display: none; }
-  .mappanel-head .mapkinds .btn { flex: none; }
-
-  /* The command shortcut keeps its shared viewport position on every tab. */
+  .mappanel-head .mapkinds .btn { flex: none; min-height: 40px; }
 }
 @media (max-width: 1000px) and (prefers-reduced-motion: reduce) {
   .mappanel { transition: none; }
@@ -4082,7 +4096,7 @@ body::before {
 .wrap:has(.mapstage) { flex: 1; min-width: 0; }
 .wrap > .mapstage { flex: 1; min-width: 0; height: auto; }
 @media (max-width: 1000px) {
-  .mappanel { border-radius: 22px 22px 0 0; }
+  .mappanel { border-radius: 22px; border-bottom: 1px solid color-mix(in srgb, var(--text-1) 20%, transparent); }
 }
 /* Let the command lens sample the page: filtering its parent creates a
    backdrop boundary and would leave the panel looking flat. */

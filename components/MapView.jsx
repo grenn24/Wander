@@ -47,6 +47,7 @@ export default function MapView({
    * and a gesture that lands anywhere in between is a gesture to get wrong.
    */
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [panelView, setPanelView] = useState('explore');
   const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
   const panelScrollRef = useRef(null);
@@ -235,7 +236,12 @@ export default function MapView({
   }
 
   /* Results nobody can see are not results. Asking for some opens the panel. */
-  const reveal = () => setSheetOpen(true);
+  function openPanel(view = 'explore') {
+    setPanelView(view);
+    setSheetOpen(true);
+    if (panelScrollRef.current) panelScrollRef.current.scrollTop = 0;
+  }
+  const reveal = () => openPanel('explore');
 
   /* ---------------------------------------------------------------- map --- */
 
@@ -387,7 +393,7 @@ export default function MapView({
              * repeat it takes the view away to show something you can read
              * where you are looking.
              */
-            onFocus={setFocused}
+            onFocus={(id) => { setFocused(id); setPanelView('stops'); }}
             describeStop={describeStop}
             onStopOpen={onEdit}
             onPhoto={openPhotos}
@@ -402,7 +408,7 @@ export default function MapView({
               }
             }}
             focusedPlace={pickedPlace}
-            onPlaceFocus={setPickedPlace}
+            onPlaceFocus={(id) => { setPickedPlace(id); setPanelView('explore'); }}
             onPlaceAdd={addPlace}
             onViewport={setView}
             onError={(m) => setErr(m)}
@@ -455,11 +461,18 @@ export default function MapView({
         </button>
       ) : null}
 
-      <aside className="mappanel" aria-label="Places and stops">
+      <aside className="mappanel" data-view={panelView} aria-label="Places and stops">
+        <div className="mappanel-compact">
+          <button type="button" className="map-explore-trigger" onClick={() => openPanel('explore')}>
+            <Search size={18} aria-hidden="true" /><span>Explore nearby…</span>
+          </button>
+          <button type="button" className="map-stops-trigger" onClick={() => openPanel('stops')}>
+            {stops.length} {stops.length === 1 ? 'stop' : 'stops'} <ChevronUp size={15} aria-hidden="true" />
+          </button>
+        </div>
         {/*
           * The handle is the whole top edge, and it says what it will do.
-          * A phone panel that can be either 150px or most of the screen needs
-          * one obvious control, not a gesture you have to discover.
+          * Keep collapse discoverable without requiring a swipe gesture.
           */}
         <button className="mappanel-grab" type="button" aria-expanded={sheetOpen}
           onClick={() => setSheetOpen((o) => !o)}>
@@ -471,9 +484,14 @@ export default function MapView({
           </span>
         </button>
 
+        <div className="mappanel-views" role="group" aria-label="Map panel view">
+          <button type="button" aria-pressed={panelView === 'explore'} onClick={() => openPanel('explore')}>Explore</button>
+          <button type="button" aria-pressed={panelView === 'stops'} onClick={() => openPanel('stops')}>My stops <span>{stops.length}</span></button>
+        </div>
+
         <div className="mappanel-scroll" ref={panelScrollRef}>
           {dropped ? (
-            <div className="card notice mapside-drop mappanel-drop">
+            <div className="card notice mapside-drop mappanel-drop map-explore">
               <div className="spread" style={{ alignItems: 'flex-start' }}>
                 <div style={{ minWidth: 0 }}>
                   <strong className="small">{dropped.name || 'Dropped point'}</strong>
@@ -492,7 +510,7 @@ export default function MapView({
             </div>
           ) : null}
 
-        <div className="mappanel-head">
+        <div className="mappanel-head map-explore">
           <form className="mapfind" onSubmit={(e) => { runSearch(e); reveal(); }}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
             <input
@@ -532,6 +550,7 @@ export default function MapView({
         </div>
 
         <div className="mappanel-body">
+          <div className="map-explore map-explore-results">
           {!mapsReady ? (
             <p className="small muted" style={{ marginTop: 0 }}>
               Nearby search needs the Google keys as well.
@@ -566,10 +585,13 @@ export default function MapView({
                 </div>
               ))}
             </div>
-          ) : null}
+          ) : <p className="map-explore-hint small muted">Find a place to eat, a sight to see or something nearby. Search above or choose a category.</p>}
+
+          </div>
 
           {showingFinds ? <div className="mapside-sep" /> : null}
 
+          <div className="map-stops">
           <div className="mappanel-title">
             <h3 className="mapside-h">
               Your stops
@@ -648,6 +670,7 @@ export default function MapView({
             </p>
           )}
 
+          </div>
         </div>
         </div>
       </aside>

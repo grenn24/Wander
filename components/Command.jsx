@@ -200,7 +200,7 @@ export function CommandTrigger() {
   );
 }
 
-export function CommandProvider({ children }) {
+export function CommandProvider({ children, floating = true }) {
   const [open, setOpen] = useState(false);
   const value = useMemo(() => ({ open: () => setOpen(true) }), []);
 
@@ -229,7 +229,7 @@ export function CommandProvider({ children }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {open ? null : (
+      {open || !floating ? null : (
         <button className="cmd-pill" type="button" data-tip="Search or change  ⌘K"
           aria-label="Search or change this trip" onClick={() => setOpen(true)}>
           <Sparkles size={15} />

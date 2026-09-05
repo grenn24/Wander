@@ -279,10 +279,16 @@ Match the surrounding code — it is consistent and deliberate.
   solid reduced-transparency fallback. Mobile photo tiles stay inline-grid:
   changing them to flex loses horizontal centring for fallback activity icons.
 - The mobile map sheet keeps its handle outside a single scrolling content
-  area, including dropped-pin details and search controls. Collapsing hides
-  dropped-pin details and stops; opening a new pin scrolls back to its actions.
+  area, including dropped-pin details and search controls. Collapsing shows
+  a compact Explore nearby / stop-count bar. The expanded sheet has separate
+  Explore and My stops views; all categories wrap into visible rows. Search
+  state survives switching views, and opening a pin returns to Explore and
+  scrolls back to its actions. Desktop keeps the combined sidebar.
   Its height is capped by the available map space and clears the measured
-  footer, with a conservative CSS fallback before measurement.
+  footer, with a conservative CSS fallback before measurement. The sheet sits
+  above map controls on short screens. The map route hides the floating command
+  shortcut through CommandProvider's floating prop; top-bar and keyboard
+  command access remain available.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
 - Reuse existing patterns before inventing one — there is already a confirm
