@@ -3986,10 +3986,15 @@ body::before {
 .lp-card-ico { background: var(--accent-soft); box-shadow: none; }
 .lp-step-n { background: var(--accent-soft); color: var(--accent-ink); background-image: none; box-shadow: none; }
 .lp-tour { margin-top: 22px; scroll-margin-top: 80px; }
-.lp-tour-toggle { color: var(--accent-ink); }
-.lp-tour-player { margin-top: 18px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); text-align: center; }
-.lp-tour-player p { margin: 0 0 16px; color: var(--text-2); font-size: 14px; }
+.lp-tour-player { display: grid; grid-template-columns: 1fr minmax(0, 320px); align-items: center; gap: 32px; padding: 28px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface-1); }
+.lp-tour-duration { color: var(--accent-ink); font-size: 12px; font-weight: 600; }
+.lp-tour-copy h3 { margin: 12px 0; }
+.lp-tour-player p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.7; max-width: 30ch; }
 .lp-tour-player video { display: block; width: min(100%, 360px, 39.375dvh); height: auto; aspect-ratio: 9 / 16; margin: 0 auto; border-radius: 14px; background: var(--surface-0); }
+@media (max-width: 600px) {
+  .lp-tour-player { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+  .lp-tour-player p { max-width: none; }
+}
 .lp-band { background: var(--surface-1); }
 .planbox-field {
   border-radius: 22px;

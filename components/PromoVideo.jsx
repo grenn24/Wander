@@ -1,33 +1,62 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { Play, ChevronUp } from 'lucide-react';
+import { useEffect, useId, useRef } from 'react';
 
 export default function PromoVideo() {
-  const [open, setOpen] = useState(false);
   const id = useId();
-  const tour = useRef(null);
+  const videoRef = useRef(null);
   useEffect(() => {
-    if (open) tour.current?.scrollIntoView({ block: 'start',
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  }, [open]);
+    const video = videoRef.current;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (!video || !window.IntersectionObserver) return undefined;
+    let inView = false;
+    let started = false;
+    let resume = false;
+    const update = () => {
+      if (reducedMotion.matches) {
+        video.pause();
+        resume = false;
+        return;
+      }
+      if (!inView || document.visibilityState === 'hidden') {
+        resume = resume || (!video.paused && !video.ended);
+        video.pause();
+      } else if (!started || resume) {
+        started = true;
+        resume = false;
+        // Autoplay restrictions leave the poster and native play control usable.
+        video.play().catch(() => {});
+      }
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+      update();
+    }, { threshold: 0.35 });
+    observer.observe(video);
+    document.addEventListener('visibilitychange', update);
+    reducedMotion.addEventListener('change', update);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', update);
+      reducedMotion.removeEventListener('change', update);
+      video.pause();
+    };
+  }, []);
   return (
-    <div className="lp-tour" id="tour" ref={tour}>
-      <button type="button" className="btn lp-tour-toggle" aria-expanded={open}
-        aria-controls={id} onClick={() => setOpen((value) => !value)}>
-        {open ? <ChevronUp size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
-        {open ? 'Close the tour' : 'Watch the 18-second tour'}
-      </button>
-      <div id={id} hidden={!open} className="lp-tour-player">
-        {open && <>
+    <div className="lp-tour" id="tour">
+      <div className="lp-tour-player">
+        <div className="lp-tour-copy">
+          <span className="lp-tour-duration">18-second tour</span>
+          <h3>See Wander in action</h3>
           <p id={`${id}-description`}>Describe a trip, explore its map and follow your stops.</p>
-          {/* Mount on demand so the homepage never downloads or plays the video before a click. */}
-          <video src="/promo/wander-promo.mp4" controls playsInline autoPlay preload="metadata"
-            width={720} height={1280} aria-label="Wander: an 18-second tour"
-            aria-describedby={`${id}-description`}>
-            <a href="/promo/wander-promo.mp4">Download the Wander tour</a>
-          </video>
-        </>}
+        </div>
+        <video ref={videoRef} src="/promo/wander-promo.mp4" poster="/promo/wander-promo-poster.jpg"
+          controls playsInline muted preload="none"
+          onEnded={(event) => event.currentTarget.load()}
+          width={720} height={1280} aria-label="Wander: an 18-second tour"
+          aria-describedby={`${id}-description`}>
+          <a href="/promo/wander-promo.mp4">Download the Wander tour</a>
+        </video>
       </div>
     </div>
   );

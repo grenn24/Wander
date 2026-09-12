@@ -25,6 +25,12 @@ or voice model is used. The video can also be understood muted.
 
 ## Editable sources
 
+The homepage displays the tour inline in How it works. `PromoVideo.jsx` starts
+muted playback when at least 35% of the video is visible, pauses it off-screen
+or in a hidden tab, and preserves manual pauses. Reduced-motion visitors get
+the poster and native playback controls. The poster is a frame at 3 seconds;
+`preload="none"` defers the video download until playback is needed.
+
 `tools/promo/edit.jsx` contains native Higgsedit text, media and fade tracks.
 The three neighbouring screenshots and `soundtrack.py` preserve the inputs.
 The exported source archive is also saved locally at
