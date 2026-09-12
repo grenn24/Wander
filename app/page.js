@@ -8,6 +8,7 @@ import FeatureGrid from '@/components/FeatureGrid';
 import LandingAccount from '@/components/LandingAccount';
 import BrandMark from '@/components/BrandMark';
 import TravelArt from '@/components/TravelArt';
+import PromoVideo from '@/components/PromoVideo';
 import {
   CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -140,6 +141,7 @@ export default async function Landing({ searchParams }) {
               </Reveal>
             ))}
           </ol>
+          <PromoVideo />
         </section>
 
         <section className="lp-final">

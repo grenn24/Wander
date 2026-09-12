@@ -3074,11 +3074,12 @@ body:has(.lp)::before { display: none; }
 }
 .mapcanvas .map-appearance { top: 80px; }
 .map-appearance summary {
-  display: flex; align-items: center; gap: 7px; padding: 10px 12px;
+  display: flex; align-items: center; gap: 7px; height: 44px; padding: 10px 12px;
   cursor: pointer; list-style: none; font-weight: 600;
 }
+.map-appearance summary > svg { flex: none; }
 .map-appearance summary::-webkit-details-marker { display: none; }
-.map-appearance[open] summary { padding-right: 46px; min-height: 44px; }
+.map-appearance[open] summary { padding-right: 46px; }
 .map-appearance .map-appearance-close {
   display: none; position: absolute; top: 5px; right: 5px;
   width: 34px; height: 34px; padding: 0; border: 0; background: transparent;
@@ -3158,7 +3159,8 @@ body:has(.lp)::before { display: none; }
   .mapstage { height: calc(100dvh - var(--topbar-h) - var(--vv-bottom, 0px)); }
   .mapdays { max-width: calc(100% - 24px); right: 12px; }
   .map-appearance-label { display: none; }
-  .map-appearance:not([open]) summary { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  /* The trigger keeps the same box while the options expand beside/below it. */
+  .map-appearance summary, .map-appearance[open] summary { width: 44px; padding: 0; justify-content: center; }
 
   .mappanel {
     top: auto; left: 0; right: 0; width: auto;
@@ -3982,7 +3984,12 @@ body::before {
 .lp-card::after { display: none; }
 .lp-card:hover { transform: translateY(-1px); box-shadow: var(--lift); }
 .lp-card-ico { background: var(--accent-soft); box-shadow: none; }
-.lp-step-n { background: var(--text-1); background-image: none; box-shadow: none; }
+.lp-step-n { background: var(--accent-soft); color: var(--accent-ink); background-image: none; box-shadow: none; }
+.lp-tour { margin-top: 22px; scroll-margin-top: 80px; }
+.lp-tour-toggle { color: var(--accent-ink); }
+.lp-tour-player { margin-top: 18px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); text-align: center; }
+.lp-tour-player p { margin: 0 0 16px; color: var(--text-2); font-size: 14px; }
+.lp-tour-player video { display: block; width: min(100%, 360px, 39.375dvh); height: auto; aspect-ratio: 9 / 16; margin: 0 auto; border-radius: 14px; background: var(--surface-0); }
 .lp-band { background: var(--surface-1); }
 .planbox-field {
   border-radius: 22px;

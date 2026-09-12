@@ -1,8 +1,11 @@
 # Wander promotional video
 
 `public/promo/wander-promo.mp4` is an 18-second vertical product promo, 720 × 1280,
-24 fps, H.264 with AAC audio, approximately 3.7 MB. It is a standalone downloadable
-asset, without autoplay or extra homepage loading.
+24 fps, H.264 with AAC audio, approximately 3.7 MB. The homepage's Three steps
+section includes a “Watch the 18-second tour” button. The inline player mounts
+and starts only after that click; closing the tour unmounts it and stops audio.
+Native playback controls and inline mobile playback remain available. The file
+is also directly downloadable; the initial homepage does not load the video.
 
 The captions, cream background, terracotta invitation and travel drawing match
 Wander. Three actual browser captures show the public trip prompt and the real
