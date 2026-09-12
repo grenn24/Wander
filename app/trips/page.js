@@ -15,6 +15,7 @@ import TripModal from '@/components/TripModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
+import TravelArt from '@/components/TravelArt';
 import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
@@ -262,7 +263,7 @@ export default function TripsHome() {
             </div>
           ) : trips.length === 0 ? (
             <div className="empty empty-lg">
-              <CalendarDays size={30} className="empty-ico" aria-hidden="true" />
+              <TravelArt kind="trips" />
               <p className="empty-title">No trips yet</p>
               <p className="small muted" style={{ marginTop: 0 }}>
                 Start one and Wander lays out a day for every date in the range.

@@ -4215,3 +4215,21 @@ body::before {
 .offline-notice a { text-decoration: underline; }
 @media (max-width: 600px) { .today-entry { padding: 12px; flex-wrap: wrap; gap: 10px; } .today-entry > span:first-of-type { flex: 1; } .today-entry-action { width: 100%; padding-left: 32px; } }
 @media print { .today-entry, .offline-notice, .offline-download { display: none !important; } }
+/* Editorial spot drawings sit directly on the page, without a picture-card
+   background. Screen blending removes the inverted white in dark themes. */
+:root { --art-blend: multiply; --art-filter: none; --art-opacity: 1; }
+:root[data-theme="dark"] { --art-blend: screen; --art-filter: invert(1) hue-rotate(180deg) saturate(.65); --art-opacity: .85; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --art-blend: screen; --art-filter: invert(1) hue-rotate(180deg) saturate(.65); --art-opacity: .85; }
+}
+.travel-art {
+  display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto 8px;
+  mix-blend-mode: var(--art-blend); filter: var(--art-filter); opacity: var(--art-opacity);
+  pointer-events: none; user-select: none;
+}
+.travel-art-landing { width: 260px; margin-bottom: 12px; }
+@media (max-width: 640px) {
+  .travel-art { width: 150px; }
+  .travel-art-landing { width: 210px; }
+}
+@media print { .travel-art { display: none; } }

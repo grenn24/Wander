@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 import Select from '@/components/Select';
+import TravelArt from '@/components/TravelArt';
 import { cap } from '@/lib/util';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
@@ -153,6 +154,7 @@ export default function Packing({
 
       {items.length === 0 ? (
         <div className="empty">
+          <TravelArt kind="packing" />
           <p className="empty-title">Nothing on the list yet</p>
           <p className="small muted" style={{ margin: 0 }}>
             Add items above, or have one built from where you are going and how long for.

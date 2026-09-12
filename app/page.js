@@ -7,6 +7,7 @@ import LiveMock from '@/components/LiveMock';
 import FeatureGrid from '@/components/FeatureGrid';
 import LandingAccount from '@/components/LandingAccount';
 import BrandMark from '@/components/BrandMark';
+import TravelArt from '@/components/TravelArt';
 import {
   CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -142,6 +143,7 @@ export default async function Landing({ searchParams }) {
         </section>
 
         <section className="lp-final">
+          <TravelArt kind="journey" className="travel-art-landing" />
           <Reveal as="h2">Where are you going?</Reveal>
           <Reveal className="lp-final-box" delay={90}><PlanPrompt rotate /></Reveal>
         </section>
