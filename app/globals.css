@@ -347,6 +347,13 @@ a { color: var(--accent); }
   padding: 15px 18px; border-bottom: 1px solid var(--border); position: sticky;
   top: 0; background: var(--surface-1); }
 .modal-body { padding: 18px; }
+.trip-edit-modal { display: flex; flex-direction: column; }
+.trip-edit-modal > .modal-body { overflow-y: auto; min-height: 0; }
+.trip-edit-modal > .modal-body[hidden] { display: none; }
+.trip-edit-modal > .modal-head, .trip-edit-modal > .modal-foot { flex-shrink: 0; }
+.trip-edit-tabs { display: flex; flex-shrink: 0; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.trip-edit-tabs button { flex: 1; padding: 10px 6px; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
+.trip-edit-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
 .modal-foot { display: flex; gap: 9px; justify-content: flex-end; padding: 14px 18px;
   border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--surface-1); }
 

@@ -26,7 +26,7 @@ function Section({ title, icon: Icon, hint, children }) {
 }
 
 export default function People({
-  members, online, user, isOwner, shareUrl, onRemove, onDeleteTrip, onLeaveTrip,
+  members, online, user, isOwner, shareUrl, onRemove, onDeleteTrip, onLeaveTrip, compact = false,
 }) {
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
@@ -61,10 +61,10 @@ export default function People({
 
   return (
     <div>
-      <div className="page-head">
+      {!compact ? <div className="page-head">
         <h2>Trip settings</h2>
         <div className="small muted">Sharing, who is on the trip, and removing it</div>
-      </div>
+      </div> : null}
 
       <Section
         title="Share this trip"

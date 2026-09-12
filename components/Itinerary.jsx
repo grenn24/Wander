@@ -337,7 +337,7 @@ export default function Itinerary({
           <button className="btn sm" onClick={onPrint}
             data-tip="Print or save PDF"><Printer size={15} /> Print</button>
           <button className="btn sm" onClick={onEditTrip}
-            data-tip="Dates, budget, name"><Settings size={15} /> Edit trip</button>
+            data-tip="Details, travellers, offline and calendar"><Settings size={15} /> Edit trip</button>
         </div>
       </div>
 

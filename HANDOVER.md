@@ -59,6 +59,13 @@ If a push fails on SSL, that is the cause.
 
 ## 3. Hard-won lessons — read these before debugging anything
 
+Trip management is unified in the Edit trip dialog: Details, Travellers,
+Offline and Calendar. The trip header has a separate edit control; its account
+menu contains account actions only. Legacy /settings and /people URLs open the
+same dialog over the itinerary and return there on close. New-trip forms and
+quick edits from the trip list still use the basic TripModal fields. Draft
+details survive tab changes; sharing/offline/calendar actions use saved data.
+
 Mobile session recovery lives in `lib/sessionRecovery.js`. AppProvider restores
 on visibility, pageshow, focus and reconnect without remounting ready editors.
 Trip reads check the session first and replay once after a rejected JWT; never

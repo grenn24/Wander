@@ -23,8 +23,7 @@ import { placeDetails } from '@/lib/geo';
 export default function TripTabPage({ params }) {
   const { id, tab: segment } = use(params);
   if (!isTripTab(segment)) notFound();
-  // /people is where Settings used to live, and those links are already out
-  // in the world on shared trips.
+  // Keep old /settings and /people links as entry points to the unified editor.
   const tab = resolveTab(segment);
 
   const router = useRouter();
@@ -40,6 +39,7 @@ export default function TripTabPage({ params }) {
   const [editing, setEditing] = useState(null);
   const [opening, setOpening] = useState(''); // the row we are fetching for
   const [tripDraft, setTripDraft] = useState(null);
+  const [tripSection, setTripSection] = useState(segment === 'people' ? 'people' : 'details');
 
   /*
    * Open the editor with the place already in hand.
@@ -86,6 +86,7 @@ export default function TripTabPage({ params }) {
       });
       clearIntent();
     } else if (intent.kind === 'trip' && trip) {
+      setTripSection(intent.seed?.section || 'details');
       setTripDraft({ ...trip });
       clearIntent();
     }
@@ -96,6 +97,12 @@ export default function TripTabPage({ params }) {
   const shareUrl = trip.share_code && typeof window !== 'undefined'
     ? `${window.location.origin}/join/${trip.share_code}`
     : '';
+
+  function closeTripEditor() {
+    setTripDraft(null);
+    setTripSection('details');
+    if (tab === 'settings') router.replace(`/trips/${id}/itinerary`);
+  }
 
   async function saveTrip(d) {
     if (!supabase) return;
@@ -112,7 +119,7 @@ export default function TripTabPage({ params }) {
       updated_at: new Date().toISOString(),
     };
     if (await updateTrip(payload)) {
-      setTripDraft(null);
+      closeTripEditor();
       pushToast('Trip updated.');
     }
   }
@@ -143,7 +150,7 @@ export default function TripTabPage({ params }) {
 
   return (
     <>
-      {tab === 'itinerary' ? (
+      {tab === 'itinerary' || tab === 'settings' ? (
         <Itinerary trip={trip} days={days} activities={activities}
           onAdd={(day, title) => setEditing({ day, title: title || '', category: 'sightseeing', cost: 0 })}
           onEdit={openEditor}
@@ -185,22 +192,6 @@ export default function TripTabPage({ params }) {
         <Notes trip={trip} activities={activities} onSave={saveNotes} />
       ) : null}
 
-      {tab === 'settings' ? (
-        <>
-          <section className="card tset">
-            <h3 className="tset-h">Trip details</h3>
-            <p className="tset-hint">{trip.timezone ? `Local times in ${trip.timezone}` : 'Choose the destination time zone before adding the trip to your calendar.'}</p>
-            <button className="btn" onClick={() => setTripDraft({ ...trip })}>Edit trip details</button>
-          </section>
-          <People members={members} online={online} user={user} isOwner={isOwner}
-            shareUrl={shareUrl} onRemove={removeMember}
-            onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} />
-          <OfflineDownload />
-          <CalendarLink mode="trip" trip={trip}
-            synced={activities.some((a) => a.google_event_id)} />
-        </>
-      ) : null}
-
       {editing ? (
         <ActivityModal draft={editing} days={days} currency={trip.currency}
           onChange={setEditing}
@@ -209,9 +200,17 @@ export default function TripTabPage({ params }) {
           onClose={() => setEditing(null)} />
       ) : null}
 
-      {tripDraft ? (
-        <TripModal draft={tripDraft} onChange={setTripDraft} onSave={saveTrip}
-          onClose={() => setTripDraft(null)} />
+      {tripDraft || tab === 'settings' ? (
+        <TripModal draft={tripDraft || trip} onChange={setTripDraft} onSave={saveTrip}
+          onClose={closeTripEditor} initialSection={tripSection}
+          sections={[
+            { id: 'people', label: 'Travellers', content: <People compact members={members} online={online}
+              user={user} isOwner={isOwner} shareUrl={shareUrl} onRemove={removeMember}
+              onDeleteTrip={deleteTrip} onLeaveTrip={leaveTrip} /> },
+            { id: 'offline', label: 'Offline', content: <OfflineDownload /> },
+            { id: 'calendar', label: 'Calendar', content: <CalendarLink mode="trip" trip={trip}
+              synced={activities.some((a) => a.google_event_id)} /> },
+          ]} />
       ) : null}
     </>
   );

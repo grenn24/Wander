@@ -122,7 +122,16 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
   if (mode === 'trip') {
     // Nothing to offer until the account has a calendar on it, and no reason
     // to advertise the feature from inside a trip.
-    if (!state || !state.connected) return null;
+    if (!state || !state.connected) return (
+      <section className="card tset">
+        <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Google Calendar</h3>
+        <p className="tset-hint">{!state ? 'Checking your calendar connection…'
+          : !state.available ? 'Google Calendar is not available on this deployment.'
+            : 'Connect Google Calendar from your account page, then return here to add this trip.'}</p>
+        {state?.available ? <a className="btn" href="/account">Open account</a> : null}
+        {problem}
+      </section>
+    );
     const zone = trip?.timezone;
     return (
       <section className="card tset">

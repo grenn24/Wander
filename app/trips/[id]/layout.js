@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, Plus, Printer, Download, Settings, Binoculars } from 'lucide-react';
+import { ChevronLeft, Plus, Printer, Settings, Binoculars } from 'lucide-react';
 import TripProvider, { useTrip } from '@/components/TripProvider';
 import TopBar from '@/components/TopBar';
 import PrintView from '@/components/PrintView';
@@ -22,7 +22,7 @@ export default function TripLayout({ children, params }) {
 }
 
 function TripChrome({ tripId, children }) {
-  const { trip, online, ready, notFound, loadError, reload, days, activities, packing, members } = useTrip();
+  const { trip, online, ready, notFound, loadError, reload, request, days, activities, packing, members } = useTrip();
   const pathname = usePathname();
   // Read the tab off the end of the path rather than by index — a leading or
   // trailing slash shifts the positions, which is what silently pinned this to
@@ -100,6 +100,10 @@ function TripChrome({ tripId, children }) {
           online={online}
           tools={(
             <>
+              <button className="btn ghost sm icon-btn" type="button" disabled={!ready}
+                data-tip="Edit trip" aria-label="Edit trip options" onClick={() => request('trip')}>
+                <Settings size={16} />
+              </button>
               {/* Always here. Before the trip it is a rehearsal of day one,
                   during it the thing you actually open the app for. */}
               <button className="btn ghost sm icon-btn" type="button"
@@ -110,12 +114,6 @@ function TripChrome({ tripId, children }) {
               <CommandTrigger />
             </>
           )}
-          menu={[
-            { id: 'settings', label: 'Settings', icon: Settings, href: `/trips/${tripId}/settings` },
-            { id: 'offline', label: 'Download for offline', icon: Download, href: `/trips/${tripId}/settings` },
-            { id: 'print', label: 'Print / PDF', icon: Printer, onClick: () => window.print() },
-            { id: 'all', label: 'All trips', icon: Plus, href: '/trips' },
-          ]}
         >
           {/* Back should undo the last step, not the last two: from a section
               that is where the trip came from, and only the trip itself leads
