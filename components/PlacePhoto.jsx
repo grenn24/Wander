@@ -7,7 +7,13 @@ import { categoryIcon } from '@/lib/icons';
  * the server. Falls back to the category glyph — which is also what every stop
  * looks like when no Places key is configured, so the layout never shifts.
  */
-export default function PlacePhoto({
+export default function PlacePhoto(props) {
+  // A failure belongs to one image request. Changing the place or requested
+  // size starts fresh, including when returning to a previously failed photo.
+  return <PhotoContent key={`${props.photoRef || ''}:${props.size ?? 44}`} {...props} />;
+}
+
+function PhotoContent({
   photoRef, category = 'other', icon, size = 44, alt = '', rounded = 10,
 }) {
   const [failed, setFailed] = useState(false);
