@@ -1804,6 +1804,33 @@ body:has(.lp)::before { display: none; }
 
 /* -------------------------------------------------- live plan streaming -- */
 .planwrap { max-width: 640px; }
+.planning-journey { margin: 18px 0 22px; }
+.planning-journey-scene { position: relative; height: 116px; overflow: hidden; border-radius: 16px;
+  background: var(--surface-0); isolation: isolate; }
+.planning-journey-map { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: center 80%; opacity: .55; mix-blend-mode: var(--art-blend); filter: var(--art-filter);
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
+.planning-journey-track { position: absolute; inset: 0 20px; }
+.planning-journey-track::before { content: ''; position: absolute; left: 0; right: 0; top: 83px;
+  border-top: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+.planning-journey-train { position: absolute; left: calc(50% - 56px); top: 34px; width: 112px; height: auto;
+  filter: url('/artwork/paper-alpha.svg#paper-to-alpha');
+  animation: planning-train-ride 18s linear infinite; animation-play-state: paused; }
+.planning-journey-scene[data-running="true"] .planning-journey-train { animation-play-state: running; }
+.planning-journey-caption { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.planning-journey-caption p { flex: 1; margin: 0; color: var(--text-2); font-size: 16px; line-height: 1.5; }
+.planning-journey-caption button { flex: none; width: 36px; height: 36px; color: var(--text-2); }
+@keyframes planning-train-ride {
+  0% { left: 0; opacity: 0; }
+  6% { opacity: 1; }
+  94% { opacity: 1; }
+  100% { left: calc(100% - 112px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planning-journey-train { animation: none; }
+  .planning-journey-caption button { display: none; }
+}
+@media print { .planning-journey { display: none; } }
 .planhead { display: flex; gap: 12px; align-items: flex-start; margin: 32px 0 14px; }
 .planhead-copy { min-width: 0; flex: 1; }
 .plan-cancel { flex: none; margin-left: auto; }

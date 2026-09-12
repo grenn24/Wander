@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Sparkles, Loader2, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays, Check,
+  Sparkles, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays,
   ImageOff, X,
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
@@ -12,6 +12,8 @@ import TopBar from '@/components/TopBar';
 import { SHOT_KEY } from '@/components/PlanPrompt';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
+import PlanningJourney from '@/components/PlanningJourney';
+import { planningProgress } from '@/lib/planningProgress';
 import { activityIcon } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
 import {
@@ -503,8 +505,8 @@ function Planner() {
     );
   }
 
-  const totalActs = days.reduce((s, d) => s + d.activities.length, 0);
   const expected = meta && meta.duration_days ? meta.duration_days : 0;
+  const progress = planningProgress({ phase, awaitingAnswers: !!briefCheck, pictureCount: shots.length, days, expected });
   const answeredBrief = briefCheck
     ? briefCheck.questions.every((q) => String(briefCheck.answers[q.id] || '').trim())
     : false;
@@ -560,6 +562,8 @@ function Planner() {
             </button>
           </div>
 
+          {progress ? <PlanningJourney status={progress} /> : null}
+
           {phase === 'clarifying' ? (
             briefCheck ? (
               <form className="card planquestions"
@@ -602,11 +606,7 @@ function Planner() {
                   </button>
                 </div>
               </form>
-            ) : (
-              <div className="card planning-check">
-                <Loader2 size={16} className="spin" /> Checking the details that shape the trip…
-              </div>
-            )
+            ) : null
           ) : phase === 'reviewing' && placeReview ? (
             <form className="card planquestions place-review"
               onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
@@ -738,31 +738,7 @@ function Planner() {
                 ))}
               </div>
 
-              <div className="planfoot">
-                {phase === 'reading' ? (
-                  <>
-                    <Loader2 size={15} className="spin" />
-                    Looking at your picture{shots.length === 1 ? '' : 's'}…
-                  </>
-                ) : phase === 'locating' ? (
-                  <>
-                    <Loader2 size={15} className="spin" />
-                    Finding {totalActs} stop{totalActs === 1 ? '' : 's'} on the map…
-                  </>
-                ) : phase === 'saving' ? (
-                  <>
-                    <Check size={15} /> {totalActs} activit{totalActs === 1 ? 'y' : 'ies'} planned
-                    {' '}— saving your trip…
-                  </>
-                ) : (
-                  <>
-                    <Loader2 size={15} className="spin" />
-                    {days.length === 0 ? 'Thinking about where to send you…'
-                      : `Day ${days[days.length - 1].index}${expected ? ` of ${expected}` : ''}`
-                        + ` · ${totalActs} activit${totalActs === 1 ? 'y' : 'ies'} so far`}
-                  </>
-                )}
-              </div>
+
             </>
           )}
         </div>

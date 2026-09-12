@@ -1,5 +1,25 @@
 # Wander illustrations
 
+## Planning train
+
+`public/artwork/planning-train.webp` is a 480 × 323, 11,014-byte image generated
+with Higgsfield MCP / GPT Image 2 on 12 September 2026, job
+`8d11ff11-f25e-4bc3-a941-fd425ab98178`. The source was resized to 480px wide and
+compressed with Sharp (WebP quality 85). It is generated once and self-hosted;
+planning does not call Higgsfield. The scene reuses `hero-atlas.webp`.
+
+`PlanningJourney` animates the train with CSS and removes its white paper through
+the existing `paper-alpha.svg` presentation filter. It pauses on hidden tabs,
+off-screen, or via its pause button; reduced-motion settings show a still train.
+The train is decorative, not a percentage indicator. `planningProgress` supplies
+text from actual planner phases and streamed day/activity counts, with no timers
+or invented completion percentages. Questions, location review and errors hide
+the animation. The original streamed itinerary preview remains below it.
+
+Final generation prompt:
+
+> Use case: illustration-story. A small editorial train illustration for Wander, a warm travel planner website. One compact two-car passenger train in strict side profile, facing RIGHT, level horizontal wheels, no perspective. Muted olive #909978 body, restrained terracotta #c9775e accents, pale cream windows, fine warm brown hand-drawn ink outlines and quiet flat watercolor washes. Sophisticated travel-journal drawing matching cream paper and olive atlas illustrations, simple readable silhouette at 90 pixels wide. Train centered and fills about 80 percent of a wide 3:2 canvas. Pure solid white #ffffff background all the way to every edge. No scenery, map, tracks, rails, ground, shadow, smoke, steam, people, labels, letters, numbers, logos or watermark. All cars connected. This isolated train will be moved across an existing map in website code; draw only the train, not a loading screen or mockup.
+
 ## Homepage atlas background
 
 `hero-atlas.webp` is a 1920 × 1086, 186,192-byte illustration generated with
