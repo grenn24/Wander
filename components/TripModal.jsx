@@ -1,11 +1,13 @@
 'use client';
 import { useCallback, useId, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, SlidersHorizontal, Users, Download, CalendarDays } from 'lucide-react';
 import { CURRENCIES, dayRange } from '@/lib/util';
 import TimezoneField from '@/components/TimezoneField';
 import Select from '@/components/Select';
 import DateField from '@/components/DateField';
 import { useModalChrome } from '@/lib/useModal';
+
+const TAB_ICONS = { details: SlidersHorizontal, people: Users, offline: Download, calendar: CalendarDays };
 
 export default function TripModal({ draft, onChange, onSave, onClose, sections = [], initialSection = 'details' }) {
   const [active, setActive] = useState(initialSection);
@@ -52,7 +54,9 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
           <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
         </div>
         {sections.length ? <div className="trip-edit-tabs" role="tablist" aria-label="Trip options">
-          {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab"
+          {tabs.map((tab, index) => {
+            const Icon = TAB_ICONS[tab.id];
+            return <button key={tab.id} type="button" role="tab"
             id={`${id}-${tab.id}-tab`} aria-controls={`${id}-${tab.id}-panel`}
             aria-selected={active === tab.id} tabIndex={active === tab.id ? 0 : -1}
             onClick={() => { setActive(tab.id); setConfirmDiscard(false); }}
@@ -64,7 +68,8 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
               event.preventDefault();
               setActive(tabs[next].id);
               event.currentTarget.parentElement.children[next].focus();
-            }}>{tab.label}</button>)}
+            }}>{Icon ? <Icon size={16} aria-hidden="true" /> : null}<span>{tab.label}</span></button>;
+          })}
         </div> : null}
         <div className="modal-body" hidden={active !== 'details'} role={sections.length ? 'tabpanel' : undefined}
           id={`${id}-details-panel`} aria-labelledby={sections.length ? `${id}-details-tab` : undefined}>
