@@ -936,6 +936,53 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .lp-ticks svg { color: var(--good); flex: none; }
 
 /* hero mock */
+.lp-hero-stage {
+  position: relative; isolation: isolate; overflow: hidden; background: var(--surface-0);
+  --atlas-filter: none; --atlas-blend: multiply; --atlas-opacity: .65;
+}
+.lp-hero-stage .lp-hero { position: relative; z-index: 1; padding-bottom: 70px; }
+.hero-atlas { position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
+.hero-atlas-paper, .hero-atlas-routes { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-atlas-paper { filter: var(--atlas-filter); mix-blend-mode: var(--atlas-blend); opacity: var(--atlas-opacity); }
+.hero-atlas-routes { color: var(--accent); opacity: .5; }
+.hero-atlas-route path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.hero-atlas-route .atlas-trail { stroke-dasharray: 3 8; opacity: .25; }
+.hero-atlas-route .atlas-ink { stroke-dasharray: 100; animation: atlas-draw 24s ease-in-out infinite; }
+.hero-atlas-route circle { fill: var(--surface-0); stroke: currentColor; stroke-width: 2; }
+.hero-atlas-route.route-later .atlas-ink { animation-delay: -8s; }
+.hero-atlas-light { position: absolute; inset: -25%; opacity: .2;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--cat-3) 28%, transparent), transparent 60%);
+  animation: atlas-light 28s ease-in-out infinite alternate; }
+.hero-atlas .atlas-ink, .hero-atlas-light { animation-play-state: paused; }
+.hero-atlas[data-running="true"] .atlas-ink, .hero-atlas[data-running="true"] .hero-atlas-light { animation-play-state: running; }
+.hero-atlas-toggle { position: absolute; z-index: 2; bottom: 22px; right: max(22px, calc((100% - 1036px) / 2));
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-2); cursor: pointer; }
+.hero-atlas-toggle:hover { color: var(--accent-ink); border-color: var(--accent); }
+.hero-atlas-toggle:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; }
+:root[data-theme="dark"] .lp-hero-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-blend: screen; --atlas-opacity: .38; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lp-hero-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-blend: screen; --atlas-opacity: .38; }
+}
+@keyframes atlas-draw {
+  0%, 8% { stroke-dashoffset: 100; opacity: 0; }
+  12% { opacity: .9; }
+  62%, 82% { stroke-dashoffset: 0; opacity: .9; }
+  96%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes atlas-light { from { transform: translate3d(-12%, -5%, 0); } to { transform: translate3d(12%, 5%, 0); } }
+@media (max-width: 700px) {
+  .hero-atlas-paper { object-position: right center; opacity: calc(var(--atlas-opacity) * .5); }
+  .hero-atlas-routes { opacity: .28; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-atlas .atlas-ink { animation: none; stroke-dashoffset: 0; opacity: .6; }
+  .hero-atlas-light { animation: none; transform: none; }
+  .hero-atlas-toggle { display: none; }
+}
+@media print { .hero-atlas, .hero-atlas-toggle { display: none; } }
+
 .lp-hero-visual { min-width: 0; }
 .mock {
   border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden;

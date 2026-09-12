@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import PlanPrompt from '@/components/PlanPrompt';
-import Aurora from '@/components/Aurora';
+import HeroAtlas from '@/components/HeroAtlas';
 import Reveal from '@/components/Reveal';
 import LiveMock from '@/components/LiveMock';
 import FeatureGrid from '@/components/FeatureGrid';
@@ -44,7 +44,6 @@ export default async function Landing({ searchParams }) {
 
   return (
     <div className="lp">
-      <Aurora />
       <header className="lp-nav">
         <div className="lp-nav-in">
           <span className="brand-link" style={{ pointerEvents: 'none' }}>
@@ -59,32 +58,35 @@ export default async function Landing({ searchParams }) {
       </header>
 
       <main>
-        <section className="lp-hero">
-          <div className="lp-hero-copy">
-            <Reveal as="span" className="lp-eyebrow" delay={40}>
-              <Zap size={13} /> Free. Yours. Shareable.
-            </Reveal>
-            <Reveal as="h1" delay={110}>Describe the trip. Get the plan.</Reveal>
-            <Reveal as="p" className="lp-lede" delay={180}>
-              Say where you are going. Wander lays out every day, maps it, and totals the cost.
-            </Reveal>
-            <Reveal delay={250}><PlanPrompt autoFocus={false} rotate /></Reveal>
-            <Reveal className="lp-cta" delay={320}>
-              <Link className="btn lg" href="/trips">
-                Start blank <ArrowRight size={17} />
-              </Link>
-            </Reveal>
-            <Reveal as="ul" className="lp-ticks" delay={390}>
-              <li><Check size={15} /> Free and open source</li>
-              <li><Check size={15} /> Bookings and notes together</li>
-              <li><Check size={15} /> Download for offline access</li>
-            </Reveal>
-          </div>
+        <div className="lp-hero-stage">
+          <HeroAtlas />
+          <section className="lp-hero">
+            <div className="lp-hero-copy">
+              <Reveal as="span" className="lp-eyebrow" delay={40}>
+                <Zap size={13} /> Free. Yours. Shareable.
+              </Reveal>
+              <Reveal as="h1" delay={110}>Describe the trip. Get the plan.</Reveal>
+              <Reveal as="p" className="lp-lede" delay={180}>
+                Say where you are going. Wander lays out every day, maps it, and totals the cost.
+              </Reveal>
+              <Reveal delay={250}><PlanPrompt autoFocus={false} rotate /></Reveal>
+              <Reveal className="lp-cta" delay={320}>
+                <Link className="btn lg" href="/trips">
+                  Start blank <ArrowRight size={17} />
+                </Link>
+              </Reveal>
+              <Reveal as="ul" className="lp-ticks" delay={390}>
+                <li><Check size={15} /> Free and open source</li>
+                <li><Check size={15} /> Bookings and notes together</li>
+                <li><Check size={15} /> Download for offline access</li>
+              </Reveal>
+            </div>
 
-          <Reveal className="lp-hero-visual" from="right" delay={220} aria-hidden="true">
-            <LiveMock />
-          </Reveal>
-        </section>
+            <Reveal className="lp-hero-visual" from="right" delay={220} aria-hidden="true">
+              <LiveMock />
+            </Reveal>
+          </section>
+        </div>
 
         <section className="lp-section" id="features">
           <Reveal className="lp-section-head">
@@ -143,7 +145,6 @@ export default async function Landing({ searchParams }) {
           </ol>
           <PromoVideo />
         </section>
-
         <section className="lp-final">
           <TravelArt kind="journey" className="travel-art-landing" />
           <Reveal as="h2">Where are you going?</Reveal>

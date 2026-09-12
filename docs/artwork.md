@@ -1,5 +1,22 @@
 # Wander illustrations
 
+## Homepage atlas background
+
+`hero-atlas.webp` is a 1920 × 1086, 186,192-byte illustration generated with
+Higgsfield MCP / GPT Image 2 on 12 September 2026, job
+`e9ebc4c0-4205-469e-a397-ebede768b5e3`. The source PNG was resized and compressed
+with Sharp (WebP quality 80). No runtime generation or subscription is needed.
+
+`HeroAtlas.jsx` places it only behind the homepage hero, with separately drawn
+CSS/SVG routes and a slow light wash. Both animations pause off-screen, in hidden
+tabs and through the pause button; reduced-motion visitors get a still drawing.
+Dark mode uses inversion/blending; mobile uses a quieter crop from the right.
+Keep it decorative, non-interactive and hidden from assistive technology/print.
+
+Final generation prompt:
+
+> A refined editorial atlas illustration to become a subtle background for Wander, a warm travel planner website. Flat overhead map printed on pale cream paper #f4efe5. Delicate hand-drawn olive #909978 contour lines, light sage patches of forest, a few tiny muted terracotta architectural marks, fine warm grey streets and a meandering pale sand river. Fictional geographical landscape, not a real city, no labels or text. Build attractive cartographic detail mostly along the far left and right edges, upper-right and bottom corners. The middle 60 percent must remain very sparse, light cream negative space, so website headings and input fields will remain readable over it. Sophisticated travel-journal engraving with fine organic ink lines and very restrained translucent watercolor washes, harmonious with cream, terracotta #c9775e, olive, warm brown. Entire image is one continuous flat map surface, NOT a framed sheet or an object sitting on a desk. No folds, shadows, people, hands, luggage, coffee, compass roses, legends, numbers, words, border or watermark. NO route lines or location markers: those will be animated separately in code. Quiet, airy and elegant. Wide landscape 16:9. Keep linework legible for use at subtle opacity.
+
 ## Saved places addition
 
 `places.webp` uses the journey drawing as its style reference (Higgsfield job
@@ -11,7 +28,7 @@ Prompt: Use case: illustration-story. A restrained editorial spot illustration f
 Generated with Higgsfield MCP, GPT Image 2, on 12 September 2026.
 Four generations at an estimated one credit each; no runtime Higgsfield integration.
 
-The self-hosted WebP files in `public/artwork/` total about 70 KB. Each is
+The four empty-state WebP files in `public/artwork/` total about 70 KB. Each is
 640 × 430, with explicit rendered dimensions and lazy loading. Originals were
 1024 × 688 PNGs; only resizing and WebP compression were applied.
 
