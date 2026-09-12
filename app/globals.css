@@ -4228,6 +4228,12 @@ body::before {
   pointer-events: none; user-select: none;
 }
 .travel-art-landing { width: 260px; margin-bottom: 12px; }
+.map-stops-empty { padding: 8px 12px 16px; text-align: center; }
+/* Glass creates an isolated backdrop; make the paper transparent before
+   compositing so the drawing cannot bring a rectangular surface with it. */
+.map-stops-empty .travel-art-places { width: 140px; margin-bottom: 4px; mix-blend-mode: normal; opacity: 1; filter: url('/artwork/paper-alpha.svg#paper-to-alpha'); }
+.map-stops-empty-title { margin: 0 0 6px; font-weight: 600; }
+.map-stops-empty .small { max-width: 30ch; margin: 0 auto; }
 @media (max-width: 640px) {
   .travel-art { width: 150px; }
   .travel-art-landing { width: 210px; }

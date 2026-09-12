@@ -292,7 +292,7 @@ Match the surrounding code — it is consistent and deliberate.
 - The search form supplies a single rounded tint; its input stays transparent
   so a square form background cannot show around the input's rounded corners.
 - `TravelArt.jsx` supplies small, self-hosted illustrations for the homepage's
-  final prompt and empty trips/packing states only. Preserve the working hero
+  final prompt and empty trips/packing/map-stop states only. Preserve the working hero
   preview and keep populated planner views free of decorative images. The
   theme-aware CSS blends their white backgrounds into the page. Assets and
   prompts are documented in `docs/artwork.md`; no Higgsfield runtime access is

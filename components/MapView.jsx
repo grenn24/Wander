@@ -17,6 +17,7 @@ import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
 import { viewportChanged } from '@/lib/explore';
 import TravelEstimate from '@/components/TravelEstimate';
+import TravelArt from '@/components/TravelArt';
 
 
 export default function MapView({
@@ -665,9 +666,11 @@ export default function MapView({
               ) : null}
             </div>
           ) : (
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Give an activity a location and it appears here — or tap the map to add one.
-            </p>
+            <div className="map-stops-empty">
+              <TravelArt kind="places" className="travel-art-places" />
+              <p className="map-stops-empty-title">{day === 'all' ? 'No saved places yet' : 'No stops for this day yet'}</p>
+              <p className="small muted">Give an activity a location and it appears here — or tap the map to add one.</p>
+            </div>
           )}
 
           </div>

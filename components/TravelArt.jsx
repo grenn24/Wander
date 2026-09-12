@@ -2,6 +2,7 @@ const ARTWORK = {
   journey: '/artwork/journey.webp',
   trips: '/artwork/trips.webp',
   packing: '/artwork/packing.webp',
+  places: '/artwork/places.webp',
 };
 
 // These drawings support nearby copy; they never carry information or actions.
