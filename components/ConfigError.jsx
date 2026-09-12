@@ -1,7 +1,7 @@
 'use client';
 import BrandMark from '@/components/BrandMark';
 
-export default function ConfigError({ kind, fatal, missing, warning, apiUrl }) {
+export default function ConfigError({ kind, fatal, missing, onRetry }) {
   // "Failed to fetch" means nothing answered at that URL — a different problem
   // from the API answering and refusing the sign-in.
   const unreachable = /failed to fetch|networkerror|load failed|fetch failed/i.test(fatal || '');
@@ -33,28 +33,24 @@ export default function ConfigError({ kind, fatal, missing, warning, apiUrl }) {
           </>
         ) : (
           <>
-            <p className="small" style={{ marginTop: 0 }}>Could not start a guest session.</p>
+            <p className="small" style={{ marginTop: 0 }}>Could not restore your sign-in.</p>
             <p className="err" style={{ marginTop: 0 }}>{fatal}</p>
-            {warning ? <p className="err" style={{ marginTop: 0 }}>{warning}</p> : null}
             {unreachable ? (
               <p className="small muted">
-                Nothing answered at <code>{apiUrl}</code>. Start the Supabase stack with{' '}
-                <code>npx supabase start</code>, or point <code>NEXT_PUBLIC_SUPABASE_URL</code> at
-                a hosted project — then restart the dev server.
+                Check your connection, then try again. Your plans are still saved.
               </p>
             ) : (
               <p className="small muted">
-                This usually means anonymous sign-ins are off. In Supabase go to{' '}
-                <strong>Authentication → Sign In / Providers</strong> and enable{' '}
-                <strong>Anonymous sign-ins</strong>, then reload. If you have not run{' '}
-                <code>schema.sql</code> against the database yet, do that first.
+                Try again to reconnect. If your sign-in has ended, we’ll ask you to sign in again.
               </p>
             )}
           </>
         )}
 
         <div className="chiprow">
-          <button className="btn primary" onClick={() => window.location.reload()}>Reload</button>
+          <button className="btn primary" onClick={kind === 'session' && onRetry ? onRetry : () => window.location.reload()}>
+            {kind === 'session' ? 'Try again' : 'Reload'}
+          </button>
         </div>
       </div>
     </div>

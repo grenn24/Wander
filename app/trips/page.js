@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -16,7 +16,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
 import TravelArt from '@/components/TravelArt';
-import { addDays, fmtRange, money, todayISO, tripStatus } from '@/lib/util';
+import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
+import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
 
@@ -33,7 +34,7 @@ const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past',
 const VIEW_KEY = 'wander:trips-view';
 
 export default function TripsHome() {
-  const { supabase, user, fail, pushToast } = useApp();
+  const { supabase, user, sessionRevision, fail, pushToast } = useApp();
   const router = useRouter();
   const [trips, setTrips] = useState([]);
   const [view, setView] = useState('list'); // cards | list
@@ -53,65 +54,88 @@ export default function TripsHome() {
   // trip id -> who owns it, for the ones somebody else does.
   const [sharedBy, setSharedBy] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const failedLoad = useRef(false);
+  const loadToken = useRef(0);
   const [draft, setDraft] = useState(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
-    if (error) fail(error); else setTrips(data || []);
-    setLoading(false);
+    const mine = ++loadToken.current;
+    failedLoad.current = false;
+    setLoadError('');
+    setLoading(true);
+    try {
+      const { data, error } = await readWithSessionRecovery(supabase, () =>
+        supabase.from('trips').select('*').order('start_date', { ascending: false }));
+      if (mine !== loadToken.current) return;
+      if (error) throw error;
+      setTrips(data || []);
+      setLoading(false);
 
-    const tripIds = (data || []).map((t) => t.id);
-    if (!tripIds.length) {
-      setCovers({});
-      setMemberCounts({});
-      setSharedBy({});
-      return;
-    }
-
-    // Older trips may not have a cover_ref yet. Their first located stop gives
-    // the list a useful thumbnail without changing the trip itself.
-    const { data: photos } = await supabase.from('activities')
-      .select('trip_id, photo_ref, day, sort_order')
-      .in('trip_id', tripIds)
-      .not('photo_ref', 'is', null)
-      .order('day', { ascending: true })
-      .order('sort_order', { ascending: true });
-    const nextCovers = {};
-    (photos || []).forEach((a) => {
-      if (!nextCovers[a.trip_id] && a.photo_ref) nextCovers[a.trip_id] = a.photo_ref;
-    });
-    setCovers(nextCovers);
-
-    /*
-     * Whose trips these are.
-     *
-     * A trip someone shared with you sits in this list looking exactly like
-     * one you started, which matters most in the case where it matters most:
-     * the moment before you change something in somebody else's plan. Asked
-     * for only when there is something to ask about, and never for your own.
-     */
-    const theirs = new Set(
-      (data || []).filter((t) => t.owner_id !== (user && user.id)).map((t) => t.id),
-    );
-    const { data: members } = await supabase.from('trip_members')
-      .select('trip_id, display_name, email, role')
-      .in('trip_id', tripIds);
-    const by = {};
-    const counts = {};
-    (members || []).forEach((m) => {
-      counts[m.trip_id] = (counts[m.trip_id] || 0) + 1;
-      if (m.role === 'owner' && theirs.has(m.trip_id)) {
-        by[m.trip_id] = m.display_name
-          || (m.email || '').split('@')[0]
-          || 'someone else';
+      const tripIds = (data || []).map((t) => t.id);
+      if (!tripIds.length) {
+        setCovers({});
+        setMemberCounts({});
+        setSharedBy({});
+        return;
       }
-    });
-    setSharedBy(by);
-    setMemberCounts(counts);
-  }, [supabase, fail, user]);
 
-  useEffect(() => { load(); }, [load]);
+      // Older trips may not have a cover_ref yet. Their first located stop gives
+      // the list a useful thumbnail without changing the trip itself.
+      const { data: photos } = await supabase.from('activities')
+        .select('trip_id, photo_ref, day, sort_order')
+        .in('trip_id', tripIds)
+        .not('photo_ref', 'is', null)
+        .order('day', { ascending: true })
+        .order('sort_order', { ascending: true });
+      const nextCovers = {};
+      if (mine !== loadToken.current) return;
+      (photos || []).forEach((a) => {
+        if (!nextCovers[a.trip_id] && a.photo_ref) nextCovers[a.trip_id] = a.photo_ref;
+      });
+      setCovers(nextCovers);
+
+      /*
+       * Whose trips these are.
+       *
+       * A trip someone shared with you sits in this list looking exactly like
+       * one you started, which matters most in the case where it matters most:
+       * the moment before you change something in somebody else's plan. Asked
+       * for only when there is something to ask about, and never for your own.
+       */
+      const theirs = new Set(
+        (data || []).filter((t) => t.owner_id !== (user && user.id)).map((t) => t.id),
+      );
+      const { data: members } = await supabase.from('trip_members')
+        .select('trip_id, display_name, email, role')
+        .in('trip_id', tripIds);
+      const by = {};
+      if (mine !== loadToken.current) return;
+      const counts = {};
+      (members || []).forEach((m) => {
+        counts[m.trip_id] = (counts[m.trip_id] || 0) + 1;
+        if (m.role === 'owner' && theirs.has(m.trip_id)) {
+          by[m.trip_id] = m.display_name
+            || (m.email || '').split('@')[0]
+            || 'someone else';
+        }
+      });
+      setSharedBy(by);
+      setMemberCounts(counts);
+    } catch (error) {
+      if (mine !== loadToken.current) return;
+      failedLoad.current = true;
+      setLoadError(humanError(error));
+      setLoading(false);
+    }
+  }, [supabase, user?.id]);
+
+  useEffect(() => {
+    load();
+    return () => { loadToken.current += 1; };
+  }, [load]);
+  useEffect(() => { if (failedLoad.current) load(); }, [sessionRevision, load]);
 
   /* Read after mount, not during render: the server has no localStorage and
      would send markup the first client render then disagreed with. */
@@ -257,7 +281,13 @@ export default function TripsHome() {
             <PlanPrompt compact />
           </div>
 
-          {loading ? (
+          {loadError ? (
+            <div className="empty empty-lg" role="alert">
+              <p className="empty-title">Could not load your trips</p>
+              <p className="small muted">{loadError}</p>
+              <button className="btn primary" type="button" onClick={load}>Try again</button>
+            </div>
+          ) : loading ? (
             <div className="tripgrid">
               <div className="skel skel-card" /><div className="skel skel-card" /><div className="skel skel-card" />
             </div>

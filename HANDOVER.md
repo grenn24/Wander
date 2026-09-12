@@ -59,6 +59,15 @@ If a push fails on SSL, that is the cause.
 
 ## 3. Hard-won lessons — read these before debugging anything
 
+Mobile session recovery lives in `lib/sessionRecovery.js`. AppProvider restores
+on visibility, pageshow, focus and reconnect without remounting ready editors.
+Trip reads check the session first and replay once after a rejected JWT; never
+wrap mutations with this helper. Failed trip views offer Retry and retry after
+a restoration attempt. Token-refresh events alone must not retrigger failed
+loads, or a persistent rejection can loop. Network errors must not sign users
+out or clear offline downloads. Keep auth consumers outside the SDK callback
+lock. Regression coverage is in `tests/session-recovery.test.mjs`.
+
 These are the recurring bug classes in this codebase. Most "the model is being
 stupid" reports turned out to be one of them.
 

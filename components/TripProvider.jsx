@@ -4,7 +4,8 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useApp } from '@/components/AppProvider';
-import { dayRange, sortActs, parseQuickAdd, nextSortOrder } from '@/lib/util';
+import { dayRange, sortActs, parseQuickAdd, nextSortOrder, humanError } from '@/lib/util';
+import { isSessionTokenError, readWithSessionRecovery } from '@/lib/sessionRecovery';
 import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
 import { removeDownload } from '@/public/offline-store';
@@ -24,7 +25,7 @@ export function useTrip() {
  * back on error; realtime echoes are coalesced into a single refetch.
  */
 export default function TripProvider({ tripId, children }) {
-  const { supabase, user, displayName, pushToast, fail } = useApp();
+  const { supabase, user, sessionRevision, displayName, pushToast, fail } = useApp();
 
   const [trip, setTrip] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -39,6 +40,8 @@ export default function TripProvider({ tripId, children }) {
   const [online, setOnline] = useState([]);
   const [loadedId, setLoadedId] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const failedLoad = useRef(false);
   /*
    * "Take me to this activity", held here rather than in the address.
    *
@@ -69,30 +72,49 @@ export default function TripProvider({ tripId, children }) {
     if (!supabase || !id) return;
     const mine = token.current + 1;
     token.current = mine;
-    const [t, a, p, m, h] = await Promise.all([
-      supabase.from('trips').select('*').eq('id', id).maybeSingle(),
-      supabase.from('activities').select('*').eq('trip_id', id),
-      supabase.from('packing_items').select('*').eq('trip_id', id).order('created_at'),
-      supabase.from('trip_members').select('*').eq('trip_id', id),
-      supabase.from('trip_agent_messages').select('*').eq('trip_id', id)
-        .order('created_at', { ascending: false }).limit(60),
-    ]);
-    if (mine !== token.current) return; // superseded
-    if (t.error) { fail(t.error); return; }
-    if (!t.data) { removeDownload(id).catch(() => {}); setNotFound(true); setLoadedId(id); return; }
-    setNotFound(false);
-    setTrip(t.data);
-    if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
-    if (!p.error) setPacking(p.data || []);
-    if (!m.error) setMembers(m.data || []);
-    if (!h.error) setAgentHistory((prev) => mergeAgentHistory(h.data || [], [
-      ...prev.filter((row) => row.trip_id === id),
-      ...[...pendingHistory.current.values()].filter((row) => row.trip_id === id && row.user_id === user?.id),
-    ]));
-    setLoadedId(id);
-  }, [supabase, fail, user?.id]);
+    failedLoad.current = false;
+    setLoadError('');
+    try {
+      const [t, a, p, m, h] = await readWithSessionRecovery(supabase, () => Promise.all([
+        supabase.from('trips').select('*').eq('id', id).maybeSingle(),
+        supabase.from('activities').select('*').eq('trip_id', id),
+        supabase.from('packing_items').select('*').eq('trip_id', id).order('created_at'),
+        supabase.from('trip_members').select('*').eq('trip_id', id),
+        supabase.from('trip_agent_messages').select('*').eq('trip_id', id)
+          .order('created_at', { ascending: false }).limit(60),
+      ]));
+      if (mine !== token.current) return; // superseded
+      // Older deployments can lack the optional agent-history table. Preserve
+      // that fallback, but never silently swallow a rejected session token.
+      const error = [t, a, p, m].find((result) => result.error)?.error
+        || (isSessionTokenError(h.error) ? h.error : null);
+      if (error) throw error;
+      if (!t.data) { removeDownload(id).catch(() => {}); setNotFound(true); setLoadedId(id); return; }
+      setNotFound(false);
+      setTrip(t.data);
+      if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
+      if (!p.error) setPacking(p.data || []);
+      if (!m.error) setMembers(m.data || []);
+      if (!h.error) setAgentHistory((prev) => mergeAgentHistory(h.data || [], [
+        ...prev.filter((row) => row.trip_id === id),
+        ...[...pendingHistory.current.values()].filter((row) => row.trip_id === id && row.user_id === user?.id),
+      ]));
+      setLoadedId(id);
+    } catch (error) {
+      if (mine !== token.current) return;
+      failedLoad.current = true;
+      setLoadError(humanError(error));
+    }
+  }, [supabase, user?.id]);
 
-  useEffect(() => { load(tripId); }, [tripId, load]);
+  useEffect(() => {
+    load(tripId);
+    return () => { token.current += 1; };
+  }, [tripId, load]);
+
+  useEffect(() => {
+    if (failedLoad.current) load(tripId);
+  }, [sessionRevision, tripId, load]);
 
   /* --------------------------------------------------------- realtime --- */
   const loadRef = useRef(load);
@@ -430,7 +452,7 @@ export default function TripProvider({ tripId, children }) {
   const clearIntent = useCallback(() => setIntent(null), []);
 
   const value = useMemo(() => ({
-    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, isOwner,
+    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, loadError, isOwner,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     reload: () => load(tripId),
@@ -439,7 +461,7 @@ export default function TripProvider({ tripId, children }) {
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
-    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, isOwner, load,
+    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, loadError, isOwner, load,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,

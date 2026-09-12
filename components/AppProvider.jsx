@@ -12,6 +12,7 @@ import { keepCalendar } from '@/lib/gcal';
 import { clearDownloads, setDownloadOwner } from '@/public/offline-store';
 import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
+import { observeSession } from '@/lib/sessionRecovery';
 
 const Ctx = createContext(null);
 
@@ -52,6 +53,9 @@ export default function AppProvider({ children }) {
   const [phase, setPhase] = useState('boot'); // boot | error | signedout | ready
   const [supabase, setSupabase] = useState(null);
   const [session, setSession] = useState(null);
+  const [sessionRevision, setSessionRevision] = useState(0);
+  const sessionRecovery = useRef(null);
+  const retrySession = useCallback(() => sessionRecovery.current?.recover(), []);
   const [displayName, setDisplayName] = useState('');
   const [fatal, setFatal] = useState('');
   const [fatalKind, setFatalKind] = useState('session'); // config | session
@@ -87,7 +91,6 @@ export default function AppProvider({ children }) {
     const client = getClient();
     setSupabase(client);
 
-    let sub;
     let alive = true;
     // Once per arrival, not once per token refresh.
     const kept = { current: false };
@@ -134,24 +137,23 @@ export default function AppProvider({ children }) {
       }
     };
 
-    (async () => {
-      try {
-        const { data } = await client.auth.getSession();
-        settle(data.session || null);
-      } catch (e) {
+    const recovery = observeSession(client, {
+      onSession: settle,
+      // Only explicit restoration attempts retry failed views. Token refresh
+      // events from a rejected read must not create an endless retry loop.
+      onRecovered: () => setSessionRevision((value) => value + 1),
+      onError: (e) => {
         if (!alive) return;
-        setFatal(e && e.message ? e.message : 'Could not reach the account service.');
+        setFatal(humanError(e));
         setFatalKind('session');
-        setPhase('error');
-        return;
-      }
-      // Signing in, signing out and token refreshes all arrive here, so the
-      // gate opens and closes on its own rather than on a reload.
-      const res = client.auth.onAuthStateChange((_evt, s) => settle(s || null));
-      sub = res.data.subscription;
-    })();
-
-    return () => { alive = false; if (sub) sub.unsubscribe(); };
+        // A temporary reconnect failure must not discard open editors or downloads.
+        setPhase((previous) => previous === 'ready' ? previous : 'error');
+      },
+      windowTarget: window,
+      documentTarget: document,
+    });
+    sessionRecovery.current = recovery;
+    return () => { alive = false; recovery.dispose(); sessionRecovery.current = null; };
   }, []);
 
   const user = session ? session.user : null;
@@ -275,11 +277,11 @@ export default function AppProvider({ children }) {
   }, [supabase, router, pushToast]);
 
   const value = useMemo(() => ({
-    supabase, user, session, phase, displayName, saveDisplayName,
+    supabase, user, session, sessionRevision, phase, displayName, saveDisplayName,
     signIn, signUp, signInWithGoogle, connectCalendar, calendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   }), [
-    supabase, user, session, phase, displayName, saveDisplayName,
+    supabase, user, session, sessionRevision, phase, displayName, saveDisplayName,
     signIn, signUp, signInWithGoogle, connectCalendar, calendar, sendReset, signOut,
     pushToast, dismissToast, fail,
   ]);
@@ -290,7 +292,7 @@ export default function AppProvider({ children }) {
 
   if (phase === 'error') {
     return (
-      <ConfigError kind={fatalKind} fatal={fatal} missing={missingEnv()}
+      <ConfigError kind={fatalKind} fatal={fatal} missing={missingEnv()} onRetry={retrySession}
         warning={configWarning()} apiUrl={(readConfig() || {}).url || ''} />
     );
   }

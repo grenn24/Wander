@@ -22,7 +22,7 @@ export default function TripLayout({ children, params }) {
 }
 
 function TripChrome({ tripId, children }) {
-  const { trip, online, ready, notFound, days, activities, packing, members } = useTrip();
+  const { trip, online, ready, notFound, loadError, reload, days, activities, packing, members } = useTrip();
   const pathname = usePathname();
   // Read the tab off the end of the path rather than by index — a leading or
   // trailing slash shifts the positions, which is what silently pinned this to
@@ -73,7 +73,7 @@ function TripChrome({ tripId, children }) {
   const last = segments[segments.length - 1];
   const active = isTripTab(last) ? resolveTab(last) : 'itinerary';
 
-  if (notFound) {
+  if (ready && notFound) {
     return (
       <div className="shell">
         <TopBar />
@@ -159,14 +159,21 @@ function TripChrome({ tripId, children }) {
 
           <main className="main">
             <div className="wrap">
-              {ready ? children : (
+              {loadError ? (
+                <div className="card" role="alert" style={{ padding: 20, marginBottom: 16 }}>
+                  <p style={{ marginTop: 0 }}>Could not load {ready ? 'the latest trip updates' : 'your trip'}.</p>
+                  <p className="small muted">{loadError}</p>
+                  <button className="btn primary" type="button" onClick={reload}>Try again</button>
+                </div>
+              ) : null}
+              {ready ? children : !loadError ? (
                 <div aria-busy="true" aria-label="Loading trip">
                   <div className="skel skel-head" />
                   <div className="skel skel-row" />
                   <div className="skel skel-row" />
                   <div className="skel skel-row" />
                 </div>
-              )}
+              ) : null}
             </div>
           </main>
         </div>
