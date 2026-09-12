@@ -112,7 +112,7 @@ body {
   color: var(--text-1);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -4276,6 +4276,42 @@ body::before {
 .itinerary-gap-time { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
 .itinerary-distance-note { margin: 8px 0 12px 70px; font-size: 11px; line-height: 1.5; color: var(--text-2); }
 @media (max-width: 640px) { .itinerary-distance-note { margin-left: 8px; } }
+/* Comfortable reading sizes: explicit itinerary sizes must grow alongside the
+   body font. Keep the time gutter and mobile rows spacious at these sizes. */
+.itin .page-head h2 { font-size: 26px; }
+.itin .trip-facts, .itin .small { font-size: 15px; }
+.itin .btn.sm { font-size: 15px; min-height: 36px; }
+.itin .daychip-n, .itin .daychip-d, .itin .day-num { font-size: 14px; }
+.itin .daychip-d { color: var(--text-2); }
+.itin .day-date { font-size: 26px; }
+.itin .day-head { flex-wrap: wrap; }
+.itin .day-facts { font-size: 14px; color: var(--text-2); flex-wrap: wrap; gap: 6px 14px; }
+.itin .act { padding-block: 16px; }
+.itin .act-title { font-size: 18px; line-height: 1.45; overflow-wrap: anywhere; }
+.itin .act-t { font-size: 16px; }
+.itin .act-t2, .itin .act-meta, .itin .act-cost, .itin .act-leg { font-size: 15px; color: var(--text-2); }
+.itin .act-meta { margin-top: 5px; gap: 6px 10px; line-height: 1.5; }
+.itin .act-place, .itin .act-ref { overflow-wrap: anywhere; }
+.itin .act-place svg { width: 14px; height: 14px; }
+.itin .cattag, .itin .act-ref { font-size: 14px; }
+.itin .gap, .itin .itinerary-gap-time, .itin .map-leg-detail > span { font-size: 15px; }
+.itin .itinerary-distance-note { font-size: 14px; }
+.itin .qa-input { font-size: 16px; }
+@media (min-width: 641px) {
+  .itin .acts, .itin .day .qa { padding-left: 88px; }
+  .itin .act-when { left: -88px; width: 76px; }
+  .itin .acts::before, .itin .gap::before { left: 81px; }
+  .itin .gap { margin-left: -88px; padding-left: 96px; }
+  .itin .itinerary-distance-note { margin-left: 88px; }
+}
+@media (max-width: 640px) {
+  .itin .acts .act { display: grid; grid-template-columns: 48px minmax(0, 1fr) 36px; gap: 8px 12px; }
+  .itin .acts .act-when { grid-column: 1 / -1; grid-row: 1; }
+  .itin .acts .act > .photo { grid-column: 1; grid-row: 2; margin-right: 0; }
+  .itin .acts .act-body { grid-column: 2; grid-row: 2; }
+  .itin .acts .act-menu-wrap { grid-column: 3; grid-row: 2; }
+  .itin .acts .act-cost { grid-column: 2; grid-row: 3; }
+}
 /* Planning estimates and travel-day shortcuts use the same warm surfaces. */
 .budget-split { margin-top: 18px; }
 .split-members { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0; }
