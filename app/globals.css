@@ -890,6 +890,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 }
 .lp-navlink { color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 550; }
 .lp-navlink:hover { color: var(--text-1); }
+.lp-account-links { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
 @media (max-width: 700px) { .lp-navlink { display: none; } }
 
 .lp-hero {
