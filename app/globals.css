@@ -4284,7 +4284,7 @@ body::before {
     border-color: var(--border);
     box-shadow: var(--chrome-shadow);
   }
-  .daystrip { border: 1px solid var(--border); border-radius: 18px; }
+  .daystrip { border: 1px solid transparent; border-radius: 18px; box-shadow: none; }
   .daystrip .daychip:not(.active):not([aria-current="true"]) {
     background: var(--surface-1);
     border-color: var(--border);
