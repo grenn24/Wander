@@ -11,9 +11,10 @@ colours, nearby suggestions, place cards, photos and activity editing use the
 existing page callbacks. Lines connect stops within the same day; they are not
 navigation routes. Shared-location pins fan out without moving their coordinates.
 
-The 3D toolbar offers return to 2D, fit stops, rotate left/right and add a pin.
-Add a pin arms one map tap, then returns to exploring. Switching renderers
-preserves the map centre and approximates the ground scale. Selecting another
+Use Map appearance to switch back to a flat map, and map gestures to rotate or
+zoom. There is no extra 3D toolbar. Both renderers share the same photo-first
+place card, photo viewer and action styling. Switching renderers preserves the
+map centre and approximates the ground scale. Selecting another
 day fits that day's stops. Maps in activity editors and Traveller navigation
 retain their existing flat-map gestures and routes; they do not inherit 3D.
 
@@ -52,6 +53,6 @@ Regression tests cover saved appearance preferences, switching camera scale,
 date-line crossings, invalid/empty coordinates, narrow framing and search bounds.
 Local browser checks use fictional Tokyo stops with the real Google renderer:
 3D scenery, keyboard selection and activity callbacks, day filters, phone-sized
-cards and controls, and a simulated `gmp-error` returning to Road. Physical
+cards and appearance switching, and a simulated `gmp-error` returning to Road. Physical
 Android/iOS GPU performance and production billing settings require device/account
 verification. The temporary preview route is removed before shipping.

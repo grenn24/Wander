@@ -7,6 +7,7 @@ import { NEARBY_KINDS } from '@/lib/explore';
 import { categoryIcon } from '@/lib/icons';
 import MapAppearance, { useMapPreferences } from '@/components/MapAppearance';
 import { mapColorScheme } from '@/lib/mapPreferences';
+import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -766,56 +767,10 @@ function GoogleMapCanvas({
    */
   function openInfo(anchor, card) {
     const map = mapRef.current;
-    const el = document.createElement('div');
-    el.className = 'gminfo';
-
-    const shut = document.createElement('button');
-    shut.type = 'button';
-    shut.className = 'gminfo-x';
-    shut.dataset.tip = 'Close';
-    shut.setAttribute('aria-label', 'Close');
-    shut.innerHTML = '&#10005;';
-    shut.addEventListener('click', closeInfo);
-    el.appendChild(shut);
-
-    if (card.photoRef) {
-      const shot = document.createElement('button');
-      shot.type = 'button';
-      shot.className = 'gminfo-shot';
-      shot.dataset.tip = 'Photos';
-      shot.setAttribute('aria-label', `Photos of ${card.title}`);
-      const img = document.createElement('img');
-      img.alt = '';
-      img.src = `/api/places/photo?ref=${encodeURIComponent(card.photoRef)}&w=420`;
-      shot.appendChild(img);
-      shot.addEventListener('click', () => {
-        const show = latest.current.onPhoto;
-        if (show) {
-          show({
-            photoRef: card.photoRef,
-            photos: card.photos,
-            placeId: card.placeId,
-            title: card.title,
-          });
-        }
-      });
-      el.appendChild(shot);
-    }
-
-    const body = document.createElement('div');
-    body.className = 'gminfo-body';
-    body.innerHTML = `<strong class="gminfo-title">${escapeHtml(card.title || '')}</strong>`
-      + (card.meta ? `<div class="gminfo-meta">${escapeHtml(card.meta)}</div>` : '');
-    el.appendChild(body);
-
-    if (card.action && card.onAction) {
-      const go = document.createElement('button');
-      go.type = 'button';
-      go.className = 'gminfo-go';
-      go.textContent = card.action;
-      go.addEventListener('click', card.onAction);
-      body.appendChild(go);
-    }
+    const el = createMapPopup(card, {
+      onClose: closeInfo,
+      onPhoto: (photo) => latest.current.onPhoto?.(photo),
+    });
 
     /*
      * A new window each time, rather than one kept for the life of the map.
@@ -846,14 +801,9 @@ function GoogleMapCanvas({
 
   /** A suggestion: not in the plan yet, so the action is to put it there. */
   function openPlaceInfo(p, anchor) {
-    const bits = [];
-    if (p.detail) bits.push(p.detail);
-    if (p.rating) bits.push(`★ ${Number(p.rating).toFixed(1)}`);
-    if (p.km != null) bits.push(`${p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toFixed(1)} km`} from map centre`);
-
     openInfo(anchor, {
       title: p.name,
-      meta: bits.join(' · '),
+      meta: placePopupMeta(p),
       photoRef: p.photo_ref,
       photos: p.photos,
       placeId: (p.place_id || String(p.id || '').replace(/^g-/, '')) || null,
@@ -919,10 +869,4 @@ function GoogleMapCanvas({
 /** Nearby kinds are not categories; this is the bridge for marker colour. */
 function catForKind(kind) {
   return NEARBY_KINDS.find((k) => k.id === kind)?.category || 'other';
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
 }

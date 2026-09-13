@@ -1,11 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { LocateFixed, RotateCcw, RotateCw, MapPinPlus, X } from 'lucide-react';
-import PlacePhoto from './PlacePhoto';
 import { haversine, NEARBY_KINDS } from '@/lib/geo';
 import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from '@/lib/map3dCamera';
 import { move3DCamera } from '@/lib/map3dMotion';
+import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 import styles from './PhotorealisticMap.module.css';
 
 const EMPTY = [];
@@ -14,7 +12,7 @@ const DEFAULT_COLOUR = () => '#cd806a';
 export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onExit,
   stops = EMPTY, places = EMPTY, focused, focusedPlace, look,
   stopColour = DEFAULT_COLOUR, placeColour = DEFAULT_COLOUR,
-  onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onDropPin, onViewport, describeStop, onPhoto,
+  onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onViewport, describeStop, onPhoto,
   gestures = 'cooperative' }) {
   const host = useRef(null);
   const mapRef = useRef(null);
@@ -26,15 +24,11 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
   const motion = useRef(null);
   const aimed = useRef(false);
   const latest = useRef(null);
-  latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, onDropPin };
+  latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto };
   const [library, setLibrary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState(null);
   const [cardReady, setCardReady] = useState(false);
-  const [popupHost, setPopupHost] = useState(null);
-  const [dropping, setDropping] = useState(false);
-  const dropRef = useRef(false);
-  dropRef.current = dropping;
 
   function moveTo(target, onComplete, animate = true) {
     motion.current?.();
@@ -129,11 +123,6 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
         // Marker and popover events are not clicks on the bare map.
         if (event.composedPath().some((node) => ['GMP-MARKER-INTERACTIVE', 'GMP-POPOVER'].includes(node.tagName))) return;
         closeSelection();
-        if (dropRef.current && validMapPoint(event.position)) {
-          dropRef.current = false;
-          setDropping(false);
-          latest.current.onDropPin?.(event.position.lat, event.position.lng);
-        }
       });
       host.current.append(map);
       setLibrary(L);
@@ -243,44 +232,40 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       pin.scale = key === selection?.key ? 1.25 : kind === 'stop' ? 1 : 0.85;
     });
     const marker = markers.current.get(selection?.key)?.marker;
-    if (!marker || !cardReady) { setPopupHost(null); return; }
+    const isStop = selection?.kind === 'stop';
+    const item = (isStop ? stops : places).find((point) => point.id === selection?.id);
+    if (!marker || !cardReady || !item) return;
+    const detail = isStop ? latest.current.describeStop?.(item) : null;
+    const action = isStop ? latest.current.onStopOpen : latest.current.onPlaceAdd;
+    const content = createMapPopup({
+      title: isStop ? item.title : item.name,
+      meta: isStop ? detail?.meta || item.location : placePopupMeta(item),
+      photoRef: item.photo_ref,
+      photos: detail?.photos || item.photos,
+      placeId: item.place_id || (!isStop ? String(item.id || '').replace(/^g-/, '') : null),
+      action: action ? isStop ? 'Open activity' : 'Add to trip' : null,
+      onAction: action ? () => {
+        closeSelection();
+        if (isStop) latest.current.onStopOpen?.(item);
+        else latest.current.onPlaceAdd?.(item);
+      } : null,
+    }, {
+      onClose: closeSelection,
+      onPhoto: (photo) => latest.current.onPhoto?.(photo),
+    });
     // Wander owns the camera move. Google's automatic popover pan used to race
     // that move, briefly showing a card and then dismissing it mid-flight.
     const popover = new library.PopoverElement({ positionAnchor: marker, open: true, lightDismissDisabled: true, autoPanDisabled: true });
     popover.className = styles.bubble;
-    const content = document.createElement('div');
     popover.append(content);
     mapRef.current.append(popover);
-    setPopupHost(content);
     return () => popover.remove();
   }, [library, selection, cardReady, stops, places]);
 
-  const item = selection && (selection.kind === 'stop' ? stops : places).find((p) => p.id === selection.id);
-  const isStop = selection?.kind === 'stop';
-  const meta = item ? isStop ? describeStop?.(item)?.meta || item.location : item.detail : '';
   return <div className={styles.root} onKeyDown={(event) => {
-    if (event.key === 'Escape') { closeSelection(); setDropping(false); }
+    if (event.key === 'Escape') closeSelection();
   }}>
     <div ref={host} className={styles.canvas} />
-    <div className={styles.tools} role="group" aria-label="3D map controls">
-      <button type="button" className={styles.exit} onClick={onExit} aria-label="Return to road map">2D</button>
-      <button type="button" onClick={() => fit()} aria-label="Show all visible stops" data-tip="Show stops"><LocateFixed size={18} /></button>
-      <button type="button" onClick={() => { if (mapRef.current) mapRef.current.heading -= 30; }} aria-label="Rotate left" data-tip="Rotate left"><RotateCcw size={18} /></button>
-      <button type="button" onClick={() => { if (mapRef.current) mapRef.current.heading += 30; }} aria-label="Rotate right" data-tip="Rotate right"><RotateCw size={18} /></button>
-      {onDropPin ? <button type="button" onClick={() => setDropping(!dropping)} aria-label={dropping ? 'Cancel adding a pin' : 'Add a pin'} aria-pressed={dropping} data-tip="Add a pin"><MapPinPlus size={18} /></button> : null}
-    </div>
     {loading ? <div className={styles.loading} role="status"><span>Loading 3D scenery…</span><button className="btn small" onClick={onExit}>Use 2D</button></div> : null}
-    {dropping ? <div className={styles.hint} role="status">Tap a spot on the map to add a stop.</div> : null}
-    {popupHost && item ? createPortal(<div className={styles.popup}>
-      <header><PlacePhoto photoRef={item.photo_ref} category={item.category} size={40} />
-        <strong>{isStop ? item.title : item.name}</strong>
-        <button type="button" className="btn icon-btn" aria-label="Close place details" onClick={closeSelection}><X size={15} /></button></header>
-      {meta ? <p>{meta}</p> : null}
-      {item.photo_ref && onPhoto ? <button type="button" className="btn small" onClick={() => onPhoto({ photoRef: item.photo_ref, photos: item.photos, placeId: item.place_id, title: item.title || item.name })}>View photos</button> : null}
-      {(isStop ? onStopOpen : onPlaceAdd) ? <button type="button" className="btn primary" onClick={() => {
-        closeSelection();
-        if (isStop) onStopOpen(item); else onPlaceAdd(item);
-      }}>{isStop ? 'Open activity' : 'Add to trip'}</button> : null}
-    </div>, popupHost) : null}
   </div>;
 }
