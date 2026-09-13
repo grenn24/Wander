@@ -187,7 +187,7 @@ export default function GoogleMap({ showAppearance = true, allow3D = false, ...p
   return (
     <>
       {type === '3d' ? <PhotorealisticMap {...props} camera={camera} loadLibrary={load3D}
-        onFallback={fallback} onExit={() => change({ type: 'roadmap' })} />
+        onFallback={fallback} />
         : <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
           mapType={type} camera={camera} />}
       {showAppearance ? <MapAppearance preferences={{ ...preferences, type }} allow3D={allow3D} onChange={change} /> : null}

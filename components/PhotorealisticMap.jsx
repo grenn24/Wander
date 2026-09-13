@@ -9,7 +9,7 @@ import styles from './PhotorealisticMap.module.css';
 const EMPTY = [];
 const DEFAULT_COLOUR = () => '#cd806a';
 
-export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onExit,
+export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   stops = EMPTY, places = EMPTY, focused, focusedPlace, look,
   stopColour = DEFAULT_COLOUR, placeColour = DEFAULT_COLOUR,
   onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onViewport, describeStop, onPhoto,
@@ -26,7 +26,6 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
   const latest = useRef(null);
   latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto };
   const [library, setLibrary] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState(null);
   const [cardReady, setCardReady] = useState(false);
 
@@ -96,7 +95,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       const view = viewport3D(map.center, map.range);
       if (view) latest.current.onViewport?.(view);
     }
-    // Do not leave a blank map behind a loading indicator indefinitely on
+    // Do not leave a blank map indefinitely on
     // unsupported GPUs, rejected keys, or interrupted mobile connections.
     timer = setTimeout(fail, 45000);
     loadLibrary().then((L) => {
@@ -111,7 +110,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       mapRef.current = map;
       listen(map, 'gmp-error', fail);
       listen(map, 'gmp-steadychange', (event) => {
-        if (event.isSteady) { clearTimeout(timer); setLoading(false); report(); }
+        if (event.isSteady) { clearTimeout(timer); report(); }
       });
       ['gmp-centerchange', 'gmp-rangechange', 'gmp-headingchange', 'gmp-tiltchange'].forEach((name) => listen(map, name, () => {
         remember();
@@ -266,6 +265,5 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
     if (event.key === 'Escape') closeSelection();
   }}>
     <div ref={host} className={styles.canvas} />
-    {loading ? <div className={styles.loading} role="status"><span>Loading 3D scenery…</span><button className="btn small" onClick={onExit}>Use 2D</button></div> : null}
   </div>;
 }
