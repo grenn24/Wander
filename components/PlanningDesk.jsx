@@ -6,6 +6,7 @@ import { useApp } from '@/components/AppProvider';
 import Select from '@/components/Select';
 import { clamp, deskAnchor, deskPosition, readDesk, writeDesk } from '@/lib/planningDesk';
 import { deskChanges, sharedDesk } from '@/lib/sharedPlanningDesk';
+import { prepareDeskImage } from '@/lib/deskImages';
 import styles from './PlanningDesk.module.css';
 
 function DeskPhoto({ blob, name }) {
@@ -24,7 +25,7 @@ export default function PlanningDesk(props) {
 }
 
 function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
-  const { supabase } = useApp();
+  const { supabase, pushToast } = useApp();
   const remote = useMemo(() => sharedDesk(supabase, tripId), [supabase, tripId]);
   const [items, setItems] = useState([]);
   const current = useRef([]);
@@ -32,6 +33,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   const [selected, setSelected] = useState(null);
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [preparing, setPreparing] = useState(0);
   const [error, setError] = useState('');
   const [deleted, setDeleted] = useState(null);
   const [bounds, setBounds] = useState({ wide: false, left: 0, width: 0, lane: 0, height: 600, anchors: {} });
@@ -174,17 +176,24 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   }
 
   async function images(files, target) {
-    for (const file of Array.from(files).slice(0, 8)) {
-      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
-        setError('Choose a JPG, PNG, WebP or GIF picture.'); continue;
+    if (!ready) return;
+    setPreparing(value => value + 1);
+    try {
+      for (const file of Array.from(files).slice(0, 8)) {
+        try {
+          const picture = await prepareDeskImage(file);
+          if (!alive.current) return;
+          if (current.current.reduce((sum, item) => sum + (item.blob?.size || 0), 0) + picture.size > 40 * 1024 * 1024) {
+            setError('This desk has reached its 40 MB picture limit. Remove a picture to make room.'); break;
+          }
+          add('photo', { blob: picture, name: picture.name }, target);
+          if (picture !== file) pushToast(`Picture compressed from ${(file.size / 1048576).toFixed(1)} MB to ${(picture.size / 1048576).toFixed(1)} MB.`);
+          if (target) target = { ...target, y: target.y + 40 };
+        } catch (error) {
+          if (alive.current) setError(error.message || 'Could not prepare this picture. Try a smaller image.');
+        }
       }
-      if (file.size > 8 * 1024 * 1024) { setError('Choose pictures smaller than 8 MB each.'); continue; }
-      if (current.current.reduce((sum, item) => sum + (item.blob?.size || 0), 0) + file.size > 40 * 1024 * 1024) {
-        setError('This desk has reached its 40 MB picture limit. Remove a picture to make room.'); break;
-      }
-      add('photo', { blob: file, name: file.name }, target);
-      if (target) target = { ...target, y: target.y + 40 };
-    }
+    } finally { if (alive.current) setPreparing(value => value - 1); }
   }
 
   function startDrag(event, item, mode) {
@@ -288,7 +297,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     <button type="button" disabled={!ready} onClick={() => add()}><StickyNote size={15} /> Note</button>
     <button type="button" disabled={!ready} onClick={() => { uploadTarget.current = null; fileInput.current.click(); }}><ImagePlus size={15} /> Picture</button>
     {deleted ? <button type="button" onClick={() => { change([...current.current, deleted]); setDeleted(null); }}><Undo2 size={15} /> Undo delete</button> : null}
-    <span role="status">{message || 'Loading shared desk…'}</span>
+    <span role="status">{preparing ? 'Preparing pictures…' : message || 'Loading shared desk…'}</span>
   </div>;
 
   return <>
@@ -304,6 +313,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
         <button type="button" disabled={!ready} onClick={() => add()}><StickyNote size={18} /> Add note</button>
         <button type="button" disabled={!ready} onClick={() => { uploadTarget.current = null; fileInput.current.click(); }}><ImagePlus size={18} /> Add picture</button>
         <span className={styles.marginTip}>Double-click empty space to add a note</span>
+        {preparing ? <span className={styles.marginTip} role="status">Preparing pictures…</span> : null}
       </div>
       {ready && !items.length ? <button type="button" className={styles.starter} style={{ width: Math.min(244, bounds.lane - 12) }} onClick={() => add()}>
         <StickyNote size={25} aria-hidden="true" />

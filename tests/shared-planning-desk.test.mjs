@@ -26,7 +26,7 @@ test('photo upload failures prevent publishing a broken shared picture', async (
     storage: { from: () => ({ upload: async () => ({ error: new Error('offline') }) }) },
     rpc: async () => { saved = true; return {}; },
   }, 'trip');
-  await assert.rejects(remote.save({ id: 'a', create: true, patch: {}, blob: new Blob(['photo']) }), /offline/);
+  await assert.rejects(remote.save({ id: 'a', create: true, patch: {}, blob: new Blob(['photo'], { type: 'image/png' }) }), /offline/);
   assert.equal(saved, false);
 });
 
@@ -39,7 +39,7 @@ test('retrying an uploaded picture uses the existing private object', async () =
     } }) },
     rpc: async (name, values) => { args = { name, values }; return {}; },
   }, 'trip');
-  await remote.save({ id: 'a', create: true, patch: { kind: 'photo' }, blob: new Blob(['photo']) });
+  await remote.save({ id: 'a', create: true, patch: { kind: 'photo' }, blob: new Blob(['photo'], { type: 'image/png' }) });
   assert.equal(args.name, 'save_desk_item');
   assert.equal(args.values.p_patch.picture, 'trip/a');
 });
