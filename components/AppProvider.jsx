@@ -332,12 +332,13 @@ export function useTheme() {
     try {
       if (next === 'system') {
         localStorage.removeItem('tp.theme');
-        document.documentElement.removeAttribute('data-theme');
       } else {
         localStorage.setItem('tp.theme', next);
-        document.documentElement.setAttribute('data-theme', next);
       }
     } catch (e) { /* ignore */ }
+    // Applying the theme must still work when persistence is blocked.
+    if (next === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', next);
   }, []);
 
   const toggle = useCallback(() => {

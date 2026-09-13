@@ -2,6 +2,7 @@ import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/g
 import ViewportInsets from '@/components/ViewportInsets';
 import Tips from '@/components/Tips';
 import OfflineNotice from '@/components/OfflineNotice';
+import { browserThemeScript } from '@/lib/browserTheme';
 import './globals.css';
 
 /*
@@ -62,19 +63,18 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  colorScheme: 'light dark',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#fbf8f1' },
     { media: '(prefers-color-scheme: dark)', color: '#201d18' },
   ],
 };
 
-const themeScript = `try{var t=localStorage.getItem('tp.theme');if(t){document.documentElement.setAttribute('data-theme',t)}}catch(e){}`;
-
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: browserThemeScript }} />
         <ViewportInsets />
         <OfflineNotice />
         {children}

@@ -105,7 +105,8 @@ html { scrollbar-gutter: stable; }
  * Keyboard focus rings are unaffected: this property only governs the touch
  * flash, and :focus-visible outlines are set separately.
  */
-html { -webkit-tap-highlight-color: transparent; }
+/* Android can draw the root canvas behind its system navigation controls. */
+html { -webkit-tap-highlight-color: transparent; background: var(--surface-0); }
 body {
   margin: 0;
   background: var(--surface-0);
