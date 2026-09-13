@@ -27,7 +27,8 @@ export default function Loading({ label = 'Loading', full = false, className = '
         <path className="loader-trail" d={PATH} pathLength="1" />
         <circle className="loader-pin" cx="9" cy="42" r="3.2" />
         <circle className="loader-pin loader-pin-to" cx="111" cy="24" r="3.2" />
-        <g className="loader-plane" style={{ offsetPath: `path("${PATH}")` }}>
+        {/* Anchor the nose, rather than the centre of the plane, to the route. */}
+        <g className="loader-plane" style={{ offsetPath: `path("${PATH}")`, offsetAnchor: '100% 50%', transformBox: 'fill-box' }}>
           <path d="M-5,-4.5 L7,0 L-5,4.5 L-2.2,0 Z" />
         </g>
       </svg>

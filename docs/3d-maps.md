@@ -20,7 +20,12 @@ retain their existing flat-map gestures and routes; they do not inherit 3D.
 An initialization error, failed library import or 45-second initial loading
 timeout returns to Road with a dismissible explanation. The 2D button also
 works while 3D loads. Changing days or selections does not recreate the 3D map;
-leaving 3D removes its element and listeners. There is no automatic fly-through.
+leaving 3D removes its element and listeners. Nearby selections and day framing
+use a 0.9–1.4 second camera transition. Jumps over 20 km, large zoom changes and
+reduced-motion preferences use an instant move. A newer selection cancels the
+previous flight. Cards open after arrival with Google's automatic popover panning
+disabled, so two competing camera moves cannot dismiss them. There is no automatic
+fly-through.
 
 ## Google Cloud and availability
 

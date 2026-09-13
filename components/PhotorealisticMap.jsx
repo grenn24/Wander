@@ -5,6 +5,7 @@ import { LocateFixed, RotateCcw, RotateCw, MapPinPlus, X } from 'lucide-react';
 import PlacePhoto from './PlacePhoto';
 import { haversine, NEARBY_KINDS } from '@/lib/geo';
 import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from '@/lib/map3dCamera';
+import { move3DCamera } from '@/lib/map3dMotion';
 import styles from './PhotorealisticMap.module.css';
 
 const EMPTY = [];
@@ -21,21 +22,59 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
   const restored = useRef(!!camera.current);
   const initialSelection = useRef(true);
   const lastFocus = useRef({ focused, focusedPlace });
+  const selectedRef = useRef(null);
+  const motion = useRef(null);
+  const aimed = useRef(false);
   const latest = useRef(null);
   latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, onDropPin };
   const [library, setLibrary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState(null);
+  const [cardReady, setCardReady] = useState(false);
   const [popupHost, setPopupHost] = useState(null);
   const [dropping, setDropping] = useState(false);
   const dropRef = useRef(false);
   dropRef.current = dropping;
 
-  function fit() {
+  function moveTo(target, onComplete, animate = true) {
+    motion.current?.();
+    const map = mapRef.current;
+    if (!map) return;
+    motion.current = move3DCamera(map, target, {
+      reducedMotion: !animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      onComplete,
+    });
+  }
+
+  function closeSelection() {
+    selectedRef.current = null;
+    setSelection(null);
+    setCardReady(false);
+    motion.current?.();
+  }
+
+  function selectPoint(point, kind, toggle = false) {
+    const key = `${kind}:${point.id}`;
+    if (selectedRef.current === key) {
+      if (toggle) closeSelection();
+      return;
+    }
+    selectedRef.current = key;
+    setCardReady(false);
+    setSelection({ key, kind, id: point.id });
+    const map = mapRef.current;
+    moveTo({ center: { lat: point.lat, lng: point.lng }, range: Math.min(map.range, 2200),
+      heading: map.heading || 0, tilt: map.tilt }, () => {
+      if (selectedRef.current === key) setCardReady(true);
+    });
+  }
+
+  function fit(animate = true) {
     const map = mapRef.current;
     if (!map) return;
     const next = fit3DCamera(latest.current.stops, latest.current.look, host.current.clientWidth / Math.max(1, host.current.clientHeight));
-    Object.assign(map, next);
+    closeSelection();
+    moveTo(next, undefined, animate);
   }
 
   useEffect(() => {
@@ -87,7 +126,9 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       }));
       listen(map, 'gmp-click', (event) => {
         event.preventDefault();
-        setSelection(null);
+        // Marker and popover events are not clicks on the bare map.
+        if (event.composedPath().some((node) => ['GMP-MARKER-INTERACTIVE', 'GMP-POPOVER'].includes(node.tagName))) return;
+        closeSelection();
         if (dropRef.current && validMapPoint(event.position)) {
           dropRef.current = false;
           setDropping(false);
@@ -103,6 +144,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       clearTimeout(timer);
       clearTimeout(reportTimer);
       listeners.forEach((remove) => remove());
+      motion.current?.();
       map?.remove();
       mapRef.current = null;
     };
@@ -147,7 +189,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       } else marker.append(pin);
       marker.addEventListener('gmp-click', (event) => {
         event.stopPropagation();
-        setSelection((old) => old?.key === key ? null : { key, kind, id: point.id });
+        selectPoint(point, kind, true);
         if (kind === 'stop') latest.current.onFocus?.(point.id);
         else latest.current.onPlaceFocus?.(point.id);
       });
@@ -177,9 +219,9 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
   const extent = JSON.stringify(stops.map(({ id, lat, lng }) => [id, lat, lng]));
   useEffect(() => {
     if (!library) return;
-    if (restored.current) { restored.current = false; return; }
-    fit();
-    setSelection(null);
+    if (restored.current) { restored.current = false; aimed.current = true; return; }
+    fit(aimed.current);
+    aimed.current = true;
   }, [library, extent, look?.lat, look?.lng]);
 
   useEffect(() => {
@@ -192,9 +234,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
     if (!id) return;
     const point = (kind === 'place' ? places : stops).find((p) => p.id === id);
     if (!validMapPoint(point)) return;
-    mapRef.current.center = { lat: point.lat, lng: point.lng };
-    mapRef.current.range = Math.min(mapRef.current.range, 2200);
-    setSelection({ key: `${kind}:${id}`, kind, id });
+    selectPoint(point, kind);
   }, [library, focused, focusedPlace]);
 
   useEffect(() => {
@@ -203,26 +243,28 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
       pin.scale = key === selection?.key ? 1.25 : kind === 'stop' ? 1 : 0.85;
     });
     const marker = markers.current.get(selection?.key)?.marker;
-    if (!marker) { setPopupHost(null); return; }
-    const popover = new library.PopoverElement({ positionAnchor: marker, open: true, lightDismissDisabled: true });
+    if (!marker || !cardReady) { setPopupHost(null); return; }
+    // Wander owns the camera move. Google's automatic popover pan used to race
+    // that move, briefly showing a card and then dismissing it mid-flight.
+    const popover = new library.PopoverElement({ positionAnchor: marker, open: true, lightDismissDisabled: true, autoPanDisabled: true });
     popover.className = styles.bubble;
     const content = document.createElement('div');
     popover.append(content);
     mapRef.current.append(popover);
     setPopupHost(content);
     return () => popover.remove();
-  }, [library, selection, stops, places]);
+  }, [library, selection, cardReady, stops, places]);
 
   const item = selection && (selection.kind === 'stop' ? stops : places).find((p) => p.id === selection.id);
   const isStop = selection?.kind === 'stop';
   const meta = item ? isStop ? describeStop?.(item)?.meta || item.location : item.detail : '';
   return <div className={styles.root} onKeyDown={(event) => {
-    if (event.key === 'Escape') { setSelection(null); setDropping(false); }
+    if (event.key === 'Escape') { closeSelection(); setDropping(false); }
   }}>
     <div ref={host} className={styles.canvas} />
     <div className={styles.tools} role="group" aria-label="3D map controls">
       <button type="button" className={styles.exit} onClick={onExit} aria-label="Return to road map">2D</button>
-      <button type="button" onClick={fit} aria-label="Show all visible stops" data-tip="Show stops"><LocateFixed size={18} /></button>
+      <button type="button" onClick={() => fit()} aria-label="Show all visible stops" data-tip="Show stops"><LocateFixed size={18} /></button>
       <button type="button" onClick={() => { if (mapRef.current) mapRef.current.heading -= 30; }} aria-label="Rotate left" data-tip="Rotate left"><RotateCcw size={18} /></button>
       <button type="button" onClick={() => { if (mapRef.current) mapRef.current.heading += 30; }} aria-label="Rotate right" data-tip="Rotate right"><RotateCw size={18} /></button>
       {onDropPin ? <button type="button" onClick={() => setDropping(!dropping)} aria-label={dropping ? 'Cancel adding a pin' : 'Add a pin'} aria-pressed={dropping} data-tip="Add a pin"><MapPinPlus size={18} /></button> : null}
@@ -232,11 +274,11 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback, onE
     {popupHost && item ? createPortal(<div className={styles.popup}>
       <header><PlacePhoto photoRef={item.photo_ref} category={item.category} size={40} />
         <strong>{isStop ? item.title : item.name}</strong>
-        <button type="button" className="btn icon-btn" aria-label="Close place details" onClick={() => setSelection(null)}><X size={15} /></button></header>
+        <button type="button" className="btn icon-btn" aria-label="Close place details" onClick={closeSelection}><X size={15} /></button></header>
       {meta ? <p>{meta}</p> : null}
       {item.photo_ref && onPhoto ? <button type="button" className="btn small" onClick={() => onPhoto({ photoRef: item.photo_ref, photos: item.photos, placeId: item.place_id, title: item.title || item.name })}>View photos</button> : null}
       {(isStop ? onStopOpen : onPlaceAdd) ? <button type="button" className="btn primary" onClick={() => {
-        setSelection(null);
+        closeSelection();
         if (isStop) onStopOpen(item); else onPlaceAdd(item);
       }}>{isStop ? 'Open activity' : 'Add to trip'}</button> : null}
     </div>, popupHost) : null}
