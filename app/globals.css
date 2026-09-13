@@ -1,13 +1,13 @@
 :root {
   color-scheme: light;
-  --surface-0: #f4efe5;
-  --surface-1: #fbf8f1;
-  --surface-2: #eee6d8;
+  --surface-0: #f0ece5;
+  --surface-1: #f7f4ee;
+  --surface-2: #e7e1d7;
   --border:    #ddd2c0;
   --border-strong: #c8baa4;
   --text-1: #29231d;
-  --text-2: #6f655a;
-  --text-3: #8f8274;
+  --text-2: #60594f;
+  --text-3: #71685d;
   --accent:   #a34f35;
   --accent-ink: #783621;
   --accent-soft: #f2ddd3;
@@ -19,8 +19,8 @@
   --shadow: 0 2px 4px rgba(73,54,36,.06), 0 18px 48px -28px rgba(73,54,36,.30);
   --radius: 18px;
   /* --- glass ------------------------------------------------------------ */
-  --glass: #fbf8f1;
-  --glass-strong: #fffdf8;
+  --glass: #f7f4ee;
+  --glass-strong: #f7f4ee;
   --glass-edge: transparent;
   --glass-line: #ddd2c0;
   --glass-blur: 0px;
@@ -4271,6 +4271,61 @@ body::before {
   .mappanel .stop.is-focus { background: var(--accent-soft); }
   .ck-back { background: rgb(10 10 10 / .6); }
 }
+/* Quiet glass for navigation and transient surfaces. Keep the stronger lens
+   above for floating command/map controls; content and inputs stay solid. */
+@media screen {
+  :root {
+    --chrome-light: linear-gradient(145deg, rgb(255 255 255 / .12), transparent 55%);
+    --chrome-edge: color-mix(in srgb, var(--surface-1) 80%, white);
+    --chrome-shadow: inset 0 1px 0 var(--chrome-edge), 0 4px 16px -12px rgb(0 0 0 / .22);
+  }
+  :is(.topbar, .rail, .lp-nav, .daystrip) {
+    background: var(--surface-1);
+    border-color: var(--border);
+    box-shadow: var(--chrome-shadow);
+  }
+  .daystrip { border: 1px solid var(--border); border-radius: 18px; }
+  .daystrip .daychip:not(.active):not([aria-current="true"]) {
+    background: var(--surface-1);
+    border-color: var(--border);
+    box-shadow: inset 0 1px 0 var(--chrome-edge);
+  }
+  :is(.modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list) {
+    background: var(--surface-1);
+    border-color: var(--border-strong);
+    box-shadow: inset 0 1px 0 var(--chrome-edge), var(--lift-lg);
+  }
+  .input, .select, .textarea, .quickadd-in {
+    background: var(--surface-1);
+  }
+  .act { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :is(.topbar, .rail, .lp-nav, .daystrip) {
+      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 86%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(120%);
+      backdrop-filter: blur(18px) saturate(120%);
+    }
+    /* The strip supplies the blur; its individual day buttons need no filter. */
+    .daystrip .daychip:not(.active):not([aria-current="true"]) {
+      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 76%, transparent);
+    }
+    :is(.modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list) {
+      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 96%, transparent);
+      -webkit-backdrop-filter: blur(20px) saturate(120%);
+      backdrop-filter: blur(20px) saturate(120%);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    :is(.topbar, .rail, .lp-nav, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list),
+    .daystrip .daychip:not(.active):not([aria-current="true"]) {
+      background: var(--surface-1);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}
+
 /* Day sections make the route legible without joining separate days together. */
 .mappanel .stoplist { gap: 24px; }
 .map-day-head { padding: 0 4px 10px; }

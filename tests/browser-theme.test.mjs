@@ -24,7 +24,7 @@ function browser({ saved = null, dark = false, blocked = false } = {}) {
 }
 
 test('saved app theme overrides the opposite system theme at startup', () => {
-  for (const [saved, dark, colour] of [['dark', false, '#201d18'], ['light', true, '#fbf8f1']]) {
+  for (const [saved, dark, colour] of [['dark', false, '#201d18'], ['light', true, '#f7f4ee']]) {
     const page = browser({ saved, dark });
     assert.deepEqual(page.colours.map(m => m.content), [colour, colour]);
     assert.equal(page.scheme.content, saved);
@@ -44,7 +44,7 @@ test('manual changes and returning to System keep browser metadata in sync', () 
   page.colours[0].content = 'stale';
   page.events.pageshow();
   assert.equal(page.colours[0].content, '#201d18');
-  page.colours[1].content = '#fbf8f1';
+  page.colours[1].content = '#f7f4ee';
   page.events.metadata();
   assert.equal(page.colours[1].content, '#201d18');
 });
@@ -53,6 +53,6 @@ test('unavailable storage or an invalid saved theme uses the system preference',
     const page = browser({ ...opts, dark: true });
     assert.equal(page.scheme.content, 'dark');
     page.root.setAttribute('data-theme', 'light');
-    assert.equal(page.colours[0].content, '#fbf8f1');
+    assert.equal(page.colours[0].content, '#f7f4ee');
   }
 });
