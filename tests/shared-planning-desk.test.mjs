@@ -9,6 +9,13 @@ test('only changed fields are sent, preserving other members edits', () => {
   assert.deepEqual(deskChanges(before, [before[1]]), [{ id: 'a', patch: {}, remove: true }]);
 });
 
+test('font size and new paper colours sync without replacing note text', () => {
+  const before = [{ id: 'a', text: 'Keep this text', colour: 'sand' }];
+  const changes = deskChanges(before, [{ ...before[0], fontSize: 20, colour: 'lavender' }]);
+  assert.deepEqual(changes[0].patch, { colour: 'lavender', fontSize: 20 });
+  assert.equal(changes[0].create, false);
+});
+
 test('migration ignores duplicate IDs, so stale local copies cannot overwrite shared notes', async () => {
   const rows = [];
   const remote = sharedDesk({ from: table => ({ upsert: async (row, options) => {

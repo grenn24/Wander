@@ -9,6 +9,8 @@ import { deskChanges, sharedDesk } from '@/lib/sharedPlanningDesk';
 import { prepareDeskImage } from '@/lib/deskImages';
 import styles from './PlanningDesk.module.css';
 
+const PAPER_COLOURS = ['sand', 'sage', 'rose', 'sky', 'lavender', 'peach'];
+
 function DeskPhoto({ blob, name }) {
   const [url, setUrl] = useState('');
   useEffect(() => {
@@ -241,6 +243,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   }
 
   function card(item, board = false) {
+    const fontSize = clamp(Number(item.fontSize) || (item.kind === 'photo' ? 12 : 16), 12, 28);
     const position = deskPosition(item, bounds.lane, bounds.anchors);
     const style = board ? { width: item.width, maxWidth: '100%', height: item.height, transform: `rotate(${item.rotation}deg)` } : { width: position.width, height: item.height,
       left: (item.side === 'right' ? bounds.width - bounds.lane : 0) + position.left,
@@ -262,6 +265,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
       </div>
       {item.kind === 'photo' ? <div className={styles.picture}><DeskPhoto blob={item.blob} name={item.name} /></div> : null}
       <textarea aria-label={item.kind === 'photo' ? 'Picture caption' : 'Note text'} placeholder={item.kind === 'photo' ? 'Add a caption…' : 'A thought, a reminder, a place to try…'}
+        style={{ fontSize, ...(item.kind === 'photo' ? { flexBasis: Math.max(36, fontSize * 1.65 + 10) } : {}) }}
         value={item.text} onChange={event => patch(item.id, { text: event.target.value })} />
       {active ? <div className={styles.editTools} onPointerDown={event => event.stopPropagation()}>
         <div className={styles.toolRow}>
@@ -269,8 +273,14 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
             onChange={value => patch(item.id, { day: value || null, y: 50 })}
             options={[{ value: '', label: 'Whole trip' }, ...days.map((day, i) => ({ value: day, label: `Day ${i + 1}` }))]} />
           <button type="button" aria-label="Move to other side" onClick={() => patch(item.id, { side: item.side === 'left' ? 'right' : 'left' })}><ArrowLeftRight size={15} /></button>
-          <button type="button" aria-label="Straighten item" onClick={() => patch(item.id, { rotation: 0 })}><RotateCcw size={15} /></button>
-          {['sand','sage','rose'].map(colour => <button key={colour} type="button" className={`${styles.swatch} ${styles[colour]}`} aria-label={`${colour} paper`} aria-pressed={item.colour === colour} onClick={() => patch(item.id, { colour })} />)}
+        </div>
+        <div className={styles.toolRow} role="group" aria-label="Text size">
+          <button type="button" aria-label="Decrease font size" data-tip="Smaller text" disabled={fontSize <= 12} onClick={() => patch(item.id, { fontSize: fontSize - 2 })}>A−</button>
+          <span className={styles.fontSize}>{fontSize} px</span>
+          <button type="button" aria-label="Increase font size" data-tip="Larger text" disabled={fontSize >= 28} onClick={() => patch(item.id, { fontSize: fontSize + 2 })}>A+</button>
+        </div>
+        <div className={styles.toolRow} role="group" aria-label="Paper colour">
+          {PAPER_COLOURS.map(colour => <button key={colour} type="button" className={`${styles.swatch} ${styles[colour]}`} aria-label={`${colour} paper`} data-tip={`${colour[0].toUpperCase()}${colour.slice(1)} paper`} aria-pressed={item.colour === colour} onClick={() => patch(item.id, { colour })} />)}
         </div>
       </div> : null}
       {active ? <button type="button" className={styles.rotate} aria-label="Rotate item" data-tip="Drag to rotate · Double-click to straighten"

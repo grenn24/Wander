@@ -25,6 +25,9 @@
 .sand { background:color-mix(in srgb,var(--surface-1) 78%,#c8a146); }
 .sage { background:color-mix(in srgb,var(--surface-1) 80%,#87a071); }
 .rose { background:color-mix(in srgb,var(--surface-1) 82%,#c4836f); }
+.sky { background:color-mix(in srgb,var(--surface-1) 78%,#78a7c8); }
+.lavender { background:color-mix(in srgb,var(--surface-1) 78%,#a18ac4); }
+.peach { background:color-mix(in srgb,var(--surface-1) 78%,#d89e70); }
 .selected { z-index:4; outline:1px solid var(--accent); outline-offset:3px; }
 .handle { display:flex; align-items:center; justify-content:space-between; gap:3px; flex:none; cursor:grab; touch-action:none; user-select:none; color:var(--text-2); margin:0 -6px 5px; }
 .handle:active { cursor:grabbing; }
@@ -34,19 +37,25 @@
 .item textarea::placeholder { color:var(--text-2); opacity:.75; }
 .item textarea:focus { outline:none; }
 .item:focus-within { outline:1px solid var(--accent); outline-offset:3px; }
-.photo { border-radius:5px; background:var(--surface-1); padding:7px 10px 12px; }
+.photo { border-radius:5px; padding:7px 10px 12px; }
 .picture { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; background:var(--surface-2); overflow:hidden; }
 .picture img { width:100%; height:100%; object-fit:contain; }
 .photo textarea { flex:0 0 36px; min-height:36px; font-size:12px; text-align:center; padding-top:7px; }
 .resize { position:absolute; bottom:0; right:0; width:26px; height:26px; display:grid; place-items:center; cursor:nwse-resize; touch-action:none; border:0; border-radius:10px 0 0; color:var(--text-2); background:transparent; }
 .editTools { position:absolute; top:calc(100% + 11px); left:0; width:100%; padding:8px; border:1px solid var(--border); background:var(--surface-1); border-radius:12px; box-shadow:var(--shadow); cursor:default; }
 .toolRow { display:flex; gap:2px; align-items:center; flex-wrap:wrap; }
+.toolRow + .toolRow { margin-top:8px; }
+.fontSize { min-width:44px; text-align:center; font-size:12px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.editTools button:disabled { opacity:.35; cursor:default; }
 .daySelect { min-width:0; width:85px; }
 .editTools .daySelect button { display:flex; width:100%; height:28px; min-height:28px; padding:3px; font-size:11px; border:1px solid var(--border); }
-.toolRow .swatch { width:18px; height:18px; border-radius:50%; border:1px solid var(--border-strong); flex:none; }
+.toolRow .swatch { width:22px; height:22px; border-radius:50%; border:1px solid var(--border-strong); flex:none; }
 .toolRow .swatch.sand { background:#c8a146; }
 .toolRow .swatch.sage { background:#87a071; }
 .toolRow .swatch.rose { background:#c4836f; }
+.toolRow .swatch.sky { background:#78a7c8; }
+.toolRow .swatch.lavender { background:#a18ac4; }
+.toolRow .swatch.peach { background:#d89e70; }
 .swatch[aria-pressed=true] { outline:1px solid var(--accent); outline-offset:2px; }
 .rotate { position:absolute; left:50%; top:-39px; transform:translateX(-50%); display:grid; place-items:center; width:27px; height:27px; padding:0; border:1px solid var(--accent); border-radius:50%; background:var(--surface-1); color:var(--accent); cursor:grab; touch-action:none; box-shadow:0 2px 7px #0002; }
 .rotate::after { content:''; position:absolute; top:100%; left:50%; height:12px; width:1px; background:var(--accent); pointer-events:none; }
@@ -61,7 +70,7 @@
 .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--border); padding:0 0 16px; }
 .toolbar button { display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:10px; padding:7px 10px; background:var(--surface-1); color:var(--text-1); font-size:13px; cursor:pointer; }
 .toolbar span { font-size:11px; margin-left:auto; color:var(--text-2); }
-.board { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); align-items:start; gap:90px 28px; padding:50px 10px 80px; min-height:300px; }
+.board { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); align-items:start; gap:160px 28px; padding:50px 10px 145px; min-height:300px; }
 .board .item { position:relative; width:100%; height:240px; }
 .board .editTools { width:100%; }
 .empty { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; color:var(--text-2); }
