@@ -15,6 +15,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onViewport, describeStop, onPhoto,
   gestures = 'cooperative' }) {
   const host = useRef(null);
+  const popupHost = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef(new Map());
   const restored = useRef(!!camera.current);
@@ -27,7 +28,6 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto };
   const [library, setLibrary] = useState(null);
   const [selection, setSelection] = useState(null);
-  const [cardReady, setCardReady] = useState(false);
 
   function moveTo(target, onComplete, animate = true) {
     motion.current?.();
@@ -42,7 +42,6 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   function closeSelection() {
     selectedRef.current = null;
     setSelection(null);
-    setCardReady(false);
     motion.current?.();
   }
 
@@ -53,13 +52,10 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       return;
     }
     selectedRef.current = key;
-    setCardReady(false);
     setSelection({ key, kind, id: point.id });
     const map = mapRef.current;
     moveTo({ center: { lat: point.lat, lng: point.lng }, range: Math.min(map.range, 2200),
-      heading: map.heading || 0, tilt: map.tilt }, () => {
-      if (selectedRef.current === key) setCardReady(true);
-    });
+      heading: map.heading || 0, tilt: map.tilt });
   }
 
   function fit(animate = true) {
@@ -230,10 +226,9 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
     markers.current.forEach(({ pin, kind }, key) => {
       pin.scale = key === selection?.key ? 1.25 : kind === 'stop' ? 1 : 0.85;
     });
-    const marker = markers.current.get(selection?.key)?.marker;
     const isStop = selection?.kind === 'stop';
     const item = (isStop ? stops : places).find((point) => point.id === selection?.id);
-    if (!marker || !cardReady || !item) return;
+    if (!selection || !item || !popupHost.current) return;
     const detail = isStop ? latest.current.describeStop?.(item) : null;
     const action = isStop ? latest.current.onStopOpen : latest.current.onPlaceAdd;
     const content = createMapPopup({
@@ -252,18 +247,16 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       onClose: closeSelection,
       onPhoto: (photo) => latest.current.onPhoto?.(photo),
     });
-    // Wander owns the camera move. Google's automatic popover pan used to race
-    // that move, briefly showing a card and then dismissing it mid-flight.
-    const popover = new library.PopoverElement({ positionAnchor: marker, open: true, lightDismissDisabled: true, autoPanDisabled: true });
-    popover.className = styles.bubble;
-    popover.append(content);
-    mapRef.current.append(popover);
-    return () => popover.remove();
-  }, [library, selection, cardReady, stops, places]);
+    // Keep the card in our DOM so camera flights and replacement SDK markers
+    // cannot hide it or detach its anchor. Selection opens it immediately.
+    popupHost.current.append(content);
+    return () => content.remove();
+  }, [library, selection, stops, places]);
 
   return <div className={styles.root} onKeyDown={(event) => {
     if (event.key === 'Escape') closeSelection();
   }}>
     <div ref={host} className={styles.canvas} />
+    <div ref={popupHost} className={styles.popup} role="region" aria-label="Selected map place" hidden={!selection} />
   </div>;
 }

@@ -6,5 +6,6 @@
   border-radius: 16px; box-shadow: 0 4px 20px #0002;
 }
 .notice { position: absolute; z-index: 4; top: 142px; left: 12px; max-width: min(360px, calc(100% - 24px)); padding: 12px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
-.bubble { background-color: var(--surface-1); border-radius: 14px; padding: 0; box-shadow: 0 12px 34px -10px #0009; --gmp-popover-max-width: 268px; }
-.bubble :global(.gminfo) { max-width: 100%; }
+.popup { position: absolute; z-index: 3; left: 12px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 24px); max-height: calc(100% - 160px); overflow: auto; background-color: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 0; box-shadow: 0 12px 34px -10px #0009; }
+.popup:empty { display: none; }
+.popup :global(.gminfo) { max-width: 100%; }
