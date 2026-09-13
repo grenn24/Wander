@@ -22,6 +22,7 @@ import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
 import { activityDistance } from '@/lib/geo';
 import TravelEstimate from '@/components/TravelEstimate';
+import PlanningDesk from '@/components/PlanningDesk';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -66,6 +67,7 @@ export default function Itinerary({
   const [deleteAct, setDeleteAct] = useState(null);
   const lastMenuAct = useRef(null);
   const [activeDay, setActiveDay] = useState(null);
+  const [stripStuck, setStripStuck] = useState(false);
   const [suggestFor, setSuggestFor] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState('');
   const jumpedFor = useRef(null);
@@ -75,6 +77,7 @@ export default function Itinerary({
   const actsRef = useRef(activities);
   actsRef.current = activities;
   const stripRef = useRef(null);
+  const itineraryRef = useRef(null);
   // A click picks a day deliberately; the spy must not argue with it until the
   // reader scrolls for themselves.
   const pinned = useRef(false);
@@ -110,6 +113,8 @@ export default function Itinerary({
     let raf = 0;
     const update = () => {
       raf = 0;
+      const strip = stripRef.current;
+      setStripStuck(!!strip && strip.getBoundingClientRect().top <= parseFloat(getComputedStyle(strip).top) + 0.5);
       if (pinned.current) return;
       const doc = document.documentElement;
       if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
@@ -315,7 +320,7 @@ export default function Itinerary({
   const planned = days.filter((d) => (byDay[d] || []).length).length;
 
   return (
-    <div className={`itin${hasStrip ? ' has-strip' : ''}`}>
+    <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
       <div className="page-head spread">
         <div style={{ minWidth: 0 }}>
           <h2>{trip.name}</h2>
@@ -328,6 +333,7 @@ export default function Itinerary({
           </div>
         </div>
         <div className="chiprow">
+          <PlanningDesk tripId={trip.id} containerRef={itineraryRef} days={days} activeDay={activeDay} />
           {todayIndex >= 0 ? (
             <button className="btn sm primary" data-tip="Jump to today"
               onClick={() => jumpTo(today)}>
@@ -342,7 +348,7 @@ export default function Itinerary({
       </div>
 
       {hasStrip ? (
-        <div className="daystrip" ref={stripRef} role="navigation" aria-label="Jump to a day">
+        <div className={`daystrip${stripStuck ? ' is-stuck' : ''}`} ref={stripRef} role="navigation" aria-label="Jump to a day">
           {days.map((d, i) => (
             <button key={d} type="button" data-day={d} onClick={() => jumpTo(d)}
               aria-current={activeDay === d}

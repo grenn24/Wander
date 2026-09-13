@@ -2748,11 +2748,14 @@ body:has(.lp)::before { display: none; }
 .presence {
   display: inline-flex; align-items: center; gap: 7px; flex: none;
   padding: 3px 9px 3px 8px; border-radius: 999px; cursor: pointer;
-  background: var(--surface-2); border: 1px solid var(--border);
+  background: transparent; border: 1px solid transparent;
   color: var(--text-2); font: inherit; font-size: 12px;
 }
-.presence:hover { border-color: var(--border-strong); color: var(--text-1); }
-.presence-n { font-weight: 650; }
+.presence:hover { background: var(--surface-2); color: var(--text-1); }
+.presence-n { font-weight: 500; }
+.presence .pulse { width: 5px; height: 5px; animation: none; box-shadow: none; }
+.presence.is-alone .pulse { background: var(--text-3); }
+.presence.is-alone .avatars { display: none; }
 .presence .avatars { margin-left: 1px; }
 .presence .avatar { width: 22px; height: 22px; font-size: 9.5px; }
 .presence-row {
@@ -4056,16 +4059,19 @@ body::before {
 .daychip { border-radius: 14px; }
 .daychip:hover { transform: translateY(-1px); }
 .daystrip .daychip.active, .daystrip .daychip[aria-current="true"] {
-  color: var(--surface-1);
-  background: var(--text-1);
-  border-color: var(--text-1);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
   box-shadow: none;
 }
 .daystrip .daychip.active .daychip-d,
 .daystrip .daychip[aria-current="true"] .daychip-d {
-  color: var(--surface-1);
-  opacity: .7;
+  color: var(--accent-ink);
+  opacity: 1;
 }
+.daystrip .daychip.done { opacity: 1; }
+.daystrip .daychip:not(.active):not([aria-current="true"]) { color: var(--text-1); }
+.daystrip .daychip.bare .daychip-n { opacity: 1; font-weight: 500; }
 .daystrip .daychip.active.today::after { background: var(--accent); }
 
 /* Landing motion remains, but only as a brief response to the user. */
@@ -4285,6 +4291,13 @@ body::before {
     box-shadow: var(--chrome-shadow);
   }
   .daystrip { border: 1px solid transparent; border-radius: 18px; box-shadow: none; }
+  /* Join the header once docked, without restarting the glass highlight. */
+  .daystrip.is-stuck {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    background: var(--surface-1);
+    border-top-color: var(--surface-1);
+  }
   .daystrip .daychip:not(.active):not([aria-current="true"]) {
     background: var(--surface-1);
     border-color: var(--border);
@@ -4307,6 +4320,9 @@ body::before {
       backdrop-filter: blur(18px) saturate(120%);
     }
     /* The strip supplies the blur; its individual day buttons need no filter. */
+    .daystrip.is-stuck {
+      background: linear-gradient(var(--surface-1), color-mix(in srgb, var(--surface-1) 86%, transparent));
+    }
     .daystrip .daychip:not(.active):not([aria-current="true"]) {
       background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 76%, transparent);
     }
@@ -4317,7 +4333,7 @@ body::before {
     }
   }
   @media (prefers-reduced-transparency: reduce) {
-    :is(.topbar, .rail, .lp-nav, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list),
+    :is(.topbar, .rail, .lp-nav, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list), .daystrip.is-stuck,
     .daystrip .daychip:not(.active):not([aria-current="true"]) {
       background: var(--surface-1);
       -webkit-backdrop-filter: none;
