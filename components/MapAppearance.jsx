@@ -18,11 +18,13 @@ function readPreferences() {
 
 export function useMapPreferences() {
   const [preferences, setPreferences] = useState(() => normalizeMapPreferences(null));
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const read = () => setPreferences(readPreferences());
     const changed = (event) => setPreferences(normalizeMapPreferences(event.detail));
     const stored = (event) => { if (!event.key || event.key === MAP_PREFERENCE_KEY) read(); };
     read();
+    setReady(true);
     window.addEventListener(CHANGE, changed);
     window.addEventListener('storage', stored);
     return () => {
@@ -36,11 +38,12 @@ export function useMapPreferences() {
     try { localStorage.setItem(MAP_PREFERENCE_KEY, JSON.stringify(next)); } catch { /* Session still works. */ }
     window.dispatchEvent(new CustomEvent(CHANGE, { detail: next }));
   }
-  return [preferences, update];
+  return [preferences, update, ready];
 }
 
-export default function MapAppearance({ preferences, onChange }) {
-  const imagery = preferences.type === 'hybrid';
+export default function MapAppearance({ preferences, onChange, allow3D = false }) {
+  const is3D = preferences.type === '3d';
+  const imagery = preferences.type === 'hybrid' || is3D;
   return (
     <details className="map-appearance" onKeyDown={(event) => {
       if (event.key === 'Escape') {
@@ -61,15 +64,16 @@ export default function MapAppearance({ preferences, onChange }) {
       <div className="map-appearance-options">
         <div className="map-appearance-field">
           <span>Map theme</span>
-          <Select label="Map theme" value={preferences.theme} options={THEMES}
+          <Select label="Map theme" value={preferences.theme} options={THEMES} disabled={imagery}
             onChange={(theme) => onChange({ theme })} />
         </div>
         <div className="map-appearance-field">
           <span>Map type</span>
-          <Select label="Map type" value={preferences.type} options={MAP_TYPE_OPTIONS}
+          <Select label="Map type" value={preferences.type} options={MAP_TYPE_OPTIONS.filter((option) => allow3D || option.value !== '3d')}
             onChange={(type) => onChange({ type })} />
         </div>
-        <p>{imagery ? 'Satellite imagery keeps its natural colours. Your theme applies to road and terrain maps.'
+        <p>{is3D ? 'Explore real buildings and landscapes. Detail varies by location; imagery keeps its natural colours.'
+          : imagery ? 'Satellite imagery keeps its natural colours. Your theme applies to road and terrain maps.'
           : 'Saved on this device, separately from the app theme.'}</p>
       </div>
     </details>

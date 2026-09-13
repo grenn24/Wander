@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeMapPreferences, mapColorScheme, MAP_TYPES, MAP_TYPE_OPTIONS } from '../lib/mapPreferences.js';
 
-test('Satellite is the only imagery option and always includes labels', () => {
+test('Satellite includes labels and photorealistic 3D is a separate appearance', () => {
   const satellite = MAP_TYPE_OPTIONS.find((option) => option.label === 'Satellite');
   assert.equal(satellite.value, 'hybrid');
   assert.equal(normalizeMapPreferences({ type: satellite.value }).type, 'hybrid');
-  assert.deepEqual(MAP_TYPE_OPTIONS.map((option) => option.label), ['Road', 'Satellite', 'Terrain']);
+  assert.deepEqual(MAP_TYPE_OPTIONS.map((option) => option.label), ['Road', 'Satellite', 'Terrain', '3D']);
   assert.equal(MAP_TYPES.includes('satellite'), false);
 });
 test('legacy unlabelled preferences migrate to labelled satellite without changing theme', () => {

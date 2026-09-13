@@ -383,6 +383,7 @@ export default function MapView({
       <div className="mapcanvas">
         {mapsReady ? (
           <GoogleMap
+            allow3D
             stops={stops}
             places={places}
             focused={focused}

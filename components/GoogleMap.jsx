@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import map3dStyles from './PhotorealisticMap.module.css';
 import { haversine } from '@/lib/geo';
 import { NEARBY_KINDS } from '@/lib/explore';
 import { categoryIcon } from '@/lib/icons';
@@ -27,6 +29,16 @@ const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
 // Advanced markers refuse to render without a Map ID. Google's demo id works
 // out of the box; set NEXT_PUBLIC_MAPS_MAP_ID for a styled one.
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
+const PhotorealisticMap = dynamic(() => import('./PhotorealisticMap'), { ssr: false });
+
+async function load3D() {
+  await loadMaps();
+  const [maps3d, marker] = await Promise.all([
+    window.google.maps.importLibrary('maps3d'),
+    window.google.maps.importLibrary('marker'),
+  ]);
+  return { ...maps3d, PinElement: marker.PinElement };
+}
 
 export function googleMapsAvailable() {
   return !!KEY && !KEY.startsWith('REPLACE_WITH');
@@ -155,16 +167,32 @@ function loadMaps() {
  * order, a dashed route per day, a separate layer for nearby results, and a
  * click anywhere to drop a new stop.
  */
-export default function GoogleMap({ showAppearance = true, ...props }) {
+export default function GoogleMap({ showAppearance = true, allow3D = false, ...props }) {
   const appScheme = useMapScheme();
-  const [preferences, updatePreferences] = useMapPreferences();
+  const [preferences, updatePreferences, preferencesReady] = useMapPreferences();
   const camera = useRef(null);
+  const [notice, setNotice] = useState('');
   const scheme = mapColorScheme(preferences.theme, appScheme);
+  // Navigation and pin editing retain their street-level gestures. The saved
+  // explorer preference must not silently change those specialised maps.
+  const type = preferences.type === '3d' && !allow3D ? 'roadmap' : preferences.type;
+  function change(patch) { setNotice(''); updatePreferences(patch); }
+  function fallback(message) {
+    setNotice(message);
+    updatePreferences({ type: 'roadmap' });
+  }
+  // Resolve the saved choice before mounting either billable renderer.
+  if (!preferencesReady) return <div className="map-el" aria-label="Loading map" />;
   return (
     <>
-      <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
-        mapType={preferences.type} camera={camera} />
-      {showAppearance ? <MapAppearance preferences={preferences} onChange={updatePreferences} /> : null}
+      {type === '3d' ? <PhotorealisticMap {...props} camera={camera} loadLibrary={load3D}
+        onFallback={fallback} onExit={() => change({ type: 'roadmap' })} />
+        : <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
+          mapType={type} camera={camera} />}
+      {showAppearance ? <MapAppearance preferences={{ ...preferences, type }} allow3D={allow3D} onChange={change} /> : null}
+      {notice ? <div className={map3dStyles.notice} role="status">
+        <span>{notice}</span><button type="button" className="btn small" onClick={() => setNotice('')}>Dismiss</button>
+      </div> : null}
     </>
   );
 }

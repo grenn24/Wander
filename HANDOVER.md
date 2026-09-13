@@ -114,6 +114,9 @@ stupid" reports turned out to be one of them.
 8. **The map is raster.** `NEXT_PUBLIC_MAPS_MAP_ID` is unset, so it falls back
    to `DEMO_MAP_ID` and `setHeading` is silently ignored. Compass rotation in
    Traveller mode is written and dormant; it needs a vector Map ID.
+   The Map page also offers optional photorealistic 3D using the independent
+   `maps3d` renderer. See `docs/3d-maps.md` for scope, billing and validation.
+   It does not change Traveller navigation or activity-editor maps.
 
 ---
 
