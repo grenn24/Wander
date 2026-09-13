@@ -276,7 +276,6 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
         </div>
         <div className={styles.toolRow} role="group" aria-label="Text size">
           <button type="button" aria-label="Decrease font size" data-tip="Smaller text" disabled={fontSize <= 12} onClick={() => patch(item.id, { fontSize: fontSize - 2 })}>A−</button>
-          <span className={styles.fontSize}>{fontSize} px</span>
           <button type="button" aria-label="Increase font size" data-tip="Larger text" disabled={fontSize >= 28} onClick={() => patch(item.id, { fontSize: fontSize + 2 })}>A+</button>
         </div>
         <div className={styles.toolRow} role="group" aria-label="Paper colour">
