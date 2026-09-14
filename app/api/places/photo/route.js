@@ -16,7 +16,9 @@ export async function GET(req) {
 
   const { searchParams } = new URL(req.url);
   const ref = searchParams.get('ref') || '';
-  const width = Math.min(1600, Math.max(80, Number(searchParams.get('w')) || 400));
+  // Google serves up to 4800 pixels; the viewer asks for as much as the
+  // screen can show, and a cap at 1600 made full-screen photographs soft.
+  const width = Math.min(4800, Math.max(80, Number(searchParams.get('w')) || 400));
 
   // Only ever a Google photo resource name — never an arbitrary URL.
   if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(ref)) {

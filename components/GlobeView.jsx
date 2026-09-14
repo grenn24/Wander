@@ -470,7 +470,9 @@ export default function GlobeView() {
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
               <X size={16} />
             </button>
-            {point.photo_ref ? <img className={s.detailImg} src={photoURL(point.photo_ref, 680)} alt="" /> : null}
+            {point.image || point.photo_ref ? (
+              <img className={s.detailImg} src={point.image || photoURL(point.photo_ref, 680)} alt="" />
+            ) : null}
             <div className={s.detailBody}>
               <span className={s.kind}><i className={s.dot} data-kind={point.kind} /> {KIND[point.kind]}</span>
               <h2 className={s.detailTitle}>{point.name}</h2>

@@ -1,19 +1,24 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Plus, Minus, Sparkles, Star, X } from 'lucide-react';
-import PlacePhoto from '@/components/PlacePhoto';
+import {
+  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin,
+} from 'lucide-react';
 import DateField from '@/components/DateField';
 import GrowArea from '@/components/GrowArea';
 import MonthStrip from '@/components/MonthStrip';
+import Popover from '@/components/Popover';
+import Lightbox from '@/components/Lightbox';
 import {
-  MONTHS, WHO, PACES, monthFit, daysLabel, costLabel, placeLine, momentCount,
+  MONTHS, WHO, PACES, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
+import { tokenize, paragraphs, imageURL, srcSet } from '@/lib/journeyFormat';
 import { BRIEF_KEY } from '@/lib/planBrief';
-import { addDays, fmtRange, todayISO } from '@/lib/util';
+import { placeDetails, searchPlaces } from '@/lib/geo';
+import { addDays, fmtRange, todayISO, shortPlace } from '@/lib/util';
 import { useModalChrome } from '@/lib/useModal';
 import s from './Journeys.module.css';
 
@@ -22,17 +27,17 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /*
  * What someone chose last time they read this journey, if it still makes
- * sense: a start date that has passed is dropped, and a moment that no longer
- * exists cannot stay "left out".
+ * sense: a start date that has passed is dropped, and a place that is no
+ * longer in the journey cannot stay "left out".
  */
-function restore(j, raw, today) {
+function restore(doc, raw, today) {
   if (!raw || typeof raw !== 'object') return {};
-  const ids = new Set(j.chapters.flatMap((c) => c.moments.map((m) => m.id)));
+  const ids = new Set((doc.places || []).map((p) => p.id));
   const out = {};
   if (raw.mode === 'month' || raw.mode === 'dates') out.mode = raw.mode;
   if (Number.isInteger(raw.month) && raw.month >= 1 && raw.month <= 12) out.month = raw.month;
   if (typeof raw.start === 'string' && ISO.test(raw.start) && raw.start >= today) out.start = raw.start;
-  if (Number.isFinite(raw.days)) out.days = clampDays(j, raw.days);
+  if (Number.isFinite(raw.days)) out.days = clampDays(doc, raw.days);
   if (WHO.some((w) => w.id === raw.who)) out.who = raw.who;
   if (PACES.some((p) => p.id === raw.pace)) out.pace = raw.pace;
   if (Array.isArray(raw.dropped)) out.dropped = raw.dropped.filter((id) => ids.has(id));
@@ -40,23 +45,41 @@ function restore(j, raw, today) {
   return out;
 }
 
+/** An Unsplash photograph as the photo viewer takes it. */
+const forViewer = (m) => ({
+  id: m.id, raw: m.raw, width: m.width, provider: 'unsplash',
+  author: m.author, authorUri: m.authorUrl, pageUrl: m.pageUrl,
+});
+
+function checkedOn(iso) {
+  try {
+    return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+  } catch (e) { return iso; }
+}
+
+const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; } };
+
 /**
  * A journey, read as a journal, with the choices beside it.
  *
- * The moments are where "make it yours" starts: every one is kept until it is
- * not, right where it is written, so leaving something out happens while
- * reading about it rather than on a form further down. The rest — when, how
- * long, who, how fast — sits beside the journal on a desk, and in a sheet on a
- * phone.
+ * The writing decides its own shape — prose, photographs, a quote, an hour by
+ * hour day, a detour — and every place in it is a name you can tap: for its
+ * photographs, and to keep it or leave it out. The rest of "make it yours"
+ * sits beside the journal on a desk, and in a sheet on a phone.
  */
-export default function JourneyJournal({ journey: j, photos }) {
+export default function JourneyJournal({ journey: doc, hero = null }) {
   const router = useRouter();
-  const total = momentCount(j);
+  const places = doc.places || [];
+  const total = places.length;
   const [choice, setChoice] = useState(() => ({
-    mode: 'month', month: 0, start: '', days: clampDays(j), who: '', pace: 'written', dropped: [], extra: '',
+    mode: 'month', month: 0, start: '', days: clampDays(doc), who: '', pace: 'written', dropped: [], extra: '',
   }));
   const [today, setToday] = useState('');
   const [sheet, setSheet] = useState(false);
+  const [open, setOpen] = useState(null); // { id, anchor }
+  const [viewer, setViewer] = useState(null); // { photos, index }
   const loaded = useRef(false);
 
   // Dates and storage are the browser's business; read them after mount so
@@ -65,15 +88,15 @@ export default function JourneyJournal({ journey: j, photos }) {
     const now = todayISO();
     setToday(now);
     let raw = null;
-    try { raw = JSON.parse(localStorage.getItem(memoryKey(j.slug)) || 'null'); } catch (e) { raw = null; }
-    setChoice((c) => ({ ...c, month: suggestedMonth(j), ...restore(j, raw, now) }));
+    try { raw = JSON.parse(localStorage.getItem(memoryKey(doc.slug)) || 'null'); } catch (e) { raw = null; }
+    setChoice((c) => ({ ...c, month: suggestedMonth(doc), ...restore(doc, raw, now) }));
     loaded.current = true;
-  }, [j]);
+  }, [doc]);
 
   useEffect(() => {
     if (!loaded.current) return;
-    try { localStorage.setItem(memoryKey(j.slug), JSON.stringify(choice)); } catch (e) { /* not remembered */ }
-  }, [choice, j.slug]);
+    try { localStorage.setItem(memoryKey(doc.slug), JSON.stringify(choice)); } catch (e) { /* not remembered */ }
+  }, [choice, doc.slug]);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 961px)');
@@ -82,10 +105,12 @@ export default function JourneyJournal({ journey: j, photos }) {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
+  const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
+  const dropped = useMemo(() => new Set(choice.dropped), [choice.dropped]);
+  const kept = total - choice.dropped.filter((id) => byId.has(id)).length;
   const set = (patch) => setChoice((c) => ({ ...c, ...patch }));
-  const kept = total - choice.dropped.length;
 
-  function toggleMoment(id) {
+  function toggle(id) {
     setChoice((c) => ({
       ...c,
       dropped: c.dropped.includes(id) ? c.dropped.filter((x) => x !== id) : [...c.dropped, id],
@@ -95,17 +120,98 @@ export default function JourneyJournal({ journey: j, photos }) {
   function plan() {
     if (choice.mode === 'dates' && !choice.start) return;
     try {
-      sessionStorage.setItem(BRIEF_KEY, composeBrief(j, choice));
+      sessionStorage.setItem(BRIEF_KEY, composeBrief(doc, choice));
     } catch (e) { /* without storage the title alone still plans something */ }
     setSheet(false);
-    router.push(`/plan?q=${encodeURIComponent(briefTitle(j))}&brief=1`);
+    router.push(`/plan?q=${encodeURIComponent(briefTitle(doc))}&brief=1`);
   }
 
-  const cover = photos && photos.cover;
+  const cover = doc.cover && doc.cover.photo;
+
+  // Every photograph in the journal, in reading order, so the viewer can step
+  // through them all from whichever one was opened.
+  const gallery = useMemo(() => {
+    const list = [];
+    if (cover) list.push(forViewer(cover));
+    else if (hero) list.push(hero);
+    (doc.blocks || []).forEach((b) => {
+      if (b.type !== 'photo') return;
+      (b.photos || []).slice(0, b.layout === 'pair' ? 2 : 1).forEach((m) => list.push(forViewer(m)));
+    });
+    return list;
+  }, [doc, cover, hero]);
+
+  const openPhoto = (id) => {
+    const at = gallery.findIndex((p) => (p.id || p.ref) === id);
+    setViewer({ photos: gallery, index: Math.max(0, at) });
+  };
+
+  function rich(text) {
+    return tokenize(text).map((part, i) => {
+      if (part.text != null) return part.text;
+      const p = byId.get(part.place);
+      if (!p) return null;
+      const off = dropped.has(p.id);
+      return (
+        <button key={i} type="button" className={s.place} data-off={off ? '' : undefined}
+          aria-haspopup="dialog" aria-expanded={open ? open.id === p.id : false}
+          aria-label={`${p.name}${off ? ', left out of your version' : ''}`}
+          onClick={(e) => setOpen(open && open.id === p.id ? null : { id: p.id, anchor: e.currentTarget })}>
+          {p.name}
+        </button>
+      );
+    });
+  }
+
+  function block(b, i) {
+    switch (b.type) {
+      case 'heading':
+        return (
+          <div key={i} className={s.bHeading}>
+            {b.kicker ? <span className={s.bKicker}>{b.kicker}</span> : null}
+            <h2 className={s.bTitle}>{rich(b.text)}</h2>
+          </div>
+        );
+      case 'prose':
+        return paragraphs(b.text).map((para, k) => <p key={`${i}-${k}`} className={s.bProse}>{rich(para)}</p>);
+      case 'photo':
+        return <PhotoBlock key={i} block={b} onOpen={openPhoto} />;
+      case 'quote':
+        return <blockquote key={i} className={s.bQuote}>{rich(b.text)}</blockquote>;
+      case 'tip':
+      case 'detour':
+      case 'skip': {
+        const Icon = b.type === 'tip' ? Info : b.type === 'detour' ? Route : EyeOff;
+        const label = b.label || b.title || (b.type === 'tip' ? 'Good to know' : b.type === 'detour' ? 'A detour' : 'Skip it');
+        return (
+          <aside key={i} className={`${s.bNote} ${b.type === 'detour' ? s.bDetour : b.type === 'skip' ? s.bSkip : ''}`}>
+            <span className={s.bLabel}><Icon size={14} aria-hidden="true" /> {label}</span>
+            {paragraphs(b.text).map((para, k) => <p key={k}>{rich(para)}</p>)}
+          </aside>
+        );
+      }
+      case 'day':
+        return (
+          <section key={i} className={s.bDay}>
+            {b.title ? <h3 className={s.bDayTitle}>{b.title}</h3> : null}
+            <ol>
+              {(b.items || []).map((it, k) => (
+                <li key={k}><span className={s.bTime}>{it.time}</span><span>{rich(it.text)}</span></li>
+              ))}
+            </ol>
+          </section>
+        );
+      default:
+        return null;
+    }
+  }
+
+  const openPlace = open ? byId.get(open.id) : null;
   const form = (onClose) => (
-    <MakeItYours j={j} choice={choice} set={set} today={today} kept={kept} total={total}
-      onPlan={plan} onClose={onClose} />
+    <MakeItYours doc={doc} choice={choice} set={set} today={today} kept={kept} total={total}
+      dropped={dropped} onToggle={toggle} onPlan={plan} onClose={onClose} />
   );
+  const sources = doc.sources || [];
 
   return (
     <article>
@@ -113,91 +219,88 @@ export default function JourneyJournal({ journey: j, photos }) {
         <ArrowLeft size={16} aria-hidden="true" /> All journeys
       </Link>
 
-      <header className={s.hero}>
+      <header className={s.hero} style={cover && cover.color ? { backgroundColor: cover.color } : undefined}>
         {cover ? (
-          <img className={s.heroImg} alt=""
-            src={`/api/places/photo?ref=${encodeURIComponent(cover.ref)}&w=1600`} />
+          <img className={s.heroImg} alt={cover.alt || ''} fetchPriority="high"
+            src={imageURL(cover, 1600)} srcSet={srcSet(cover, [960, 1600, 2400, 3200])}
+            sizes="(max-width: 1120px) 100vw, 1080px" />
+        ) : hero ? (
+          <img className={s.heroImg} alt="" src={`/api/places/photo?ref=${encodeURIComponent(hero.ref)}&w=2400`} />
         ) : null}
         <div className={s.heroText}>
-          <span className={s.heroKicker}>{placeLine(j)}</span>
-          <h1 className={s.heroTitle}>{j.title}</h1>
+          <span className={s.heroKicker}>{placeLine(doc)}</span>
+          <h1 className={s.heroTitle}>{doc.title}</h1>
           <div className={s.heroMeta}>
-            <span>{daysLabel(j)}</span>
-            <span>{j.pace} pace</span>
-            <span>{costLabel(j)}</span>
+            <span>{daysLabel(doc)}</span>
+            <span>{doc.pace} pace</span>
+            <span>{costLabel(doc)}</span>
           </div>
         </div>
-        {cover && cover.author ? (
+        {cover ? (
           <span className={s.heroCredit}>
-            Photo:{' '}
-            {cover.authorUri
-              ? <a href={cover.authorUri} target="_blank" rel="noreferrer">{cover.author}</a>
-              : cover.author}
+            Photo by <a href={cover.authorUrl} target="_blank" rel="noreferrer">{cover.author}</a>
+            {' '}on <a href={cover.pageUrl} target="_blank" rel="noreferrer">Unsplash</a>
           </span>
+        ) : hero && hero.author ? (
+          <span className={s.heroCredit}>Photo: {hero.author}</span>
+        ) : null}
+        {gallery.length ? (
+          <button type="button" className={s.heroPhotos} onClick={() => setViewer({ photos: gallery, index: 0 })}>
+            <Camera size={15} aria-hidden="true" /> {gallery.length} {gallery.length === 1 ? 'photo' : 'photos'}
+          </button>
         ) : null}
       </header>
 
       <div className={s.layout}>
         <div className={s.read}>
-          <p className={s.journalLede}>{j.lede}</p>
+          <p className={s.journalLede}>{doc.lede}</p>
 
           <section className={s.glance} aria-label="At a glance">
             <div className={s.glanceWhen}>
               <span className={s.glanceK}>When to go</span>
-              <MonthStrip journey={j} large />
+              <MonthStrip journey={doc} large />
               <div className={s.legend} aria-hidden="true">
                 <span><i /> Best</span>
                 <span><i className={s.lgGood} /> Good</span>
-                {(j.months.avoid || []).length ? <span><i className={s.lgAvoid} /> Avoid</span> : null}
+                {(doc.months.avoid || []).length ? <span><i className={s.lgAvoid} /> Avoid</span> : null}
               </div>
-              <p className={s.whenNote}>{j.when}</p>
+              <p className={s.whenNote}>{doc.when}</p>
             </div>
-            <div><span className={s.glanceK}>Length</span><span className={s.glanceV}>{daysLabel(j)}</span></div>
-            <div><span className={s.glanceK}>Pace</span><span className={s.glanceV}>{j.pace}</span></div>
-            <div><span className={s.glanceK}>Budget</span><span className={s.glanceV}>{costLabel(j)}</span></div>
+            <div><span className={s.glanceK}>Length</span><span className={s.glanceV}>{daysLabel(doc)}</span></div>
+            <div><span className={s.glanceK}>Pace</span><span className={s.glanceV}>{doc.pace}</span></div>
+            <div><span className={s.glanceK}>Budget</span><span className={s.glanceV}>{costLabel(doc)}</span></div>
           </section>
 
-          {j.chapters.map((c, i) => (
-            <section key={c.title} className={s.chapter} aria-labelledby={`chapter-${i + 1}`}>
-              <div className={s.chapterHead}>
-                <span className={s.chapterNo}>{String(i + 1).padStart(2, '0')}</span>
-                <span className={s.chapterSpan}>{c.span} · {c.where}</span>
-              </div>
-              <h2 id={`chapter-${i + 1}`} className={s.chapterTitle}>{c.title}</h2>
-              <p className={s.chapterBody}>{c.body}</p>
-              <ul className={s.moments}>
-                {c.moments.map((m) => {
-                  const off = choice.dropped.includes(m.id);
-                  const p = photos && photos.moments ? photos.moments[m.id] : null;
-                  return (
-                    <li key={m.id} className={s.moment} data-off={off ? '' : undefined}>
-                      <span title={p && p.author ? `Photo: ${p.author}` : undefined}>
-                        <PlacePhoto photoRef={p ? p.ref : null} category="sightseeing" size={56} rounded={14} />
-                      </span>
-                      <span className={s.momentText}>
-                        <strong>{m.name}</strong>
-                        <span>{m.note}</span>
-                      </span>
-                      <button type="button" className={s.keep} aria-pressed={!off}
-                        aria-label={`Keep ${m.name} in my version`} onClick={() => toggleMoment(m.id)}>
-                        {off ? <Plus size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-                        {off ? 'Add back' : 'Keep'}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+          <div className={s.flow}>{(doc.blocks || []).map(block)}</div>
+
+          {(doc.know || []).length ? (
+            <section className={s.know} aria-labelledby="good-to-know">
+              <h2 id="good-to-know" className={s.knowTitle}>Good to know</h2>
+              <dl className={s.knowList}>
+                {doc.know.map((k) => (
+                  <div key={k.label} className={s.knowRow}><dt>{k.label}</dt><dd>{k.text}</dd></div>
+                ))}
+              </dl>
             </section>
-          ))}
+          ) : null}
 
-          <section className={s.know} aria-labelledby="good-to-know">
-            <h2 id="good-to-know" className={s.knowTitle}>Good to know</h2>
-            <dl className={s.knowList}>
-              {j.know.map((k) => (
-                <div key={k.label} className={s.knowRow}><dt>{k.label}</dt><dd>{k.text}</dd></div>
-              ))}
-            </dl>
-          </section>
+          {doc.checked || sources.length ? (
+            <footer className={s.provenance}>
+              {doc.checked ? <p>Checked against current information on {checkedOn(doc.checked)}.</p> : null}
+              {sources.length ? (
+                <details>
+                  <summary>Sources</summary>
+                  <ul>
+                    {sources.map((src) => (
+                      <li key={src.url}>
+                        <a href={src.url} target="_blank" rel="noreferrer nofollow">{src.title || host(src.url)}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </footer>
+          ) : null}
         </div>
 
         <aside className={s.aside} aria-label="Make it yours">
@@ -206,14 +309,119 @@ export default function JourneyJournal({ journey: j, photos }) {
       </div>
 
       <div className={s.dock}>
-        <span className={s.kept}>Keeping {kept} of {total} moments</span>
+        <span className={s.kept}>Keeping {kept} of {total} places</span>
         <button type="button" className="btn primary" onClick={() => setSheet(true)}>
           <Sparkles size={16} aria-hidden="true" /> Make it yours
         </button>
       </div>
 
       {sheet ? <Sheet onClose={() => setSheet(false)}>{form(() => setSheet(false))}</Sheet> : null}
+
+      {openPlace ? (
+        <PlaceCard key={openPlace.id} place={openPlace} anchor={open.anchor} kept={!dropped.has(openPlace.id)}
+          onToggle={() => toggle(openPlace.id)} onClose={() => setOpen(null)}
+          onPhotos={(photos, index) => { setOpen(null); setViewer({ photos, index }); }} />
+      ) : null}
+
+      {viewer ? (
+        <Lightbox photos={viewer.photos} index={viewer.index} alt={doc.title}
+          onIndex={(index) => setViewer((v) => ({ ...v, index }))} onClose={() => setViewer(null)} />
+      ) : null}
     </article>
+  );
+}
+
+function PhotoBlock({ block: b, onOpen }) {
+  const photos = (b.photos || []).slice(0, b.layout === 'pair' ? 2 : 1);
+  if (!photos.length) return null;
+  const pair = photos.length === 2;
+  const layout = pair ? s.bPair : b.layout === 'inset' ? s.bInset : s.bWide;
+  const authors = [...new Map(photos.map((m) => [m.author, m])).values()];
+  const sizes = pair ? '(max-width: 960px) 50vw, 340px'
+    : b.layout === 'inset' ? '(max-width: 960px) 100vw, 320px' : '(max-width: 960px) 100vw, 760px';
+  return (
+    <figure className={`${s.bPhoto} ${layout}`}>
+      <div className={s.bFrames}>
+        {photos.map((m) => (
+          <button key={m.id} type="button" className={s.bFrame}
+            style={m.color ? { backgroundColor: m.color } : undefined}
+            aria-label={`Open photograph${m.alt ? `: ${m.alt}` : ''}`} onClick={() => onOpen(m.id)}>
+            <img src={imageURL(m, pair ? 900 : 1400)}
+              srcSet={srcSet(m, pair ? [480, 720, 960, 1400] : [640, 960, 1400, 2000, 2800])}
+              sizes={sizes} alt={m.alt || ''} loading="lazy" decoding="async" />
+          </button>
+        ))}
+      </div>
+      <figcaption>
+        {b.caption ? <span className={s.bCaption}>{b.caption}</span> : <span />}
+        <span className={s.bCredit}>
+          {authors.length > 1 ? 'Photos' : 'Photo'} by{' '}
+          {authors.map((m, k) => (
+            <span key={m.id}>{k ? ' and ' : ''}<a href={m.authorUrl} target="_blank" rel="noreferrer">{m.author}</a></span>
+          ))}
+          {' '}on <a href={photos[0].pageUrl} target="_blank" rel="noreferrer">Unsplash</a>
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/*
+ * A place, opened from its name in the text: its photographs from Google at
+ * full size, the note the journal gives it, and whether it stays in your
+ * version. Looked up when opened, never stored — Google allows keeping the
+ * place ID, not what it returns for it.
+ */
+function PlaceCard({ place, anchor, kept, onToggle, onClose, onPhotos }) {
+  const [info, setInfo] = useState({ loading: true, photos: [], mapsUri: '' });
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        let id = place.place_id;
+        if (!id) {
+          const [hit] = await searchPlaces(place.q);
+          id = hit && hit.place_id;
+        }
+        const d = id ? await placeDetails(id) : null;
+        if (live) setInfo({ loading: false, photos: (d && d.photos) || [], mapsUri: (d && d.mapsUri) || '' });
+      } catch (e) {
+        if (live) setInfo({ loading: false, photos: [], mapsUri: '' });
+      }
+    })();
+    return () => { live = false; };
+  }, [place.place_id, place.q]);
+
+  const first = info.photos[0];
+  return (
+    <Popover anchorEl={anchor} open onClose={onClose} align="start" width={300}>
+      <div className={s.placeCard} role="dialog" aria-label={place.name}>
+        {first ? (
+          <button type="button" className={s.placeShot} onClick={() => onPhotos(info.photos, 0)}
+            aria-label={`See photographs of ${place.name}`}>
+            <img src={`/api/places/photo?ref=${encodeURIComponent(first.ref)}&w=800`} alt="" />
+            <span className={s.placeCount}><Camera size={13} aria-hidden="true" /> {info.photos.length}</span>
+          </button>
+        ) : info.loading ? <div className={`skel ${s.placeShotSkel}`} /> : null}
+        <div className={s.placeBody}>
+          <strong>{place.name}</strong>
+          {place.address ? <span className={s.placeAddr}>{shortPlace(place.address)}</span> : null}
+          <p>{place.note}</p>
+          <div className={s.placeActs}>
+            <button type="button" className={`btn sm${kept ? '' : ' primary'}`} aria-pressed={kept} onClick={onToggle}>
+              {kept ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
+              {kept ? 'In my version' : 'Add back'}
+            </button>
+            {info.mapsUri ? (
+              <a className="btn ghost sm" href={info.mapsUri} target="_blank" rel="noreferrer">
+                <MapPin size={14} aria-hidden="true" /> Maps
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </Popover>
   );
 }
 
@@ -223,27 +431,27 @@ export default function JourneyJournal({ journey: j, photos }) {
  * popover, which would open somewhere nobody could reach it.
  */
 function Sheet({ onClose, children }) {
-  const [host, setHost] = useState(null);
+  const [target, setTarget] = useState(null);
   const panel = useRef(null);
   useModalChrome({ onEscape: onClose });
-  useEffect(() => { setHost(document.body); }, []);
-  useEffect(() => { if (host && panel.current) panel.current.focus(); }, [host]);
-  if (!host) return null;
+  useEffect(() => { setTarget(document.body); }, []);
+  useEffect(() => { if (target && panel.current) panel.current.focus(); }, [target]);
+  if (!target) return null;
   return createPortal(
     <div className={s.sheetBack} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} className={s.sheet} role="dialog" aria-modal="true" aria-label="Make it yours" tabIndex={-1}>
         {children}
       </div>
     </div>,
-    host,
+    target,
   );
 }
 
-function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
+function MakeItYours({ doc, choice, set, today, kept, total, dropped, onToggle, onPlan, onClose }) {
   const id = useId();
-  const days = clampDays(j, choice.days);
+  const days = clampDays(doc, choice.days);
   const end = choice.start ? addDays(choice.start, days - 1) : '';
-  const fit = choice.month ? monthFit(j, choice.month) : 'fine';
+  const fit = choice.month ? monthFit(doc, choice.month) : 'fine';
 
   return (
     <form className={s.mine} onSubmit={(e) => { e.preventDefault(); onPlan(); }}>
@@ -270,7 +478,7 @@ function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
           <>
             <div className={s.monthPick}>
               {MONTHS.map((m, i) => {
-                const f = monthFit(j, i + 1);
+                const f = monthFit(doc, i + 1);
                 const said = f === 'best' ? ', best time' : f === 'good' ? ', good time' : f === 'avoid' ? ', a poor time' : '';
                 return (
                   <button key={m} type="button" data-fit={f} aria-pressed={choice.month === i + 1}
@@ -280,7 +488,7 @@ function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
                 );
               })}
             </div>
-            {fit === 'avoid' ? <p className={s.hint}>{j.when}</p> : null}
+            {fit === 'avoid' ? <p className={s.hint}>{doc.when}</p> : null}
           </>
         ) : (
           <>
@@ -305,7 +513,7 @@ function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
               <Plus size={16} />
             </button>
           </div>
-          <span className={s.hint}>Written for {daysLabel(j)}</span>
+          <span className={s.hint}>Written for {daysLabel(doc)}</span>
         </div>
       </div>
 
@@ -333,6 +541,25 @@ function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
         </div>
       </div>
 
+      {total ? (
+        <div className={s.field} role="group" aria-labelledby={`${id}-places`}>
+          <span id={`${id}-places`} className={s.label}>Places · keeping {kept} of {total}</span>
+          <ul className={s.placeList}>
+            {doc.places.map((p) => {
+              const off = dropped.has(p.id);
+              return (
+                <li key={p.id}>
+                  <label className={s.placeRow} data-off={off ? '' : undefined}>
+                    <input type="checkbox" checked={!off} onChange={() => onToggle(p.id)} />
+                    <span>{p.name}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       <div className={s.field}>
         <label htmlFor={`${id}-extra`} className={s.label}>Anything to change?</label>
         <GrowArea id={`${id}-extra`} value={choice.extra} maxLength={600}
@@ -341,12 +568,11 @@ function MakeItYours({ j, choice, set, today, kept, total, onPlan, onClose }) {
       </div>
 
       <div className={s.actions}>
-        <p className={s.kept}>Keeping {kept} of {total} moments</p>
         <button type="submit" className={`btn primary lg ${s.wide}`}
           disabled={choice.mode === 'dates' && !choice.start}>
           <Sparkles size={17} aria-hidden="true" /> Plan my version
         </button>
-        <Link href={`/globe?want=${j.slug}`} className={`btn ghost ${s.wide}`}>
+        <Link href={`/globe?want=${doc.slug}`} className={`btn ghost ${s.wide}`}>
           <Star size={16} aria-hidden="true" /> Save to my globe
         </Link>
       </div>

@@ -1,21 +1,22 @@
 import JourneysBar from '@/components/JourneysBar';
 import JourneyBrowser from '@/components/JourneyBrowser';
-import { JOURNEYS, journeySummary } from '@/lib/journeys';
-import { coverPhotos } from '@/lib/journeyPhotos';
+import { publishedSummaries } from '@/lib/journeyStore';
+import { fallbackCovers } from '@/lib/journeyPhotos';
 
 export const metadata = {
   title: 'Journeys — Wander',
-  description: 'Trips written like travel journals. Keep the moments you like and Wander plans your version.',
+  description: 'Trips written like travel journals. Keep the places you like and Wander plans your version.',
 };
 
-// The page re-renders daily; the photographs behind it are cached for a week.
-export const revalidate = 86400;
+// New journeys from the journey service appear within six hours.
+export const revalidate = 21600;
 
 export default async function JourneysPage() {
-  const covers = await coverPhotos(JOURNEYS);
-  const journeys = JOURNEYS.map((j) => {
-    const c = covers[j.slug];
-    return { ...journeySummary(j), cover_ref: c ? c.ref : null, cover_author: c ? c.author : '' };
+  const summaries = await publishedSummaries();
+  const covers = await fallbackCovers(summaries);
+  const journeys = summaries.map((s) => {
+    const c = covers[s.slug];
+    return { ...s, cover_ref: c ? c.ref : null, cover_author: c ? c.author : '' };
   });
   return (
     <div className="shell">

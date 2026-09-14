@@ -153,6 +153,43 @@ create policy saved_places_own on public.saved_places for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+-- -------------------------------------------------------------- journeys ---
+-- Trips written as journals. One table is both the catalogue and the journey
+-- service's work queue: a row starts as a brief ('queued'), is written and
+-- reviewed ('working'), and ends 'published', 'draft' or 'rejected'.
+--
+-- The one table `anon` can read, and only its published rows: journeys are
+-- public pages. Nothing is writable except by the service role the journey
+-- service runs with.
+create table if not exists public.journeys (
+  id           uuid primary key default gen_random_uuid(),
+  slug         text unique check (slug is null or slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  status       text not null default 'queued'
+               check (status in ('queued', 'working', 'draft', 'published', 'rejected', 'archived')),
+  source       text not null default 'generated' check (source in ('editorial', 'generated')),
+  brief        text not null default '',
+  doc          jsonb,
+  summary      jsonb,
+  review       jsonb not null default '{}'::jsonb,
+  version      integer not null default 0,
+  attempts     integer not null default 0,
+  last_error   text,
+  checked_at   timestamptz,
+  published_at timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists journeys_status_idx on public.journeys (status, published_at);
+
+alter table public.journeys enable row level security;
+grant select on public.journeys to anon, authenticated;
+-- Newer Supabase projects no longer grant new tables to the service role by
+-- default, and the journey service writes with it.
+grant select, insert, update, delete on public.journeys to service_role;
+drop policy if exists journeys_read_published on public.journeys;
+create policy journeys_read_published on public.journeys for select to anon, authenticated
+  using (status = 'published');
+
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);
 create index if not exists packing_trip_idx        on public.packing_items (trip_id);
 create index if not exists members_user_idx        on public.trip_members (user_id);
