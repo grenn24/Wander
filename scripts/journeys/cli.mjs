@@ -62,7 +62,11 @@ async function writeRows(client, rows, ctx, parallel) {
   await pool(rows, parallel, async (row) => {
     const log = logger(row.brief);
     try {
-      const out = await produce(row.brief, { ...ctx, catalogue: list, log });
+      // Never its own row: a brief listed as "already in the catalogue" is a
+      // brief the writer steers away from, which is how a request for Utah's
+      // national parks came back as a route around them.
+      const others = list.filter((c) => c.id !== row.id);
+      const out = await produce(row.brief, { ...ctx, catalogue: others, log });
       const slug = await store(client, row, out);
       list.push({ id: row.id, slug, title: out.doc.title, country: out.doc.country });
       log(`saved ${slug} as ${out.status}`);
@@ -78,7 +82,7 @@ async function refreshRows(client, rows, ctx, parallel) {
   await pool(rows, parallel, async (row) => {
     const log = logger(row.slug);
     try {
-      const out = await refreshJourney(row, { ...ctx, catalogue: list, log });
+      const out = await refreshJourney(row, { ...ctx, catalogue: list.filter((c) => c.id !== row.id), log });
       await store(client, row, out, { changed: out.changed });
       log(`${out.changed ? 'updated' : 'checked'}, ${out.status}`);
     } catch (e) {
