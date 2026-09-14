@@ -7,7 +7,7 @@
  *   npm run journeys -- write --limit 5          write queued journeys
  *   npm run journeys -- refresh --limit 10       re-check the least recently checked
  *   npm run journeys -- refresh --slug kyoto-blossom
- *   npm run journeys -- media                    add photographs where missing
+ *   npm run journeys -- media [--slug s]         add photographs where missing
  *   npm run journeys -- import-editorial         load the hand-written journeys
  *   npm run journeys -- weekly                   what the schedule runs
  *
@@ -139,7 +139,7 @@ async function main() {
   } else if (command === 'media') {
     if (!unsplashReady()) throw new Error('Set UNSPLASH_ACCESS_KEY first.');
     const client = db();
-    const rows = (await written(client, { statuses: ['draft', 'published'], limit: 500 }))
+    const rows = (await written(client, { statuses: ['draft', 'published'], slug: opt.slug || null, limit: 500 }))
       .filter((r) => needsPhotos(r.doc)).slice(0, limit || 20);
     for (const row of rows) {
       const log = logger(row.slug);
