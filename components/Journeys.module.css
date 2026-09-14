@@ -457,3 +457,21 @@
   .bFrame img, .place { transition: none; }
   .bFrame:hover img { transform: none; }
 }
+
+/* ================================================================= video */
+.video { margin-top: 52px; clear: both; }
+.videoFrame { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 20px; background: #000; }
+.videoFrame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.videoPlay { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: #000; cursor: pointer; }
+.videoPlay img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .9; transition: opacity .2s var(--ease); }
+.videoPlay:hover img { opacity: 1; }
+.videoPlay:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.playIcon {
+  position: absolute; top: 50%; left: 50%; display: grid; place-items: center;
+  width: 68px; height: 68px; margin: -34px 0 0 -34px; border-radius: 50%;
+  background: rgb(0 0 0 / .62); color: #fff;
+}
+.videoMeta { display: grid; gap: 2px; margin: 10px 0 0; color: var(--text-3); font-size: 13.5px; }
+.videoTitle { color: var(--text-1); font-size: 15px; font-weight: 600; }
+.videoMeta a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .videoPlay img { transition: none; } }

@@ -7,7 +7,8 @@
  *   npm run journeys -- write --limit 5          write queued journeys
  *   npm run journeys -- refresh --limit 10       re-check the least recently checked
  *   npm run journeys -- refresh --slug kyoto-blossom
- *   npm run journeys -- media [--slug s]         add photographs where missing
+ *   npm run journeys -- media [--slug s]         add photographs and a video where missing
+ *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-editorial         load the hand-written journeys
  *   npm run journeys -- weekly                   what the schedule runs
  *
@@ -19,8 +20,11 @@ import { writeFileSync } from 'node:fs';
 import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
-import { produce, refreshJourney, discoverIdeas, newTally, costLine } from './pipeline.mjs';
+import {
+  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, newTally, costLine,
+} from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
+import { attachVideo, youtubeReady } from './youtube.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
 import { JOURNEYS } from '../../lib/journeys.js';
@@ -104,7 +108,9 @@ async function main() {
     console.log('Commands: status, add, discover, write, refresh, media, import-editorial, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
-  console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, photographs ${unsplashReady() ? 'on' : 'off (no UNSPLASH_ACCESS_KEY)'}`);
+  console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
+    + `photographs ${unsplashReady() ? 'on' : 'off (no UNSPLASH_ACCESS_KEY)'}, `
+    + `videos ${youtubeReady() ? 'on' : 'off (no YOUTUBE_DATA_API_KEY)'}`);
 
   if (command === 'add') {
     const brief = (opt._.slice(1).join(' ') || process.env.JOURNEY_BRIEF || '').trim();
@@ -137,19 +143,34 @@ async function main() {
     console.log(`${rows.length} to refresh`);
     await refreshRows(client, rows, ctx, parallel);
   } else if (command === 'media') {
-    if (!unsplashReady()) throw new Error('Set UNSPLASH_ACCESS_KEY first.');
+    if (!unsplashReady() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
     const client = db();
+    const recheck = !!opt.recheck;
     const rows = (await written(client, { statuses: ['draft', 'published'], slug: opt.slug || null, limit: 500 }))
-      .filter((r) => needsPhotos(r.doc)).slice(0, limit || 20);
+      .filter((r) => recheck || (unsplashReady() && needsPhotos(r.doc)) || (youtubeReady() && !r.doc.video))
+      .slice(0, limit || 20);
     for (const row of rows) {
       const log = logger(row.slug);
       const doc = row.doc;
-      const added = await attachMedia(doc, { log });
-      if (!added) { log('no photographs found'); continue; }
+      const rejected = new Set();
+      const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
+      const added = await attach();
+      if (!added && !recheck) { log('nothing new found'); continue; }
+      // Nothing reaches readers unchecked: the review agent looks at what was
+      // added here, as it does for a journey it reviews in full.
+      for (let round = 1; round <= 3; round += 1) {
+        const verdict = await checkMedia(doc, ctx);
+        const dropped = dropRejected(doc, verdict, rejected);
+        if (!dropped) break;
+        log(`turned down ${dropped}: ${verdict.reason}`);
+        if (round < 3) await attach();
+      }
+      const photos = (doc.cover && doc.cover.photo ? 1 : 0)
+        + doc.blocks.reduce((n, b) => n + (b.photos || []).length, 0);
       const passed = row.review && row.review.verdict === 'publish';
       const status = row.status === 'draft' && passed && doc.cover && doc.cover.photo ? 'published' : row.status;
       await store(client, row, { doc, status, review: row.review, verification: (row.review && row.review.verification) || [] });
-      log(`${added} photographs, ${status}`);
+      log(`${photos} photographs, ${doc.video ? `video "${doc.video.title}"` : 'no video'}, ${status}`);
     }
   } else if (command === 'import-editorial') {
     const client = db();
@@ -158,6 +179,7 @@ async function main() {
       const checked = await verifyPlaces(fromV1(j));
       const doc = checked.doc;
       await attachMedia(doc, { log });
+      await attachVideo(doc, { log });
       const { data: existing } = await client.from('journeys').select('*').eq('slug', j.slug).maybeSingle();
       let row = existing;
       if (!row) {

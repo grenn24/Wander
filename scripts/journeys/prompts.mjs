@@ -12,6 +12,7 @@ const RULES = `Choose the shape the trip deserves:
 - Vary the rhythm: some paragraphs long, some a single line.
 - Use at least two, and rarely more than four, of: a pull quote, a tip, a detour (such as "If it rains"), an hour-by-hour day, a note on what to skip. Put each where it earns its place, not all at the end.
 - Place two to four photographs where a picture would stop someone scrolling. A photo query is a short keyword search of three to six words naming the subject and the place, such as "Delicate Arch Arches National Park" or "Otaru Canal Hokkaido". Photo search does not understand times of day, seasons, moods or two subjects at once; put the mood in the caption instead. The cover query follows the same rule.
+- Give a videoQuery: a YouTube search of three to six words that would find a good travel video about the journey's main places, such as "Escalante Grand Staircase road trip".
 
 Voice: an editor who knows the place well and tells the truth, including the trade-offs and what disappoints. Concrete and sensory. Second person or plain description. Never invent personal anecdotes, a narrator, or first-hand experience.
 Avoid: hidden gem, bustling, nestled, vibrant, tapestry, must-see, breathtaking, off the beaten path, a feast for the senses, "a city of contrasts", strings of three adjectives, and openings that begin with the destination's name followed by "is".
@@ -43,13 +44,14 @@ Check, using web search wherever a fact can change:
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
 4. Writing: freeform and specific rather than a template; no clichés; no invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip.
 5. Fit: it delivers the brief it was written from (the destination, season, length and angle asked for), and is not a near-duplicate of a journey already in the catalogue.
+6. Video: if there is one, it must be a genuine travel video about this journey's places, suitable for everyone, and not an advertisement or a compilation of unrelated clips. Set videoReject to true if it is not.
 
 Give the verdict "publish" only when nothing blocking remains. Give "revise" when the problems can be fixed, with exact fixes. Give "reject" only when the premise is wrong, unsafe, or duplicates the catalogue. Minor issues do not stop publishing. Set outdated to true if anything is out of date as of today.`;
 
 export const REVIEW_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['verdict', 'score', 'summary', 'outdated', 'issues', 'photoRejects'],
+  required: ['verdict', 'score', 'summary', 'outdated', 'issues', 'photoRejects', 'videoReject'],
   properties: {
     verdict: { type: 'string', enum: ['publish', 'revise', 'reject'] },
     score: { type: 'integer', description: 'Overall quality from 1 to 10' },
@@ -71,6 +73,26 @@ export const REVIEW_SCHEMA = {
       },
     },
     photoRejects: { type: 'array', items: { type: 'integer' } },
+    videoReject: { type: 'boolean', description: 'True if the video should not be shown with this journey' },
+  },
+};
+
+export const MEDIA_CHECK = `You check the photographs and the video attached to a Wander journey before readers see them. You are given the journey's title, country and places; for each photograph, what it was meant to show and how Unsplash describes what it does show; and the video's title, channel and length.
+
+Reject a photograph (give its block index, or -1 for the cover) if it plainly shows a different named place or something unrelated to the journey. A generic description of the right kind of landscape or street is acceptable.
+
+Reject the video if it is not a travel video about this journey's places: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. A general travel guide to the journey's main city or area is acceptable.
+
+Give a short reason when you reject anything.`;
+
+export const MEDIA_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['photoRejects', 'videoReject', 'reason'],
+  properties: {
+    photoRejects: { type: 'array', items: { type: 'integer' } },
+    videoReject: { type: 'boolean' },
+    reason: { type: 'string' },
   },
 };
 

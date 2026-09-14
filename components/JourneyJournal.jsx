@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin,
+  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin, Play,
 } from 'lucide-react';
 import DateField from '@/components/DateField';
 import GrowArea from '@/components/GrowArea';
@@ -273,6 +273,8 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
 
           <div className={s.flow}>{(doc.blocks || []).map(block)}</div>
 
+          {doc.video ? <VideoBlock video={doc.video} /> : null}
+
           {(doc.know || []).length ? (
             <section className={s.know} aria-labelledby="good-to-know">
               <h2 id="good-to-know" className={s.knowTitle}>Good to know</h2>
@@ -328,6 +330,48 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
           onIndex={(index) => setViewer((v) => ({ ...v, index }))} onClose={() => setViewer(null)} />
       ) : null}
     </article>
+  );
+}
+
+/*
+ * A creator's video of the journey, chosen by the journey service.
+ *
+ * A picture and a play button until pressed: an embedded player costs a
+ * megabyte of script and tells YouTube about everyone who scrolls past, while
+ * this costs one thumbnail. Pressing play loads YouTube's privacy-enhanced
+ * player in its place, credited to the channel that made the video.
+ */
+function VideoBlock({ video }) {
+  const [playing, setPlaying] = useState(false);
+  const [thumb, setThumb] = useState(`https://i.ytimg.com/vi/${video.id}/maxresdefault.jpg`);
+  const minutes = Math.round((video.seconds || 0) / 60);
+  return (
+    <section className={s.video} aria-labelledby="journey-video">
+      <h2 id="journey-video" className={s.knowTitle}>See it moving</h2>
+      <div className={s.videoFrame}>
+        {playing ? (
+          <iframe src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
+            title={video.title} allowFullScreen referrerPolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" />
+        ) : (
+          <button type="button" className={s.videoPlay} onClick={() => setPlaying(true)}
+            aria-label={`Play “${video.title}” by ${video.channel}`}>
+            <img src={thumb} alt="" loading="lazy" decoding="async"
+              onError={() => setThumb(`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`)} />
+            <span className={s.playIcon} aria-hidden="true"><Play size={26} /></span>
+          </button>
+        )}
+      </div>
+      <p className={s.videoMeta}>
+        <span className={s.videoTitle}>{video.title}</span>
+        <span>
+          by{' '}
+          <a href={`https://www.youtube.com/channel/${video.channelId}`} target="_blank" rel="noreferrer">{video.channel}</a>
+          {minutes ? ` · ${minutes} min` : ''} · on{' '}
+          <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer">YouTube</a>
+        </span>
+      </p>
+    </section>
   );
 }
 

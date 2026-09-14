@@ -2,8 +2,9 @@ import { WRITER_SCHEMA, normaliseDoc, validateDoc, modelFields } from '../../lib
 import { respond } from './openai.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { attachMedia } from './unsplash.mjs';
+import { attachVideo } from './youtube.mjs';
 import {
-  WRITER, REVISER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA,
+  WRITER, REVISER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,
   catalogueText, coverageText, voiceSample,
 } from './prompts.mjs';
 
@@ -84,6 +85,7 @@ function carry(prev, next) {
   next.blocks = next.blocks.map((b) => (b.type === 'photo' && shots.has(`${b.query}|${b.layout}`)
     ? { ...b, photos: shots.get(`${b.query}|${b.layout}`) } : b));
   if (prev.cover && prev.cover.photo && prev.cover.query === next.cover.query) next.cover.photo = prev.cover.photo;
+  if (prev.video && prev.videoQuery === next.videoQuery) next.video = prev.video;
   return next;
 }
 
@@ -101,8 +103,24 @@ function photoNotes(doc) {
   return notes;
 }
 
-function dropRejected(doc, review, rejected) {
+function mediaPacket(doc) {
+  const v = doc.video;
+  return {
+    photographs: photoNotes(doc),
+    video: v ? {
+      title: v.title, channel: v.channel, published: v.publishedAt,
+      minutes: Math.round((v.seconds || 0) / 60), views: v.views,
+    } : null,
+  };
+}
+
+export function dropRejected(doc, review, rejected) {
   let dropped = 0;
+  if (review.videoReject && doc.video) {
+    rejected.add(doc.video.id);
+    doc.video = null;
+    dropped += 1;
+  }
   for (const i of review.photoRejects || []) {
     if (i === -1 && doc.cover && doc.cover.photo) {
       rejected.add(doc.cover.photo.id);
@@ -149,7 +167,7 @@ async function review(doc, verification, ctx, mode, brief) {
     google_maps: doc.places.map((p) => ({
       id: p.id, name: p.name, found: p.google_name || null, address: p.address || null, status: p.google_status || null,
     })),
-    photographs: photoNotes(doc),
+    ...mediaPacket(doc),
     verification,
     structure: structureIssues(structure),
   };
@@ -171,9 +189,13 @@ async function settle(start, ctx, { mode, brief, rounds }) {
     const checked = await verifyPlaces(doc, { recheck: mode === 'refresh' && round === 1 });
     doc = checked.doc;
     await attachMedia(doc, { rejected, log: ctx.log });
+    await attachVideo(doc, { rejected, log: ctx.log });
     const { review: rv, structure } = await review(doc, checked.issues, ctx, mode, brief);
     ctx.log(`review ${round}: ${rv.verdict}, ${rv.score}/10. ${rv.summary}`);
-    if (dropRejected(doc, rv, rejected)) await attachMedia(doc, { rejected, log: ctx.log });
+    if (dropRejected(doc, rv, rejected)) {
+      await attachMedia(doc, { rejected, log: ctx.log });
+      await attachVideo(doc, { rejected, log: ctx.log });
+    }
     last = { review: rv, verification: checked.issues, structure };
     const hard = [...blockingOf(checked.issues), ...structure.errors];
     if (rv.verdict === 'reject') return { doc, verdict: 'reject', ...last };
@@ -224,6 +246,30 @@ export async function refreshJourney(row, ctx) {
     status = 'draft';
   }
   return { ...out, doc, status, changed: changed && doc === out.doc };
+}
+
+/**
+ * The review agent's eye on photographs and a video added after a journey was
+ * written. A quick look rather than a full review: nothing here needs the web,
+ * only a judgement on whether each picture and the video fit the journey.
+ */
+export async function checkMedia(doc, ctx) {
+  const packet = mediaPacket(doc);
+  if (!packet.photographs.length && !packet.video) return { photoRejects: [], videoReject: false, reason: '' };
+  const r = await respond({
+    name: 'journey_media_check',
+    schema: MEDIA_SCHEMA,
+    instructions: MEDIA_CHECK,
+    input: JSON.stringify({
+      journey: { title: doc.title, place: doc.place, country: doc.country, places: doc.places.map((p) => p.name) },
+      ...packet,
+    }),
+    effort: 'low',
+    search: false,
+    maxOutput: 6000,
+  });
+  spend(ctx.tally, r);
+  return r.data;
 }
 
 /** Ideas for journeys the catalogue is missing. */

@@ -3,9 +3,10 @@ name: Journeys
 # The journey service: writes new journeys and keeps published ones current.
 # Runs weekly on its own, or by hand from the Actions tab with a command.
 #
-# Needs repository secrets: OPENAI_API_KEY, PLACES_API_KEY, UNSPLASH_ACCESS_KEY,
-# SUPABASE_URL (the production API URL) and SUPABASE_SERVICE_ROLE_KEY. Until
-# the required ones exist, runs skip instead of failing.
+# Needs repository secrets: OPENAI_API_KEY, PLACES_API_KEY, SUPABASE_URL (the
+# production API URL) and SUPABASE_SERVICE_ROLE_KEY. UNSPLASH_ACCESS_KEY and
+# YOUTUBE_DATA_API_KEY add photographs and videos. Until the required ones
+# exist, runs skip instead of failing.
 
 on:
   schedule:
@@ -41,6 +42,7 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
       UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+      YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       JOURNEY_COMMAND: ${{ inputs.command || 'weekly' }}

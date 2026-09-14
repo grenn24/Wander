@@ -141,6 +141,15 @@ export default function Privacy() {
           ratings and reviews, and works out routes. It receives the place names you search
           for and the coordinates being shown.
         </li>
+        <li>
+          <b>Unsplash</b> — serves the photographs in journeys. Your browser requests each
+          photograph from Unsplash when a journey page shows it.
+        </li>
+        <li>
+          <b>YouTube</b> — only when you press play on a journey&rsquo;s video. Until then only
+          a still image is shown; pressing play loads YouTube&rsquo;s privacy-enhanced player,
+          and YouTube then receives that request.
+        </li>
       </ul>
 
       <h2>Deleting things</h2>
