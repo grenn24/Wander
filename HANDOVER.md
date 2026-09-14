@@ -167,7 +167,6 @@ paste as **one transaction**, so one failing statement rolls back the lot.
 |---|---|
 | Rotate the leaked OpenAI key | not done |
 | `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` + Vercel | placeholder |
-| `OPENAI_MODEL_SMART` (turns on the better model for plan + command) | empty |
 | `GOOGLE_SITE_VERIFICATION` | placeholder |
 | Contact email in `app/privacy/page.js` and `app/terms/page.js` | `REPLACE_WITH_YOUR_CONTACT_EMAIL` |
 | Google OAuth verification | **rejected** — `vercel.app` cannot be verified as owned. Needs a custom domain, or stay in Testing mode (refresh tokens then expire every 7 days) |
@@ -178,8 +177,9 @@ paste as **one transaction**, so one failing statement rolls back the lot.
 ## 8. Where the AI work stands
 
 `lib/ai.js` routes seven tasks across two model tiers and three effort levels.
-`plan` and `command` use `OPENAI_MODEL_SMART`; everything else uses
-`OPENAI_MODEL`. Unset, both resolve to the same model and nothing changes.
+`plan` and `command` use `gpt-5.5`, named in the code; everything else uses
+`OPENAI_MODEL`. The journey service (`scripts/journeys`) uses `gpt-5.5` at high
+effort through the Responses API with web search.
 
 Every call is **single-shot structured output** — a strict JSON schema, one
 request, deterministic post-processing. There is no tool-use loop anywhere, and
