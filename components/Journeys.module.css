@@ -130,8 +130,9 @@
 .railRow {
   display: grid; grid-auto-flow: column; grid-auto-columns: 236px; gap: 12px;
   padding: 2px 2px 10px; overflow-x: auto; overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity; scrollbar-width: thin;
+  scroll-snap-type: x proximity; scrollbar-width: none;
 }
+.railRow::-webkit-scrollbar { display: none; }
 .railRow > * { scroll-snap-align: start; }
 .mini .cover { aspect-ratio: 16 / 10; }
 .mini .body { gap: 3px; padding: 10px 12px 12px; }
