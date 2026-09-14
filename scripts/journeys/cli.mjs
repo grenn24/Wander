@@ -9,7 +9,7 @@
  *   npm run journeys -- refresh --slug kyoto-blossom
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
- *   npm run journeys -- import-editorial         load the hand-written journeys
+ *   npm run journeys -- import-editorial         load the hand-written journeys (skips imported ones; --force replaces)
  *   npm run journeys -- weekly                   what the schedule runs
  *
  * Options: --parallel 2, --allow-no-photos, --days 30 (refresh), --out file.json (add, without saving)
@@ -96,6 +96,24 @@ async function refreshRows(client, rows, ctx, parallel) {
   });
 }
 
+/*
+ * Nothing reaches readers unchecked: photographs and videos added outside a
+ * full review get the review agent's quick look, and whatever it turns down
+ * is replaced, up to three times.
+ */
+async function reviewAttached(doc, rejected, log, ctx) {
+  for (let round = 1; round <= 3; round += 1) {
+    const verdict = await checkMedia(doc, ctx);
+    const dropped = dropRejected(doc, verdict, rejected);
+    if (!dropped) return;
+    log(`turned down ${dropped}: ${verdict.reason}`);
+    if (round < 3) {
+      await attachMedia(doc, { rejected, log });
+      await attachVideo(doc, { rejected, log });
+    }
+  }
+}
+
 async function main() {
   const opt = parse(process.argv.slice(2));
   const command = opt._[0] || process.env.JOURNEY_COMMAND || 'help';
@@ -156,15 +174,7 @@ async function main() {
       const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
       const added = await attach();
       if (!added && !recheck) { log('nothing new found'); continue; }
-      // Nothing reaches readers unchecked: the review agent looks at what was
-      // added here, as it does for a journey it reviews in full.
-      for (let round = 1; round <= 3; round += 1) {
-        const verdict = await checkMedia(doc, ctx);
-        const dropped = dropRejected(doc, verdict, rejected);
-        if (!dropped) break;
-        log(`turned down ${dropped}: ${verdict.reason}`);
-        if (round < 3) await attach();
-      }
+      await reviewAttached(doc, rejected, log, ctx);
       const photos = (doc.cover && doc.cover.photo ? 1 : 0)
         + doc.blocks.reduce((n, b) => n + (b.photos || []).length, 0);
       const passed = row.review && row.review.verdict === 'publish';
@@ -176,11 +186,16 @@ async function main() {
     const client = db();
     for (const j of JOURNEYS) {
       const log = logger(j.slug);
+      const { data: existing } = await client.from('journeys').select('*').eq('slug', j.slug).maybeSingle();
+      // Once imported, a journey belongs to the database: a refresh may have
+      // rewritten it since, and importing again would put the old text back.
+      if (existing && !opt.force) { log('already imported, skipped (--force replaces it)'); continue; }
       const checked = await verifyPlaces(fromV1(j));
       const doc = checked.doc;
-      await attachMedia(doc, { log });
-      await attachVideo(doc, { log });
-      const { data: existing } = await client.from('journeys').select('*').eq('slug', j.slug).maybeSingle();
+      const rejected = new Set();
+      await attachMedia(doc, { rejected, log });
+      await attachVideo(doc, { rejected, log });
+      await reviewAttached(doc, rejected, log, ctx);
       let row = existing;
       if (!row) {
         const { data, error } = await client.from('journeys')
