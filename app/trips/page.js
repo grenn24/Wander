@@ -16,6 +16,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
 import TravelArt from '@/components/TravelArt';
+import HomeNav from '@/components/HomeNav';
+import JourneyRail from '@/components/JourneyRail';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 
@@ -238,7 +240,7 @@ export default function TripsHome() {
 
   return (
     <div className="shell">
-      <TopBar />
+      <TopBar><HomeNav active="trips" /></TopBar>
       <main className="main main-plain">
         <div className="wrap">
           <div className="page-head spread">
@@ -280,6 +282,10 @@ export default function TripsHome() {
           <div className="trips-plan">
             <PlanPrompt compact />
           </div>
+
+          {/* Beside the moment of starting a trip, for when there is no
+              sentence to type yet. */}
+          <JourneyRail />
 
           {loadError ? (
             <div className="empty empty-lg" role="alert">

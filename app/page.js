@@ -9,6 +9,7 @@ import LandingAccount from '@/components/LandingAccount';
 import BrandMark from '@/components/BrandMark';
 import TravelArt from '@/components/TravelArt';
 import PromoVideo from '@/components/PromoVideo';
+import JourneyRail from '@/components/JourneyRail';
 import {
   CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
@@ -51,6 +52,7 @@ export default async function Landing({ searchParams }) {
             <span className="brand-word">Wander</span>
           </span>
           <div className="grow" />
+          <Link className="lp-navlink" href="/journeys">Journeys</Link>
           <a className="lp-navlink" href="#features">Features</a>
           <a className="lp-navlink" href="#how">How it works</a>
           <LandingAccount />
@@ -102,6 +104,14 @@ export default async function Landing({ searchParams }) {
               </Reveal>
             ))}
           </FeatureGrid>
+        </section>
+
+        <section className="lp-section" id="journeys">
+          <Reveal className="lp-section-head">
+            <h2>Not sure where yet?</h2>
+            <p>Borrow a journey and make it yours.</p>
+          </Reveal>
+          <JourneyRail title="" />
         </section>
 
         <section className="lp-section lp-band">

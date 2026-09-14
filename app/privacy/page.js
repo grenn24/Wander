@@ -11,7 +11,7 @@ const CONTACT = 'REPLACE_WITH_YOUR_CONTACT_EMAIL';
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy Policy" updated="5 September 2026">
+    <LegalPage title="Privacy Policy" updated="14 September 2026">
       <p>
         Wander is a travel itinerary planner. This policy describes what it stores, what it
         sends elsewhere, and how to have it deleted. It is written to be read rather than
@@ -34,6 +34,11 @@ export default function Privacy() {
         <li>
           <b>Who you share a trip with.</b> The display name and email address of each person
           on a shared trip, so members can see who else is on it.
+        </li>
+        <li>
+          <b>Places on your globe.</b> Places you save as somewhere you have been or want to
+          go: the name, address and coordinates, and the journey it came from if it did. Only
+          you can see them.
         </li>
         <li>
           <b>Google Calendar access, only if you connect it.</b> See the section below.
@@ -142,6 +147,8 @@ export default function Privacy() {
       <ul>
         <li><b>An activity or a trip</b> — delete it in the app; it goes immediately, along with
           everything in it.
+        </li>
+        <li><b>A place on your globe</b> — select it on the globe and remove it.
         </li>
         <li><b>The calendar connection</b> — Account → Disconnect. The stored permission is
           deleted and revoked at Google straight away. Events already written to your calendar

@@ -10,6 +10,7 @@ import {
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import { SHOT_KEY } from '@/components/PlanPrompt';
+import { BRIEF_KEY } from '@/lib/planBrief';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
@@ -46,6 +47,16 @@ function Planner() {
       const raw = JSON.parse(sessionStorage.getItem(SHOT_KEY) || '[]');
       return Array.isArray(raw) ? raw.filter((u) => typeof u === 'string' && u) : [];
     } catch (e) { return []; }
+  });
+
+  /*
+   * A long brief, when the page that sent us wrote one — a journey someone has
+   * made their own. The address holds only its title, which is what the
+   * planning screen shows back; this is what the planner is actually given.
+   */
+  const [longBrief] = useState(() => {
+    if (params.get('brief') !== '1' || typeof sessionStorage === 'undefined') return '';
+    try { return sessionStorage.getItem(BRIEF_KEY) || ''; } catch (e) { return ''; }
   });
 
   const [meta, setMeta] = useState(null);
@@ -119,7 +130,7 @@ function Planner() {
      * out of this" arrives on an empty screen rather than halfway down a
      * half-written itinerary.
      */
-    let brief = preparedBrief || query;
+    let brief = preparedBrief || longBrief || query;
     let saw = '';
     if (shots.length && !preparedBrief) {
       setPhase('reading');
@@ -429,7 +440,7 @@ function Planner() {
     pendingTripRef.current = null;
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     router.replace(`/trips/${trip.id}/itinerary`);
-  }, [supabase, user, query, shots, router, fail, upsertDay, discardPendingTrip]);
+  }, [supabase, user, query, longBrief, shots, router, fail, upsertDay, discardPendingTrip]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;

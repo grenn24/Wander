@@ -32,7 +32,7 @@ const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
 const PhotorealisticMap = dynamic(() => import('./PhotorealisticMap'), { ssr: false });
 
-async function load3D() {
+export async function load3D() {
   await loadMaps();
   const [maps3d, marker] = await Promise.all([
     window.google.maps.importLibrary('maps3d'),
@@ -119,7 +119,7 @@ let loader = null;
  * The documented fix is a callback plus importLibrary, which is also the only
  * supported way to pull in the marker library.
  */
-function loadMaps() {
+export function loadMaps() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
   if (loader) return loader;
 
