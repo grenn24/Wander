@@ -42,7 +42,7 @@ Check, using web search wherever a fact can change:
 2. Places: every blocking problem in the Google Maps verification must be resolved. Compare each place with the name and address Google found for it.
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
 4. Writing: freeform and specific rather than a template; no clichés; no invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip.
-5. Fit: not a near-duplicate of a journey already in the catalogue.
+5. Fit: it delivers the brief it was written from (the destination, season, length and angle asked for), and is not a near-duplicate of a journey already in the catalogue.
 
 Give the verdict "publish" only when nothing blocking remains. Give "revise" when the problems can be fixed, with exact fixes. Give "reject" only when the premise is wrong, unsafe, or duplicates the catalogue. Minor issues do not stop publishing. Set outdated to true if anything is out of date as of today.`;
 

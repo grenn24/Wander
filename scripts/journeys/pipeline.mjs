@@ -125,9 +125,10 @@ async function revise(doc, problems, brief, ctx) {
   return carry(doc, withSources(normaliseDoc(r.data), [...(doc.sources || []), ...r.sources]));
 }
 
-async function review(doc, verification, ctx, mode) {
+async function review(doc, verification, ctx, mode, brief) {
   const structure = validateDoc(doc, { strict: ctx.strict !== false });
   const packet = {
+    brief,
     journey: modelFields(doc),
     google_maps: doc.places.map((p) => ({
       id: p.id, name: p.name, found: p.google_name || null, address: p.address || null, status: p.google_status || null,
@@ -154,7 +155,7 @@ async function settle(start, ctx, { mode, brief, rounds }) {
     const checked = await verifyPlaces(doc, { recheck: mode === 'refresh' && round === 1 });
     doc = checked.doc;
     await attachMedia(doc, { rejected, log: ctx.log });
-    const { review: rv, structure } = await review(doc, checked.issues, ctx, mode);
+    const { review: rv, structure } = await review(doc, checked.issues, ctx, mode, brief);
     ctx.log(`review ${round}: ${rv.verdict}, ${rv.score}/10. ${rv.summary}`);
     if (dropRejected(doc, rv, rejected)) await attachMedia(doc, { rejected, log: ctx.log });
     last = { review: rv, verification: checked.issues, structure };
