@@ -9,7 +9,7 @@
  *   npm run journeys -- refresh --slug kyoto-blossom
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
- *   npm run journeys -- import-editorial         load the hand-written journeys (skips imported ones; --force replaces)
+ *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
  *   npm run journeys -- weekly                   what the schedule runs
  *
  * Options: --parallel 2, --allow-no-photos, --days 30 (refresh), --out file.json (add, without saving)
@@ -123,7 +123,7 @@ async function main() {
   const ctx = { tally, allowNoPhotos: !!opt['allow-no-photos'] };
 
   if (command === 'help') {
-    console.log('Commands: status, add, discover, write, refresh, media, import-editorial, weekly. See scripts/journeys/cli.mjs.');
+    console.log('Commands: status, add, discover, write, refresh, media, import-defaults, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
@@ -182,7 +182,7 @@ async function main() {
       await store(client, row, { doc, status, review: row.review, verification: (row.review && row.review.verification) || [] });
       log(`${photos} photographs, ${doc.video ? `video "${doc.video.title}"` : 'no video'}, ${status}`);
     }
-  } else if (command === 'import-editorial') {
+  } else if (command === 'import-defaults') {
     const client = db();
     for (const j of JOURNEYS) {
       const log = logger(j.slug);

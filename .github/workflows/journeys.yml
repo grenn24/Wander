@@ -16,7 +16,7 @@ on:
       command:
         description: What to do
         type: choice
-        options: [status, weekly, add, discover, write, refresh, media, import-editorial]
+        options: [status, weekly, add, discover, write, refresh, media, import-defaults]
         default: status
       brief:
         description: For add, the journey to write
