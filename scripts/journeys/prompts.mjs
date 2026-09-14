@@ -44,7 +44,7 @@ Check, using web search wherever a fact can change:
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
 4. Writing: freeform and specific rather than a template; no clichés; no invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip.
 5. Fit: it delivers the brief it was written from (the destination, season, length and angle asked for), and is not a near-duplicate of a journey already in the catalogue.
-6. Video: if there is one, it must be a genuine travel video about this journey's places, suitable for everyone, and not an advertisement or a compilation of unrelated clips. Set videoReject to true if it is not.
+6. Video: if there is one, it must be a genuine travel video about this journey's places, in the season the journey is written for, suitable for everyone, and not an advertisement or a compilation of unrelated clips. Set videoReject to true if it is not.
 
 Give the verdict "publish" only when nothing blocking remains. Give "revise" when the problems can be fixed, with exact fixes. Give "reject" only when the premise is wrong, unsafe, or duplicates the catalogue. Minor issues do not stop publishing. Set outdated to true if anything is out of date as of today.`;
 
@@ -82,6 +82,8 @@ export const MEDIA_CHECK = `You check the photographs and the video attached to 
 Reject a photograph (give its block index, or -1 for the cover) if it plainly shows a different named place or something unrelated to the journey. A generic description of the right kind of landscape or street is acceptable.
 
 Reject the video if it is not a travel video about this journey's places: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. A general travel guide to the journey's main city or area is acceptable.
+
+Timing matters too, because readers use a journey to decide when to go. Reject a video or a photograph that is plainly about a different season from the one the journey is written for — a summer vlog for a winter journey, green hillsides for a snow trip — using the journey's timing and best months.
 
 Give a short reason when you reject anything.`;
 

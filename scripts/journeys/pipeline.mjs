@@ -132,7 +132,15 @@ export function dropRejected(doc, review, rejected) {
       dropped += 1;
     }
   }
+  // Kept with the journey, so the next run does not pay to find and turn down
+  // the same video or photograph again.
+  if (dropped) doc.rejected = [...new Set([...(doc.rejected || []), ...rejected])].slice(-100);
   return dropped;
+}
+
+/** Everything the review has already turned down for this journey. */
+export function rejectedOf(doc) {
+  return new Set((doc && doc.rejected) || []);
 }
 
 async function write(brief, ctx) {
@@ -183,7 +191,7 @@ async function review(doc, verification, ctx, mode, brief) {
 
 async function settle(start, ctx, { mode, brief, rounds }) {
   let doc = start;
-  const rejected = new Set();
+  const rejected = rejectedOf(start);
   let last = null;
   for (let round = 1; round <= rounds; round += 1) {
     const checked = await verifyPlaces(doc, { recheck: mode === 'refresh' && round === 1 });
@@ -261,7 +269,11 @@ export async function checkMedia(doc, ctx) {
     schema: MEDIA_SCHEMA,
     instructions: MEDIA_CHECK,
     input: JSON.stringify({
-      journey: { title: doc.title, place: doc.place, country: doc.country, places: doc.places.map((p) => p.name) },
+      journey: {
+        title: doc.title, place: doc.place, country: doc.country,
+        when: doc.when, bestMonths: (doc.months && doc.months.best) || [],
+        places: doc.places.map((p) => p.name),
+      },
       ...packet,
     }),
     effort: 'low',

@@ -21,7 +21,7 @@ import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, newTally, costLine,
+  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
 import { attachVideo, youtubeReady } from './youtube.mjs';
@@ -170,7 +170,7 @@ async function main() {
     for (const row of rows) {
       const log = logger(row.slug);
       const doc = row.doc;
-      const rejected = new Set();
+      const rejected = rejectedOf(doc);
       const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
       const added = await attach();
       if (!added && !recheck) { log('nothing new found'); continue; }
