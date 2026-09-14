@@ -193,7 +193,7 @@ async function main() {
     throw new Error(`Unknown command "${command}".`);
   }
 
-  if (tally.calls) console.log(costLine(tally));
+  if (tally.calls) console.log(costLine(tally, MODEL()));
 }
 
 main().catch((e) => {

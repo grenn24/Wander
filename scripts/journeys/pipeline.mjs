@@ -23,20 +23,34 @@ import {
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function newTally() {
-  return { calls: 0, searches: 0, input: 0, output: 0, reasoning: 0 };
+  return { calls: 0, searches: 0, input: 0, cached: 0, output: 0, reasoning: 0 };
 }
 
 function spend(tally, r) {
   tally.calls += 1;
   tally.searches += r.searches || 0;
   tally.input += r.usage.input_tokens || 0;
+  tally.cached += (r.usage.input_tokens_details && r.usage.input_tokens_details.cached_tokens) || 0;
   tally.output += r.usage.output_tokens || 0;
   tally.reasoning += (r.usage.output_tokens_details && r.usage.output_tokens_details.reasoning_tokens) || 0;
 }
 
-export function costLine(t) {
-  return `${t.calls} model calls, ${t.searches} web searches, ${t.input.toLocaleString()} input and `
-    + `${t.output.toLocaleString()} output tokens (${t.reasoning.toLocaleString()} of them reasoning)`;
+/*
+ * What a run cost, so a weekly job cannot quietly become an expensive one.
+ * gpt-5.5 prices as listed by OpenAI on 14 September 2026: per million tokens,
+ * and per thousand web searches. Other models print tokens only.
+ */
+const PRICES = { 'gpt-5.5': { input: 5, cached: 0.5, output: 30, search: 10 } };
+
+export function costLine(t, model) {
+  const line = `${t.calls} model calls, ${t.searches} web searches, ${t.input.toLocaleString()} input `
+    + `(${t.cached.toLocaleString()} cached) and ${t.output.toLocaleString()} output tokens `
+    + `(${t.reasoning.toLocaleString()} of them reasoning)`;
+  const p = PRICES[model];
+  if (!p) return line;
+  const dollars = ((t.input - t.cached) * p.input + t.cached * p.cached + t.output * p.output) / 1e6
+    + (t.searches * p.search) / 1000;
+  return `${line}, about $${dollars.toFixed(2)}`;
 }
 
 const blockingOf = (issues) => (issues || []).filter((i) => i.severity === 'blocking');
@@ -108,7 +122,9 @@ async function write(brief, ctx) {
     name: 'journey',
     schema: WRITER_SCHEMA,
     instructions: WRITER(today()),
-    input: `Brief: ${brief}\n\n${catalogueText(ctx.catalogue)}\n\n${voiceSample()}`,
+    // What stays the same across a run goes first, so OpenAI can bill it at
+    // the cached rate; the brief, which is different every time, goes last.
+    input: `${voiceSample()}\n\n${catalogueText(ctx.catalogue)}\n\nBrief: ${brief}`,
   });
   spend(ctx.tally, r);
   return withSources(normaliseDoc(r.data), r.sources);

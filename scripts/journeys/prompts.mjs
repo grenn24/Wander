@@ -11,7 +11,7 @@ const RULES = `Choose the shape the trip deserves:
 - Headings are optional. Use them only where they help, and they need not match days.
 - Vary the rhythm: some paragraphs long, some a single line.
 - Use at least two, and rarely more than four, of: a pull quote, a tip, a detour (such as "If it rains"), an hour-by-hour day, a note on what to skip. Put each where it earns its place, not all at the end.
-- Place two to four photographs where a picture would stop someone scrolling. A photo query names what should be in the frame and where, such as "Delicate Arch at sunset, Arches National Park".
+- Place two to four photographs where a picture would stop someone scrolling. A photo query is a short keyword search of three to six words naming the subject and the place, such as "Delicate Arch Arches National Park" or "Otaru Canal Hokkaido". Photo search does not understand times of day, seasons, moods or two subjects at once; put the mood in the caption instead. The cover query follows the same rule.
 
 Voice: an editor who knows the place well and tells the truth, including the trade-offs and what disappoints. Concrete and sensory. Second person or plain description. Never invent personal anecdotes, a narrator, or first-hand experience.
 Avoid: hidden gem, bustling, nestled, vibrant, tapestry, must-see, breathtaking, off the beaten path, a feast for the senses, "a city of contrasts", strings of three adjectives, and openings that begin with the destination's name followed by "is".
