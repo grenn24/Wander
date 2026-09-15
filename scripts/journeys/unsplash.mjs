@@ -12,11 +12,21 @@
 const API = 'https://api.unsplash.com';
 const UTM = 'utm_source=wander&utm_medium=referral';
 let exhausted = false;
+let active = 0;
 
-function key() {
-  const k = process.env.UNSPLASH_ACCESS_KEY || '';
-  return !k || k.startsWith('REPLACE_WITH') ? '' : k;
+/**
+ * The access keys to use, main first. The backup is a spare for when the main
+ * key stops working — revoked, deleted or mistyped — and never a way round the
+ * hourly limit: Unsplash's terms forbid circumventing quotas, and doing it
+ * could get both keys suspended.
+ */
+export function unsplashKeys(env = process.env) {
+  return [env.UNSPLASH_ACCESS_KEY, env.UNSPLASH_ACCESS_KEY_BACKUP]
+    .map((k) => String(k || '').trim())
+    .filter((k) => k && !k.startsWith('REPLACE_WITH'));
 }
+
+const key = () => unsplashKeys()[active] || '';
 
 export const unsplashReady = () => !!key() && !exhausted;
 
@@ -25,6 +35,15 @@ async function get(path) {
     headers: { Authorization: `Client-ID ${key()}`, 'Accept-Version': 'v1' },
     signal: AbortSignal.timeout(30000),
   });
+  // A rejected key, not a spent one: move to the backup if there is one.
+  if (res.status === 401) {
+    if (active + 1 < unsplashKeys().length) {
+      active += 1;
+      console.warn('[unsplash] the main access key was rejected; using the backup key');
+      return get(path);
+    }
+    throw new Error('Unsplash rejected the access key');
+  }
   const remaining = Number(res.headers.get('x-ratelimit-remaining'));
   // Demo keys allow 50 requests an hour. Stop before the last one rather than
   // after a refusal, and leave the rest for the next run.
