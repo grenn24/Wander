@@ -30,8 +30,10 @@ async function get(path, params) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const reason = (body.error && body.error.errors && body.error.errors[0] && body.error.errors[0].reason) || '';
-    if (res.status === 403 && /quota|rateLimit/i.test(reason)) exhausted = true;
-    throw new Error((body.error && body.error.message) || `YouTube returned ${res.status}`);
+    const message = (body.error && body.error.message) || `YouTube returned ${res.status}`;
+    // The reason code is not always there; the message always says "quota".
+    if ((res.status === 403 || res.status === 429) && /quota|rateLimit/i.test(`${reason} ${message}`)) exhausted = true;
+    throw new Error(message);
   }
   return body;
 }
