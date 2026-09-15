@@ -30,6 +30,26 @@ test('turned-down media is removed and remembered with the journey', () => {
   assert.deepEqual([...rejectedOf(doc)].sort(), ['cover1', 'old', 'ph1', 'vid00000001']);
 });
 
+test('a turned-down section video is removed without touching the others', () => {
+  const doc = {
+    cover: {},
+    video: { id: 'main0000001' },
+    blocks: [
+      { type: 'video', query: 'Calf Creek hike', video: { id: 'clip0000001' } },
+      { type: 'prose' },
+      { type: 'video', query: 'Burr Trail drive', video: { id: 'clip0000002' } },
+    ],
+  };
+  const rejected = new Set();
+  assert.equal(dropRejected(doc, { videoRejects: [2, 1], photoRejects: [] }, rejected), 1);
+  assert.equal(doc.blocks[2].video, null);
+  assert.equal(doc.blocks[0].video.id, 'clip0000001');
+  assert.equal(doc.video.id, 'main0000001');
+  assert.equal(dropRejected(doc, { videoRejects: [-1], photoRejects: [] }, rejected), 1);
+  assert.equal(doc.video, null);
+  assert.deepEqual([...rejectedOf(doc)].sort(), ['clip0000002', 'main0000001']);
+});
+
 test('nothing turned down leaves the journey alone', () => {
   const doc = { cover: {}, video: null, blocks: [] };
   assert.equal(dropRejected(doc, { videoReject: false, photoRejects: [] }, new Set()), 0);

@@ -475,3 +475,124 @@
 .videoTitle { color: var(--text-1); font-size: 15px; font-weight: 600; }
 .videoMeta a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .videoPlay img { transition: none; } }
+
+/* ============================================================= scrapbook */
+/* Prints on paper taped into the journal, and a passport stamp for each
+   section. The paper stays pale in the dark theme, like photographs on a dark
+   desk. */
+.journal {
+  --paper: #fbf8f1;
+  --tape: rgb(226 205 170 / .72);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0 0 0 1.45'/></filter><rect width='140' height='140' filter='url(%23g)'/></svg>");
+}
+:global(:root[data-theme="dark"]) .journal { --paper: #e6dfd1; --tape: rgb(196 176 140 / .55); }
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .journal { --paper: #e6dfd1; --tape: rgb(196 176 140 / .55); }
+}
+
+.bPhoto, .video { position: relative; transform: rotate(var(--tilt, 0deg)); transition: transform .35s var(--ease); }
+.bPhoto:hover, .video:hover { transform: rotate(0deg); }
+.bFrame, .videoFrame {
+  border: 8px solid var(--paper); border-bottom-width: 11px; border-radius: 3px; background: var(--paper);
+  box-shadow: 0 1px 1px rgb(0 0 0 / .08), 0 16px 30px -18px rgb(0 0 0 / .55);
+}
+/* Washi tape: across both top corners of a wide print, across the top of a small one. */
+.bPhoto::before, .bPhoto::after, .video::before, .video::after {
+  content: ''; position: absolute; z-index: 2; top: -11px; width: 92px; height: 24px;
+  background: var(--tape); pointer-events: none;
+  clip-path: polygon(3% 0, 97% 4%, 100% 30%, 96% 52%, 100% 78%, 97% 100%, 3% 96%, 0 70%, 4% 48%, 0 22%);
+}
+.bPhoto::before, .video::before { left: -20px; transform: rotate(-32deg); }
+.bPhoto::after, .video::after { right: -20px; transform: rotate(31deg); }
+.bInset::before, .bPair::before { left: 50%; margin-left: -46px; transform: rotate(-3deg); }
+.bInset::after, .bPair::after { display: none; }
+.bPair .bFrame:first-child { transform: rotate(-2.2deg); }
+.bPair .bFrame:last-child { transform: rotate(1.8deg); }
+.bPhoto figcaption, .videoMeta { padding-inline: 4px; }
+.bCaption { font-family: var(--font-serif), Georgia, "Times New Roman", serif; font-style: italic; font-size: 15px; }
+@media (max-width: 960px) { .flow { overflow-x: clip; } }
+
+.stamp {
+  --ink: var(--accent);
+  display: inline-grid; justify-items: center; gap: 2px; margin: 0 0 14px 2px; padding: 7px 14px 6px;
+  border: 2px solid var(--ink); border-radius: 7px;
+  box-shadow: inset 0 0 0 2px var(--surface-0), inset 0 0 0 3.5px var(--ink);
+  color: var(--ink); font-family: var(--font-mono), ui-monospace, monospace; line-height: 1.05;
+  text-transform: uppercase; letter-spacing: .08em; transform: rotate(-4deg); opacity: .9;
+  -webkit-mask-image: var(--grain); mask-image: var(--grain);
+  -webkit-mask-size: 140px; mask-size: 140px;
+}
+.stamp b { font-size: 15px; font-weight: 700; }
+.stamp small {
+  max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 9.5px; font-weight: 600; letter-spacing: .16em;
+}
+.stamp[data-shape="1"] { --ink: var(--cat-3); padding: 9px 20px 8px; border-radius: 999px; transform: rotate(3deg); }
+.stamp[data-shape="2"] { --ink: var(--cat-2); border-style: dashed; border-radius: 2px; box-shadow: none; transform: rotate(-1.5deg); }
+
+/* =============================================================== route map */
+@media (min-width: 1200px) {
+  :global(.wrap):has(> .journal .withMap) { max-width: 1240px; }
+  .layout.withMap { grid-template-columns: minmax(0, 680px) minmax(360px, 1fr); gap: 48px; }
+}
+.mapCol {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px;
+  height: calc(100dvh - var(--topbar-h) - 40px);
+}
+.mapBox {
+  position: relative; min-height: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 24px; background: var(--surface-2); box-shadow: var(--lift);
+}
+.mapCanvas { position: absolute; inset: 0; }
+.mapFail { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--text-3); font-size: 14px; }
+.mapNow {
+  position: absolute; top: 12px; left: 12px; z-index: 1; display: grid; gap: 1px; max-width: calc(100% - 24px);
+  padding: 8px 12px; border-radius: 14px; pointer-events: none;
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent); box-shadow: var(--lift);
+}
+.mapNow span { color: var(--accent); font-family: var(--font-mono), ui-monospace, monospace; font-size: 11.5px; }
+.mapNow strong { font-size: 14px; font-weight: 650; line-height: 1.25; }
+.mapBar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px 8px 14px;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--surface-1); box-shadow: var(--lift);
+}
+.mapBar .kept { font-size: 13px; }
+.pin {
+  display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  border: 2px solid #fff; border-radius: 50%; background: var(--text-3); color: #fff; cursor: pointer; opacity: .8;
+  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace; box-shadow: 0 2px 6px rgb(0 0 0 / .35);
+  transition: transform .25s var(--ease), background-color .25s var(--ease), opacity .25s var(--ease), box-shadow .25s var(--ease);
+}
+.pin[data-visited] { background: var(--accent); opacity: .92; }
+.pin[data-active] { opacity: 1; transform: scale(1.2); }
+.pin[data-hover] {
+  opacity: 1; transform: scale(1.4);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 6px rgb(0 0 0 / .35);
+}
+.pin[data-off] { background: var(--surface-2); color: var(--text-3); opacity: .55; text-decoration: line-through; }
+.pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.traveller {
+  width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: var(--accent);
+  animation: ping 1.8s var(--ease) infinite;
+}
+@keyframes ping {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 12px transparent; }
+}
+.flash { animation: flash 1.8s var(--ease); }
+@keyframes flash { 0%, 45% { background: color-mix(in srgb, var(--accent) 30%, transparent); } }
+
+/* On a desk the planner opens as a drawer from the right. */
+@media (min-width: 961px) {
+  .sheetBack { align-items: stretch; justify-content: flex-end; }
+  .sheet {
+    max-width: 420px; height: 100dvh; max-height: none; padding: 22px;
+    border: 0; border-left: 1px solid var(--border); border-radius: 24px 0 0 24px;
+    animation: drawer .26s var(--ease);
+  }
+}
+@keyframes drawer { from { opacity: .6; transform: translateX(32px); } }
+@media (prefers-reduced-motion: reduce) {
+  .bPhoto, .video, .pin { transition: none; }
+  .traveller, .flash, .sheet { animation: none; }
+}

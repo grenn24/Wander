@@ -66,6 +66,29 @@ test('strict validation holds written journeys to the house rules', () => {
   assert.ok(!validateDoc(base).errors.some((e) => /section/.test(e)));
 });
 
+test('video blocks keep a real YouTube video and a journey has at most four', () => {
+  const base = doc('kyoto-blossom');
+  const clip = { provider: 'youtube', id: 'abcdefghijk', title: 'Philosopher’s Path walk' };
+  const withClips = normaliseDoc({
+    ...base,
+    blocks: [
+      ...base.blocks,
+      { type: 'video', query: 'Philosophers Path walk', caption: 'The path in April', video: clip },
+      { type: 'video', query: 'Nishiki Market', video: { provider: 'youtube', id: 'bad' } },
+      { type: 'prose', text: 'x', video: clip },
+    ],
+  });
+  const clips = withClips.blocks.filter((b) => b.type === 'video');
+  assert.deepEqual(clips.map((b) => b.video && b.video.id), ['abcdefghijk', null]);
+  assert.equal(withClips.blocks[withClips.blocks.length - 1].video, undefined);
+  assert.ok(!validateDoc(withClips, { strict: false }).errors.some((e) => /video/.test(e)));
+
+  const tooMany = { ...base, blocks: [...base.blocks, ...Array.from({ length: 5 }, () => ({ type: 'video', query: 'q', items: [] }))] };
+  assert.ok(validateDoc(tooMany).errors.some((e) => /four video blocks/.test(e)));
+  assert.ok(validateDoc({ ...base, blocks: [...base.blocks, { type: 'video', query: '', items: [] }] }, { strict: false })
+    .errors.some((e) => /\(video\) has no query/.test(e)));
+});
+
 test('the video sits at the end of the first section, not below the journal', () => {
   const t = (type, extra = {}) => ({ type, ...extra });
   assert.equal(videoSpot([t('heading'), t('prose'), t('photo'), t('heading'), t('prose')]), 3);

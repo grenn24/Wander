@@ -13,6 +13,7 @@ const RULES = `Structure:
 - Where it helps the reader at that moment, add a tip, a detour (such as "If it rains"), an hour-by-hour day, a note on what to skip, or a pull quote. Use at least two of these kinds and rarely more than four, spread through the journey rather than saved for the end.
 - Place two to four photographs where a picture helps. A photo query is a short keyword search of three to six words naming the subject and the place, such as "Delicate Arch Arches National Park" or "Otaru Canal Hokkaido". Photo search does not understand times of day, seasons, moods or two subjects at once; put the mood in the caption instead. The cover query follows the same rule.
 - Give a videoQuery: a YouTube search of three to six words that would find a good travel video about the journey's main places, such as "Escalante Grand Staircase road trip".
+- Add video blocks where watching helps the reader more than reading: a hike, a scenic drive, a market, a train ride. At most one per section and four in all, each placed beside the paragraph it belongs to. Its query is a YouTube search of three to six words naming that stretch, such as "Lower Calf Creek Falls hike" or "Otaru Canal winter walk", and its caption says in a few words what you will see.
 
 Voice: a well-travelled friend talking you through the trip. Plain, warm and easy to follow: everyday words, mostly short sentences, and paragraphs that read naturally from one to the next. Be honest about trade-offs and anything that disappoints, but say it simply. Second person. Never invent personal anecdotes, a narrator, or first-hand experience.
 - Explain anything a first-time visitor would not know, the first time it appears: spell out abbreviations ("Grand Staircase-Escalante National Monument", not "GSENM"), and say what a local name, a permit or a road rating means.
@@ -45,7 +46,7 @@ ${RULES}`;
 
 export const RESTYLER = (today) => `You edit journeys for Wander, a travel planner. You are given a journey whose facts have been checked but whose writing is hard to follow. Rewrite it so it reads well, keeping everything it says. Today is ${today}.
 
-Keep every place with its id, name, query and note, and every fact a traveller needs to plan and stay safe: access, closures, bookings, permits, seasons, times and distances. You have no web search, so add no fact that is not already in the journey. Rewrite everything a reader sees in the new voice, including the lede, teaser and "when". Reorganise the blocks, add headings, split and expand paragraphs so they flow, and rewrite captions. Say each warning once, merging repeats into a single tip, and turn dated bulletins and administrative detail (exact staffing hours, dated road ratings) into lasting advice on what to check and where. Keep the photo queries, the cover query and the videoQuery unless a photograph now sits beside a different subject. Return the whole journey.
+Keep every place with its id, name, query and note, and every fact a traveller needs to plan and stay safe: access, closures, bookings, permits, seasons, times and distances. You have no web search, so add no fact that is not already in the journey. Rewrite everything a reader sees in the new voice, including the lede, teaser and "when". Reorganise the blocks, add headings, split and expand paragraphs so they flow, and rewrite captions. Say each warning once, merging repeats into a single tip, and turn dated bulletins and administrative detail (exact staffing hours, dated road ratings) into lasting advice on what to check and where. Keep the photo queries, the cover query and the videoQuery unless a photograph now sits beside a different subject. Add video blocks where the rules call for them. Return the whole journey.
 
 The journey must follow these rules:
 ${RULES}`;
@@ -58,14 +59,14 @@ Check, using web search wherever a fact can change:
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
 4. Writing: easy to follow on a first read, in the voice of a well-travelled friend. Every section starts with a heading saying where and for how long; each stop has its own paragraph saying what it is, why go and the practical detail; paragraphs flow and are full enough to be clear, not clipped into notes; each warning is given once; no dated bulletins or administrative detail the reader will look up anyway; the lede is plain; abbreviations and local terms are explained; no "it's not X, it's Y" constructions, clever lines that need decoding, clichés or invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip. A journey that is accurate but hard to follow needs revising.
 5. Fit: it delivers the brief it was written from (the destination, season, length and angle asked for), and is not a near-duplicate of a journey already in the catalogue.
-6. Video: if there is one, it must be a genuine travel video about this journey's places, in the season the journey is written for, suitable for everyone, and not an advertisement or a compilation of unrelated clips. Set videoReject to true if it is not.
+6. Videos: the main video (index -1) must be about the journey as a whole, and each video block about the stretch it sits beside. Every one must be a genuine travel video about those places, in the season the journey is written for, suitable for everyone, and not an advertisement or a compilation of unrelated clips. List the index of any that fail in videoRejects.
 
 Give the verdict "publish" only when nothing blocking remains. Give "revise" when the problems can be fixed, with exact fixes. Give "reject" only when the premise is wrong, unsafe, or duplicates the catalogue. Minor issues do not stop publishing. Set outdated to true if anything is out of date as of today.`;
 
 export const REVIEW_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['verdict', 'score', 'summary', 'outdated', 'issues', 'photoRejects', 'videoReject'],
+  required: ['verdict', 'score', 'summary', 'outdated', 'issues', 'photoRejects', 'videoRejects'],
   properties: {
     verdict: { type: 'string', enum: ['publish', 'revise', 'reject'] },
     score: { type: 'integer', description: 'Overall quality from 1 to 10' },
@@ -87,15 +88,15 @@ export const REVIEW_SCHEMA = {
       },
     },
     photoRejects: { type: 'array', items: { type: 'integer' } },
-    videoReject: { type: 'boolean', description: 'True if the video should not be shown with this journey' },
+    videoRejects: { type: 'array', description: 'Indexes of videos that should not be shown: -1 for the main video, otherwise the block index', items: { type: 'integer' } },
   },
 };
 
-export const MEDIA_CHECK = `You check the photographs and the video attached to a Wander journey before readers see them. You are given the journey's title, country and places; for each photograph, what it was meant to show and how Unsplash describes what it does show; and the video's title, channel and length.
+export const MEDIA_CHECK = `You check the photographs and videos attached to a Wander journey before readers see them. You are given the journey's title, country and places; for each photograph, what it was meant to show and how Unsplash describes what it does show; and for each video, what it was meant to show, its title, channel and length, and its index (-1 for the main video, which is about the whole journey).
 
 Reject a photograph (give its block index, or -1 for the cover) if it plainly shows a different named place or something unrelated to the journey. A generic description of the right kind of landscape or street is acceptable.
 
-Reject the video if it is not a travel video about this journey's places: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. Reject one about travelling a very different way from the journey, such as a bikepacking, motorbike or cruise film for a road trip on foot and by car. A general travel guide to the journey's main city or area is acceptable.
+Reject a video (give its index in videoRejects) if it is not a travel video about the places it was meant to show: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. Reject one about travelling a very different way from the journey, such as a bikepacking, motorbike or cruise film for a road trip on foot and by car. A general travel guide to the journey's main city or area is acceptable.
 
 Timing matters too, because readers use a journey to decide when to go. Reject a video or a photograph that is plainly about a different season from the one the journey is written for — a summer vlog for a winter journey, green hillsides for a snow trip — using the journey's timing and best months.
 
@@ -104,10 +105,10 @@ Give a short reason when you reject anything.`;
 export const MEDIA_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['photoRejects', 'videoReject', 'reason'],
+  required: ['photoRejects', 'videoRejects', 'reason'],
   properties: {
     photoRejects: { type: 'array', items: { type: 'integer' } },
-    videoReject: { type: 'boolean' },
+    videoRejects: { type: 'array', items: { type: 'integer' } },
     reason: { type: 'string' },
   },
 };

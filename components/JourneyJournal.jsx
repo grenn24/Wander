@@ -16,6 +16,8 @@ import {
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
 import { tokenize, paragraphs, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
+import { sectionsOf, routeOf } from '@/lib/journeyMap';
+import JourneyScrollMap, { mapsReady } from '@/components/JourneyScrollMap';
 import { BRIEF_KEY } from '@/lib/planBrief';
 import { placeDetails, searchPlaces } from '@/lib/geo';
 import { addDays, fmtRange, todayISO, shortPlace } from '@/lib/util';
@@ -61,6 +63,13 @@ function checkedOn(iso) {
 
 const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; } };
 
+/* Each print taped in at its own slight angle, the same on every visit. */
+const TILTS = { wide: [-0.7, 0.55, -0.4, 0.8], small: [2.2, -2.6, 1.6, -1.9] };
+const tiltFor = (b, i) => {
+  const set = b.type === 'video' || b.layout === 'wide' ? TILTS.wide : TILTS.small;
+  return set[i % set.length];
+};
+
 /**
  * A journey, read as a journal, with the choices beside it.
  *
@@ -98,12 +107,18 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
     try { localStorage.setItem(memoryKey(doc.slug), JSON.stringify(choice)); } catch (e) { /* not remembered */ }
   }, [choice, doc.slug]);
 
+  const sections = useMemo(() => sectionsOf(doc.blocks), [doc]);
+  const route = useMemo(() => routeOf(doc), [doc]);
+  // The route map takes the desk column, and the planner opens as a drawer.
+  const mapOn = mapsReady && route.length >= 2;
+  const flowRef = useRef(null);
+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 961px)');
-    const onChange = () => { if (mq.matches) setSheet(false); };
+    const onChange = () => { if (mq.matches && !mapOn) setSheet(false); };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
-  }, []);
+  }, [mapOn]);
 
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
   const dropped = useMemo(() => new Set(choice.dropped), [choice.dropped]);
@@ -153,7 +168,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
       if (!p) return null;
       const off = dropped.has(p.id);
       return (
-        <button key={i} type="button" className={s.place} data-off={off ? '' : undefined}
+        <button key={i} type="button" className={s.place} data-place={p.id} data-off={off ? '' : undefined}
           aria-haspopup="dialog" aria-expanded={open ? open.id === p.id : false}
           aria-label={`${p.name}${off ? ', left out of your version' : ''}`}
           onClick={(e) => setOpen(open && open.id === p.id ? null : { id: p.id, anchor: e.currentTarget })}>
@@ -163,31 +178,47 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
     });
   }
 
+  /* A passport stamp for a section: how long, and where. */
+  function stamp(when, where, k) {
+    return (
+      <span className={s.stamp} data-shape={k % 3}>
+        <b>{when}</b>
+        <small>{where || doc.country}</small>
+      </span>
+    );
+  }
+
   function block(b, i) {
     switch (b.type) {
-      case 'heading':
+      case 'heading': {
+        const [when, ...where] = String(b.kicker || '').split(' · ');
+        const k = sectionAt.get(i);
         return (
-          <div key={i} className={s.bHeading}>
-            {b.kicker ? <span className={s.bKicker}>{b.kicker}</span> : null}
+          <div key={i} className={s.bHeading} data-section={k}>
+            {b.kicker ? stamp(when, where.join(' · '), k || 0) : null}
             <h2 className={s.bTitle}>{rich(b.text)}</h2>
           </div>
         );
+      }
       case 'prose': {
         const paras = paragraphs(b.text).map((para, k) => <p key={`${i}-${k}`} className={s.bProse}>{rich(para)}</p>);
         if (!b.kicker) return paras;
         // Some journeys put a section's label on its first paragraph instead
         // of on a heading. Show it as the heading it was meant to be.
         const [when, ...where] = b.kicker.split(' · ');
+        const k = sectionAt.get(i);
         return [
-          <div key={`${i}-h`} className={s.bHeading}>
-            {where.length ? <span className={s.bKicker}>{when}</span> : null}
+          <div key={`${i}-h`} className={s.bHeading} data-section={k}>
+            {where.length ? stamp(when, '', k || 0) : null}
             <h2 className={s.bTitle}>{where.length ? where.join(' · ') : when}</h2>
           </div>,
           ...paras,
         ];
       }
       case 'photo':
-        return <PhotoBlock key={i} block={b} onOpen={openPhoto} />;
+        return <PhotoBlock key={i} block={b} tilt={tiltFor(b, i)} onOpen={openPhoto} />;
+      case 'video':
+        return b.video ? <VideoBlock key={i} video={b.video} caption={b.caption} tilt={tiltFor(b, i)} /> : null;
       case 'quote':
         return <blockquote key={i} className={s.bQuote}>{rich(b.text)}</blockquote>;
       case 'tip':
@@ -225,9 +256,13 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
   );
   const sources = doc.sources || [];
   const videoAt = videoSpot(doc.blocks);
+  const sectionAt = new Map(sections.map((sec, k) => [sec.start, k]));
+  // The main video, unless the first section already has one of its own.
+  const leadVideo = doc.video && !(doc.blocks || []).slice(0, videoAt).some((b) => b.type === 'video' && b.video)
+    ? doc.video : null;
 
   return (
-    <article>
+    <article className={s.journal}>
       <Link href="/journeys" className={s.back}>
         <ArrowLeft size={16} aria-hidden="true" /> All journeys
       </Link>
@@ -236,7 +271,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
         {cover ? (
           <img className={s.heroImg} alt={cover.alt || ''} fetchPriority="high"
             src={imageURL(cover, 1600)} srcSet={srcSet(cover, [960, 1600, 2400, 3200])}
-            sizes="(max-width: 1120px) 100vw, 1080px" />
+            sizes="(max-width: 1280px) 100vw, 1240px" />
         ) : hero ? (
           <img className={s.heroImg} alt="" src={`/api/places/photo?ref=${encodeURIComponent(hero.ref)}&w=2400`} />
         ) : null}
@@ -264,7 +299,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
         ) : null}
       </header>
 
-      <div className={s.layout}>
+      <div className={`${s.layout}${mapOn ? ` ${s.withMap}` : ''}`}>
         <div className={s.read}>
           <p className={s.journalLede}>{doc.lede}</p>
 
@@ -284,11 +319,11 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <div><span className={s.glanceK}>Budget</span><span className={s.glanceV}>{costLabel(doc)}</span></div>
           </section>
 
-          <div className={s.flow}>
-            {(doc.blocks || []).map((b, i) => (doc.video && i === videoAt
-              ? [<VideoBlock key="video" video={doc.video} />, block(b, i)]
+          <div className={s.flow} ref={flowRef}>
+            {(doc.blocks || []).map((b, i) => (leadVideo && i === videoAt
+              ? [<VideoBlock key="video" video={leadVideo} tilt={-0.5} />, block(b, i)]
               : block(b, i)))}
-            {doc.video && videoAt >= (doc.blocks || []).length ? <VideoBlock video={doc.video} /> : null}
+            {leadVideo && videoAt >= (doc.blocks || []).length ? <VideoBlock video={leadVideo} tilt={-0.5} /> : null}
           </div>
 
           {(doc.know || []).length ? (
@@ -321,8 +356,20 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
           ) : null}
         </div>
 
-        <aside className={s.aside} aria-label="Make it yours">
-          <div className={s.panel}>{form(null)}</div>
+        <aside className={s.aside} aria-label={mapOn ? 'The route' : 'Make it yours'}>
+          {mapOn ? (
+            <div className={s.mapCol}>
+              <JourneyScrollMap flowRef={flowRef} route={route} sections={sections} places={places} dropped={dropped} />
+              <div className={s.mapBar}>
+                <span className={s.kept}>Keeping {kept} of {total} places</span>
+                <button type="button" className="btn primary" onClick={() => setSheet(true)}>
+                  <Sparkles size={16} aria-hidden="true" /> Make it yours
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={s.panel}>{form(null)}</div>
+          )}
         </aside>
       </div>
 
@@ -357,12 +404,12 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
  * this costs one thumbnail. Pressing play loads YouTube's privacy-enhanced
  * player in its place, credited to the channel that made the video.
  */
-function VideoBlock({ video }) {
+function VideoBlock({ video, caption = '', tilt = 0 }) {
   const [playing, setPlaying] = useState(false);
   const [thumb, setThumb] = useState(`https://i.ytimg.com/vi/${video.id}/maxresdefault.jpg`);
   const minutes = Math.round((video.seconds || 0) / 60);
   return (
-    <figure className={s.video}>
+    <figure className={s.video} style={{ '--tilt': `${tilt}deg` }}>
       <div className={s.videoFrame}>
         {playing ? (
           <iframe src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
@@ -378,6 +425,7 @@ function VideoBlock({ video }) {
         )}
       </div>
       <figcaption className={s.videoMeta}>
+        {caption ? <span className={s.bCaption}>{caption}</span> : null}
         <span className={s.videoTitle}>{video.title}</span>
         <span>
           by{' '}
@@ -390,7 +438,7 @@ function VideoBlock({ video }) {
   );
 }
 
-function PhotoBlock({ block: b, onOpen }) {
+function PhotoBlock({ block: b, tilt = 0, onOpen }) {
   const photos = (b.photos || []).slice(0, b.layout === 'pair' ? 2 : 1);
   if (!photos.length) return null;
   const pair = photos.length === 2;
@@ -399,7 +447,7 @@ function PhotoBlock({ block: b, onOpen }) {
   const sizes = pair ? '(max-width: 960px) 50vw, 340px'
     : b.layout === 'inset' ? '(max-width: 960px) 100vw, 320px' : '(max-width: 960px) 100vw, 760px';
   return (
-    <figure className={`${s.bPhoto} ${layout}`}>
+    <figure className={`${s.bPhoto} ${layout}`} style={{ '--tilt': `${tilt}deg` }}>
       <div className={s.bFrames}>
         {photos.map((m) => (
           <button key={m.id} type="button" className={s.bFrame}

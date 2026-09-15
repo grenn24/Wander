@@ -107,27 +107,56 @@ export function videoWords(doc) {
   return [...new Set([...fromQuery, ...fromPlaces])];
 }
 
-/** Give a journey a video if it has none, avoiding any the review turned down. */
+/** The best video YouTube has for one search, or null. */
+async function findVideo(q, { words, avoid, log }) {
+  try {
+    const found = await get('search', {
+      part: 'snippet', type: 'video', maxResults: '15', q,
+      videoEmbeddable: 'true', safeSearch: 'strict', relevanceLanguage: 'en',
+    });
+    const ids = (found.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
+    if (!ids.length) { log(`video: nothing found for "${q}"`); return null; }
+    const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
+    const pick = chooseVideo(details.items, { words, avoid });
+    if (!pick) log(`video: nothing suitable for "${q}"`);
+    return pick;
+  } catch (e) {
+    log(`video: ${e.message}`);
+    return null;
+  }
+}
+
+/** Give a journey its main video if it has none, avoiding any the review turned down. */
 export async function attachVideo(doc, { rejected = new Set(), log = () => {} } = {}) {
   if (!youtubeReady() || doc.video) return 0;
   const words = videoWords(doc);
-  try {
-    for (const q of videoQueries(doc)) {
-      if (!youtubeReady()) break;
-      const found = await get('search', {
-        part: 'snippet', type: 'video', maxResults: '15', q,
-        videoEmbeddable: 'true', safeSearch: 'strict', relevanceLanguage: 'en',
-      });
-      const ids = (found.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
-      if (!ids.length) { log(`video: nothing found for "${q}"`); continue; }
-      const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
-      const pick = chooseVideo(details.items, { words, avoid: rejected });
-      if (!pick) { log(`video: nothing suitable for "${q}"`); continue; }
-      doc.video = pick;
-      return 1;
-    }
-  } catch (e) {
-    log(`video: ${e.message}`);
+  for (const q of videoQueries(doc)) {
+    if (!youtubeReady()) break;
+    const pick = await findVideo(q, { words, avoid: rejected, log });
+    if (pick) { doc.video = pick; return 1; }
   }
   return 0;
+}
+
+/*
+ * The main video, then one for each video block still without one. A block's
+ * video has to name what its own search names, and no video appears twice in
+ * a journey. One search each: a block costs a hundred units of the day's quota.
+ */
+export async function attachVideos(doc, { rejected = new Set(), log = () => {} } = {}) {
+  if (!youtubeReady()) return 0;
+  const used = () => new Set([
+    ...rejected,
+    ...(doc.video ? [doc.video.id] : []),
+    ...doc.blocks.filter((b) => b.type === 'video' && b.video).map((b) => b.video.id),
+  ]);
+  let added = await attachVideo(doc, { rejected: used(), log });
+  const country = new Set(fold(doc.country).split(/\s+/).filter(Boolean));
+  for (const b of doc.blocks) {
+    if (b.type !== 'video' || b.video || !String(b.query || '').trim() || !youtubeReady()) continue;
+    const own = keyWords(b.query).filter((w) => !country.has(w));
+    const pick = await findVideo(b.query, { words: own.length ? own : videoWords(doc), avoid: used(), log });
+    if (pick) { b.video = pick; added += 1; }
+  }
+  return added;
 }

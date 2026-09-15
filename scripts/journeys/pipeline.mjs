@@ -3,7 +3,7 @@ import { MONTHS } from '../../lib/journeyKit.js';
 import { respond } from './openai.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { attachMedia } from './unsplash.mjs';
-import { attachVideo } from './youtube.mjs';
+import { attachVideos } from './youtube.mjs';
 import {
   WRITER, REVISER, RESTYLER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,
   catalogueText, coverageText, voiceSample,
@@ -87,6 +87,9 @@ function carry(prev, next) {
     ? { ...b, photos: shots.get(`${b.query}|${b.layout}`) } : b));
   if (prev.cover && prev.cover.photo && prev.cover.query === next.cover.query) next.cover.photo = prev.cover.photo;
   if (prev.video && prev.videoQuery === next.videoQuery) next.video = prev.video;
+  const clips = new Map(prev.blocks.filter((b) => b.type === 'video' && b.video).map((b) => [b.query, b.video]));
+  next.blocks = next.blocks.map((b) => (b.type === 'video' && !b.video && clips.has(b.query)
+    ? { ...b, video: clips.get(b.query) } : b));
   return next;
 }
 
@@ -105,22 +108,32 @@ function photoNotes(doc) {
 }
 
 function mediaPacket(doc) {
-  const v = doc.video;
-  return {
-    photographs: photoNotes(doc),
-    video: v ? {
-      title: v.title, channel: v.channel, published: v.publishedAt,
-      minutes: Math.round((v.seconds || 0) / 60), views: v.views,
-    } : null,
-  };
+  const clip = (v, index, about) => ({
+    index, about, title: v.title, channel: v.channel, published: v.publishedAt,
+    minutes: Math.round((v.seconds || 0) / 60), views: v.views,
+  });
+  const videos = doc.video ? [clip(doc.video, -1, 'the journey as a whole')] : [];
+  doc.blocks.forEach((b, i) => {
+    if (b.type === 'video' && b.video) videos.push(clip(b.video, i, [b.query, b.caption].filter(Boolean).join(' — ')));
+  });
+  return { photographs: photoNotes(doc), videos };
 }
 
 export function dropRejected(doc, review, rejected) {
   let dropped = 0;
-  if (review.videoReject && doc.video) {
-    rejected.add(doc.video.id);
-    doc.video = null;
-    dropped += 1;
+  // -1 is the main video; a boolean videoReject is how older reviews said the same.
+  const videos = new Set([...(review.videoRejects || []), ...(review.videoReject ? [-1] : [])]);
+  for (const i of videos) {
+    const b = doc.blocks[i];
+    if (i === -1 && doc.video) {
+      rejected.add(doc.video.id);
+      doc.video = null;
+      dropped += 1;
+    } else if (b && b.type === 'video' && b.video) {
+      rejected.add(b.video.id);
+      b.video = null;
+      dropped += 1;
+    }
   }
   for (const i of review.photoRejects || []) {
     if (i === -1 && doc.cover && doc.cover.photo) {
@@ -205,12 +218,12 @@ async function settle(start, ctx, { mode, brief, rounds }) {
     const checked = await verifyPlaces(doc, { recheck: mode === 'refresh' && round === 1 });
     doc = checked.doc;
     await attachMedia(doc, { rejected, log: ctx.log });
-    await attachVideo(doc, { rejected, log: ctx.log });
+    await attachVideos(doc, { rejected, log: ctx.log });
     const { review: rv, structure } = await review(doc, checked.issues, ctx, mode, brief);
     ctx.log(`review ${round}: ${rv.verdict}, ${rv.score}/10. ${rv.summary}`);
     if (dropRejected(doc, rv, rejected)) {
       const added = (await attachMedia(doc, { rejected, log: ctx.log }))
-        + (await attachVideo(doc, { rejected, log: ctx.log }));
+        + (await attachVideos(doc, { rejected, log: ctx.log }));
       // A replacement arrives after the review that asked for it, so it gets
       // the quick check before it can be published with the journey.
       if (added) await reviewMedia(doc, rejected, ctx.log, ctx);
@@ -328,7 +341,7 @@ export async function refreshJourney(row, ctx) {
  */
 export async function checkMedia(doc, ctx) {
   const packet = mediaPacket(doc);
-  if (!packet.photographs.length && !packet.video) return { photoRejects: [], videoReject: false, reason: '' };
+  if (!packet.photographs.length && !packet.videos.length) return { photoRejects: [], videoRejects: [], reason: '' };
   const r = await respond({
     name: 'journey_media_check',
     schema: MEDIA_SCHEMA,
@@ -362,7 +375,7 @@ export async function reviewMedia(doc, rejected, log, ctx) {
     log(`turned down ${dropped}: ${verdict.reason}`);
     if (round < 3) {
       await attachMedia(doc, { rejected, log });
-      await attachVideo(doc, { rejected, log });
+      await attachVideos(doc, { rejected, log });
     }
   }
 }

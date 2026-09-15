@@ -32,7 +32,7 @@ import {
   newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
-import { attachVideo, youtubeReady } from './youtube.mjs';
+import { attachVideos, youtubeReady } from './youtube.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
 import { JOURNEYS } from '../../lib/journeys.js';
@@ -70,6 +70,8 @@ async function pool(items, n, fn) {
 
 const needsPhotos = (doc) => (doc.cover && !doc.cover.photo)
   || doc.blocks.some((b) => b.type === 'photo' && (b.photos || []).length < (b.layout === 'pair' ? 2 : 1));
+const needsVideos = (doc) => !doc.video || doc.blocks.some((b) => b.type === 'video' && !b.video);
+const clipCount = (doc) => doc.blocks.filter((b) => b.type === 'video' && b.video).length;
 
 async function writeRows(client, rows, ctx, parallel) {
   const list = await catalogue(client);
@@ -218,13 +220,13 @@ async function main() {
     const client = db();
     const recheck = !!opt.recheck;
     const rows = (await written(client, { statuses: ['draft', 'published'], slug: opt.slug || null, limit: 500 }))
-      .filter((r) => recheck || (unsplashReady() && needsPhotos(r.doc)) || (youtubeReady() && !r.doc.video))
+      .filter((r) => recheck || (unsplashReady() && needsPhotos(r.doc)) || (youtubeReady() && needsVideos(r.doc)))
       .slice(0, limit || 20);
     for (const row of rows) {
       const log = logger(row.slug);
       const doc = row.doc;
       const rejected = rejectedOf(doc);
-      const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
+      const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideos(doc, { rejected, log }));
       const added = await attach();
       if (!added && !recheck) { log('nothing new found'); continue; }
       await reviewMedia(doc, rejected, log, ctx);
@@ -233,7 +235,7 @@ async function main() {
       const passed = row.review && row.review.verdict === 'publish';
       const status = row.status === 'draft' && passed && doc.cover && doc.cover.photo ? 'published' : row.status;
       await store(client, row, { doc, status, review: row.review, verification: (row.review && row.review.verification) || [] });
-      log(`${photos} photographs, ${doc.video ? `video "${doc.video.title}"` : 'no video'}, ${status}`);
+      log(`${photos} photographs, ${doc.video ? `video "${doc.video.title}"` : 'no video'}, ${clipCount(doc)} section videos, ${status}`);
     }
   } else if (command === 'import-defaults') {
     const client = db();
@@ -248,7 +250,7 @@ async function main() {
       const rejected = rejectedOf(doc);
       // The photographs and video that ship with a default were checked when
       // they were chosen; only what this run has to find needs another look.
-      const added = (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
+      const added = (await attachMedia(doc, { rejected, log })) + (await attachVideos(doc, { rejected, log }));
       if (added) await reviewMedia(doc, rejected, log, ctx);
       let row = existing;
       if (!row) {
