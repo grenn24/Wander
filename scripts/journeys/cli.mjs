@@ -262,6 +262,9 @@ async function main() {
       await reviewMedia(doc, rejected, log, ctx);
       const photos = (doc.cover && doc.cover.photo ? 1 : 0)
         + doc.blocks.reduce((n, b) => n + (b.photos || []).length, 0);
+      // A media run can take minutes; keep a safety note saved meanwhile rather than writing over it.
+      const { data: fresh } = await client.from('journeys').select('doc').eq('id', row.id).maybeSingle();
+      if (fresh && fresh.doc && fresh.doc.safety && !doc.safety) doc.safety = fresh.doc.safety;
       const passed = row.review && row.review.verdict === 'publish';
       const status = row.status === 'draft' && passed && doc.cover && doc.cover.photo ? 'published' : row.status;
       await store(client, row, { doc, status, review: row.review, verification: (row.review && row.review.verification) || [] });
