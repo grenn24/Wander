@@ -72,8 +72,13 @@ function withSources(doc, sources) {
   return doc;
 }
 
-/** Keep what was already resolved for places and photographs a revision left alone. */
-function carry(prev, next) {
+/**
+ * Keep what was already resolved for places and photographs a revision left
+ * alone, and the journey's address: a model revising the text may offer a new
+ * slug, which would break every link and saved reference to the old one.
+ */
+export function carry(prev, next) {
+  if (prev.slug) next.slug = prev.slug;
   const byQuery = new Map(prev.places.filter((p) => p.place_id).map((p) => [p.q, p]));
   next.places = next.places.map((p) => {
     const old = byQuery.get(p.q);

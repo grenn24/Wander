@@ -1,6 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dropRejected, rejectedOf, rewriteBrief } from '../scripts/journeys/pipeline.mjs';
+import { dropRejected, rejectedOf, rewriteBrief, carry } from '../scripts/journeys/pipeline.mjs';
+
+test('a revision keeps the journey’s address and what was already found for it', () => {
+  const prev = {
+    slug: 'kyoto-blossom', videoQuery: 'Kyoto travel', video: { id: 'main0000001' }, cover: { query: 'Kyoto', photo: { id: 'c' } },
+    places: [{ id: 'p1', q: 'Nanzen-ji, Kyoto', place_id: 'ChIJ1', lat: 35, lng: 135 }],
+    blocks: [{ type: 'video', query: 'Philosophers Path walk', video: { id: 'clip0000001' } }],
+  };
+  const next = carry(prev, {
+    slug: 'kyoto-nara-first-light', videoQuery: 'Kyoto travel', cover: { query: 'Kyoto' },
+    places: [{ id: 'p1', q: 'Nanzen-ji, Kyoto' }],
+    blocks: [{ type: 'video', query: 'Philosophers Path walk' }],
+  });
+  assert.equal(next.slug, 'kyoto-blossom');
+  assert.equal(next.places[0].place_id, 'ChIJ1');
+  assert.equal(next.video.id, 'main0000001');
+  assert.equal(next.cover.photo.id, 'c');
+  assert.equal(next.blocks[0].video.id, 'clip0000001');
+});
 
 test('a rewrite keeps the destination, season and length, and offers the old places', () => {
   const brief = rewriteBrief({
