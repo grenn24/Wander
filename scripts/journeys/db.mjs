@@ -8,11 +8,18 @@ import { summaryOf } from '../../lib/journeyFormat.js';
 const now = () => new Date().toISOString();
 
 export function db() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  if (!url || !key || key.startsWith('REPLACE_WITH')) {
-    throw new Error('Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to write journeys.');
+  // A local run with --prod writes to production. Its settings have names of
+  // their own, so the local app, which reads the usual ones, never touches it.
+  const prod = process.env.JOURNEYS_TARGET === 'prod';
+  const url = (prod ? process.env.PROD_SUPABASE_URL
+    : process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL) || '';
+  const key = (prod ? process.env.PROD_SUPABASE_SERVICE_ROLE_KEY : process.env.SUPABASE_SERVICE_ROLE_KEY) || '';
+  if (!url || url.startsWith('REPLACE_WITH') || !key || key.startsWith('REPLACE_WITH')) {
+    throw new Error(prod
+      ? 'Set PROD_SUPABASE_URL and PROD_SUPABASE_SERVICE_ROLE_KEY in .env.local to write to production.'
+      : 'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to write journeys.');
   }
+  if (prod) console.log(`writing to production at ${new URL(url).host}`);
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 

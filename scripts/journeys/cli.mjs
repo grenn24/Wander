@@ -13,7 +13,8 @@
  *   npm run journeys -- export-defaults          save the defaults' checked photographs and videos into lib/journeyMedia.js
  *   npm run journeys -- weekly                   what the schedule runs
  *
- * Options: --parallel 2, --allow-no-photos, --days 30 (refresh), --out file.json (add, without saving)
+ * Options: --parallel 2, --allow-no-photos, --days 30 (refresh), --out file.json (add, without saving),
+ *          --prod (a local run against production, using PROD_SUPABASE_URL and PROD_SUPABASE_SERVICE_ROLE_KEY)
  *
  * Locally it reads .env.local; in GitHub Actions the same names come from secrets.
  */
@@ -119,6 +120,7 @@ async function reviewAttached(doc, rejected, log, ctx) {
 
 async function main() {
   const opt = parse(process.argv.slice(2));
+  if (opt.prod) process.env.JOURNEYS_TARGET = 'prod';
   const command = opt._[0] || process.env.JOURNEY_COMMAND || 'help';
   const limit = Number(opt.limit || process.env.JOURNEY_LIMIT || 0) || null;
   const parallel = Math.max(1, Number(opt.parallel || process.env.JOURNEY_PARALLEL || 2));
