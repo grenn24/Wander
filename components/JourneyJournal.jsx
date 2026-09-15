@@ -5,15 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin, Play, MessageCircle,
+  Shield, ShieldAlert, ShieldCheck,
 } from 'lucide-react';
 import JourneyAsk from '@/components/JourneyAsk';
+import Flag from '@/components/Flag';
 import DateField from '@/components/DateField';
 import GrowArea from '@/components/GrowArea';
 import MonthStrip from '@/components/MonthStrip';
 import Popover from '@/components/Popover';
 import Lightbox from '@/components/Lightbox';
 import {
-  MONTHS, WHO, PACES, monthFit, daysLabel, costLabel, placeLine,
+  MONTHS, WHO, PACES, SAFETY_LEVELS, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
 import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
@@ -324,7 +326,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
           <img className={s.heroImg} alt="" src={`/api/places/photo?ref=${encodeURIComponent(hero.ref)}&w=2400`} />
         ) : null}
         <div className={s.heroText}>
-          <span className={s.heroKicker}>{placeLine(doc)}</span>
+          <span className={s.heroKicker}><Flag code={doc.flag} className={s.flag} />{placeLine(doc)}</span>
           <h1 className={s.heroTitle}>{doc.title}</h1>
           <div className={s.heroMeta}>
             <span>{daysLabel(doc)}</span>
@@ -365,6 +367,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <div><span className={s.glanceK}>Length</span><span className={s.glanceV}>{daysLabel(doc)}</span></div>
             <div><span className={s.glanceK}>Pace</span><span className={s.glanceV}>{doc.pace}</span></div>
             <div><span className={s.glanceK}>Budget</span><span className={s.glanceV}>{costLabel(doc)}</span></div>
+            {doc.safety ? <SafetyNote safety={doc.safety} home={doc.flag === 'US'} checked={doc.checked} /> : null}
           </section>
 
           <div className={s.flow} ref={flowRef}>
@@ -460,6 +463,39 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
           onIndex={(index) => setViewer((v) => ({ ...v, index }))} onClose={() => setViewer(null)} />
       ) : null}
     </article>
+  );
+}
+
+/*
+ * How safe the trip is, from a source the page names: the State Department's
+ * advisory level for the country, what it means for these places, and the
+ * risks worth watching on this particular trip. The United States has no
+ * level of its own, so there the note stands without one.
+ */
+function SafetyNote({ safety, home, checked }) {
+  const { level, advice, watch } = safety;
+  const Icon = level >= 3 ? ShieldAlert : level === 2 ? Shield : ShieldCheck;
+  return (
+    <div className={s.glanceSafety}>
+      <span className={s.glanceK}>Safety</span>
+      <div className={s.safetyHead}>
+        <span className={s.safetyLevel} data-level={level || undefined}>
+          <Icon size={15} aria-hidden="true" />
+          {level ? `Level ${level}: ${SAFETY_LEVELS[level]}` : home ? 'No advisory level' : 'Advisory level unavailable'}
+        </span>
+        <span className={s.safetySource}>
+          {level ? 'US State Department travel advisory' : home ? 'The State Department rates other countries, not the US' : 'US State Department'}
+          {checked ? ` · checked ${checkedOn(checked)}` : ''}
+        </span>
+      </div>
+      <p className={s.whenNote}>{advice}</p>
+      {watch.length ? (
+        <div className={s.watch}>
+          <span className={s.watchK}>Watch for</span>
+          {watch.map((w) => <span key={w} className={s.watchChip}>{w}</span>)}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

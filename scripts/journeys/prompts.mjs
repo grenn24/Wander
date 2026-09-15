@@ -1,4 +1,5 @@
 import { REGIONS, MONTHS } from '../../lib/journeyKit.js';
+import { SAFETY } from '../../lib/journeyFormat.js';
 
 /*
  * What the journey service tells the model, in one place so the writer, the
@@ -29,6 +30,8 @@ Voice: a travel diary that reflects as well as guides, as if a well-travelled fr
 
 Places: 6 to 16. Write each into the text with its token, like {p3}, where the writing is about it. The token is replaced by the place's name on the page, so never write the name beside the token. Every place appears in the text at least once. Each place has a Google Maps query that finds exactly it (name, town, country) and one sentence of the practical detail that decides when or how to go: timing, booking, what to order, where to stand.
 
+Safety: look up the current US State Department travel advisory for the country and give its level: the country's own advisory, never the worldwide caution alert. The State Department does not rate the United States, so for a journey there the level is null and the advice draws on local sources such as National Park Service alerts. In advice, say plainly what it means for the places this journey visits, and name any region of the country with a different level. In watch, list the two to four risks that actually matter on this trip, such as altitude, heat, wildlife, rip currents, road conditions or pickpocketing in crowds.
+
 Facts: months are for this journey specifically, and a month appears in at most one of best, good and avoid. "days" is [shortest, longest]. Cost is 1 for easy on the wallet, 2 for mid-range, 3 for a splurge. The prose runs between 900 and 2200 words. The centre is the middle of the journey's places. Keep safety advice current and plain. Never put links, citations or source names inside any text; list the pages you relied on in "sources".`;
 
 export const WRITER = (today) => `You write journeys for Wander, a travel planner. A journey is a travel journal about the shape of a trip, not an itinerary. Readers keep the places they like and Wander plans their own version, so every place must be real, specific and findable on Google Maps.
@@ -58,7 +61,7 @@ ${RULES}`;
 export const REVIEWER = (today, mode) => `You are the review editor for Wander journeys and decide whether a journey is ready to publish. Readers will plan real trips from it, so be strict about facts and strict about readability. Today is ${today}.
 ${mode === 'refresh' ? '\nThis journey is already published. Your main job is to find anything that has gone out of date since it was written.\n' : ''}${mode === 'restyle' ? '\nThis journey has just been rewritten for readability from previous_version, whose facts were already checked. You have no web search for this review. Instead of researching, compare the two: every place, and every fact a traveller needs to plan and stay safe (access, closures, bookings, permits, seasons, safety), must still be present with the same meaning, and nothing new may be claimed. Losing or changing such a fact, or inventing one, is blocking. Merging repeated warnings, and replacing dated bulletins or administrative detail with advice on what to check, is expected and is not a loss. A reflection or sensory moment that restates what previous_version says about a place is not a new claim.\n' : ''}
 Check, using web search wherever a fact can change:
-1. Accuracy: places exist and are described correctly; access rules, closures, seasons, ticketing, prices and safety advice are current; distances and times are plausible; nothing unsafe or illegal is encouraged.
+1. Accuracy: places exist and are described correctly; access rules, closures, seasons, ticketing, prices and safety advice are current; the safety level matches the country's current US State Department travel advisory and its advice names any affected region the journey goes near; distances and times are plausible; nothing unsafe or illegal is encouraged.
 2. Places: every blocking problem in the Google Maps verification must be resolved. Compare each place with the name and address Google found for it.
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
 4. Writing: easy to follow on a first read, in the voice of a well-travelled friend's travel diary. Stops carry a sense of what it is like to be there, and each section ends with a short reflection looking back, with no "I" or "we" and no invented experiences. Every section starts with a heading saying where and for how long; each stop has its own paragraph saying what it is, why go and the practical detail; paragraphs flow and are full enough to be clear, not clipped into notes; each warning is given once; no dated bulletins or administrative detail the reader will look up anyway; the lede is plain; abbreviations and local terms are explained; no "it's not X, it's Y" constructions, clever lines that need decoding, clichés or invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip. A journey that is accurate but hard to follow needs revising.
@@ -107,6 +110,17 @@ Reject a video (give its index in videoRejects) if it is not a travel video abou
 Timing matters too, because readers use a journey to decide when to go. Reject a video or a photograph that is plainly about a different season from the one the journey is written for — a summer vlog for a winter journey, green hillsides for a snow trip — using the journey's timing and best months.
 
 Give a short reason when you reject anything.`;
+
+export const SAFETY_CHECK = (today) => `You add a safety note to a Wander journey. Today is ${today}. You are given the journey's country, title and places.
+
+Search the web for the US State Department's current travel advisory for the country and give its level: the country's own advisory, never the worldwide caution alert. The State Department does not rate the United States, so for a journey there set the level to null and base the advice on local sources such as National Park Service or state alerts. In advice, write one or two plain sentences on what it means for the places this journey visits, naming any region of the country with a different level, especially one near the route. In watch, list the two to four risks that actually matter on this trip, two to four words each, such as altitude, heat, wildlife, rip currents, road conditions or pickpocketing in crowds. Never invent a level: if the advisory cannot be found, use what the State Department's country page says today.`;
+
+export const SAFETY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['safety'],
+  properties: { safety: SAFETY },
+};
 
 export const MEDIA_SCHEMA = {
   type: 'object',

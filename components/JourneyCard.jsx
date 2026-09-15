@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import MonthStrip from '@/components/MonthStrip';
+import Flag from '@/components/Flag';
 import { daysLabel, placeLine } from '@/lib/journeyKit';
 import { imageURL, srcSet } from '@/lib/journeyFormat';
 import s from './Journeys.module.css';
@@ -31,7 +32,7 @@ export default function JourneyCard({ journey: j, month = 0, mini = false }) {
         {credit && !mini ? <span className={s.credit}>Photo: {credit}</span> : null}
       </span>
       <span className={s.body}>
-        <span className={s.kicker}>{mini ? j.country : placeLine(j)}</span>
+        <span className={s.kicker}><Flag code={j.flag} className={s.flag} />{mini ? j.country : placeLine(j)}</span>
         <span className={s.title}>{j.title}</span>
         {mini ? null : <span className={s.teaser}>{j.teaser}</span>}
         <span className={s.cardFoot}><MonthStrip journey={j} highlight={month} /></span>

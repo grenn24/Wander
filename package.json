@@ -16,5 +16,8 @@
     "next": "^15.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "country-flag-icons": "^1.6.20"
   }
 }

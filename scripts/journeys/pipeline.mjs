@@ -1,4 +1,4 @@
-import { WRITER_SCHEMA, normaliseDoc, validateDoc, modelFields } from '../../lib/journeyFormat.js';
+import { WRITER_SCHEMA, normaliseDoc, validateDoc, modelFields, cleanSafety } from '../../lib/journeyFormat.js';
 import { MONTHS } from '../../lib/journeyKit.js';
 import { respond } from './openai.mjs';
 import { verifyPlaces } from './verify.mjs';
@@ -6,6 +6,7 @@ import { attachMedia } from './unsplash.mjs';
 import { attachVideos } from './youtube.mjs';
 import {
   WRITER, REVISER, RESTYLER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,
+  SAFETY_CHECK, SAFETY_SCHEMA,
   catalogueText, coverageText, voiceSample,
 } from './prompts.mjs';
 
@@ -398,6 +399,28 @@ export async function reviewMedia(doc, rejected, log, ctx) {
       await attachVideos(doc, { rejected, log });
     }
   }
+}
+
+/**
+ * The safety note for a journey written before it had one: the current
+ * advisory level from the web, and the risks that matter on this trip.
+ */
+export async function safetyFor(doc, ctx) {
+  const r = await respond({
+    name: 'journey_safety',
+    schema: SAFETY_SCHEMA,
+    instructions: SAFETY_CHECK(today()),
+    input: JSON.stringify({
+      country: doc.country,
+      title: doc.title,
+      place: doc.place,
+      when: doc.when,
+      places: doc.places.map((p) => [p.name, p.address].filter(Boolean).join(', ')),
+    }),
+    effort: 'medium',
+  });
+  spend(ctx.tally, r);
+  return cleanSafety(r.data.safety);
 }
 
 /** Ideas for journeys the catalogue is missing. */

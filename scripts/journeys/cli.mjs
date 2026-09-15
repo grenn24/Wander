@@ -11,6 +11,7 @@
  *   npm run journeys -- rewrite --limit 14       rewrite the hand-written defaults still in the catalogue
  *   npm run journeys -- rewrite --resume         continue from each saved attempt that did not pass, instead of writing again
  *   npm run journeys -- restyle --slug s         rewrite only the writing, keeping facts, places and media (no web research)
+ *   npm run journeys -- safety [--slug s]        add the travel advisory level and trip risks where missing (--recheck redoes them)
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
@@ -29,7 +30,7 @@ import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, resumeJourney, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief,
+  produce, resumeJourney, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief, safetyFor,
   newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
@@ -37,7 +38,7 @@ import { attachVideos, youtubeReady } from './youtube.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
 import { JOURNEYS } from '../../lib/journeys.js';
-import { fromV1, normaliseDoc } from '../../lib/journeyFormat.js';
+import { fromV1, normaliseDoc, summaryOf } from '../../lib/journeyFormat.js';
 import { defaultDocs, mediaOf, withMedia } from '../../lib/journeyDefaults.js';
 import { MEDIA } from '../../lib/journeyMedia.js';
 
@@ -128,7 +129,7 @@ async function main() {
   const ctx = { tally, allowNoPhotos: !!opt['allow-no-photos'] };
 
   if (command === 'help') {
-    console.log('Commands: status, add, discover, write, refresh, rewrite, restyle, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
+    console.log('Commands: status, add, discover, write, refresh, rewrite, restyle, safety, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
@@ -219,6 +220,29 @@ async function main() {
       } catch (e) {
         log(`failed: ${e.message}`);
         await fail(client, row, e.message);
+      }
+    });
+  } else if (command === 'safety') {
+    const client = db();
+    const rows = (await written(client, { statuses: ['published', 'draft'], slug: opt.slug || null, limit: 500 }))
+      .filter((r) => opt.recheck || !(r.doc && r.doc.safety))
+      .slice(0, limit || 50);
+    console.log(`${rows.length} need a safety note`);
+    await pool(rows, parallel, async (row) => {
+      const log = logger(row.slug);
+      try {
+        const safety = await safetyFor(normaliseDoc(row.doc), ctx);
+        if (!safety) { log('no usable safety note came back'); return; }
+        // Only the safety note changes, read fresh so nothing saved meanwhile is lost.
+        const { data: fresh, error } = await client.from('journeys').select('doc').eq('id', row.id).single();
+        if (error) throw new Error(error.message);
+        const doc = { ...fresh.doc, safety };
+        const { error: saveError } = await client.from('journeys')
+          .update({ doc, summary: summaryOf(doc), updated_at: new Date().toISOString() }).eq('id', row.id);
+        if (saveError) throw new Error(saveError.message);
+        log(`level ${safety.level}: ${safety.advice.slice(0, 90)}${safety.advice.length > 90 ? '…' : ''} | watch: ${safety.watch.join(', ')}`);
+      } catch (e) {
+        log(`failed: ${e.message}`);
       }
     });
   } else if (command === 'media') {
