@@ -276,10 +276,25 @@ export async function produce(brief, ctx) {
   if (ctx.rejected && ctx.rejected.length) first.rejected = [...ctx.rejected];
   ctx.log(`written "${first.title}": ${first.places.length} places, ${first.blocks.length} blocks`);
   const out = await settle(first, ctx, { mode: 'new', brief, rounds: 3 });
-  let status = 'draft';
-  if (out.verdict === 'reject') status = 'rejected';
-  else if (out.verdict === 'publish' && (hasCover(out.doc) || ctx.allowNoPhotos)) status = 'published';
-  return { ...out, status };
+  return { ...out, status: statusOf(out, ctx) };
+}
+
+function statusOf(out, ctx) {
+  if (out.verdict === 'reject') return 'rejected';
+  return out.verdict === 'publish' && (hasCover(out.doc) || ctx.allowNoPhotos) ? 'published' : 'draft';
+}
+
+/**
+ * A written journey that did not pass, taken up again from where it stopped:
+ * fresh review rounds on the saved attempt, rather than paying to research
+ * and write it again.
+ */
+export async function resumeJourney(doc, brief, ctx) {
+  const start = normaliseDoc(doc);
+  if (ctx.slug) start.slug = ctx.slug;
+  ctx.log(`resuming "${start.title}": ${start.places.length} places, ${start.blocks.length} blocks`);
+  const out = await settle(start, ctx, { mode: 'new', brief, rounds: 2 });
+  return { ...out, status: statusOf(out, ctx) };
 }
 
 /**

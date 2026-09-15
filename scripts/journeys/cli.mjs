@@ -9,6 +9,7 @@
  *   npm run journeys -- refresh --slug kyoto-blossom
  *   npm run journeys -- rewrite --slug peru-sacred-valley   write a journey again from scratch, same destination, season and length
  *   npm run journeys -- rewrite --limit 14       rewrite the hand-written defaults still in the catalogue
+ *   npm run journeys -- rewrite --resume         continue from each saved attempt that did not pass, instead of writing again
  *   npm run journeys -- restyle --slug s         rewrite only the writing, keeping facts, places and media (no web research)
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
@@ -21,14 +22,14 @@
  *
  * Locally it reads .env.local; in GitHub Actions the same names come from secrets.
  */
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief,
+  produce, resumeJourney, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief,
   newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
@@ -180,10 +181,15 @@ async function main() {
         const old = normaliseDoc(row.doc);
         // A photograph Unsplash's hourly limit held back can be added later
         // with media; it is no reason to throw away a rewrite that passed.
-        const out = await produce(rewriteBrief(old), {
+        const runCtx = {
           ...ctx, allowNoPhotos: true, slug: row.slug, rejected: old.rejected || [],
           catalogue: list.filter((c) => c.id !== row.id), log,
-        });
+        };
+        const saved = join(tmpdir(), `journey-rewrite-${row.slug}.json`);
+        const attempt = opt.resume && existsSync(saved) ? JSON.parse(readFileSync(saved, 'utf8')).doc : null;
+        const out = attempt
+          ? await resumeJourney(attempt, rewriteBrief(old), runCtx)
+          : await produce(rewriteBrief(old), runCtx);
         if (out.status !== 'published') { await keepOld(client, row, out, log, 'rewrite'); return; }
         await store(client, row, { ...out, source: 'generated' });
         log(`rewritten: ${out.review.score}/10, ${out.doc.places.length} places, ${out.doc.blocks.length} blocks`);
