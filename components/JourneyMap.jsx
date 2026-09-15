@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Route } from 'lucide-react';
 import { loadMaps } from '@/components/GoogleMap';
 import { boundsOf, fitZoom, pointAlong, spanKm } from '@/lib/journeyMap';
 import s from './Journeys.module.css';
@@ -23,7 +24,7 @@ const AHEAD = 5;
  * read, and an unseen copy of the map visits the next few views first, so the
  * imagery is already in the browser when the camera gets there.
  */
-export default function JourneyMap({ route, sections, where, dropped, hover, onPin }) {
+export default function JourneyMap({ route, sections, where, dropped, hover, onPin, expanded = false }) {
   const el = useRef(null);
   const ghostEl = useRef(null);
   const map = useRef(null);
@@ -228,6 +229,21 @@ export default function JourneyMap({ route, sections, where, dropped, hover, onP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, where.section, where.index]);
 
+  /*
+   * Expanded, the map is there to explore, so the wheel zooms it straight
+   * away. Back in the column it returns to cooperative gestures, and the
+   * camera to whatever is being read.
+   */
+  const grown = useRef(false);
+  useEffect(() => {
+    const m = map.current;
+    if (!ready || !m) return;
+    m.setOptions({ gestureHandling: expanded ? 'greedy' : 'cooperative' });
+    if (grown.current && !expanded) fly(pointsFor(where.section, where.index));
+    grown.current = expanded;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, expanded]);
+
   // The way read so far, and the dot at the end of it.
   useEffect(() => {
     if (!ready || !done.current) return;
@@ -266,6 +282,11 @@ export default function JourneyMap({ route, sections, where, dropped, hover, onP
     <>
       <div ref={ghostEl} className={s.mapGhost} aria-hidden="true" />
       <div ref={el} className={s.mapCanvas} />
+      {expanded && ready ? (
+        <button type="button" className={s.mapAll} onClick={() => fly(route)}>
+          <Route size={15} aria-hidden="true" /> Whole route
+        </button>
+      ) : null}
       {failed ? <p className={s.mapFail}>The map could not load.</p> : null}
     </>
   );

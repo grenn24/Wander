@@ -1,7 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { plainText } from '@/lib/journeyFormat';
+import { useModalChrome } from '@/lib/useModal';
 import s from './Journeys.module.css';
 
 const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
@@ -25,6 +27,12 @@ export default function JourneyScrollMap({ flowRef, route, sections, places, dro
   const [wide, setWide] = useState(false);
   const [where, setWhere] = useState({ section: 0, index: -1, t: 0 });
   const [hover, setHover] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const big = useRef(false);
+  big.current = expanded;
+
+  // Only a wide screen has a map to expand.
+  useEffect(() => { if (!wide) setExpanded(false); }, [wide]);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 961px)');
@@ -93,31 +101,59 @@ export default function JourneyScrollMap({ flowRef, route, sections, places, dro
     };
   }, [wide, flowRef]);
 
-  // A pin takes you to where the journal talks about the place.
+  // A pin takes you to where the journal talks about the place, putting an
+  // expanded map back first so the page is there to scroll.
   function showInJournal(id) {
     const el = flowRef.current && flowRef.current.querySelector(`[data-place="${id}"]`);
     if (!el) return;
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    el.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
-    el.classList.remove(s.flash);
-    void el.offsetWidth; // restart the highlight if it is already running
-    el.classList.add(s.flash);
-    setTimeout(() => el.classList.remove(s.flash), 1900);
+    const wasBig = big.current;
+    setExpanded(false);
+    setTimeout(() => {
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+      el.classList.remove(s.flash);
+      void el.offsetWidth; // restart the highlight if it is already running
+      el.classList.add(s.flash);
+      setTimeout(() => el.classList.remove(s.flash), 1900);
+    }, wasBig ? 80 : 0);
   }
 
   const now = sections[where.section];
+  /*
+   * Expanding lifts this same map over the page rather than opening a second
+   * one: nothing reloads, and the route, pins and position carry over. The
+   * slot keeps its place in the column, so the bar beneath does not move.
+   */
   return (
-    <div className={s.mapBox}>
-      {wide ? (
-        <JourneyMap route={route} sections={sections} where={where} dropped={dropped}
-          hover={hover} onPin={showInJournal} />
-      ) : null}
-      {now && (now.title || now.kicker) ? (
-        <div className={s.mapNow} aria-live="polite">
-          {now.kicker ? <span>{now.kicker}</span> : null}
-          <strong>{plainText(now.title, places)}</strong>
-        </div>
-      ) : null}
+    <div className={s.mapSlot}>
+      {expanded ? <ExpandedChrome onEscape={() => setExpanded(false)} /> : null}
+      {expanded ? <div className={s.mapShade} aria-hidden="true" onClick={() => setExpanded(false)} /> : null}
+      <div className={`${s.mapBox}${expanded ? ` ${s.mapBig}` : ''}`}
+        role={expanded ? 'dialog' : undefined} aria-modal={expanded || undefined}
+        aria-label={expanded ? 'The route' : undefined}>
+        {wide ? (
+          <JourneyMap route={route} sections={sections} where={where} dropped={dropped}
+            hover={hover} onPin={showInJournal} expanded={expanded} />
+        ) : null}
+        {now && (now.title || now.kicker) ? (
+          <div className={s.mapNow} aria-live="polite">
+            {now.kicker ? <span>{now.kicker}</span> : null}
+            <strong>{plainText(now.title, places)}</strong>
+          </div>
+        ) : null}
+        {wide ? (
+          <button type="button" className={s.mapExpand} aria-expanded={expanded}
+            aria-label={expanded ? 'Shrink the map' : 'Expand the map'} onClick={() => setExpanded((e) => !e)}>
+            {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
+}
+
+/* While the map is expanded, Escape puts it back and the page holds still underneath. */
+function ExpandedChrome({ onEscape }) {
+  useModalChrome({ onEscape });
+  return null;
 }
