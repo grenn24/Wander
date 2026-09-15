@@ -58,6 +58,12 @@ test('strict validation holds written journeys to the house rules', () => {
   const unmentioned = { ...base, places: [...base.places, { id: 'p50', name: 'Nowhere', q: 'Nowhere', note: 'x' }] };
   assert.ok(validateDoc(unmentioned).errors.some((e) => /never mentioned/.test(e)));
   assert.ok(validateDoc(unmentioned, { strict: false }).warnings.some((e) => /never mentioned/.test(e)));
+
+  // Readers need to know where they are: a journey without sections is sent back.
+  const unsectioned = validateDoc({ ...base, blocks: base.blocks.filter((b) => b.type !== 'heading') });
+  assert.ok(unsectioned.errors.some((e) => /first section needs a heading/.test(e)));
+  assert.ok(unsectioned.errors.some((e) => /divide the journey into sections/.test(e)));
+  assert.ok(!validateDoc(base).errors.some((e) => /section/.test(e)));
 });
 
 test('links and citations never reach the page', () => {

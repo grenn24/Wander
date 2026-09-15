@@ -9,6 +9,7 @@
  *   npm run journeys -- refresh --slug kyoto-blossom
  *   npm run journeys -- rewrite --slug peru-sacred-valley   write a journey again from scratch, same destination, season and length
  *   npm run journeys -- rewrite --limit 14       rewrite the hand-written defaults still in the catalogue
+ *   npm run journeys -- restyle --slug s         rewrite only the writing, keeping facts, places and media (no web research)
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
@@ -27,7 +28,8 @@ import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, rewriteBrief, newTally, costLine,
+  produce, refreshJourney, restyleJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, rewriteBrief,
+  newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
 import { attachVideo, youtubeReady } from './youtube.mjs';
@@ -102,6 +104,15 @@ async function refreshRows(client, rows, ctx, parallel) {
       await fail(client, row, e.message);
     }
   });
+}
+
+/** A new version that did not pass: the old text stays, and the attempt is kept to look at. */
+async function keepOld(client, row, out, log, what) {
+  const file = join(tmpdir(), `journey-${what}-${row.slug}.json`);
+  writeFileSync(file, JSON.stringify(out, null, 2));
+  log(`kept the old version: the ${what} ${out.verdict === 'reject' ? 'was rejected' : 'did not pass review'}. `
+    + `${out.review.summary} Attempt saved to ${file}`);
+  await fail(client, row, `The ${what} was not published: ${out.review.summary}`);
 }
 
 /*
@@ -189,15 +200,32 @@ async function main() {
           ...ctx, allowNoPhotos: true, slug: row.slug, rejected: old.rejected || [],
           catalogue: list.filter((c) => c.id !== row.id), log,
         });
-        if (out.status !== 'published') {
-          const file = join(tmpdir(), `journey-rewrite-${row.slug}.json`);
-          writeFileSync(file, JSON.stringify(out, null, 2));
-          log(`kept the old version: the rewrite ${out.verdict === 'reject' ? 'was rejected' : 'did not pass review'}. ${out.review.summary} Attempt saved to ${file}`);
-          await fail(client, row, `Rewrite not published: ${out.review.summary}`);
-          return;
-        }
+        if (out.status !== 'published') { await keepOld(client, row, out, log, 'rewrite'); return; }
         await store(client, row, { ...out, source: 'generated' });
         log(`rewritten: ${out.review.score}/10, ${out.doc.places.length} places, ${out.doc.blocks.length} blocks`);
+      } catch (e) {
+        log(`failed: ${e.message}`);
+        await fail(client, row, e.message);
+      }
+    });
+  } else if (command === 'restyle') {
+    const client = db();
+    // Restyling keeps what a journey says, so it suits journeys the service
+    // researched; the hand-written defaults are too thin and need rewrite.
+    const rows = (await written(client, { statuses: ['published'], slug: opt.slug || null, limit: 500 }))
+      .filter((r) => opt.slug || r.source !== 'editorial')
+      .slice(0, limit || 3);
+    console.log(`${rows.length} to restyle`);
+    const list = await catalogue(client);
+    await pool(rows, parallel, async (row) => {
+      const log = logger(row.slug);
+      try {
+        const out = await restyleJourney(row, {
+          ...ctx, allowNoPhotos: true, catalogue: list.filter((c) => c.id !== row.id), log,
+        });
+        if (out.status !== 'published') { await keepOld(client, row, out, log, 'restyle'); return; }
+        await store(client, row, out);
+        log(`restyled: ${out.review.score}/10, ${out.doc.blocks.length} blocks`);
       } catch (e) {
         log(`failed: ${e.message}`);
         await fail(client, row, e.message);

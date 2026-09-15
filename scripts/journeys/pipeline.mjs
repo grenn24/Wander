@@ -5,7 +5,7 @@ import { verifyPlaces } from './verify.mjs';
 import { attachMedia } from './unsplash.mjs';
 import { attachVideo } from './youtube.mjs';
 import {
-  WRITER, REVISER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,
+  WRITER, REVISER, RESTYLER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,
   catalogueText, coverageText, voiceSample,
 } from './prompts.mjs';
 
@@ -163,6 +163,8 @@ async function revise(doc, problems, brief, ctx) {
     schema: WRITER_SCHEMA,
     instructions: REVISER(today()),
     input: JSON.stringify({ brief, problems, journey: modelFields(doc) }),
+    // A restyle checks against the previous version, not against the web.
+    search: !ctx.previous,
   });
   spend(ctx.tally, r);
   return carry(doc, withSources(normaliseDoc(r.data), [...(doc.sources || []), ...r.sources]));
@@ -179,12 +181,14 @@ async function review(doc, verification, ctx, mode, brief) {
     ...mediaPacket(doc),
     verification,
     structure: structureIssues(structure),
+    ...(ctx.previous ? { previous_version: ctx.previous } : {}),
   };
   const r = await respond({
     name: 'journey_review',
     schema: REVIEW_SCHEMA,
     instructions: REVIEWER(today(), mode),
     input: `${catalogueText(ctx.catalogue, doc.slug)}\n\nThe journey and what was checked:\n${JSON.stringify(packet)}`,
+    search: !ctx.previous,
   });
   spend(ctx.tally, r);
   return { review: r.data, structure };
@@ -256,6 +260,32 @@ export async function produce(brief, ctx) {
   let status = 'draft';
   if (out.verdict === 'reject') status = 'rejected';
   else if (out.verdict === 'publish' && (hasCover(out.doc) || ctx.allowNoPhotos)) status = 'published';
+  return { ...out, status };
+}
+
+/**
+ * The same journey written again so it is easy to follow: every fact, place,
+ * photograph and video kept, and no web research, so it costs a fraction of a
+ * rewrite. The review compares it with the version before it.
+ */
+export async function restyleJourney(row, ctx) {
+  const before = normaliseDoc(row.doc);
+  const previous = modelFields(before);
+  ctx.log('restyling');
+  const r = await respond({
+    name: 'journey',
+    schema: WRITER_SCHEMA,
+    instructions: RESTYLER(today()),
+    input: `${voiceSample()}\n\nThe journey to rewrite:\n${JSON.stringify(previous)}`,
+    search: false,
+  });
+  spend(ctx.tally, r);
+  const first = carry(before, withSources(normaliseDoc(r.data), before.sources));
+  first.slug = before.slug;
+  if (before.rejected) first.rejected = before.rejected;
+  ctx.log(`restyled: ${first.places.length} places, ${first.blocks.length} blocks`);
+  const out = await settle(first, { ...ctx, previous }, { mode: 'restyle', brief: row.brief || before.title, rounds: 2 });
+  const status = out.verdict === 'publish' && (hasCover(out.doc) || ctx.allowNoPhotos) ? 'published' : 'draft';
   return { ...out, status };
 }
 

@@ -172,8 +172,20 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <h2 className={s.bTitle}>{rich(b.text)}</h2>
           </div>
         );
-      case 'prose':
-        return paragraphs(b.text).map((para, k) => <p key={`${i}-${k}`} className={s.bProse}>{rich(para)}</p>);
+      case 'prose': {
+        const paras = paragraphs(b.text).map((para, k) => <p key={`${i}-${k}`} className={s.bProse}>{rich(para)}</p>);
+        if (!b.kicker) return paras;
+        // Some journeys put a section's label on its first paragraph instead
+        // of on a heading. Show it as the heading it was meant to be.
+        const [when, ...where] = b.kicker.split(' · ');
+        return [
+          <div key={`${i}-h`} className={s.bHeading}>
+            {where.length ? <span className={s.bKicker}>{when}</span> : null}
+            <h2 className={s.bTitle}>{where.length ? where.join(' · ') : when}</h2>
+          </div>,
+          ...paras,
+        ];
+      }
       case 'photo':
         return <PhotoBlock key={i} block={b} onOpen={openPhoto} />;
       case 'quote':

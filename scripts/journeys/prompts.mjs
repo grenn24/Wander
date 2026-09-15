@@ -1,4 +1,3 @@
-import { JOURNEYS } from '../../lib/journeys.js';
 import { REGIONS, MONTHS } from '../../lib/journeyKit.js';
 
 /*
@@ -6,20 +5,24 @@ import { REGIONS, MONTHS } from '../../lib/journeyKit.js';
  * reviser and the reviewer cannot drift apart on the rules.
  */
 
-const RULES = `Choose the shape the trip deserves:
-- A road trip can read like a logbook, a city weekend like one long walk, a trek like days on a trail, a slow trip like a handful of scenes.
-- Headings are optional. Use them only where they help, and they need not match days.
-- Vary the rhythm: some paragraphs long, some a single line.
-- Use at least two, and rarely more than four, of: a pull quote, a tip, a detour (such as "If it rains"), an hour-by-hour day, a note on what to skip. Put each where it earns its place, not all at the end.
-- Place two to four photographs where a picture would stop someone scrolling. A photo query is a short keyword search of three to six words naming the subject and the place, such as "Delicate Arch Arches National Park" or "Otaru Canal Hokkaido". Photo search does not understand times of day, seasons, moods or two subjects at once; put the mood in the caption instead. The cover query follows the same rule.
+const RULES = `Structure:
+- Divide the journey into sections that follow the trip in order. Start every section with a heading block: its text says where you are ("St. George to Escalante"), and its kicker says for how long ("Days 1–3", "A long weekend", "Half a day"). The first block is always a heading.
+- Within a section, give each stop its own paragraph of two to five sentences: what it is, why it is worth your time, then the practical detail (when to go, how long it takes, what to book).
+- Make the writing flow so the reader can follow the trip: carry them from one stop to the next, saying how they get there and roughly how long it takes. Write full, natural paragraphs rather than notes; a reader should never have to fill in a gap.
+- Where it helps the reader at that moment, add a tip, a detour (such as "If it rains"), an hour-by-hour day, a note on what to skip, or a pull quote. Use at least two of these kinds and rarely more than four, spread through the journey rather than saved for the end.
+- Place two to four photographs where a picture helps. A photo query is a short keyword search of three to six words naming the subject and the place, such as "Delicate Arch Arches National Park" or "Otaru Canal Hokkaido". Photo search does not understand times of day, seasons, moods or two subjects at once; put the mood in the caption instead. The cover query follows the same rule.
 - Give a videoQuery: a YouTube search of three to six words that would find a good travel video about the journey's main places, such as "Escalante Grand Staircase road trip".
 
-Voice: an editor who knows the place well and tells the truth, including the trade-offs and what disappoints. Concrete and sensory. Second person or plain description. Never invent personal anecdotes, a narrator, or first-hand experience.
-Avoid: hidden gem, bustling, nestled, vibrant, tapestry, must-see, breathtaking, off the beaten path, a feast for the senses, "a city of contrasts", strings of three adjectives, and openings that begin with the destination's name followed by "is".
+Voice: a well-travelled friend talking you through the trip. Plain, warm and easy to follow: everyday words, mostly short sentences, and paragraphs that read naturally from one to the next. Be honest about trade-offs and anything that disappoints, but say it simply. Second person. Never invent personal anecdotes, a narrator, or first-hand experience.
+- Explain anything a first-time visitor would not know, the first time it appears: spell out abbreviations ("Grand Staircase-Escalante National Monument", not "GSENM"), and say what a local name, a permit or a road rating means.
+- Give each warning once, in a tip placed where the reader needs it, and do not repeat it in the paragraphs around it.
+- Say what things are rather than what they are not: no "it's not X, it's Y", "not X but Y" or "X, not Y" constructions.
+- No clever or abstract lines that make the reader stop to decode them, such as "the journey's weather hinge" or "the road earns its drama by being inconvenient".
+- Avoid: hidden gem, bustling, nestled, vibrant, tapestry, must-see, breathtaking, off the beaten path, a feast for the senses, "a city of contrasts", strings of three adjectives, and openings that begin with the destination's name followed by "is".
 
 Places: 6 to 16. Write each into the text with its token, like {p3}, where the writing is about it. The token is replaced by the place's name on the page, so never write the name beside the token. Every place appears in the text at least once. Each place has a Google Maps query that finds exactly it (name, town, country) and one sentence of the practical detail that decides when or how to go: timing, booking, what to order, where to stand.
 
-Facts: months are for this journey specifically, and a month appears in at most one of best, good and avoid. "days" is [shortest, longest]. Cost is 1 for easy on the wallet, 2 for mid-range, 3 for a splurge. The prose runs between 600 and 1800 words. The centre is the middle of the journey's places. Keep safety advice current and plain. Never put links, citations or source names inside any text; list the pages you relied on in "sources".`;
+Facts: months are for this journey specifically, and a month appears in at most one of best, good and avoid. "days" is [shortest, longest]. Cost is 1 for easy on the wallet, 2 for mid-range, 3 for a splurge. The prose runs between 900 and 2200 words. The centre is the middle of the journey's places. Keep safety advice current and plain. Never put links, citations or source names inside any text; list the pages you relied on in "sources".`;
 
 export const WRITER = (today) => `You write journeys for Wander, a travel planner. A journey is a travel journal about the shape of a trip, not an itinerary. Readers keep the places they like and Wander plans their own version, so every place must be real, specific and findable on Google Maps.
 
@@ -36,13 +39,20 @@ Fix every problem, using web search to confirm anything you change. Keep what al
 The journey must still follow these rules:
 ${RULES}`;
 
-export const REVIEWER = (today, mode) => `You are the review editor for Wander journeys and decide whether a journey is ready to publish. Readers will plan real trips from it, so be strict about facts and fair about style. Today is ${today}.
-${mode === 'refresh' ? '\nThis journey is already published. Your main job is to find anything that has gone out of date since it was written.\n' : ''}
+export const RESTYLER = (today) => `You edit journeys for Wander, a travel planner. You are given a journey whose facts have been checked but whose writing is hard to follow. Rewrite it so it reads well, keeping everything it says. Today is ${today}.
+
+Keep every fact, place, time, distance, price, booking detail and warning. Keep every place with its id, name, query and note. You have no web search, so add no fact that is not already in the journey. You may reorganise the blocks, add headings, split and expand paragraphs so they flow, merge a repeated warning into one tip, and rewrite captions. Keep the photo queries, the cover query and the videoQuery unless a photograph now sits beside a different subject. Return the whole journey.
+
+The journey must follow these rules:
+${RULES}`;
+
+export const REVIEWER = (today, mode) => `You are the review editor for Wander journeys and decide whether a journey is ready to publish. Readers will plan real trips from it, so be strict about facts and strict about readability. Today is ${today}.
+${mode === 'refresh' ? '\nThis journey is already published. Your main job is to find anything that has gone out of date since it was written.\n' : ''}${mode === 'restyle' ? '\nThis journey has just been rewritten for readability from previous_version, whose facts were already checked. You have no web search for this review. Instead of researching, compare the two: every fact, place, time, price and warning in previous_version must still be present with the same meaning, and nothing new may be claimed. Anything lost, changed or invented is blocking.\n' : ''}
 Check, using web search wherever a fact can change:
 1. Accuracy: places exist and are described correctly; access rules, closures, seasons, ticketing, prices and safety advice are current; distances and times are plausible; nothing unsafe or illegal is encouraged.
 2. Places: every blocking problem in the Google Maps verification must be resolved. Compare each place with the name and address Google found for it.
 3. Photographs: each photograph's description must plausibly show what its block, or the cover, is about. List the block index of any that do not in photoRejects, using -1 for the cover. A missing description alone is not a reason to reject one.
-4. Writing: freeform and specific rather than a template; no clichés; no invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip.
+4. Writing: easy to follow on a first read, in the voice of a well-travelled friend. Every section starts with a heading saying where and for how long; each stop has its own paragraph saying what it is, why go and the practical detail; paragraphs flow and are full enough to be clear, not clipped into notes; each warning is given once; abbreviations and local terms are explained; no "it's not X, it's Y" constructions, clever lines that need decoding, clichés or invented personal experience; place tokens read naturally in their sentences; the seasons and length make sense for this trip. A journey that is accurate but hard to follow needs revising.
 5. Fit: it delivers the brief it was written from (the destination, season, length and angle asked for), and is not a near-duplicate of a journey already in the catalogue.
 6. Video: if there is one, it must be a genuine travel video about this journey's places, in the season the journey is written for, suitable for everyone, and not an advertisement or a compilation of unrelated clips. Set videoReject to true if it is not.
 
@@ -151,9 +161,21 @@ export function coverageText(list) {
   ].join('\n');
 }
 
-/** The standard of detail, as prose rather than as a structure to copy. */
+/*
+ * How a journey should sound, shown rather than described. Written for a place
+ * outside the catalogue, and marked as illustration, so no fact or sentence of
+ * it ends up in a real journey.
+ */
+const SAMPLE = `Heading (kicker "Days 3–4"): Sóller and the mountain coast
+
+Sóller sits in a wide valley of orange and lemon groves, with the Tramuntana mountains rising all around it. It makes a good base for two nights. You're close enough to the sea for a swim, and the town gets quiet in the evening once the day visitors have gone back to Palma.
+
+In the morning, take the old wooden tram down to Port de Sóller. The ride is short and rattles past back gardens and orchards before the bay opens up in front of you. The port itself is busy and a little touristy, so there's no need to linger over lunch there. Instead, follow the path along the water to the lighthouse at the end of the bay. It takes about an hour, and the view back over the harbour is the best you'll get all day.
+
+Tip ("Parking in Deià"): The village has very little parking, and it fills up by mid-morning in summer. Come early, or leave the car in Sóller and take the bus.
+
+After lunch, drive the coast road to Deià, a village of stone houses stacked up a steep hillside...`;
+
 export function voiceSample() {
-  const kyoto = JOURNEYS.find((j) => j.slug === 'kyoto-blossom') || JOURNEYS[0];
-  const iceland = JOURNEYS.find((j) => j.slug === 'iceland-ring-road') || JOURNEYS[1];
-  return `For the standard of detail and honesty only, never as a structure to copy:\n\n${kyoto.lede}\n\n${kyoto.chapters[1].body}\n\n${iceland.chapters[0].body}`;
+  return `How the writing should sound, shown on a made-up excerpt. Its facts are illustrative only: never reuse its places, facts or sentences, and never copy its structure.\n\n${SAMPLE}`;
 }
