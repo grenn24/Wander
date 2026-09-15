@@ -36,6 +36,8 @@ export const REVISER = (today) => `You revise journeys for Wander, a travel plan
 
 Fix every problem, using web search to confirm anything you change. Keep what already works: do not rewrite good passages for the sake of it, and keep the ids of places that stay. If a place cannot be found or has closed, replace it with a real alternative or remove it and every mention of it. Return the whole corrected journey.
 
+If previous_version is included, the journey was rewritten for readability from it and its facts were already checked. You have no web search then: restore from previous_version any fact, detail or warning that was lost or changed, word it in the new voice, and remove any claim previous_version does not make.
+
 The journey must still follow these rules:
 ${RULES}`;
 

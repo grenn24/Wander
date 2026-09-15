@@ -162,8 +162,11 @@ async function revise(doc, problems, brief, ctx) {
     name: 'journey',
     schema: WRITER_SCHEMA,
     instructions: REVISER(today()),
-    input: JSON.stringify({ brief, problems, journey: modelFields(doc) }),
-    // A restyle checks against the previous version, not against the web.
+    // A restyle is corrected against the version it was rewritten from, not
+    // against the web: without it a lost fact can only be guessed back.
+    input: JSON.stringify({
+      brief, problems, journey: modelFields(doc), ...(ctx.previous ? { previous_version: ctx.previous } : {}),
+    }),
     search: !ctx.previous,
   });
   spend(ctx.tally, r);
@@ -284,7 +287,7 @@ export async function restyleJourney(row, ctx) {
   first.slug = before.slug;
   if (before.rejected) first.rejected = before.rejected;
   ctx.log(`restyled: ${first.places.length} places, ${first.blocks.length} blocks`);
-  const out = await settle(first, { ...ctx, previous }, { mode: 'restyle', brief: row.brief || before.title, rounds: 2 });
+  const out = await settle(first, { ...ctx, previous }, { mode: 'restyle', brief: row.brief || before.title, rounds: 3 });
   const status = out.verdict === 'publish' && (hasCover(out.doc) || ctx.allowNoPhotos) ? 'published' : 'draft';
   return { ...out, status };
 }
