@@ -198,7 +198,7 @@
   font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase;
 }
 .glanceV { font-size: 15.5px; font-weight: 600; }
-.whenNote { margin: 10px 0 0; color: var(--text-2); font-size: 14.5px; line-height: 1.5; }
+.whenNote { margin: 10px 0 0; color: var(--text-1); font-size: 14.5px; line-height: 1.5; }
 
 .chapter { margin-top: 50px; }
 .chapterHead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
@@ -234,7 +234,7 @@
 .knowList { display: grid; gap: 14px; margin: 0; }
 .knowRow { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; }
 .knowRow dt { font-size: 14.5px; font-weight: 650; }
-.knowRow dd { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.55; }
+.knowRow dd { margin: 0; color: var(--text-1); font-size: 15px; line-height: 1.55; }
 
 /* ======================================================== make it yours */
 .aside { position: sticky; top: calc(var(--topbar-h) + 20px); }
@@ -362,7 +362,7 @@
   margin: 0; font-family: var(--font-serif), Georgia, "Times New Roman", serif;
   font-weight: 400; font-size: clamp(28px, 3.2vw, 36px); line-height: 1.1; text-wrap: balance;
 }
-.bProse { margin: 0 0 18px; color: var(--text-2); font-size: 17.5px; line-height: 1.75; }
+.bProse { margin: 0 0 18px; color: var(--text-1); font-size: 17.5px; line-height: 1.75; }
 .place {
   display: inline; padding: 0 1px; border: 0; border-radius: 4px; background: none; cursor: pointer;
   color: var(--text-1); font: inherit; font-weight: 600;
@@ -387,9 +387,9 @@
 .bFrame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .bPhoto figcaption {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; margin-top: 8px;
-  color: var(--text-3); font-size: 13px; line-height: 1.4;
+  color: var(--text-2); font-size: 13px; line-height: 1.4;
 }
-.bCaption { color: var(--text-2); }
+.bCaption { color: var(--text-1); }
 .bCredit a, .heroCredit a { color: inherit; }
 @media (min-width: 961px) {
   .bWide, .video { margin-inline: -28px; }
@@ -405,9 +405,9 @@
   margin: 28px 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: 18px;
   background: var(--surface-1);
 }
-.bNote p { margin: 6px 0 0; color: var(--text-2); font-size: 15.5px; line-height: 1.6; }
+.bNote p { margin: 6px 0 0; color: var(--text-1); font-size: 15.5px; line-height: 1.6; }
 .bLabel {
-  display: inline-flex; align-items: center; gap: 7px; color: var(--text-3);
+  display: inline-flex; align-items: center; gap: 7px; color: var(--text-2);
   font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase;
 }
 .bDetour { border-style: dashed; }
@@ -416,10 +416,10 @@
 .bDay { margin: 34px 0; padding: 18px 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface-1); clear: both; }
 .bDayTitle { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
 .bDay ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.bDay li { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; color: var(--text-2); font-size: 15.5px; line-height: 1.55; }
+.bDay li { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; color: var(--text-1); font-size: 15.5px; line-height: 1.55; }
 .bTime { padding-top: 2px; color: var(--text-1); font-family: var(--font-mono), ui-monospace, monospace; font-size: 13px; }
 
-.provenance { margin-top: 26px; color: var(--text-3); font-size: 13.5px; }
+.provenance { margin-top: 26px; color: var(--text-2); font-size: 13.5px; }
 .provenance p { margin: 0 0 6px; }
 .provenance summary { cursor: pointer; color: var(--text-2); font-weight: 600; }
 .provenance ul { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
@@ -471,7 +471,7 @@
   width: 68px; height: 68px; margin: -34px 0 0 -34px; border-radius: 50%;
   background: rgb(0 0 0 / .62); color: #fff;
 }
-.videoMeta { display: grid; gap: 2px; margin: 10px 0 0; color: var(--text-3); font-size: 13.5px; }
+.videoMeta { display: grid; gap: 2px; margin: 10px 0 0; color: var(--text-2); font-size: 13.5px; }
 .videoTitle { color: var(--text-1); font-size: 15px; font-weight: 600; }
 .videoMeta a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .videoPlay img { transition: none; } }
@@ -557,23 +557,27 @@
   border: 1px solid var(--border); border-radius: 18px; background: var(--surface-1); box-shadow: var(--lift);
 }
 .mapBar .kept { font-size: 13px; }
+/* Google anchors a marker by its bottom edge; half a height down puts the
+   centre of the pin, and of the dot, on the point the route runs through. */
 .pin {
+  --k: 1;
   display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
-  border: 2px solid #fff; border-radius: 50%; background: var(--text-3); color: #fff; cursor: pointer; opacity: .8;
-  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace; box-shadow: 0 2px 6px rgb(0 0 0 / .35);
+  border: 2px solid #fff; border-radius: 50%; background: #5c534a; color: #fff; cursor: pointer; opacity: .92;
+  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace; box-shadow: 0 2px 6px rgb(0 0 0 / .45);
+  transform: translateY(50%) scale(var(--k));
   transition: transform .25s var(--ease), background-color .25s var(--ease), opacity .25s var(--ease), box-shadow .25s var(--ease);
 }
-.pin[data-visited] { background: var(--accent); opacity: .92; }
-.pin[data-active] { opacity: 1; transform: scale(1.2); }
+.pin[data-visited] { background: var(--accent); opacity: 1; }
+.pin[data-active] { --k: 1.2; opacity: 1; }
 .pin[data-hover] {
-  opacity: 1; transform: scale(1.4);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 6px rgb(0 0 0 / .35);
+  --k: 1.4; opacity: 1;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent), 0 2px 6px rgb(0 0 0 / .45);
 }
 .pin[data-off] { background: var(--surface-2); color: var(--text-3); opacity: .55; text-decoration: line-through; }
 .pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .traveller {
-  width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: var(--accent);
-  animation: ping 1.8s var(--ease) infinite;
+  width: 18px; height: 18px; border: 3px solid #fff; border-radius: 50%; background: var(--accent);
+  transform: translateY(50%); animation: ping 1.8s var(--ease) infinite;
 }
 @keyframes ping {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }

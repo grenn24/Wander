@@ -1,35 +1,31 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { loadMaps, useMapScheme } from '@/components/GoogleMap';
+import { loadMaps } from '@/components/GoogleMap';
 import { boundsOf, fitZoom, pointAlong, spanKm } from '@/lib/journeyMap';
 import s from './Journeys.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
 const cssVar = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2);
+const plain = (points) => points.map(({ lat, lng }) => ({ lat, lng }));
 
 /**
- * The journey's route, drawn as the reader goes.
+ * The journey's route over satellite imagery, drawn as the reader goes.
  *
- * Every stop is a numbered pin and the whole way is a faint dashed line; the
- * part already read is drawn solid, ending in a dot between the last stop
- * named and the next. Reaching a new section flies the camera to its stops.
- * Colour scheme is fixed when a Google map is built, so a theme change builds
- * a new one.
+ * Every stop is a numbered pin and the whole way is a dashed white line; the
+ * part already read is drawn solid over a white casing, so it holds up on
+ * desert and forest alike, ending in a dot between the last stop named and
+ * the next. Reaching a new section flies the camera to its stops.
  */
-export default function JourneyMap(props) {
-  const scheme = useMapScheme();
-  return <RouteMap key={scheme} scheme={scheme} {...props} />;
-}
-
-function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
+export default function JourneyMap({ route, sections, where, dropped, hover, onPin }) {
   const el = useRef(null);
   const map = useRef(null);
   const pins = useRef([]);
+  const casing = useRef(null);
   const done = useRef(null);
   const head = useRef(null);
   const frame = useRef(0);
+  const flight = useRef(0);
   const pinned = useRef(onPin);
   pinned.current = onPin;
   const [ready, setReady] = useState(false);
@@ -40,29 +36,26 @@ function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
     const lines = [];
     loadMaps().then((L) => {
       if (dead || !el.current) return;
-      const R = window.google.maps.RenderingType;
       const m = new L.Map(el.current, {
         mapId: MAP_ID,
-        colorScheme: scheme,
+        mapTypeId: 'hybrid',
         center: { lat: route[0].lat, lng: route[0].lng },
         zoom: 5,
         disableDefaultUI: true,
         clickableIcons: false,
         // The page scrolls under the wheel; the map needs ctrl or two fingers.
         gestureHandling: 'cooperative',
-        // Vector maps take fractional zoom, which is what makes the glide smooth.
-        ...(R ? { renderingType: R.VECTOR } : {}),
       });
       map.current = m;
-      const path = route.map(({ lat, lng }) => ({ lat, lng }));
       lines.push(new L.Polyline({
-        map: m, path, strokeOpacity: 0, strokeColor: cssVar('--text-3', '#8d8377'),
-        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.6, scale: 2.5 }, offset: '0', repeat: '9px' }],
+        map: m, path: plain(route), strokeOpacity: 0, strokeColor: '#ffffff', zIndex: 1,
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, scale: 2.5 }, offset: '0', repeat: '9px' }],
       }));
+      casing.current = new L.Polyline({ map: m, path: [], strokeColor: '#ffffff', strokeOpacity: 0.95, strokeWeight: 8, zIndex: 2 });
       done.current = new L.Polyline({
-        map: m, path: [], strokeColor: cssVar('--accent', '#a34f35'), strokeOpacity: 0.95, strokeWeight: 4,
+        map: m, path: [], strokeColor: cssVar('--accent', '#a34f35'), strokeOpacity: 1, strokeWeight: 4, zIndex: 3,
       });
-      lines.push(done.current);
+      lines.push(casing.current, done.current);
       pins.current = route.map((st, i) => {
         const pin = document.createElement('button');
         pin.type = 'button';
@@ -75,11 +68,12 @@ function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
       });
       const dot = document.createElement('div');
       dot.className = s.traveller;
-      head.current = new L.AdvancedMarkerElement({ position: path[0], content: dot, zIndex: 2000 });
+      head.current = new L.AdvancedMarkerElement({ position: plain(route)[0], content: dot, zIndex: 2000 });
       setReady(true);
     }).catch(() => { if (!dead) setFailed(true); });
     return () => {
       dead = true;
+      flight.current += 1;
       cancelAnimationFrame(frame.current);
       pins.current.forEach((p) => { p.mark.map = null; });
       lines.forEach((l) => l.setMap(null));
@@ -87,10 +81,16 @@ function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
       if (map.current) window.google.maps.event.clearInstanceListeners(map.current);
       map.current = null;
     };
-    // Built once per scheme; everything after is an update.
+    // Built once; everything after is an update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * Satellite imagery comes only in whole zoom levels, so the glide is
+   * Google's own animation in steps: out a level if the next stops are far,
+   * across, then in. Each step waits for the map to settle, and a newer
+   * flight abandons an older one mid-way.
+   */
   function fly(points, tries = 0) {
     const m = map.current;
     const box = el.current;
@@ -100,27 +100,23 @@ function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
       return;
     }
     const b = boundsOf(points);
-    const zoom = fitZoom(b, box.clientWidth, box.clientHeight, { pad: 64, max: points.length > 1 ? 12 : 10 });
+    const zoom = Math.floor(fitZoom(b, box.clientWidth, box.clientHeight, { pad: 64, max: points.length > 1 ? 12 : 10 }));
     const to = { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 };
-    cancelAnimationFrame(frame.current);
+    const trip = flight.current + 1;
+    flight.current = trip;
     const c = m.getCenter();
-    const from = { lat: c.lat(), lng: c.lng(), zoom: m.getZoom() };
-    if (still() || !Number.isFinite(from.zoom)) { m.moveCamera({ center: to, zoom }); return; }
-    // Out, across and back in: gliding a long way at close zoom smears the
-    // ground past too fast to follow.
-    const low = Math.min(from.zoom, zoom) - (spanKm(from, to) > 120 ? 1.2 : 0);
-    const start = performance.now();
-    const ms = 1300;
-    const step = (now) => {
-      const t = Math.min(1, (now - start) / ms);
-      const e = ease(t);
-      const z = t < 0.5
-        ? from.zoom + (low - from.zoom) * ease(t * 2)
-        : low + (zoom - low) * ease((t - 0.5) * 2);
-      m.moveCamera({ center: { lat: from.lat + (to.lat - from.lat) * e, lng: from.lng + (to.lng - from.lng) * e }, zoom: z });
-      if (t < 1) frame.current = requestAnimationFrame(step);
+    const from = { lat: c.lat(), lng: c.lng() };
+    const now = m.getZoom();
+    if (still() || !Number.isFinite(now)) { m.moveCamera({ center: to, zoom }); return; }
+    const settle = (fn) => window.google.maps.event.addListenerOnce(m, 'idle', () => { if (trip === flight.current) fn(); });
+    const land = () => { if (m.getZoom() !== zoom) m.setZoom(zoom); };
+    const across = () => {
+      if (spanKm(from, to) < 0.5) { land(); return; }
+      m.panTo(to);
+      settle(land);
     };
-    frame.current = requestAnimationFrame(step);
+    const low = Math.min(now, zoom) - (spanKm(from, to) > 120 ? 1 : 0);
+    if (now > low) { m.setZoom(low); settle(across); } else across();
   }
 
   // A new section: fly to its stops, or to the whole route if it names none.
@@ -137,13 +133,15 @@ function RouteMap({ scheme, route, sections, where, dropped, hover, onPin }) {
     if (!ready || !done.current) return;
     const { index, t } = where;
     if (index < 0) {
+      casing.current.setPath([]);
       done.current.setPath([]);
       head.current.map = null;
       return;
     }
-    const path = route.slice(0, index + 1).map(({ lat, lng }) => ({ lat, lng }));
+    const path = plain(route.slice(0, index + 1));
     const tip = index < route.length - 1 && t > 0 ? pointAlong(route[index], route[index + 1], t) : path[path.length - 1];
     if (tip !== path[path.length - 1]) path.push(tip);
+    casing.current.setPath(path);
     done.current.setPath(path);
     head.current.position = tip;
     head.current.map = map.current;
