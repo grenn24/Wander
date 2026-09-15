@@ -10,6 +10,7 @@
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
+ *   npm run journeys -- export-defaults          save the defaults' checked photographs and videos into lib/journeyMedia.js
  *   npm run journeys -- weekly                   what the schedule runs
  *
  * Options: --parallel 2, --allow-no-photos, --days 30 (refresh), --out file.json (add, without saving)
@@ -29,6 +30,8 @@ import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
 import { JOURNEYS } from '../../lib/journeys.js';
 import { fromV1 } from '../../lib/journeyFormat.js';
+import { defaultDocs, mediaOf, withMedia } from '../../lib/journeyDefaults.js';
+import { MEDIA } from '../../lib/journeyMedia.js';
 
 function parse(argv) {
   const out = { _: [] };
@@ -123,7 +126,7 @@ async function main() {
   const ctx = { tally, allowNoPhotos: !!opt['allow-no-photos'] };
 
   if (command === 'help') {
-    console.log('Commands: status, add, discover, write, refresh, media, import-defaults, weekly. See scripts/journeys/cli.mjs.');
+    console.log('Commands: status, add, discover, write, refresh, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
@@ -184,23 +187,24 @@ async function main() {
     }
   } else if (command === 'import-defaults') {
     const client = db();
-    for (const j of JOURNEYS) {
-      const log = logger(j.slug);
-      const { data: existing } = await client.from('journeys').select('*').eq('slug', j.slug).maybeSingle();
+    for (const base of defaultDocs()) {
+      const log = logger(base.slug);
+      const { data: existing } = await client.from('journeys').select('*').eq('slug', base.slug).maybeSingle();
       // Once imported, a journey belongs to the database: a refresh may have
       // rewritten it since, and importing again would put the old text back.
       if (existing && !opt.force) { log('already imported, skipped (--force replaces it)'); continue; }
-      const checked = await verifyPlaces(fromV1(j));
+      const checked = await verifyPlaces(base);
       const doc = checked.doc;
-      const rejected = new Set();
-      await attachMedia(doc, { rejected, log });
-      await attachVideo(doc, { rejected, log });
-      await reviewAttached(doc, rejected, log, ctx);
+      const rejected = rejectedOf(doc);
+      // The photographs and video that ship with a default were checked when
+      // they were chosen; only what this run has to find needs another look.
+      const added = (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
+      if (added) await reviewAttached(doc, rejected, log, ctx);
       let row = existing;
       if (!row) {
         const { data, error } = await client.from('journeys')
-          .insert({ brief: j.title, status: 'working', source: 'editorial' }).select().single();
-        if (error) throw new Error(`Importing ${j.slug}: ${error.message}`);
+          .insert({ brief: base.title, status: 'working', source: 'editorial' }).select().single();
+        if (error) throw new Error(`Importing ${base.slug}: ${error.message}`);
         row = data;
       }
       await store(client, row, {
@@ -212,6 +216,25 @@ async function main() {
       log(`imported, ${checked.issues.length} place notes${doc.cover.photo ? '' : ', no photographs yet'}`);
       checked.issues.forEach((i) => log(`  ${i.severity}: ${i.problem}`));
     }
+  } else if (command === 'export-defaults') {
+    // Run where the defaults' media was chosen and checked, then commit the
+    // file: the site's stand-in journeys and import-defaults both read it.
+    const client = db();
+    const media = { ...MEDIA };
+    for (const j of JOURNEYS) {
+      const { data: row, error } = await client.from('journeys').select('doc')
+        .eq('slug', j.slug).eq('status', 'published').maybeSingle();
+      if (error) throw new Error(`Reading ${j.slug}: ${error.message}`);
+      if (!row) { console.log(`${j.slug}: not published in this database, left as it was`); continue; }
+      media[j.slug] = mediaOf(row.doc);
+      const shipped = withMedia(fromV1(j), media[j.slug]);
+      const photos = (shipped.cover.photo ? 1 : 0) + shipped.blocks.reduce((n, b) => n + (b.photos || []).length, 0);
+      console.log(`${j.slug}: ${photos} photographs, ${shipped.video ? 'a video' : 'no video'}`);
+    }
+    writeFileSync(new URL('../../lib/journeyMedia.js', import.meta.url), '/* eslint-disable */\n'
+      + '// Written by `npm run journeys -- export-defaults`; do not edit by hand.\n'
+      + `export const MEDIA = ${JSON.stringify(media, null, 2)};\n`);
+    console.log('wrote lib/journeyMedia.js');
   } else if (command === 'weekly') {
     const client = db();
     await refreshRows(client, await written(client, { statuses: ['published'], olderThanDays: 30, limit: 10 }), ctx, parallel);
