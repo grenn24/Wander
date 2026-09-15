@@ -249,8 +249,13 @@ async function main() {
     if (!unsplashReady() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
     const client = db();
     const recheck = !!opt.recheck;
+    // Photographs come fifty requests an hour, so they go first where they
+    // matter most: a draft waiting on a cover to publish, then any journey
+    // without a cover, then the rest.
+    const urgency = (r) => (r.status === 'draft' ? 0 : 2) + (r.doc.cover && r.doc.cover.photo ? 1 : 0);
     const rows = (await written(client, { statuses: ['draft', 'published'], slug: opt.slug || null, limit: 500 }))
       .filter((r) => recheck || (unsplashReady() && needsPhotos(r.doc)) || (youtubeReady() && needsVideos(r.doc)))
+      .sort((a, b) => urgency(a) - urgency(b))
       .slice(0, limit || 20);
     for (const row of rows) {
       const log = logger(row.slug);
