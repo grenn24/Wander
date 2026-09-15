@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queryVariants, keyWords, describes, aboutPlace } from '../scripts/journeys/unsplash.mjs';
+import { queryVariants, keyWords, describes, aboutPlace, recentlyMissed } from '../scripts/journeys/unsplash.mjs';
+
+test('a photo search that came up empty rests for a week', () => {
+  const doc = { photoMisses: { 'Pinkuylluna granaries Peru': '2026-09-15' } };
+  assert.equal(recentlyMissed(doc, 'Pinkuylluna granaries Peru', '2026-09-16'), true);
+  assert.equal(recentlyMissed(doc, 'Pinkuylluna granaries Peru', '2026-09-22'), false);
+  assert.equal(recentlyMissed(doc, 'Ollantaytambo terraces Peru', '2026-09-16'), false);
+  assert.equal(recentlyMissed({}, 'anything', '2026-09-16'), false);
+});
 
 test('a photograph whose caption is generic is looked up before it is turned away', async () => {
   const words = keyWords('Jemaa el-Fnaa');

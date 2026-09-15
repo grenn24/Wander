@@ -160,6 +160,23 @@ export async function findPhotos(query, { count = 1, orientation = 'landscape', 
   return picked;
 }
 
+/*
+ * Searches that recently found nothing showing the place. They are skipped
+ * for a week, so each hour's fifty requests go to searches that might still
+ * succeed rather than to the same misses every round. A rewritten search is
+ * a new query and is tried straight away.
+ */
+const MISS_DAYS = 7;
+
+export function recentlyMissed(doc, query, today) {
+  const at = doc.photoMisses && doc.photoMisses[query];
+  return !!at && (Date.parse(today) - Date.parse(at)) / 86400000 < MISS_DAYS;
+}
+
+function noteMiss(doc, query, today) {
+  doc.photoMisses = { ...(doc.photoMisses || {}), [query]: today };
+}
+
 /**
  * Give a journey the photographs it is missing. Photographs rejected by the
  * review, and ones already used elsewhere in the same journey, are never
@@ -170,16 +187,17 @@ export async function attachMedia(doc, { rejected = new Set(), log = () => {} } 
   const used = new Set([...rejected]);
   if (doc.cover && doc.cover.photo) used.add(doc.cover.photo.id);
   doc.blocks.forEach((b) => (b.photos || []).forEach((m) => used.add(m.id)));
+  const today = new Date().toISOString().slice(0, 10);
   let added = 0;
   try {
-    if (doc.cover && !doc.cover.photo) {
+    if (doc.cover && !doc.cover.photo && !recentlyMissed(doc, doc.cover.query, today)) {
       const [m] = await findPhotos(doc.cover.query, { avoid: used });
-      if (m) { doc.cover.photo = m; used.add(m.id); added += 1; }
+      if (m) { doc.cover.photo = m; used.add(m.id); added += 1; } else if (unsplashReady()) noteMiss(doc, doc.cover.query, today);
     }
     for (const b of doc.blocks) {
       if (b.type !== 'photo') continue;
       const need = b.layout === 'pair' ? 2 : 1;
-      if ((b.photos || []).length >= need) continue;
+      if ((b.photos || []).length >= need || recentlyMissed(doc, b.query, today)) continue;
       const found = await findPhotos(b.query, {
         count: need,
         orientation: b.layout === 'wide' ? 'landscape' : 'portrait',
@@ -188,6 +206,8 @@ export async function attachMedia(doc, { rejected = new Set(), log = () => {} } 
       found.forEach((m) => used.add(m.id));
       b.photos = [...(b.photos || []), ...found].slice(0, need);
       added += found.length;
+      // Only a real miss counts: a search cut short by the hourly limit is tried again next hour.
+      if (!found.length && unsplashReady()) noteMiss(doc, b.query, today);
     }
   } catch (e) {
     log(`photographs: ${e.message}`);
