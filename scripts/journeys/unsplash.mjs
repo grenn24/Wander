@@ -113,6 +113,29 @@ export function describes(p, words) {
   return words.some((w) => text.includes(w));
 }
 
+/*
+ * Search results carry only a short machine caption ("a large crowd of people
+ * in a city square"), never the photograph's location or tags, so a real
+ * picture of Jemaa el-Fnaa reads like any square. When the caption cannot
+ * settle it, the first few candidates are looked up in full, which is where
+ * Unsplash keeps both. Each lookup is a request, so a query gets a small budget.
+ */
+export async function aboutPlace(candidates, words, { count = 1, budget = { left: 4 }, lookup, ready = unsplashReady }) {
+  const sure = candidates.filter((p) => describes(p, words));
+  for (const p of candidates) {
+    if (sure.length >= count || budget.left <= 0 || !ready()) break;
+    if (sure.includes(p)) continue;
+    budget.left -= 1;
+    try {
+      const full = await lookup(p.id);
+      if (describes(full, words)) sure.push(full);
+    } catch (e) {
+      if (!ready()) throw e;
+    }
+  }
+  return sure;
+}
+
 /**
  * The best few photographs for a query: large originals first, in the
  * orientation the layout wants, none already used in this journey.
@@ -120,12 +143,15 @@ export function describes(p, words) {
 export async function findPhotos(query, { count = 1, orientation = 'landscape', avoid = new Set() } = {}) {
   if (!unsplashReady() || !query) return [];
   const words = keyWords(query);
+  const budget = { left: 4 };
+  const lookup = (id) => get(`/photos/${encodeURIComponent(id)}`);
   let results = [];
   for (const q of queryVariants(query)) {
     if (!unsplashReady()) break;
     const params = new URLSearchParams({ query: q, per_page: '20', orientation, content_filter: 'high' });
     const body = await get(`/search/photos?${params}`);
-    results = (body.results || []).filter((p) => !avoid.has(p.id) && describes(p, words));
+    const candidates = (body.results || []).filter((p) => !avoid.has(p.id));
+    results = await aboutPlace(candidates, words, { count, budget, lookup });
     if (results.length) break;
   }
   const large = results.filter((p) => p.width >= 2400);

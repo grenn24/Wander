@@ -85,6 +85,17 @@ export function videoQueryFor(doc) {
 }
 
 /*
+ * The searches to try, in order. Journeys written before videoQuery existed
+ * search on their whole place line ("Escalante, Cedar Mesa & Utah's quiet
+ * canyon country travel"), which YouTube matches poorly, so the first name in
+ * it is tried next.
+ */
+export function videoQueries(doc) {
+  const head = String(doc.place || '').split(/[,&;]| and /)[0].trim();
+  return [...new Set([videoQueryFor(doc), head && `${head} travel`].filter(Boolean))];
+}
+
+/*
  * What a video has to mention to be about this journey: the names in its
  * search, except the country — every video about Japan says Japan — and the
  * names of the journey's own places.
@@ -99,21 +110,24 @@ export function videoWords(doc) {
 /** Give a journey a video if it has none, avoiding any the review turned down. */
 export async function attachVideo(doc, { rejected = new Set(), log = () => {} } = {}) {
   if (!youtubeReady() || doc.video) return 0;
-  const q = videoQueryFor(doc);
+  const words = videoWords(doc);
   try {
-    const found = await get('search', {
-      part: 'snippet', type: 'video', maxResults: '15', q,
-      videoEmbeddable: 'true', safeSearch: 'strict', relevanceLanguage: 'en',
-    });
-    const ids = (found.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
-    if (!ids.length) { log(`video: nothing found for "${q}"`); return 0; }
-    const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
-    const pick = chooseVideo(details.items, { words: videoWords(doc), avoid: rejected });
-    if (!pick) { log(`video: nothing suitable for "${q}"`); return 0; }
-    doc.video = pick;
-    return 1;
+    for (const q of videoQueries(doc)) {
+      if (!youtubeReady()) break;
+      const found = await get('search', {
+        part: 'snippet', type: 'video', maxResults: '15', q,
+        videoEmbeddable: 'true', safeSearch: 'strict', relevanceLanguage: 'en',
+      });
+      const ids = (found.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
+      if (!ids.length) { log(`video: nothing found for "${q}"`); continue; }
+      const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
+      const pick = chooseVideo(details.items, { words, avoid: rejected });
+      if (!pick) { log(`video: nothing suitable for "${q}"`); continue; }
+      doc.video = pick;
+      return 1;
+    }
   } catch (e) {
     log(`video: ${e.message}`);
-    return 0;
   }
+  return 0;
 }

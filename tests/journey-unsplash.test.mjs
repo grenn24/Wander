@@ -1,6 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queryVariants, keyWords, describes } from '../scripts/journeys/unsplash.mjs';
+import { queryVariants, keyWords, describes, aboutPlace } from '../scripts/journeys/unsplash.mjs';
+
+test('a photograph whose caption is generic is looked up before it is turned away', async () => {
+  const words = keyWords('Jemaa el-Fnaa');
+  const square = { id: 'sq', alt_description: 'a large crowd of people in a city square' };
+  const logo = { id: 'logo', alt_description: 'a tuning fork logo and text' };
+  const full = {
+    sq: { ...square, location: { name: 'Marrakech, Morocco' }, tags: [{ title: 'jemaa el-fnaa' }] },
+    logo: { ...logo, tags: [{ title: 'music' }] },
+  };
+  const looked = [];
+  const lookup = async (id) => { looked.push(id); return full[id]; };
+  const ready = () => true;
+  const found = await aboutPlace([logo, square], words, { lookup, ready, budget: { left: 4 } });
+  assert.deepEqual(found.map((p) => p.id), ['sq']);
+  assert.deepEqual(looked, ['logo', 'sq']);
+
+  const budget = { left: 1 };
+  assert.deepEqual(await aboutPlace([logo, square], words, { lookup, ready, budget }), []);
+  assert.equal(budget.left, 0);
+
+  const named = { id: 'n', alt_description: 'Jemaa el-Fnaa at night' };
+  looked.length = 0;
+  assert.deepEqual((await aboutPlace([square, named], words, { lookup, ready })).map((p) => p.id), ['n']);
+  assert.deepEqual(looked, []);
+});
 
 test('a photograph must name the place the query names', () => {
   assert.deepEqual(keyWords('Muley Point sunset over San Juan River canyons, Utah'), ['muley', 'juan']);

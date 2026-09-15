@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDuration, chooseVideo, videoQueryFor, videoWords } from '../scripts/journeys/youtube.mjs';
+import { parseDuration, chooseVideo, videoQueryFor, videoQueries, videoWords } from '../scripts/journeys/youtube.mjs';
 
 test('a video must name the journey’s places, not just its country', () => {
   const words = videoWords({
@@ -51,4 +51,10 @@ test('only a real, recent, watchable video about the place is chosen', () => {
 test('a journey without a video query still has something to search for', () => {
   assert.equal(videoQueryFor({ place: 'Kyoto & Nara' }), 'Kyoto & Nara travel');
   assert.equal(videoQueryFor({ place: 'X', videoQuery: 'Otaru winter walk' }), 'Otaru winter walk');
+});
+
+test('a long place line is searched again by its first name', () => {
+  const place = 'Escalante, Cedar Mesa & Utah’s quiet canyon country';
+  assert.deepEqual(videoQueries({ place, videoQuery: `${place} travel` }), [`${place} travel`, 'Escalante travel']);
+  assert.deepEqual(videoQueries({ place: 'Kyoto', videoQuery: 'Kyoto travel' }), ['Kyoto travel']);
 });
