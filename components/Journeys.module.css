@@ -541,9 +541,12 @@
 }
 .mapBox {
   position: relative; min-height: 0; overflow: hidden;
-  border: 1px solid var(--border); border-radius: 24px; background: var(--surface-2); box-shadow: var(--lift);
+  border: 1px solid var(--border); border-radius: 24px; background: #24261f; box-shadow: var(--lift);
 }
 .mapCanvas { position: absolute; inset: 0; }
+/* The unseen copy that loads imagery ahead of the reader: laid out at the same
+   size so it asks for the same tiles, never shown and never in the way. */
+.mapGhost { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .mapFail { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--text-3); font-size: 14px; }
 .mapNow {
   position: absolute; top: 12px; left: 12px; z-index: 1; display: grid; gap: 1px; max-width: calc(100% - 24px);
