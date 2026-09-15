@@ -1,4 +1,5 @@
 import { WRITER_SCHEMA, normaliseDoc, validateDoc, modelFields } from '../../lib/journeyFormat.js';
+import { MONTHS } from '../../lib/journeyKit.js';
 import { respond } from './openai.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { attachMedia } from './unsplash.mjs';
@@ -218,10 +219,38 @@ async function settle(start, ctx, { mode, brief, rounds }) {
 
 const hasCover = (doc) => !!(doc.cover && doc.cover.photo);
 
+/*
+ * The brief for writing an existing journey again: the same destination,
+ * season and length, researched and written from nothing. The old places are
+ * offered as a starting point, and the old text is not shown at all, so the
+ * new journey cannot inherit its shape.
+ */
+export function rewriteBrief(doc) {
+  const best = ((doc.months && doc.months.best) || []).map((m) => MONTHS[m - 1]).filter(Boolean);
+  const [lo, hi] = doc.days || [];
+  const facts = [
+    doc.place && doc.place !== doc.country ? `${doc.place}, ${doc.country}` : doc.country,
+    best.length ? `at its best in ${best.join(', ')}` : '',
+    lo && hi ? (lo === hi ? `${lo} days` : `${lo} to ${hi} days`) : '',
+    doc.pace ? `${String(doc.pace).toLowerCase()} pace` : '',
+  ].filter(Boolean).join('; ');
+  const lines = [
+    `${facts}. ${doc.teaser || doc.title}`,
+    `This replaces Wander's journey "${doc.title}", which was too short and generic. Keep its destination, season and length, and write it afresh from your own research, at full depth.`,
+  ];
+  if ((doc.places || []).length) {
+    lines.push(`The old version's places, to keep, replace or add to: ${doc.places.map((p) => p.name).join('; ')}.`);
+  }
+  return lines.join(' ');
+}
+
 /** A new journey from a one-sentence brief. */
 export async function produce(brief, ctx) {
   ctx.log('writing');
   const first = await write(brief, ctx);
+  // A rewrite keeps the journey's address, and what was already turned down for it.
+  if (ctx.slug) first.slug = ctx.slug;
+  if (ctx.rejected && ctx.rejected.length) first.rejected = [...ctx.rejected];
   ctx.log(`written "${first.title}": ${first.places.length} places, ${first.blocks.length} blocks`);
   const out = await settle(first, ctx, { mode: 'new', brief, rounds: 3 });
   let status = 'draft';

@@ -122,6 +122,7 @@ export async function store(client, row, out, { changed = true } = {}) {
       checked_at: at,
       updated_at: at,
       last_error: out.status === 'published' ? null : ((out.review && out.review.summary) || null),
+      ...(out.source ? { source: out.source } : {}),
       ...(out.status === 'published' && !row.published_at ? { published_at: at } : {}),
     };
     const { error } = await client.from('journeys').update(patch).eq('id', row.id);

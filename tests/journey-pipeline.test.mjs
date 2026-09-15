@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dropRejected, rejectedOf } from '../scripts/journeys/pipeline.mjs';
+import { dropRejected, rejectedOf, rewriteBrief } from '../scripts/journeys/pipeline.mjs';
+
+test('a rewrite keeps the destination, season and length, and offers the old places', () => {
+  const brief = rewriteBrief({
+    title: 'The Sacred Valley and Machu Picchu', place: 'Cusco & the Sacred Valley', country: 'Peru',
+    months: { best: [5, 6, 9] }, days: [7, 10], pace: 'Steady', teaser: 'Market towns in the valley.',
+    places: [{ name: 'Pisac' }, { name: 'Moray' }],
+  });
+  assert.match(brief, /^Cusco & the Sacred Valley, Peru; at its best in May, June, September; 7 to 10 days; steady pace\. Market towns in the valley\./);
+  assert.match(brief, /replaces Wander's journey "The Sacred Valley and Machu Picchu"/);
+  assert.match(brief, /places, to keep, replace or add to: Pisac; Moray\.$/);
+  assert.match(rewriteBrief({ title: 'Iceland', place: 'Iceland', country: 'Iceland', days: [8, 8] }), /^Iceland; 8 days\./);
+});
 
 test('turned-down media is removed and remembered with the journey', () => {
   const doc = {

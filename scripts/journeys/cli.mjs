@@ -7,6 +7,8 @@
  *   npm run journeys -- write --limit 5          write queued journeys
  *   npm run journeys -- refresh --limit 10       re-check the least recently checked
  *   npm run journeys -- refresh --slug kyoto-blossom
+ *   npm run journeys -- rewrite --slug peru-sacred-valley   write a journey again from scratch, same destination, season and length
+ *   npm run journeys -- rewrite --limit 14       rewrite the hand-written defaults still in the catalogue
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
@@ -19,18 +21,20 @@
  * Locally it reads .env.local; in GitHub Actions the same names come from secrets.
  */
 import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, newTally, costLine,
+  produce, refreshJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, rewriteBrief, newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
 import { attachVideo, youtubeReady } from './youtube.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
 import { JOURNEYS } from '../../lib/journeys.js';
-import { fromV1 } from '../../lib/journeyFormat.js';
+import { fromV1, normaliseDoc } from '../../lib/journeyFormat.js';
 import { defaultDocs, mediaOf, withMedia } from '../../lib/journeyDefaults.js';
 import { MEDIA } from '../../lib/journeyMedia.js';
 
@@ -165,6 +169,40 @@ async function main() {
     });
     console.log(`${rows.length} to refresh`);
     await refreshRows(client, rows, ctx, parallel);
+  } else if (command === 'rewrite') {
+    // Written again from scratch, keeping the destination, season, length and
+    // address. The old text stays live unless the new one passes review.
+    const client = db();
+    const rows = opt.slug
+      ? await written(client, { slug: opt.slug, limit: 1 })
+      : (await written(client, { statuses: ['published', 'draft'], limit: 500 }))
+        .filter((r) => r.source === 'editorial').slice(0, limit || 3);
+    console.log(`${rows.length} to rewrite`);
+    const list = await catalogue(client);
+    await pool(rows, parallel, async (row) => {
+      const log = logger(row.slug);
+      try {
+        const old = normaliseDoc(row.doc);
+        // A photograph Unsplash's hourly limit held back can be added later
+        // with media; it is no reason to throw away a rewrite that passed.
+        const out = await produce(rewriteBrief(old), {
+          ...ctx, allowNoPhotos: true, slug: row.slug, rejected: old.rejected || [],
+          catalogue: list.filter((c) => c.id !== row.id), log,
+        });
+        if (out.status !== 'published') {
+          const file = join(tmpdir(), `journey-rewrite-${row.slug}.json`);
+          writeFileSync(file, JSON.stringify(out, null, 2));
+          log(`kept the old version: the rewrite ${out.verdict === 'reject' ? 'was rejected' : 'did not pass review'}. ${out.review.summary} Attempt saved to ${file}`);
+          await fail(client, row, `Rewrite not published: ${out.review.summary}`);
+          return;
+        }
+        await store(client, row, { ...out, source: 'generated' });
+        log(`rewritten: ${out.review.score}/10, ${out.doc.places.length} places, ${out.doc.blocks.length} blocks`);
+      } catch (e) {
+        log(`failed: ${e.message}`);
+        await fail(client, row, e.message);
+      }
+    });
   } else if (command === 'media') {
     if (!unsplashReady() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
     const client = db();
