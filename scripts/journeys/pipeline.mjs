@@ -209,8 +209,11 @@ async function settle(start, ctx, { mode, brief, rounds }) {
     const { review: rv, structure } = await review(doc, checked.issues, ctx, mode, brief);
     ctx.log(`review ${round}: ${rv.verdict}, ${rv.score}/10. ${rv.summary}`);
     if (dropRejected(doc, rv, rejected)) {
-      await attachMedia(doc, { rejected, log: ctx.log });
-      await attachVideo(doc, { rejected, log: ctx.log });
+      const added = (await attachMedia(doc, { rejected, log: ctx.log }))
+        + (await attachVideo(doc, { rejected, log: ctx.log }));
+      // A replacement arrives after the review that asked for it, so it gets
+      // the quick check before it can be published with the journey.
+      if (added) await reviewMedia(doc, rejected, ctx.log, ctx);
     }
     last = { review: rv, verification: checked.issues, structure };
     const hard = [...blockingOf(checked.issues), ...structure.errors];
@@ -344,6 +347,24 @@ export async function checkMedia(doc, ctx) {
   });
   spend(ctx.tally, r);
   return r.data;
+}
+
+/*
+ * Nothing reaches readers unchecked: photographs and videos added outside a
+ * full review get the review agent's quick look, and whatever it turns down
+ * is replaced, up to three times.
+ */
+export async function reviewMedia(doc, rejected, log, ctx) {
+  for (let round = 1; round <= 3; round += 1) {
+    const verdict = await checkMedia(doc, ctx);
+    const dropped = dropRejected(doc, verdict, rejected);
+    if (!dropped) return;
+    log(`turned down ${dropped}: ${verdict.reason}`);
+    if (round < 3) {
+      await attachMedia(doc, { rejected, log });
+      await attachVideo(doc, { rejected, log });
+    }
+  }
 }
 
 /** Ideas for journeys the catalogue is missing. */

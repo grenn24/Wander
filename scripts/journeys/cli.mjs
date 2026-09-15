@@ -28,7 +28,7 @@ import {
   db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
 } from './db.mjs';
 import {
-  produce, refreshJourney, restyleJourney, discoverIdeas, checkMedia, dropRejected, rejectedOf, rewriteBrief,
+  produce, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief,
   newTally, costLine,
 } from './pipeline.mjs';
 import { attachMedia, unsplashReady } from './unsplash.mjs';
@@ -113,24 +113,6 @@ async function keepOld(client, row, out, log, what) {
   log(`kept the old version: the ${what} ${out.verdict === 'reject' ? 'was rejected' : 'did not pass review'}. `
     + `${out.review.summary} Attempt saved to ${file}`);
   await fail(client, row, `The ${what} was not published: ${out.review.summary}`);
-}
-
-/*
- * Nothing reaches readers unchecked: photographs and videos added outside a
- * full review get the review agent's quick look, and whatever it turns down
- * is replaced, up to three times.
- */
-async function reviewAttached(doc, rejected, log, ctx) {
-  for (let round = 1; round <= 3; round += 1) {
-    const verdict = await checkMedia(doc, ctx);
-    const dropped = dropRejected(doc, verdict, rejected);
-    if (!dropped) return;
-    log(`turned down ${dropped}: ${verdict.reason}`);
-    if (round < 3) {
-      await attachMedia(doc, { rejected, log });
-      await attachVideo(doc, { rejected, log });
-    }
-  }
 }
 
 async function main() {
@@ -245,7 +227,7 @@ async function main() {
       const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
       const added = await attach();
       if (!added && !recheck) { log('nothing new found'); continue; }
-      await reviewAttached(doc, rejected, log, ctx);
+      await reviewMedia(doc, rejected, log, ctx);
       const photos = (doc.cover && doc.cover.photo ? 1 : 0)
         + doc.blocks.reduce((n, b) => n + (b.photos || []).length, 0);
       const passed = row.review && row.review.verdict === 'publish';
@@ -267,7 +249,7 @@ async function main() {
       // The photographs and video that ship with a default were checked when
       // they were chosen; only what this run has to find needs another look.
       const added = (await attachMedia(doc, { rejected, log })) + (await attachVideo(doc, { rejected, log }));
-      if (added) await reviewAttached(doc, rejected, log, ctx);
+      if (added) await reviewMedia(doc, rejected, log, ctx);
       let row = existing;
       if (!row) {
         const { data, error } = await client.from('journeys')
