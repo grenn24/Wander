@@ -6,7 +6,7 @@ import {
 } from '../lib/journeys.js';
 import {
   fromV1, validateDoc, normaliseDoc, tokenize, plainText, summaryOf, cleanText,
-  imageURL, srcSet, modelFields, WRITER_SCHEMA,
+  imageURL, srcSet, modelFields, WRITER_SCHEMA, videoSpot,
 } from '../lib/journeyFormat.js';
 
 const docs = JOURNEYS.map(fromV1);
@@ -64,6 +64,15 @@ test('strict validation holds written journeys to the house rules', () => {
   assert.ok(unsectioned.errors.some((e) => /first section needs a heading/.test(e)));
   assert.ok(unsectioned.errors.some((e) => /divide the journey into sections/.test(e)));
   assert.ok(!validateDoc(base).errors.some((e) => /section/.test(e)));
+});
+
+test('the video sits at the end of the first section, not below the journal', () => {
+  const t = (type, extra = {}) => ({ type, ...extra });
+  assert.equal(videoSpot([t('heading'), t('prose'), t('photo'), t('heading'), t('prose')]), 3);
+  assert.equal(videoSpot([t('prose', { kicker: 'Days 1–3 · A' }), t('photo'), t('prose', { kicker: 'Day 4 · B' })]), 2);
+  assert.equal(videoSpot([t('prose'), t('photo'), t('prose')]), 1);
+  assert.equal(videoSpot([t('photo')]), 1);
+  assert.equal(videoSpot(undefined), 0);
 });
 
 test('links and citations never reach the page', () => {

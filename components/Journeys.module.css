@@ -392,7 +392,7 @@
 .bCaption { color: var(--text-2); }
 .bCredit a, .heroCredit a { color: inherit; }
 @media (min-width: 961px) {
-  .bWide { margin-inline: -28px; }
+  .bWide, .video { margin-inline: -28px; }
   .bInset { float: right; width: 42%; margin: 6px 0 16px 28px; }
   .bInset figcaption { display: block; }
 }
@@ -459,7 +459,7 @@
 }
 
 /* ================================================================= video */
-.video { margin-top: 52px; clear: both; }
+.video { margin: 34px 0; clear: both; }
 .videoFrame { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 20px; background: #000; }
 .videoFrame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .videoPlay { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: #000; cursor: pointer; }

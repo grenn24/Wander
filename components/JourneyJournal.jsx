@@ -15,7 +15,7 @@ import {
   MONTHS, WHO, PACES, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
-import { tokenize, paragraphs, imageURL, srcSet } from '@/lib/journeyFormat';
+import { tokenize, paragraphs, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
 import { BRIEF_KEY } from '@/lib/planBrief';
 import { placeDetails, searchPlaces } from '@/lib/geo';
 import { addDays, fmtRange, todayISO, shortPlace } from '@/lib/util';
@@ -224,6 +224,7 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
       dropped={dropped} onToggle={toggle} onPlan={plan} onClose={onClose} />
   );
   const sources = doc.sources || [];
+  const videoAt = videoSpot(doc.blocks);
 
   return (
     <article>
@@ -283,9 +284,12 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <div><span className={s.glanceK}>Budget</span><span className={s.glanceV}>{costLabel(doc)}</span></div>
           </section>
 
-          <div className={s.flow}>{(doc.blocks || []).map(block)}</div>
-
-          {doc.video ? <VideoBlock video={doc.video} /> : null}
+          <div className={s.flow}>
+            {(doc.blocks || []).map((b, i) => (doc.video && i === videoAt
+              ? [<VideoBlock key="video" video={doc.video} />, block(b, i)]
+              : block(b, i)))}
+            {doc.video && videoAt >= (doc.blocks || []).length ? <VideoBlock video={doc.video} /> : null}
+          </div>
 
           {(doc.know || []).length ? (
             <section className={s.know} aria-labelledby="good-to-know">
@@ -358,8 +362,7 @@ function VideoBlock({ video }) {
   const [thumb, setThumb] = useState(`https://i.ytimg.com/vi/${video.id}/maxresdefault.jpg`);
   const minutes = Math.round((video.seconds || 0) / 60);
   return (
-    <section className={s.video} aria-labelledby="journey-video">
-      <h2 id="journey-video" className={s.knowTitle}>See it moving</h2>
+    <figure className={s.video}>
       <div className={s.videoFrame}>
         {playing ? (
           <iframe src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
@@ -374,7 +377,7 @@ function VideoBlock({ video }) {
           </button>
         )}
       </div>
-      <p className={s.videoMeta}>
+      <figcaption className={s.videoMeta}>
         <span className={s.videoTitle}>{video.title}</span>
         <span>
           by{' '}
@@ -382,8 +385,8 @@ function VideoBlock({ video }) {
           {minutes ? ` · ${minutes} min` : ''} · on{' '}
           <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer">YouTube</a>
         </span>
-      </p>
-    </section>
+      </figcaption>
+    </figure>
   );
 }
 
