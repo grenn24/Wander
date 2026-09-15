@@ -586,6 +586,54 @@
 .flash { animation: flash 1.8s var(--ease); }
 @keyframes flash { 0%, 45% { background: color-mix(in srgb, var(--accent) 30%, transparent); } }
 
+/* ==================================================================== ask */
+.ask { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 12px; min-height: 62dvh; }
+@media (min-width: 961px) { .ask { min-height: 0; height: calc(100dvh - 44px); } }
+.askReading { margin: -6px 0 0; color: var(--text-2); font-size: 13.5px; }
+.askReading b { color: var(--text-1); font-weight: 600; }
+.askLog { display: grid; align-content: start; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.askEmpty p { margin: 0 0 12px; color: var(--text-2); font-size: 14.5px; line-height: 1.55; }
+.askEmpty .chip { height: auto; min-height: 34px; padding: 7px 12px; white-space: normal; text-align: left; }
+.askMe, .askThem { max-width: 92%; padding: 10px 13px; border-radius: 16px; color: var(--text-1); font-size: 15px; line-height: 1.55; }
+.askMe { justify-self: end; border-bottom-right-radius: 5px; background: var(--accent-soft); }
+.askThem { justify-self: start; border-bottom-left-radius: 5px; background: var(--surface-2); }
+.askMe p, .askThem p { margin: 0; white-space: pre-line; }
+.askThem p + p { margin-top: 8px; }
+.askQuote {
+  margin: 0 0 6px; padding-left: 9px; border-left: 2px solid var(--accent);
+  color: var(--text-2); font-size: 13px; font-style: italic;
+}
+.askTyping { display: inline-flex; gap: 4px; padding: 6px 0; }
+.askTyping span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); animation: typing 1.2s infinite; }
+.askTyping span:nth-child(2) { animation-delay: .15s; }
+.askTyping span:nth-child(3) { animation-delay: .3s; }
+@keyframes typing { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.askError { margin: 0; color: var(--danger); font-size: 13.5px; }
+.askSignin { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--text-2); font-size: 14px; }
+.askForm {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 8px;
+  border: 1px solid var(--border-strong); border-radius: 18px; background: var(--surface-1);
+}
+.askForm:focus-within { border-color: var(--accent); }
+.askForm textarea {
+  width: 100%; min-height: 24px; max-height: 140px; padding: 7px 4px; border: 0; outline: 0; resize: none;
+  background: transparent; color: var(--text-1); font: inherit; font-size: 15px; line-height: 1.45; field-sizing: content;
+}
+.askQuoteChip {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  border-radius: 10px; background: var(--surface-2); color: var(--text-2); font-size: 12.5px;
+}
+.askQuoteChip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+.askQuoteChip button { display: grid; place-items: center; padding: 2px; border: 0; background: none; color: inherit; cursor: pointer; }
+.askPick {
+  position: fixed; z-index: 70; transform: translate(-50%, calc(-100% - 8px));
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: var(--text-1); color: var(--surface-1); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; box-shadow: var(--lift-lg); animation: fade .15s var(--ease);
+}
+.mapBar .btn:first-child { flex: none; }
+@media (prefers-reduced-motion: reduce) { .askTyping span, .askPick { animation: none; } }
+
 /* On a desk the planner opens as a drawer from the right. */
 @media (min-width: 961px) {
   .sheetBack { align-items: stretch; justify-content: flex-end; }

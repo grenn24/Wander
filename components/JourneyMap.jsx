@@ -100,7 +100,8 @@ export default function JourneyMap({ route, sections, where, dropped, hover, onP
       return;
     }
     const b = boundsOf(points);
-    const zoom = Math.floor(fitZoom(b, box.clientWidth, box.clientHeight, { pad: 64, max: points.length > 1 ? 12 : 10 }));
+    // Street level for a stop on its own, a little wider for a pair or a section.
+    const zoom = Math.floor(fitZoom(b, box.clientWidth, box.clientHeight, { pad: 72, max: points.length > 1 ? 16 : 15 }));
     const to = { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 };
     const trip = flight.current + 1;
     flight.current = trip;
@@ -119,14 +120,26 @@ export default function JourneyMap({ route, sections, where, dropped, hover, onP
     if (now > low) { m.setZoom(low); settle(across); } else across();
   }
 
-  // A new section: fly to its stops, or to the whole route if it names none.
+  /*
+   * The camera frames what is being read: the stop the reader is on and the
+   * next one in the same section, close enough to tell one street from the
+   * next, or the whole section before its first stop comes up. A section
+   * that names no stop falls back to the whole route.
+   */
   useEffect(() => {
     if (!ready) return;
-    const ids = new Set((sections[where.section] || {}).places || []);
-    const points = route.filter((st) => ids.has(st.id));
+    const { section, index } = where;
+    const here = (st) => st && st.section === section;
+    let points;
+    if (index >= 0 && here(route[index])) {
+      points = [route[index], ...(here(route[index + 1]) ? [route[index + 1]] : [])];
+    } else {
+      const ids = new Set((sections[section] || {}).places || []);
+      points = route.filter((st) => ids.has(st.id));
+    }
     fly(points.length ? points : route);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, where.section]);
+  }, [ready, where.section, where.index]);
 
   // The way read so far, and the dot at the end of it.
   useEffect(() => {

@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin, Play,
+  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin, Play, MessageCircle,
 } from 'lucide-react';
+import JourneyAsk from '@/components/JourneyAsk';
 import DateField from '@/components/DateField';
 import GrowArea from '@/components/GrowArea';
 import MonthStrip from '@/components/MonthStrip';
@@ -15,7 +16,7 @@ import {
   MONTHS, WHO, PACES, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
-import { tokenize, paragraphs, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
+import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
 import { sectionsOf, routeOf } from '@/lib/journeyMap';
 import JourneyScrollMap, { mapsReady } from '@/components/JourneyScrollMap';
 import { BRIEF_KEY } from '@/lib/planBrief';
@@ -119,6 +120,53 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, [mapOn]);
+
+  // Questions: the panel, the conversation (kept while it is closed), and the
+  // "Ask about this" button that appears over highlighted text.
+  const [asking, setAsking] = useState(null); // { quote, reading }
+  const [chat, setChat] = useState([]);
+  const [picked, setPicked] = useState(null); // { text, x, y }
+
+  useEffect(() => {
+    const check = () => {
+      const root = flowRef.current;
+      const sel = window.getSelection();
+      const said = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, ' ').trim() : '';
+      if (!root || said.length < 12 || !sel.rangeCount || !root.contains(sel.anchorNode)) { setPicked(null); return; }
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      setPicked({ text: said.slice(0, 400), x: r.left + r.width / 2, y: r.top });
+    };
+    const later = () => setTimeout(check, 0);
+    const hide = () => setPicked(null);
+    document.addEventListener('mouseup', later);
+    document.addEventListener('keyup', later);
+    document.addEventListener('touchend', later);
+    window.addEventListener('scroll', hide, { passive: true });
+    return () => {
+      document.removeEventListener('mouseup', later);
+      document.removeEventListener('keyup', later);
+      document.removeEventListener('touchend', later);
+      window.removeEventListener('scroll', hide);
+    };
+  }, []);
+
+  /* The section the reader has on screen when they open the panel. */
+  function readingNow() {
+    const root = flowRef.current;
+    if (!root) return null;
+    let k = -1;
+    root.querySelectorAll('[data-section]').forEach((h) => {
+      if (h.getBoundingClientRect().top < window.innerHeight * 0.42) k = Number(h.dataset.section) || 0;
+    });
+    const sec = sections[k];
+    return sec ? { index: k, label: [sec.kicker, plainText(sec.title, places)].filter(Boolean).join(' · ') } : null;
+  }
+
+  function openAsk(quote = '') {
+    setSheet(false);
+    setPicked(null);
+    setAsking({ quote, reading: readingNow() });
+  }
 
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
   const dropped = useMemo(() => new Set(choice.dropped), [choice.dropped]);
@@ -361,8 +409,10 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <div className={s.mapCol}>
               <JourneyScrollMap flowRef={flowRef} route={route} sections={sections} places={places} dropped={dropped} />
               <div className={s.mapBar}>
-                <span className={s.kept}>Keeping {kept} of {total} places</span>
-                <button type="button" className="btn primary" onClick={() => setSheet(true)}>
+                <button type="button" className="btn ghost" onClick={() => openAsk()}>
+                  <MessageCircle size={16} aria-hidden="true" /> Ask
+                </button>
+                <button type="button" className="btn primary" onClick={() => { setAsking(null); setSheet(true); }}>
                   <Sparkles size={16} aria-hidden="true" /> Make it yours
                 </button>
               </div>
@@ -374,13 +424,30 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
       </div>
 
       <div className={s.dock}>
-        <span className={s.kept}>Keeping {kept} of {total} places</span>
-        <button type="button" className="btn primary" onClick={() => setSheet(true)}>
+        <button type="button" className="btn ghost" onClick={() => openAsk()}>
+          <MessageCircle size={16} aria-hidden="true" /> Ask
+        </button>
+        <button type="button" className="btn primary" onClick={() => { setAsking(null); setSheet(true); }}>
           <Sparkles size={16} aria-hidden="true" /> Make it yours
         </button>
       </div>
 
       {sheet ? <Sheet onClose={() => setSheet(false)}>{form(() => setSheet(false))}</Sheet> : null}
+
+      {asking ? (
+        <Sheet label="Ask about this journey" onClose={() => setAsking(null)}>
+          <JourneyAsk doc={doc} reading={asking.reading} quote={asking.quote}
+            onClearQuote={() => setAsking((a) => (a ? { ...a, quote: '' } : a))}
+            messages={chat} setMessages={setChat} renderText={rich} onClose={() => setAsking(null)} />
+        </Sheet>
+      ) : null}
+
+      {picked && !asking ? (
+        <button type="button" className={s.askPick} style={{ left: picked.x, top: picked.y }}
+          onMouseDown={(e) => e.preventDefault()} onClick={() => openAsk(picked.text)}>
+          <MessageCircle size={14} aria-hidden="true" /> Ask about this
+        </button>
+      ) : null}
 
       {openPlace ? (
         <PlaceCard key={openPlace.id} place={openPlace} anchor={open.anchor} kept={!dropped.has(openPlace.id)}
@@ -537,7 +604,7 @@ function PlaceCard({ place, anchor, kept, onToggle, onClose, onPhotos }) {
  * dialog: a modal dialog sits in the top layer, above the date picker's own
  * popover, which would open somewhere nobody could reach it.
  */
-function Sheet({ onClose, children }) {
+function Sheet({ label = 'Make it yours', onClose, children }) {
   const [target, setTarget] = useState(null);
   const panel = useRef(null);
   useModalChrome({ onEscape: onClose });
@@ -546,7 +613,7 @@ function Sheet({ onClose, children }) {
   if (!target) return null;
   return createPortal(
     <div className={s.sheetBack} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={panel} className={s.sheet} role="dialog" aria-modal="true" aria-label="Make it yours" tabIndex={-1}>
+      <div ref={panel} className={s.sheet} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
         {children}
       </div>
     </div>,
