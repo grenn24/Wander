@@ -125,7 +125,7 @@ async function main() {
   const ctx = { tally, allowNoPhotos: !!opt['allow-no-photos'] };
 
   if (command === 'help') {
-    console.log('Commands: status, add, discover, write, refresh, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
+    console.log('Commands: status, add, discover, write, refresh, rewrite, restyle, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `

@@ -95,7 +95,7 @@ export const MEDIA_CHECK = `You check the photographs and the video attached to 
 
 Reject a photograph (give its block index, or -1 for the cover) if it plainly shows a different named place or something unrelated to the journey. A generic description of the right kind of landscape or street is acceptable.
 
-Reject the video if it is not a travel video about this journey's places: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. A general travel guide to the journey's main city or area is acceptable.
+Reject the video if it is not a travel video about this journey's places: for example a compilation of motorcycle or car rides, an advertisement, a video about another destination, or one that only passes through the region. Reject one about travelling a very different way from the journey, such as a bikepacking, motorbike or cruise film for a road trip on foot and by car. A general travel guide to the journey's main city or area is acceptable.
 
 Timing matters too, because readers use a journey to decide when to go. Reject a video or a photograph that is plainly about a different season from the one the journey is written for — a summer vlog for a winter journey, green hillsides for a snow trip — using the journey's timing and best months.
 
