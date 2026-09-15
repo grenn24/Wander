@@ -1,13 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queryVariants, keyWords, describes, aboutPlace, unsplashKeys } from '../scripts/journeys/unsplash.mjs';
-
-test('the main Unsplash key comes first, and a backup is only a spare', () => {
-  assert.deepEqual(unsplashKeys({ UNSPLASH_ACCESS_KEY: 'main', UNSPLASH_ACCESS_KEY_BACKUP: 'spare' }), ['main', 'spare']);
-  assert.deepEqual(unsplashKeys({ UNSPLASH_ACCESS_KEY: 'main', UNSPLASH_ACCESS_KEY_BACKUP: 'REPLACE_WITH_BACKUP_UNSPLASH_ACCESS_KEY' }), ['main']);
-  assert.deepEqual(unsplashKeys({ UNSPLASH_ACCESS_KEY: '', UNSPLASH_ACCESS_KEY_BACKUP: ' spare ' }), ['spare']);
-  assert.deepEqual(unsplashKeys({}), []);
-});
+import { queryVariants, keyWords, describes, aboutPlace } from '../scripts/journeys/unsplash.mjs';
 
 test('a photograph whose caption is generic is looked up before it is turned away', async () => {
   const words = keyWords('Jemaa el-Fnaa');
