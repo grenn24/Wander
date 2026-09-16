@@ -15,6 +15,7 @@
  *   npm run journeys -- media [--slug s]         add photographs and a video where missing
  *   npm run journeys -- media --recheck          have the review agent look at existing ones too
  *   npm run journeys -- import-defaults          load the default journeys from lib/journeys.js (skips imported ones; --force replaces)
+ *   npm run journeys -- sync [--dry]            copy every published journey from here to production
  *   npm run journeys -- export-defaults          save the defaults' checked photographs and videos into lib/journeyMedia.js
  *   npm run journeys -- weekly                   what the schedule runs
  *
@@ -27,7 +28,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  db, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
+  db, prodDb, catalogue, queue, requeueStale, claim, start, written, store, fail, counts,
+  publishedRows, syncPayload,
 } from './db.mjs';
 import {
   produce, resumeJourney, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief, safetyFor,
@@ -129,7 +131,7 @@ async function main() {
   const ctx = { tally, allowNoPhotos: !!opt['allow-no-photos'] };
 
   if (command === 'help') {
-    console.log('Commands: status, add, discover, write, refresh, rewrite, restyle, safety, media, import-defaults, export-defaults, weekly. See scripts/journeys/cli.mjs.');
+    console.log('Commands: status, add, discover, write, refresh, rewrite, restyle, safety, media, import-defaults, export-defaults, sync, weekly. See scripts/journeys/cli.mjs.');
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
@@ -245,6 +247,32 @@ async function main() {
         log(`failed: ${e.message}`);
       }
     });
+  } else if (command === 'sync') {
+    /*
+     * Journeys are written and reviewed here; production is a copy. Only
+     * published ones travel, matched by slug, so a journey keeps its address
+     * and one already there is updated rather than added again. Nothing comes
+     * back the other way: production is never where the work happens.
+     */
+    const here = db();
+    const there = prodDb();
+    const rows = await publishedRows(here);
+    const { data: already, error } = await there.from('journeys').select('slug, version');
+    if (error) throw new Error(`Reading production: ${error.message}`);
+    const have = new Map((already || []).map((r) => [r.slug, r.version]));
+    console.log(`${rows.length} published here, ${have.size} in production${opt.dry ? ' (a dry run changes nothing)' : ''}`);
+    let changed = 0;
+    for (const row of rows) {
+      const log = logger(row.slug);
+      const known = have.has(row.slug);
+      if (have.get(row.slug) === row.version) { log(`already there at v${row.version}`); continue; }
+      if (opt.dry) { log(`would ${known ? 'update' : 'add'} at v${row.version}`); continue; }
+      const { error: saveError } = await there.from('journeys').upsert(syncPayload(row), { onConflict: 'slug' });
+      if (saveError) { log(`failed: ${saveError.message}`); continue; }
+      changed += 1;
+      log(`${known ? 'updated' : 'added'} at v${row.version}`);
+    }
+    console.log(opt.dry ? 'a dry run: nothing was written' : `${changed} journeys written to production`);
   } else if (command === 'media') {
     if (!unsplashReady() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
     const client = db();

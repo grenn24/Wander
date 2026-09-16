@@ -149,3 +149,44 @@ export async function counts(client) {
     .map((r) => r.checked_at).sort()[0] || null;
   return { by, oldest };
 }
+
+/** Production, for a local run that copies journeys there. */
+export function prodDb() {
+  const url = process.env.PROD_SUPABASE_URL || '';
+  const key = process.env.PROD_SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!url || url.startsWith('REPLACE_WITH') || !key || key.startsWith('REPLACE_WITH')) {
+    throw new Error('Set PROD_SUPABASE_URL and PROD_SUPABASE_SERVICE_ROLE_KEY in .env.local first.');
+  }
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+/** Every published journey here, oldest first, for copying elsewhere. */
+export async function publishedRows(client) {
+  const { data, error } = await client.from('journeys').select('*')
+    .eq('status', 'published').not('doc', 'is', null)
+    .order('published_at', { ascending: true, nullsFirst: true });
+  check(error, 'Reading published journeys');
+  return data;
+}
+
+/**
+ * One journey as the other database should hold it: everything a reader sees,
+ * and how it was checked. The id stays local — a journey is known by its slug
+ * in both places — and an error from a run over here means nothing over there.
+ */
+export function syncPayload(row) {
+  return {
+    slug: row.slug,
+    status: row.status,
+    source: row.source,
+    brief: row.brief,
+    doc: row.doc,
+    summary: row.summary || summaryOf(row.doc),
+    review: row.review,
+    version: row.version,
+    checked_at: row.checked_at,
+    published_at: row.published_at,
+    last_error: null,
+    updated_at: now(),
+  };
+}
