@@ -23,6 +23,23 @@ const GlobeCanvas = dynamic(() => import('./GlobeCanvas'), {
 });
 
 const IDEAS_KEY = 'wander:globe-ideas';
+const PHOTOS_KEY = 'wander:globe-photos';
+// A found photograph is remembered for a month, then looked up again.
+const PHOTO_DAYS = 30;
+
+function rememberedPhotos() {
+  try {
+    const all = JSON.parse(localStorage.getItem(PHOTOS_KEY) || '{}');
+    const fresh = Date.now() - PHOTO_DAYS * 86400000;
+    return Object.fromEntries(Object.entries(all).filter(([, v]) => v && v.at > fresh));
+  } catch (e) {
+    return {};
+  }
+}
+
+function rememberPhotos(found) {
+  try { localStorage.setItem(PHOTOS_KEY, JSON.stringify(found)); } catch (e) { /* not remembered */ }
+}
 const KIND = { been: 'Been', planned: 'Planned', want: 'Want to go', idea: 'Journey idea', preview: 'New place' };
 
 // The table arrives with a migration; a database that has not had it yet
@@ -76,7 +93,7 @@ export default function GlobeView() {
       let a = [];
       if (ids.length) {
         const { data, error } = await supabase.from('activities')
-          .select('trip_id, lat, lng, location, category, photo_ref')
+          .select('trip_id, title, lat, lng, location, category, photo_ref')
           .in('trip_id', ids)
           .not('lat', 'is', null)
           .limit(5000);
@@ -115,11 +132,48 @@ export default function GlobeView() {
   }, []);
 
   const today = useMemo(() => todayISO(), []);
-  const all = useMemo(() => [
+  const bare = useMemo(() => [
     ...tripPoints(trips, acts, today),
     ...savedPoints(saved),
     ...ideaPoints(journeys, saved),
   ], [trips, acts, saved, journeys, today]);
+
+  /*
+   * Photographs for towns that have none. A trip planned without place
+   * photos — Hakone & Kyoto has one photograph across eighteen stops — would
+   * otherwise show its towns as blanks, so each is looked up once by its most
+   * photogenic stop. A Places search is paid for, so what is found is kept in
+   * this browser for a month, and a search that finds nothing is kept too.
+   */
+  const [found, setFound] = useState(() => (typeof window === 'undefined' ? {} : rememberedPhotos()));
+  useEffect(() => {
+    const wanted = [...new Set(bare.map((p) => p.photo_query).filter((q) => q && !(q in found)))];
+    if (!wanted.length) return undefined;
+    let live = true;
+    (async () => {
+      const next = {};
+      for (const q of wanted.slice(0, 12)) {
+        try {
+          const [hit] = (await searchPlaces(q)).filter((r) => r.photo_ref);
+          next[q] = { ref: hit ? hit.photo_ref : null, at: Date.now() };
+        } catch (e) {
+          break; // Places unreachable or over its limit: try again next visit.
+        }
+      }
+      if (!live || !Object.keys(next).length) return;
+      setFound((prev) => {
+        const merged = { ...prev, ...next };
+        rememberPhotos(merged);
+        return merged;
+      });
+    })();
+    return () => { live = false; };
+  }, [bare]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const all = useMemo(() => bare.map((p) => {
+    const hit = p.photo_query && found[p.photo_query];
+    return hit && hit.ref ? { ...p, photo_ref: hit.ref } : p;
+  }), [bare, found]);
   const shown = useMemo(() => {
     const list = all.filter((p) => layers[p.kind]);
     return preview ? [...list, preview] : list;
@@ -145,11 +199,16 @@ export default function GlobeView() {
 
   function fly(camera) { setAim({ camera, key: Date.now() }); }
 
+  /*
+   * Choosing a place flies to it, but never further out than you already are.
+   * A journey is framed from 900 km, a region, and choosing the Kyoto journey
+   * while looking at a street in Kyoto used to pull you all the way back out.
+   */
   function select(p) {
     if (!p) { setSelected(null); setPreview(null); return; }
     setSelected(p.id);
     if (p.id !== 'preview') setPreview(null);
-    fly(focusCamera(p));
+    setAim({ camera: focusCamera(p), key: Date.now(), closerOnly: true });
     setOpen(false);
   }
 
@@ -297,7 +356,7 @@ export default function GlobeView() {
     setPreview(p);
     setSelected('preview');
     setOpen(false);
-    fly(focusCamera(p));
+    setAim({ camera: focusCamera(p), key: Date.now(), closerOnly: true });
   }
 
   useEffect(() => {

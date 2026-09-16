@@ -6,7 +6,7 @@ import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
 } from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
-import { createStamp } from '@/components/globeStamp';
+import { createMarker, thumbOf } from '@/components/globeMarker';
 import s from './Globe.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
@@ -33,9 +33,9 @@ const rgba = ([r, g, b], a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 // The border is the fill's colour lifted towards white, so it reads against dark sea.
 const lighter = (rgb) => rgb.map((c) => Math.round(c + (255 - c) * 0.55));
 
-// A pin is the same pin while it is the same place of the same kind; anything
-// else about it can change without the marker being replaced.
-const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}`;
+// A pin is the same pin while it is the same place of the same kind with the
+// same photograph; a town whose photograph has just been found is redrawn.
+const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}|${thumbOf(p) || ''}`;
 // A region is redrawn only when what it draws changes.
 const regionKey = (r) => `${r.id}|${r.kind}|${r.filled}|${r.parts.length}`;
 
@@ -69,10 +69,10 @@ function loadAreas(code) {
  * The globe itself: Google's photorealistic 3D Earth, which zooms from space
  * to a street without changing renderer.
  *
- * Places are stamps (see globeStamp). Far out, the countries you have been to
- * and are going to are filled in, and their towns' stamps give way to them;
- * closer in the fill fades and the stamps come back. Journey ideas and places
- * you want to go stay stamps throughout: they are somewhere in particular, not
+ * Places are photographs (see globeMarker). Far out, the countries you have
+ * been to and are going to are outlined and their areas filled, and their
+ * towns' markers give way to them; closer in the markers come back. Journey
+ * ideas and places you want to go stay markers throughout: somewhere in particular, not
  * somewhere you have been.
  *
  * It needs WebGL and the Map Tiles API. Where either is missing it falls back
@@ -86,7 +86,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const map3d = useRef(null);
   const map2d = useRef(null);
   const lib = useRef(null);
-  const pins = useRef(new Map()); // key -> { id, kind, marker, stamp, shown?, remove }
+  const pins = useRef(new Map()); // key -> { id, kind, marker, face, shown?, remove }
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
@@ -245,11 +245,11 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }, [mode]);
 
   /*
-   * The selected stamp, drawn larger and straight, in place.
+   * The selected marker, drawn larger, in place.
    *
    * Selection used to redraw every pin. A 3D marker added while the camera is
    * flying has to find the ground again, so each click made the whole globe's
-   * pins blink out and back as it zoomed in. Now a click changes one stamp,
+   * pins blink out and back as it zoomed in. Now a click changes one marker,
    * and a selected idea stops giving way to labels so it cannot be hidden on
    * the way down.
    */
@@ -257,7 +257,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     const selected = latest.current.selectedId;
     pins.current.forEach((entry) => {
       const on = entry.id === selected;
-      entry.stamp.select(on);
+      entry.face.select(on);
       if (mode === '3d') {
         const collide = entry.kind === 'idea' && !on ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED';
         if (entry.marker.collisionBehavior !== collide) entry.marker.collisionBehavior = collide;
@@ -270,11 +270,11 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
 
   /*
    * The globe draws markers in the order they were added, with no z-index to
-   * say otherwise, so the chosen stamp is kept last, on top of any neighbour
-   * it overlaps. That has to hold whenever stamps are added, not only when one
+   * say otherwise, so the chosen marker is kept last, on top of any neighbour
+   * it overlaps. That has to hold whenever markers are added, not only when one
    * is chosen: choose the Kyoto journey from space and fly in, and the town
-   * stamps that come back on the way down — Higashiyama Ward among them, a few
-   * kilometres off — were added after it and covered it, so the stamp you
+   * markers that come back on the way down — Higashiyama Ward among them, a few
+   * kilometres off — were added after it and covered it, so the marker you
    * picked seemed to turn into another one.
    */
   function raiseSelected() {
@@ -299,7 +299,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     let added = false;
     pins.current.forEach((entry) => {
       const want = entry.id === selected || strength.current < 1 || !hidden.has(entry.id);
-      if (want && !entry.shown) { entry.stamp.wake(); map.append(entry.marker); entry.shown = true; added = true; }
+      if (want && !entry.shown) { entry.face.wake(); map.append(entry.marker); entry.shown = true; added = true; }
       if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
     });
     if (added) raiseSelected();
@@ -313,40 +313,40 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       collisionBehavior: p.kind === 'idea' ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED',
       title: p.name,
     });
-    const stamp = createStamp(p);
-    marker.append(stamp.el);
+    const face = createMarker(p);
+    marker.append(face.el);
     marker.addEventListener('gmp-click', (e) => {
       e.stopPropagation();
       chosenOn.current = presses.current;
       latest.current.onSelect(p.id);
       // A marker clicked with the mouse or a finger keeps focus, and the globe
-      // draws its keyboard outline as a white box round the stamp. Only a
+      // draws its keyboard outline as a white box round the marker. Only a
       // pointer's click lets go of it; from the keyboard the outline stays.
       if (performance.now() - pressedAt.current < 800) setTimeout(() => marker.blur(), 0);
     });
-    const entry = { id: p.id, kind: p.kind, marker, stamp, shown: false };
+    const entry = { id: p.id, kind: p.kind, marker, face, shown: false };
     entry.remove = () => { marker.remove(); entry.shown = false; };
     return entry;
   }
 
   function add2D(L, p) {
-    const stamp = createStamp(p);
-    stamp.wake();
+    const face = createMarker(p);
+    face.wake();
     const marker = new L.AdvancedMarkerElement({
       map: map2d.current,
       position: { lat: p.lat, lng: p.lng },
-      content: stamp.el,
+      content: face.el,
       title: p.name,
       gmpClickable: true,
       zIndex: p.kind === 'idea' ? 1 : 10,
     });
     marker.addListener('click', () => latest.current.onSelect(p.id));
-    return { id: p.id, kind: p.kind, marker, stamp, remove: () => { marker.map = null; } };
+    return { id: p.id, kind: p.kind, marker, face, remove: () => { marker.map = null; } };
   }
 
   function chooseRegion(id) {
     // The map's late second report of a press can land on the prefecture under
-    // the stamp just chosen; that press has made its choice already.
+    // the marker just chosen; that press has made its choice already.
     if (presses.current === chosenOn.current) return;
     chosenOn.current = presses.current;
     const region = latest.current.regions.find((r) => r.id === id);
@@ -481,10 +481,12 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
 
   useEffect(() => {
     if (!ready || !aim) return;
-    const cam = aim.camera;
+    let cam = aim.camera;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (mode === '3d' && map3d.current) {
       const map = map3d.current;
+      // Moving to a place keeps you as close as you are, if that is closer.
+      if (aim.closerOnly && map.range < cam.range) cam = { ...cam, range: map.range };
       const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: map.range }, cam);
       try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }
       if (!ms || typeof map.flyCameraTo !== 'function') {
@@ -498,8 +500,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       }
     } else if (mode === '2d' && map2d.current) {
       const h = host.current ? host.current.clientHeight : 600;
+      const zoom = Math.round(rangeToZoom(cam.range, cam.center.lat, h));
       map2d.current.panTo(cam.center);
-      map2d.current.setZoom(Math.round(rangeToZoom(cam.range, cam.center.lat, h)));
+      map2d.current.setZoom(aim.closerOnly ? Math.max(zoom, map2d.current.getZoom()) : zoom);
     }
   }, [aim, ready, mode]);
 

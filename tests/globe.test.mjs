@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints,
+  km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints, photoQueryOf,
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
 } from '../lib/globe.js';
 
@@ -90,4 +90,29 @@ test('cameras: a globe overview, closer focus, bounded flights', () => {
   const ms = flightMillis(empty, focusCamera({ kind: 'want', lat: 38.7, lng: -9.1 }));
   assert.ok(ms >= 1200 && ms <= 4000);
   assert.equal(flightMillis(null, empty), 0);
+});
+
+test('a town with no photographs is looked up by its most photogenic stop', () => {
+  assert.equal(photoQueryOf([
+    { title: 'Nishiki Market', category: 'food', location: 'Nakagyo Ward, Kyoto' },
+    { title: 'Fushimi Inari', category: 'sightseeing', location: 'Fushimi Ward, Kyoto' },
+    { title: 'Ryokan check-in', category: 'lodging', location: 'Kyoto' },
+  ]), 'Fushimi Inari, Fushimi Ward, Kyoto');
+  assert.equal(photoQueryOf([{ category: 'food' }]), null);
+  const [town] = tripPoints(
+    [{ id: 't', name: 'Hakone & Kyoto', start_date: '2020-01-01', end_date: '2020-01-02' }],
+    [
+      { trip_id: 't', lat: 35.23, lng: 139.02, category: 'sightseeing', title: 'Owakudani', location: 'Owakudani, Hakone' },
+      { trip_id: 't', lat: 35.24, lng: 139.03, category: 'food', title: 'Kaiseki dinner', location: 'Sengokuhara, Hakone' },
+    ],
+    '2026-01-01',
+  );
+  assert.equal(town.photo_ref, null);
+  assert.equal(town.photo_query, 'Owakudani, Owakudani, Hakone');
+  const [withPhoto] = tripPoints(
+    [{ id: 'u', name: 'Tokyo', start_date: '2020-01-01' }],
+    [{ trip_id: 'u', lat: 35.7, lng: 139.7, category: 'sightseeing', title: 'Skytree', location: 'Tokyo', photo_ref: 'places/a/photos/b' }],
+    '2026-01-01',
+  );
+  assert.equal(withPhoto.photo_query, null);
 });
