@@ -34,6 +34,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
   const map2d = useRef(null);
   const lib = useRef(null);
   const pins = useRef(new Map()); // key -> { id, kind, marker, pin?, dot?, remove }
+  // Presses of the mouse or a finger on the globe, and the one that last chose a pin.
+  const presses = useRef(0);
+  const chosenOn = useRef(-1);
   const latest = useRef(null);
   latest.current = { onSelect, aim, selectedId };
   const [mode, setMode] = useState(() => (googleMapsAvailable() ? '3d' : 'none'));
@@ -44,9 +47,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
     let dead = false;
     let map = null;
     const offs = [];
-    const listen = (target, name, fn) => {
-      target.addEventListener(name, fn);
-      offs.push(() => target.removeEventListener(name, fn));
+    const listen = (target, name, fn, options) => {
+      target.addEventListener(name, fn, options);
+      offs.push(() => target.removeEventListener(name, fn, options));
     };
     const fallback = () => { if (!dead) setMode('2d'); };
     // A GPU that cannot, or a key without Map Tiles, can leave the canvas
@@ -64,9 +67,19 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
       map.setAttribute('aria-label', 'Globe of your places');
       listen(map, 'gmp-error', fallback);
       listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) clearTimeout(timer); });
+      /*
+       * A click on the ground closes the open place, but not the click that
+       * opened it. The 3D map reports one press twice: the marker at once, then
+       * the map a few hundred milliseconds later, once it has worked out where
+       * on the Earth the press landed — by which time the camera is already
+       * flying in, and the place it just opened was closed again. So a press
+       * that chose a pin cannot also clear it; only a new press can.
+       */
+      listen(host.current, 'pointerup', () => { presses.current += 1; }, true);
       listen(map, 'gmp-click', (e) => {
         e.preventDefault();
         if (e.composedPath().some((n) => n.tagName === 'GMP-MARKER-INTERACTIVE')) return;
+        if (presses.current === chosenOn.current) return;
         latest.current.onSelect(null);
       });
       host.current.append(map);
@@ -160,6 +173,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
     marker.append(pin);
     marker.addEventListener('gmp-click', (e) => {
       e.stopPropagation();
+      chosenOn.current = presses.current;
       latest.current.onSelect(p.id);
     });
     map3d.current.append(marker);
