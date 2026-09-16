@@ -40,7 +40,15 @@ function rememberedPhotos() {
 function rememberPhotos(found) {
   try { localStorage.setItem(PHOTOS_KEY, JSON.stringify(found)); } catch (e) { /* not remembered */ }
 }
-const KIND = { been: 'Been', planned: 'Planned', want: 'Want to go', idea: 'Journey idea', preview: 'New place' };
+// What each kind is called on screen. Inside, a completed trip is still 'been'
+// and an upcoming one 'planned', the names saved places are stored under.
+const KIND = { been: 'Completed', planned: 'Upcoming', want: 'Want to go', idea: 'Journey idea', preview: 'New place' };
+// What puts a place under each count, shown when the count is pointed at.
+const KIND_TIP = {
+  been: 'Trips that have finished, and places you marked as been',
+  planned: 'Trips with dates still to come, or under way',
+  want: 'Trips without dates yet, and places you saved to go to',
+};
 
 // The table arrives with a migration; a database that has not had it yet
 // should still show trips, and say plainly why saving is off.
@@ -54,10 +62,11 @@ const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w
  * Where you have been and where you might go, on a globe.
  *
  * Nothing here has to be entered by hand to be useful: every trip with located
- * stops puts its towns on the globe, past ones as "been" and the rest as
- * "planned". Saved places cover what Wander never saw — the trips before it,
- * and the places you mean to get to — and journeys sit on the globe as ideas,
- * which is what turns looking back into planning the next one.
+ * stops puts its towns on the globe — finished trips as completed, trips still
+ * to come as upcoming, and trips with no dates yet as want to go. Saved places
+ * cover what Wander never saw — the trips before it, and places you mean to
+ * get to — and journeys sit on the globe as ideas, which is what turns looking
+ * back into planning the next one.
  */
 export default function GlobeView() {
   const { supabase, user, sessionRevision, fail, pushToast } = useApp();
@@ -296,7 +305,7 @@ export default function GlobeView() {
     if (!row) return;
     setPreview(null);
     setSelected(`saved:${row.id}`);
-    pushToast(kind === 'want' ? `${row.name} is on your want-to-go list.` : `${row.name} is marked as been.`);
+    pushToast(kind === 'want' ? `${row.name} is on your want-to-go list.` : `${row.name} is now under Completed.`);
   }
 
   async function saveJourney(slug) {
@@ -373,6 +382,7 @@ export default function GlobeView() {
 
   const plannedTrips = tripRows.filter((t) => t.kind === 'planned')
     .sort((a, b) => String(a.trip.start_date || '').localeCompare(String(b.trip.start_date || '')));
+  const wantTrips = tripRows.filter((t) => t.kind === 'want');
   const beenTrips = tripRows.filter((t) => t.kind === 'been')
     .sort((a, b) => String(b.trip.start_date || '').localeCompare(String(a.trip.start_date || '')));
   const savedBeen = saved.filter((r) => r.kind === 'been');
@@ -442,7 +452,8 @@ export default function GlobeView() {
             <h1 className={s.title}>Your globe</h1>
             <div className={s.layers} role="group" aria-label="Show on the globe">
               {['been', 'planned', 'want'].map((k) => (
-                <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}>
+                <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}
+                  data-tip={KIND_TIP[k]}>
                   <span className={s.layerN}>{loading ? '–' : counts[k]}</span>
                   <span className={s.layerL}><i className={s.dot} data-kind={k} /> {KIND[k]}</span>
                 </button>
@@ -503,25 +514,25 @@ export default function GlobeView() {
             ) : !own ? (
               <div className={s.empty}>
                 <p className={s.emptyTitle}>Nothing on your globe yet</p>
-                <p>Your trips land here by themselves. Search to add places you’ve been, or want to go.</p>
+                <p>Your trips land here by themselves. Search to add other places you’ve been or want to go.</p>
               </div>
             ) : (
               <>
                 {layers.planned && plannedTrips.length ? (
                   <section className={s.group}>
-                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="planned" /> Planned</h2>
+                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="planned" /> Upcoming</h2>
                     <ul className={s.items}>{plannedTrips.map(tripItem)}</ul>
                   </section>
                 ) : null}
-                {layers.want && savedWant.length ? (
+                {layers.want && (wantTrips.length || savedWant.length) ? (
                   <section className={s.group}>
                     <h2 className={s.groupTitle}><i className={s.dot} data-kind="want" /> Want to go</h2>
-                    <ul className={s.items}>{savedWant.map(savedItem)}</ul>
+                    <ul className={s.items}>{wantTrips.map(tripItem)}{savedWant.map(savedItem)}</ul>
                   </section>
                 ) : null}
                 {layers.been && (beenTrips.length || savedBeen.length) ? (
                   <section className={s.group}>
-                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="been" /> Been</h2>
+                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="been" /> Completed</h2>
                     <ul className={s.items}>{beenTrips.map(tripItem)}{savedBeen.map(savedItem)}</ul>
                   </section>
                 ) : null}

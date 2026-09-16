@@ -34,7 +34,7 @@ test('centroid survives the date line and clusters stay apart', () => {
   assert.ok(km({ lat: 35.68, lng: 139.76 }, { lat: 35.01, lng: 135.77 }) > 300);
 });
 
-test('trip pins: one per place, transport ignored, past versus planned', () => {
+test('trip pins: one per place, transport ignored, completed versus upcoming', () => {
   const trips = [
     { id: 'a', name: 'Japan', destination: 'Japan', start_date: '2026-03-01', end_date: '2026-03-10' },
     { id: 'b', name: 'Lisbon', destination: 'Lisbon', start_date: '2026-12-01', end_date: '2026-12-05' },
@@ -129,4 +129,16 @@ test('choosing a journey frames its own stops, not a region round its middle', (
   assert.equal(focusCamera({ kind: 'idea', lat: 64, lng: -19, spots: [] }).range, 900000);
   const [idea] = ideaPoints([{ slug: 'k', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 }, spots: kyotoNara.spots }], []);
   assert.equal(idea.spots.length, 3);
+});
+
+test('a trip with no dates is somewhere you want to go, not an upcoming trip', () => {
+  const stop = (id) => [{ trip_id: id, lat: 38.72, lng: -9.14, category: 'sightseeing', title: 'Alfama', location: 'Lisbon' }];
+  const today = '2026-09-16';
+  const kindOf = (trip) => tripPoints([trip], stop(trip.id), today)[0].kind;
+  assert.equal(kindOf({ id: 'a', name: 'Lisbon someday' }), 'want');
+  assert.equal(kindOf({ id: 'b', name: 'Lisbon in May', start_date: '2026-05-01', end_date: '2026-05-05' }), 'been');
+  assert.equal(kindOf({ id: 'c', name: 'Lisbon now', start_date: '2026-09-14', end_date: '2026-09-20' }), 'planned');
+  assert.equal(kindOf({ id: 'd', name: 'Lisbon next year', start_date: '2027-05-01' }), 'planned');
+  const counts = globeCounts(tripPoints([{ id: 'a', name: 'Lisbon someday' }], stop('a'), today));
+  assert.equal(counts.want, 1);
 });
