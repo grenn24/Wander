@@ -261,14 +261,28 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       if (mode === '3d') {
         const collide = entry.kind === 'idea' && !on ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED';
         if (entry.marker.collisionBehavior !== collide) entry.marker.collisionBehavior = collide;
-        // The globe draws markers in the order they were added, with no z-index
-        // to say otherwise, so the chosen stamp is moved last to sit on top of
-        // a neighbour it overlaps. One marker, once per choice.
-        const map = map3d.current;
-        if (on && entry.shown && map && map.lastElementChild !== entry.marker) map.append(entry.marker);
       } else {
         entry.marker.zIndex = on ? 1000 : entry.kind === 'idea' ? 1 : 10;
       }
+    });
+    raiseSelected();
+  }
+
+  /*
+   * The globe draws markers in the order they were added, with no z-index to
+   * say otherwise, so the chosen stamp is kept last, on top of any neighbour
+   * it overlaps. That has to hold whenever stamps are added, not only when one
+   * is chosen: choose the Kyoto journey from space and fly in, and the town
+   * stamps that come back on the way down — Higashiyama Ward among them, a few
+   * kilometres off — were added after it and covered it, so the stamp you
+   * picked seemed to turn into another one.
+   */
+  function raiseSelected() {
+    const map = map3d.current;
+    if (!map) return;
+    const { selectedId: selected } = latest.current;
+    pins.current.forEach((entry) => {
+      if (entry.id === selected && entry.shown && map.lastElementChild !== entry.marker) map.append(entry.marker);
     });
   }
 
@@ -282,11 +296,13 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     const map = map3d.current;
     if (!map) return;
     const { covered: hidden, selectedId: selected } = latest.current;
+    let added = false;
     pins.current.forEach((entry) => {
       const want = entry.id === selected || strength.current < 1 || !hidden.has(entry.id);
-      if (want && !entry.shown) { entry.stamp.wake(); map.append(entry.marker); entry.shown = true; }
+      if (want && !entry.shown) { entry.stamp.wake(); map.append(entry.marker); entry.shown = true; added = true; }
       if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
     });
+    if (added) raiseSelected();
   }
 
   function add3D(L, p) {
@@ -329,6 +345,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }
 
   function chooseRegion(id) {
+    // The map's late second report of a press can land on the prefecture under
+    // the stamp just chosen; that press has made its choice already.
+    if (presses.current === chosenOn.current) return;
     chosenOn.current = presses.current;
     const region = latest.current.regions.find((r) => r.id === id);
     if (region && latest.current.onRegion) latest.current.onRegion(region);

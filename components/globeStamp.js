@@ -169,7 +169,9 @@ export function createStamp(point) {
     select(on) {
       if (on === selected) return;
       selected = on;
-      root.style.transform = on ? 'scale(1.3)' : '';
+      // A chosen idea grows to the size of your own stamps, so it leads the
+      // town stamps around it rather than sitting half-hidden among them.
+      root.style.transform = on ? `scale(${mini ? 1.55 : 1.3})` : '';
       card.style.transform = `rotate(${on ? 0 : tilt}deg)`;
     },
   };
