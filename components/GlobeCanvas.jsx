@@ -4,11 +4,11 @@ import { load3D, loadMaps, googleMapsAvailable, readScheme } from '@/components/
 import { flightMillis } from '@/lib/globe';
 import { prepareCountries, regionsFor, regionStrength } from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
+import { createStamp } from '@/components/globeStamp';
 import s from './Globe.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
-const GLYPH = { been: '✓', planned: '•', want: '★', preview: '+' };
-const COLOUR_VAR = { been: '--accent', planned: '--warn', want: '--good', idea: '--text-3', preview: '--text-1' };
+const COLOUR_VAR = { been: '--accent', planned: '--warn' };
 const FILL = { been: 0.45, planned: 0.36 };
 
 function colour(kind) {
@@ -53,10 +53,11 @@ function loadBorders() {
  * The globe itself: Google's photorealistic 3D Earth, which zooms from space
  * to a street without changing renderer.
  *
- * Far out, the countries you have been to and are going to are filled in, and
- * their towns' pins give way to them; closer in the fill fades and the pins
- * come back. Journey ideas and places you want to go stay pins throughout:
- * they are somewhere in particular, not somewhere you have been.
+ * Places are stamps (see globeStamp). Far out, the countries you have been to
+ * and are going to are filled in, and their towns' stamps give way to them;
+ * closer in the fill fades and the stamps come back. Journey ideas and places
+ * you want to go stay stamps throughout: they are somewhere in particular, not
+ * somewhere you have been.
  *
  * It needs WebGL and the Map Tiles API. Where either is missing it falls back
  * to the flat map at world zoom rather than a blank screen, and says so once.
@@ -69,10 +70,11 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const map3d = useRef(null);
   const map2d = useRef(null);
   const lib = useRef(null);
-  const pins = useRef(new Map()); // key -> { id, kind, marker, pin?, dot?, shown?, remove }
+  const pins = useRef(new Map()); // key -> { id, kind, marker, stamp, shown?, remove }
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
+  const pressedAt = useRef(0);
   const chosenOn = useRef(-1);
   // How strongly regions show right now, from the camera's distance.
   const strength = useRef(1);
@@ -130,7 +132,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
        * flying in, and the place it just opened was closed again. So a press
        * that chose a pin cannot also clear it; only a new press can.
        */
-      listen(host.current, 'pointerup', () => { presses.current += 1; }, true);
+      listen(host.current, 'pointerup', () => { presses.current += 1; pressedAt.current = performance.now(); }, true);
       listen(map, 'gmp-click', (e) => {
         e.preventDefault();
         if (e.composedPath().some((n) => n.tagName === 'GMP-MARKER-INTERACTIVE')) return;
@@ -203,25 +205,28 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }, [mode]);
 
   /*
-   * The selected pin, drawn larger, in place.
+   * The selected stamp, drawn larger and straight, in place.
    *
    * Selection used to redraw every pin. A 3D marker added while the camera is
    * flying has to find the ground again, so each click made the whole globe's
-   * pins blink out and back as it zoomed in. Now a click changes the size of
-   * one pin, and a selected idea stops giving way to labels so it cannot be
-   * hidden on the way down.
+   * pins blink out and back as it zoomed in. Now a click changes one stamp,
+   * and a selected idea stops giving way to labels so it cannot be hidden on
+   * the way down.
    */
   function restyle() {
     const selected = latest.current.selectedId;
     pins.current.forEach((entry) => {
       const on = entry.id === selected;
-      if (entry.pin) {
-        entry.pin.scale = on ? 1.35 : entry.kind === 'idea' ? 0.8 : 1;
+      entry.stamp.select(on);
+      if (mode === '3d') {
         const collide = entry.kind === 'idea' && !on ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED';
         if (entry.marker.collisionBehavior !== collide) entry.marker.collisionBehavior = collide;
-      }
-      if (entry.dot) {
-        entry.dot.toggleAttribute('data-on', on);
+        // The globe draws markers in the order they were added, with no z-index
+        // to say otherwise, so the chosen stamp is moved last to sit on top of
+        // a neighbour it overlaps. One marker, once per choice.
+        const map = map3d.current;
+        if (on && entry.shown && map && map.lastElementChild !== entry.marker) map.append(entry.marker);
+      } else {
         entry.marker.zIndex = on ? 1000 : entry.kind === 'idea' ? 1 : 10;
       }
     });
@@ -239,7 +244,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     const { covered: hidden, selectedId: selected } = latest.current;
     pins.current.forEach((entry) => {
       const want = entry.id === selected || strength.current < 1 || !hidden.has(entry.id);
-      if (want && !entry.shown) { map.append(entry.marker); entry.shown = true; }
+      if (want && !entry.shown) { entry.stamp.wake(); map.append(entry.marker); entry.shown = true; }
       if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
     });
   }
@@ -252,39 +257,35 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       collisionBehavior: p.kind === 'idea' ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED',
       title: p.name,
     });
-    const pin = new L.PinElement({
-      background: colour(p.kind),
-      borderColor: '#ffffff',
-      glyphColor: '#ffffff',
-      ...(GLYPH[p.kind] ? { glyphText: GLYPH[p.kind] } : {}),
-      scale: p.kind === 'idea' ? 0.8 : 1,
-    });
-    marker.append(pin);
+    const stamp = createStamp(p);
+    marker.append(stamp.el);
     marker.addEventListener('gmp-click', (e) => {
       e.stopPropagation();
       chosenOn.current = presses.current;
       latest.current.onSelect(p.id);
+      // A marker clicked with the mouse or a finger keeps focus, and the globe
+      // draws its keyboard outline as a white box round the stamp. Only a
+      // pointer's click lets go of it; from the keyboard the outline stays.
+      if (performance.now() - pressedAt.current < 800) setTimeout(() => marker.blur(), 0);
     });
-    const entry = { id: p.id, kind: p.kind, marker, pin, shown: false };
+    const entry = { id: p.id, kind: p.kind, marker, stamp, shown: false };
     entry.remove = () => { marker.remove(); entry.shown = false; };
     return entry;
   }
 
   function add2D(L, p) {
-    const dot = document.createElement('div');
-    dot.className = s.pin;
-    dot.dataset.kind = p.kind;
-    dot.textContent = GLYPH[p.kind] || '';
+    const stamp = createStamp(p);
+    stamp.wake();
     const marker = new L.AdvancedMarkerElement({
       map: map2d.current,
       position: { lat: p.lat, lng: p.lng },
-      content: dot,
+      content: stamp.el,
       title: p.name,
       gmpClickable: true,
       zIndex: p.kind === 'idea' ? 1 : 10,
     });
     marker.addListener('click', () => latest.current.onSelect(p.id));
-    return { id: p.id, kind: p.kind, marker, dot, remove: () => { marker.map = null; } };
+    return { id: p.id, kind: p.kind, marker, stamp, remove: () => { marker.map = null; } };
   }
 
   function chooseRegion(id) {

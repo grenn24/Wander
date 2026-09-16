@@ -14,19 +14,6 @@
 }
 .nokey { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: #d8d0c4; text-align: center; }
 
-/* Pins on the flat fallback; the 3D globe draws Google's own pin shapes. */
-.pin {
-  display: grid; place-items: center; width: 18px; height: 18px;
-  border: 2px solid #fff; border-radius: 50%; background: var(--accent);
-  color: #fff; font-size: 9px; line-height: 1; cursor: pointer;
-  box-shadow: 0 1px 5px rgb(0 0 0 / .45); transition: transform .15s var(--ease);
-}
-.pin[data-kind="planned"] { background: var(--warn); }
-.pin[data-kind="want"] { background: var(--good); }
-.pin[data-kind="idea"] { width: 13px; height: 13px; background: var(--text-3); font-size: 0; }
-.pin[data-kind="preview"] { background: var(--text-1); color: var(--surface-1); }
-.pin[data-on] { transform: scale(1.45); }
-
 .overview {
   position: absolute; z-index: 5; top: 14px; right: 14px;
   width: 44px; min-height: 44px; padding: 0; border-radius: 15px; box-shadow: var(--lift);
@@ -204,5 +191,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .detail { animation: none; }
-  .panel, .switch, .switch::after, .layer, .pin { transition: none; }
+  .panel, .switch, .switch::after, .layer { transition: none; }
 }
