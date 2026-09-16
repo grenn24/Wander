@@ -1,0 +1,4 @@
+First-level administrative areas (prefectures, states, provinces), one file per country.
+From Natural Earth, ne_10m_admin_1_states_provinces, which is in the public domain:
+https://www.naturalearthdata.com/about/terms-of-use/
+Simplified and split by scripts/geo/build-areas.mjs; do not edit by hand.

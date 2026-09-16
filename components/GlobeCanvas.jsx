@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme } from '@/components/GoogleMap';
 import { flightMillis } from '@/lib/globe';
-import { prepareCountries, regionsFor, regionStrength } from '@/lib/globeRegions';
+import {
+  prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
+} from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
 import { createStamp } from '@/components/globeStamp';
 import s from './Globe.module.css';
@@ -35,18 +37,32 @@ const lighter = (rgb) => rgb.map((c) => Math.round(c + (255 - c) * 0.55));
 // else about it can change without the marker being replaced.
 const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}`;
 // A region is redrawn only when what it draws changes.
-const regionKey = (r) => `${r.id}|${r.kind}|${r.parts.length}`;
+const regionKey = (r) => `${r.id}|${r.kind}|${r.filled}|${r.parts.length}`;
+
+const getJSON = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${url} ${r.status}`))));
 
 // Borders load once per visit, and only for a globe with somewhere to fill in.
 let borders = null;
 function loadBorders() {
   if (!borders) {
-    borders = fetch('/geo/countries-50m.json')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`borders ${r.status}`))))
-      .then(prepareCountries)
-      .catch((e) => { borders = null; throw e; });
+    borders = Promise.all([
+      getJSON('/geo/countries-50m.json').then(prepareCountries),
+      // Without the index the globe falls back to filling whole countries.
+      getJSON('/geo/areas/index.json').catch(() => ({})),
+    ]).catch((e) => { borders = null; throw e; });
   }
   return borders;
+}
+
+// A country's prefectures or states, fetched the first time a place needs them.
+const areaFiles = new Map();
+function loadAreas(code) {
+  if (!areaFiles.has(code)) {
+    areaFiles.set(code, getJSON(`/geo/areas/${code}.json`)
+      .then((t) => prepareAreas(t, code))
+      .catch(() => { areaFiles.delete(code); return []; }));
+  }
+  return areaFiles.get(code);
 }
 
 /**
@@ -81,8 +97,16 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const [mode, setMode] = useState(() => (googleMapsAvailable() ? '3d' : 'none'));
   const [ready, setReady] = useState(false);
   const [countries, setCountries] = useState(null);
+  const [areaIndex, setAreaIndex] = useState(null);
+  const [areasByCode, setAreasByCode] = useState({});
 
-  const regions = useMemo(() => (countries ? regionsFor(points, countries) : []), [countries, points]);
+  const codes = useMemo(() => (areaIndex ? areaFilesFor(points, areaIndex) : []), [areaIndex, points]);
+  const settled = !!areaIndex && codes.every((c) => areasByCode[c]);
+  // Nothing is drawn until the areas are in, or a country would flash filled
+  // and then empty again as its prefectures arrived.
+  const regions = useMemo(() => (countries && settled
+    ? regionsFor(points, countries, codes.flatMap((c) => areasByCode[c]))
+    : []), [countries, settled, codes, areasByCode, points]);
   const covered = useMemo(() => new Set(regions.flatMap((r) => r.covered)), [regions]);
 
   const latest = useRef(null);
@@ -93,9 +117,23 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     if (!ready || countries || !wantsRegions) return undefined;
     let live = true;
     // Without borders the globe still has its pins, which is what it had before.
-    loadBorders().then((c) => { if (live) setCountries(c); }).catch(() => {});
+    loadBorders().then(([c, index]) => {
+      if (!live) return;
+      setCountries(c);
+      setAreaIndex(index);
+    }).catch(() => {});
     return () => { live = false; };
   }, [ready, countries, wantsRegions]);
+
+  useEffect(() => {
+    const missing = codes.filter((c) => !areasByCode[c]);
+    if (!missing.length) return undefined;
+    let live = true;
+    Promise.all(missing.map((c) => loadAreas(c).then((areas) => [c, areas]))).then((loaded) => {
+      if (live) setAreasByCode((prev) => ({ ...prev, ...Object.fromEntries(loaded) }));
+    });
+    return () => { live = false; };
+  }, [codes, areasByCode]);
 
   useEffect(() => {
     if (mode !== '3d') return undefined;
@@ -146,10 +184,12 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         frame = requestAnimationFrame(() => {
           frame = 0;
           const next = regionStrength(map.range);
-          if (next === strength.current) return;
+          const crossed = next !== strength.current;
           strength.current = next;
+          // Areas fade on their own sizes, so they are checked on every move;
+          // only what changed step is repainted.
           paintRegions();
-          placePins();
+          if (crossed) placePins();
         });
       });
       host.current.append(map);
@@ -295,22 +335,42 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }
 
   /*
-   * A region's fill and border at the current strength. Gone entirely, it is
-   * taken off the globe too: an invisible country would still catch clicks
-   * meant for the ground beneath it.
+   * Each region's fill and border at its current strength: a country's from
+   * the camera's distance, an area's from how much of the view it fills. Gone
+   * entirely, a region is taken off the globe too: an invisible one would
+   * still catch clicks meant for the ground beneath it.
+   *
+   * The globe hands a click to whichever shape was added last, so areas are
+   * kept after the country around them, or Japan's outline would take every
+   * click meant for Kyoto.
    */
   function paintRegions() {
     const map = map3d.current;
     if (!map) return;
-    const k = strength.current;
+    const range = map.range;
+    let countryAdded = false;
     shapes.current.forEach((entry) => {
-      entry.elements.forEach((el) => {
-        el.fillColor = rgba(entry.rgb, +(FILL[entry.kind] * k).toFixed(3));
-        el.strokeColor = rgba(lighter(entry.rgb), +(0.9 * k).toFixed(3));
-      });
-      if (k > 0 && !entry.attached) { entry.elements.forEach((el) => map.append(el)); entry.attached = true; }
+      const k = entry.level === 'area' ? areaStrength(entry.size, range) : strength.current;
+      if (k !== entry.k) {
+        entry.k = k;
+        const fill = entry.filled ? FILL[entry.kind] * k : 0;
+        entry.elements.forEach((el) => {
+          el.fillColor = rgba(entry.rgb, +fill.toFixed(3));
+          el.strokeColor = rgba(lighter(entry.rgb), +(0.9 * k).toFixed(3));
+        });
+      }
+      if (k > 0 && !entry.attached) {
+        entry.elements.forEach((el) => map.append(el));
+        entry.attached = true;
+        if (entry.level === 'country') countryAdded = true;
+      }
       if (k === 0 && entry.attached) { entry.elements.forEach((el) => el.remove()); entry.attached = false; }
     });
+    if (countryAdded) {
+      shapes.current.forEach((entry) => {
+        if (entry.level === 'area' && entry.attached) entry.elements.forEach((el) => map.append(el));
+      });
+    }
   }
 
   function addRegion3D(L, r) {
@@ -321,7 +381,8 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         // An empty list is refused outright, so a ring with no holes says nothing.
         ...(part.holes.length ? { innerCoordinates: part.holes.map((h) => h.map(([lng, lat]) => ({ lat, lng }))) } : {}),
         altitudeMode: 'CLAMP_TO_GROUND',
-        strokeWidth: 1.5,
+        // An outline alone has to carry the country, so it is drawn heavier.
+        strokeWidth: r.filled ? 1.5 : 2,
       });
       el.addEventListener('gmp-click', (e) => {
         e.stopPropagation();
@@ -329,7 +390,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       });
       return el;
     });
-    const entry = { id: r.id, kind: r.kind, rgb, elements, attached: false };
+    const entry = {
+      id: r.id, kind: r.kind, level: r.level, filled: r.filled, size: r.size, rgb, elements, attached: false, k: -1,
+    };
     entry.remove = () => { elements.forEach((el) => el.remove()); entry.attached = false; };
     return entry;
   }
@@ -341,11 +404,12 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       paths: r.parts.flatMap((part) => [part.outer, ...part.holes]
         .map((ring) => ring.map(([lng, lat]) => ({ lat, lng })))),
       fillColor: rgba(rgb, 1),
-      fillOpacity: FILL[r.kind] * 0.8,
+      fillOpacity: r.filled ? FILL[r.kind] * 0.8 : 0,
       strokeColor: rgba(lighter(rgb), 1),
       strokeOpacity: 0.9,
-      strokeWeight: 1,
-      zIndex: 0,
+      strokeWeight: r.filled ? 1 : 1.5,
+      // Areas above their country, so a click on Kyoto is a click on Kyoto.
+      zIndex: r.level === 'area' ? 1 : 0,
     });
     polygon.addListener('click', () => chooseRegion(r.id));
     return { id: r.id, kind: r.kind, remove: () => polygon.setMap(null) };
