@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { freeToUse, usable, shape, describe as describeFile, placeFor } from '../scripts/journeys/commons.mjs';
+import { freeToUse, usable, fits, shape, describe as describeFile, placeFor } from '../scripts/journeys/commons.mjs';
 import { commonsWidth, imageURL, srcSet, sourceOf } from '../lib/journeyFormat.js';
 
 const file = (over = {}) => ({
@@ -43,16 +43,27 @@ test('a filename is read as a description, without its cataloguing', () => {
 });
 
 test('maps, badges and pictures too small or too thin are left alone', () => {
-  assert.equal(usable(shape(file()), 'landscape'), true);
-  assert.equal(usable(shape(file()), 'portrait'), false);
+  assert.equal(usable(shape(file())), true);
   const nc = file({ imageinfo: { extmetadata: { License: { value: 'cc-by-nc-2.0' } } } });
-  assert.equal(usable(shape(nc), 'landscape'), false);
+  assert.equal(usable(shape(nc)), false);
   const small = file({ imageinfo: { width: 900, height: 600, extmetadata: { License: { value: 'cc0' } } } });
-  assert.equal(usable(shape(small), 'landscape'), false);
+  assert.equal(usable(shape(small)), false);
   const map = file({ title: 'File:Map of Lofoten.jpg', imageinfo: { extmetadata: { License: { value: 'cc0' } } } });
-  assert.equal(usable(shape(map), 'landscape'), false);
+  assert.equal(usable(shape(map)), false);
   const banner = file({ imageinfo: { width: 4000, height: 500, extmetadata: { License: { value: 'cc0' } } } });
-  assert.equal(usable(shape(banner), 'landscape'), false);
+  assert.equal(usable(shape(banner)), false);
+});
+
+test('a tall frame takes a wide photograph it can crop, a wide frame never takes a tall one', () => {
+  const wide = { width: 6938, height: 3903 };
+  const squarish = { width: 4608, height: 3456 };
+  const tall = { width: 2736, height: 3648 };
+  assert.equal(fits(wide, 'landscape'), 2);
+  assert.equal(fits(tall, 'landscape'), 0);
+  assert.equal(fits(tall, 'portrait'), 2);
+  // Four by three survives the crop to four by five; two by one does not.
+  assert.equal(fits(squarish, 'portrait'), 1);
+  assert.equal(fits(wide, 'portrait'), 0);
 });
 
 test('a photo search finds the place it is about, for searching by coordinates', () => {
@@ -60,6 +71,10 @@ test('a photo search finds the place it is about, for searching by coordinates',
   assert.equal(placeFor(doc, 'Pisac upper terraces Peru').name, 'Pisac');
   assert.equal(placeFor(doc, 'Ollantaytambo terraces'), null);
   assert.equal(placeFor({ places: [] }, 'anywhere'), null);
+  // The same island under the name its lodge uses.
+  const fiji = { places: [{ name: 'Waya Lailai Eco Haven', lat: -17.35, lng: 177.14 }] };
+  assert.equal(placeFor(fiji, 'Wayasewa Island Yasawa Fiji').name, 'Waya Lailai Eco Haven');
+  assert.equal(placeFor(fiji, 'Sawa-i-Lau Caves'), null);
 });
 
 test('Commons is only asked for widths it will render', () => {

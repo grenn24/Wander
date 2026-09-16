@@ -89,15 +89,30 @@ export function shape(page) {
   };
 }
 
-/** Whether a file is a photograph this layout can use. */
-export function usable(f, orientation) {
+/** Whether a file is a photograph at all, and big enough to print large. */
+export function usable(f) {
   if (!f.raw || !/^image\/(jpeg|png)$/.test(f.mime)) return false;
   if (!freeToUse(f.licenceId)) return false;
   if (NOT_A_PHOTO.test(f.alt)) return false;
   if (f.width < 1600) return false;
   const ratio = f.width / (f.height || 1);
-  if (ratio > 3 || ratio < 0.4) return false;
-  return orientation === 'portrait' ? ratio < 1.05 : ratio > 1.2;
+  return ratio <= 2.2 && ratio >= 0.5;
+}
+
+/*
+ * How well a photograph suits the frame it would sit in: 2 for the right
+ * shape, 1 for one that survives the crop, 0 for one that does not.
+ *
+ * A tall frame crops a wide photograph to four by five, which a picture with
+ * its subject in the middle comes through — the manta rays off Drawaqa are
+ * only ever photographed in landscape, and a tall frame would otherwise stay
+ * empty. A wide frame cannot do the reverse, so a tall picture never goes in
+ * one, and nothing is taken that would lose half its width.
+ */
+export function fits(f, orientation) {
+  const ratio = f.width / (f.height || 1);
+  if (orientation === 'portrait') return ratio < 1.05 ? 2 : (ratio <= 1.5 ? 1 : 0);
+  return ratio > 1.2 ? 2 : 0;
 }
 
 // 1920 is the largest width Wikimedia renders, so links start there and the
@@ -114,19 +129,35 @@ async function byPlace(lat, lng, radius = 700) {
   return api({ generator: 'geosearch', ggscoord: `${lat}|${lng}`, ggsradius: String(radius), ggsnamespace: '6', ggslimit: '40', ...IMAGE_INFO });
 }
 
-/** The place a photo search is about, so its coordinates can be searched too. */
+/*
+ * The place a photo search is about, so its coordinates can be searched too.
+ *
+ * Names rarely match to the letter: the search says "Wayasewa Island" and the
+ * journey's own stop is "Waya Lailai Eco Haven", the same island under the
+ * name its lodge uses. So one name matching the start of the other counts,
+ * which "waya" and "wayasewa" do, and four letters keeps that from catching
+ * everything.
+ */
+const alike = (a, b) => a === b || (a.length >= 4 && b.startsWith(a)) || (b.length >= 4 && a.startsWith(b));
+
 export function placeFor(doc, query) {
   const words = keyWords(query);
   if (!words.length) return null;
   return (doc.places || []).find((p) => Number.isFinite(p.lat)
-    && keyWords(p.name).some((w) => words.includes(w))) || null;
+    && keyWords(p.name).some((w) => words.some((q) => alike(w, q)))) || null;
 }
 
 /*
- * The best photographs Commons has for a search. The place's own name is
- * tried first, because a file called "Tirta Gangga water palace" is beyond
- * doubt; then, if the journey knows where the place is, whatever was
- * photographed standing there. Bigger pictures win ties.
+ * The best photographs Commons has for a search.
+ *
+ * Where the journey knows the place's coordinates, those are searched first:
+ * a photograph filed at that point is of that point, while a name is only a
+ * guess. Asked for Fiji's Manta Channel by name, Commons offers a manta ray
+ * in Palau's German Channel and a cutter on the Houston Ship Channel, both of
+ * which read as a good match and neither of which is in Fiji. Only when a
+ * place has no coordinates, or nothing has been photographed there, is the
+ * name tried. Bigger pictures win ties, and the right shape beats a bigger
+ * one that has to be cropped.
  */
 export async function findCommonsPhotos(query, { count = 1, orientation = 'landscape', avoid = new Set(), place = null, log = () => {} } = {}) {
   if (!commonsReady() || !query) return [];
@@ -135,20 +166,22 @@ export async function findCommonsPhotos(query, { count = 1, orientation = 'lands
   const take = (pages) => {
     for (const page of pages) {
       const f = shape(page);
-      if (seen.has(f.id) || avoid.has(f.id) || !usable(f, orientation)) continue;
+      if (seen.has(f.id) || avoid.has(f.id) || !usable(f) || !fits(f, orientation)) continue;
       seen.add(f.id);
       found.push(f);
     }
   };
   try {
+    if (place) take(await byPlace(place.lat, place.lng));
     for (const q of queryVariants(query)) {
-      take(await byName(q));
       if (found.length >= count) break;
+      take(await byName(q));
     }
-    if (found.length < count && place) take(await byPlace(place.lat, place.lng));
   } catch (e) {
     log(`commons: ${e.message}`);
   }
-  return found.sort((a, b) => b.width * b.height - a.width * a.height).slice(0, count)
+  return found
+    .sort((a, b) => (fits(b, orientation) - fits(a, orientation)) || (b.width * b.height - a.width * a.height))
+    .slice(0, count)
     .map(({ mime, licenceId, categories, ...m }) => m);
 }
