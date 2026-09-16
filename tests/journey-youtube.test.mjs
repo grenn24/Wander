@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDuration, chooseVideo, videoQueryFor, videoQueries, videoWords, SECTION_VIEWS } from '../scripts/journeys/youtube.mjs';
+import { parseDuration, chooseVideo, videoQueryFor, videoQueries, videoWords, SECTION_VIEWS, videoIdOf, pruneLeads } from '../scripts/journeys/youtube.mjs';
 import { rested } from '../scripts/journeys/photos.mjs';
 
 test('a video must name the journey’s places, not just its country', () => {
@@ -77,4 +77,30 @@ test('a video search that found nothing rests for a week', () => {
   assert.equal(rested(misses, 'Dove Lake Circuit walk', '2026-09-23'), false);
   assert.equal(rested(misses, 'Cradle Mountain Dove Lake', '2026-09-17'), false);
   assert.equal(rested(undefined, 'anything', '2026-09-17'), false);
+});
+
+test('a video found by web search is known by its ID, whatever link it came as', () => {
+  assert.equal(videoIdOf('https://www.youtube.com/watch?v=sVYmfQRID4Q'), 'sVYmfQRID4Q');
+  assert.equal(videoIdOf('https://www.youtube.com/watch?list=PL1&v=657W6Kg5Hks&t=30'), '657W6Kg5Hks');
+  assert.equal(videoIdOf('https://youtu.be/8J0hEgI8q-8?si=abc'), '8J0hEgI8q-8');
+  assert.equal(videoIdOf('https://www.youtube.com/shorts/pv3RFpx_QJk'), 'pv3RFpx_QJk');
+  assert.equal(videoIdOf('sVYmfQRID4Q'), 'sVYmfQRID4Q');
+  assert.equal(videoIdOf('https://www.youtube.com/@somechannel'), null);
+  assert.equal(videoIdOf(''), null);
+});
+
+test('leads are dropped once the spot they were for has its video', () => {
+  const doc = {
+    place: 'Atacama', videoQuery: 'Atacama desert travel', video: { id: 'aaaaaaaaaaa' },
+    blocks: [
+      { type: 'video', query: 'Valle de la Luna Atacama', video: { id: 'bbbbbbbbbbb' } },
+      { type: 'video', query: 'Geysers del Tatio drive' },
+    ],
+    videoLeads: { 'Valle de la Luna Atacama': ['x'], 'Geysers del Tatio drive': ['y'], 'Atacama desert travel': ['z'] },
+  };
+  pruneLeads(doc);
+  assert.deepEqual(doc.videoLeads, { 'Geysers del Tatio drive': ['y'] });
+  doc.blocks[1].video = { id: 'ccccccccccc' };
+  pruneLeads(doc);
+  assert.equal('videoLeads' in doc, false);
 });

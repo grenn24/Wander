@@ -5,17 +5,21 @@ import { rested } from './photos.mjs';
  * A video for a journey, from YouTube.
  *
  * A model cannot be trusted with video IDs — it invents plausible ones — so
- * videos are found by searching YouTube itself, then kept only if what the API
- * says about them holds up: public and embeddable, between three minutes and
+ * videos are found by searching YouTube itself, or given as leads from a web
+ * search, and either way kept only if what the API says about them holds up: public and embeddable, between three minutes and
  * an hour, watched enough to be worth watching, recent enough to show the place
  * as it is now, and about the places the journey names. The review agent sees
  * the choice and can turn it down.
  *
  * Quota: a search costs 100 units and the details call 1, of 10,000 a day —
- * about a hundred searches a day.
+ * about a hundred searches a day. Searches also have a daily cap of their own,
+ * and once it is reached the details call still answers, so the two are
+ * tracked apart: a run out of searches can still check videos found elsewhere.
  */
 const API = 'https://www.googleapis.com/youtube/v3';
 let exhausted = false;
+let searchesSpent = false;
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
 function key() {
   const k = process.env.YOUTUBE_DATA_API_KEY || '';
@@ -23,6 +27,7 @@ function key() {
 }
 
 export const youtubeReady = () => !!key() && !exhausted;
+const searchReady = () => youtubeReady() && !searchesSpent;
 
 async function get(path, params) {
   const res = await fetch(`${API}/${path}?${new URLSearchParams({ ...params, key: key() })}`, {
@@ -33,7 +38,9 @@ async function get(path, params) {
     const reason = (body.error && body.error.errors && body.error.errors[0] && body.error.errors[0].reason) || '';
     const message = (body.error && body.error.message) || `YouTube returned ${res.status}`;
     // The reason code is not always there; the message always says "quota".
-    if ((res.status === 403 || res.status === 429) && /quota|rateLimit/i.test(`${reason} ${message}`)) exhausted = true;
+    if ((res.status === 403 || res.status === 429) && /quota|rateLimit/i.test(`${reason} ${message}`)) {
+      if (path === 'search') searchesSpent = true; else exhausted = true;
+    }
     throw new Error(message);
   }
   return body;
@@ -151,11 +158,54 @@ async function findVideo(q, { words, avoid, log, minViews = MAIN_VIEWS }) {
 }
 
 /** Give a journey its main video if it has none, avoiding any the review turned down. */
+/** A video's ID from any of the links YouTube uses for it. */
+export function videoIdOf(link) {
+  const s = String(link || '').trim();
+  if (VIDEO_ID.test(s)) return s;
+  const m = /(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|\/live\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/.exec(s);
+  return m ? m[1] : null;
+}
+
+/*
+ * Videos found some other way — a web search, say — for a search that YouTube
+ * could not answer, or could not be asked today. They are looked up in full,
+ * one unit for up to fifty, and held to every rule a searched video meets, so
+ * a lead is trusted no more than a search result: it is only somewhere to look.
+ */
+async function fromLeads(links, { words, avoid, log, minViews = MAIN_VIEWS }) {
+  const ids = [...new Set((links || []).map(videoIdOf).filter(Boolean))].filter((id) => !avoid.has(id)).slice(0, 50);
+  if (!ids.length || !youtubeReady()) return null;
+  try {
+    const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
+    return chooseVideo(details.items, { words, avoid, minViews });
+  } catch (e) {
+    log(`video: ${e.message}`);
+    return null;
+  }
+}
+
+const leadsFor = (doc, query) => (doc.videoLeads && doc.videoLeads[query]) || null;
+
+/*
+ * Leads are working notes. Once the spot they were for has its video they are
+ * done with, and a journey should not carry them on to its readers.
+ */
+export function pruneLeads(doc) {
+  if (!doc.videoLeads) return;
+  const open = new Set(doc.blocks.filter((b) => b.type === 'video' && !b.video).map((b) => b.query));
+  if (!doc.video) open.add(videoQueryFor(doc));
+  const kept = Object.fromEntries(Object.entries(doc.videoLeads).filter(([q]) => open.has(q)));
+  if (Object.keys(kept).length) doc.videoLeads = kept; else delete doc.videoLeads;
+}
+
 export async function attachVideo(doc, { rejected = new Set(), log = () => {} } = {}) {
   if (!youtubeReady() || doc.video) return 0;
   const words = videoWords(doc);
+  const leads = leadsFor(doc, videoQueryFor(doc));
+  const led = leads && await fromLeads(leads, { words, avoid: rejected, log });
+  if (led) { doc.video = led; return 1; }
   for (const q of videoQueries(doc)) {
-    if (!youtubeReady()) break;
+    if (!searchReady()) break;
     const pick = await findVideo(q, { words, avoid: rejected, log });
     if (pick) { doc.video = pick; return 1; }
   }
@@ -170,7 +220,7 @@ export async function attachVideo(doc, { rejected = new Set(), log = () => {} } 
  * miss, and a rewritten search is tried straight away.
  */
 function noteMiss(doc, query, today) {
-  if (youtubeReady()) doc.videoMisses = { ...(doc.videoMisses || {}), [query]: today };
+  if (searchReady()) doc.videoMisses = { ...(doc.videoMisses || {}), [query]: today };
 }
 
 /*
@@ -189,10 +239,16 @@ export async function attachVideos(doc, { rejected = new Set(), log = () => {}, 
   const country = new Set(fold(doc.country).split(/\s+/).filter(Boolean));
   for (const b of doc.blocks) {
     if (b.type !== 'video' || b.video || !String(b.query || '').trim() || !youtubeReady()) continue;
-    if (rested(doc.videoMisses, b.query, today)) continue;
     const own = keyWords(b.query).filter((w) => !country.has(w));
-    const pick = await findVideo(b.query, { words: own.length ? own : videoWords(doc), avoid: used(), log, minViews: SECTION_VIEWS });
-    if (pick) { b.video = pick; added += 1; } else noteMiss(doc, b.query, today);
+    const rules = { words: own.length ? own : videoWords(doc), avoid: used(), log, minViews: SECTION_VIEWS };
+    const leads = leadsFor(doc, b.query);
+    let pick = leads ? await fromLeads(leads, rules) : null;
+    // A rested search is skipped, but leads for it are always looked at: they are news.
+    if (!pick && searchReady() && !rested(doc.videoMisses, b.query, today)) {
+      pick = await findVideo(b.query, rules);
+      if (!pick) noteMiss(doc, b.query, today);
+    }
+    if (pick) { b.video = pick; added += 1; }
   }
   return added;
 }
