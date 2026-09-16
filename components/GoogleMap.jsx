@@ -138,6 +138,7 @@ export function loadMaps() {
         Map: maps.Map,
         InfoWindow: maps.InfoWindow,
         Polyline: maps.Polyline,
+        Polygon: maps.Polygon,
         AdvancedMarkerElement: marker.AdvancedMarkerElement,
       })).catch(reject);
     };

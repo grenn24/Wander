@@ -1,26 +1,62 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme } from '@/components/GoogleMap';
 import { flightMillis } from '@/lib/globe';
+import { prepareCountries, regionsFor, regionStrength } from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
 import s from './Globe.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
 const GLYPH = { been: '✓', planned: '•', want: '★', preview: '+' };
 const COLOUR_VAR = { been: '--accent', planned: '--warn', want: '--good', idea: '--text-3', preview: '--text-1' };
+const FILL = { been: 0.45, planned: 0.36 };
 
 function colour(kind) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(COLOUR_VAR[kind] || '--accent').trim();
   return v || '#a34f35';
 }
 
+/** A theme colour as red, green and blue, whatever form the stylesheet wrote it in. */
+function rgbOf(kind) {
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.fillStyle = '#a34f35';
+  ctx.fillStyle = colour(kind);
+  const v = ctx.fillStyle;
+  return v[0] === '#'
+    ? [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16))
+    : v.match(/[\d.]+/g).slice(0, 3).map(Number);
+}
+
+const rgba = ([r, g, b], a) => `rgba(${r}, ${g}, ${b}, ${a})`;
+// The border is the fill's colour lifted towards white, so it reads against dark sea.
+const lighter = (rgb) => rgb.map((c) => Math.round(c + (255 - c) * 0.55));
+
 // A pin is the same pin while it is the same place of the same kind; anything
 // else about it can change without the marker being replaced.
 const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}`;
+// A region is redrawn only when what it draws changes.
+const regionKey = (r) => `${r.id}|${r.kind}|${r.parts.length}`;
+
+// Borders load once per visit, and only for a globe with somewhere to fill in.
+let borders = null;
+function loadBorders() {
+  if (!borders) {
+    borders = fetch('/geo/countries-50m.json')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`borders ${r.status}`))))
+      .then(prepareCountries)
+      .catch((e) => { borders = null; throw e; });
+  }
+  return borders;
+}
 
 /**
  * The globe itself: Google's photorealistic 3D Earth, which zooms from space
  * to a street without changing renderer.
+ *
+ * Far out, the countries you have been to and are going to are filled in, and
+ * their towns' pins give way to them; closer in the fill fades and the pins
+ * come back. Journey ideas and places you want to go stay pins throughout:
+ * they are somewhere in particular, not somewhere you have been.
  *
  * It needs WebGL and the Map Tiles API. Where either is missing it falls back
  * to the flat map at world zoom rather than a blank screen, and says so once.
@@ -28,24 +64,42 @@ const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}`;
  * `aim` is a camera plus a key: a new key means fly there, even to the same
  * place again, which is what "show me the whole globe" pressed twice needs.
  */
-export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
+export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion }) {
   const host = useRef(null);
   const map3d = useRef(null);
   const map2d = useRef(null);
   const lib = useRef(null);
-  const pins = useRef(new Map()); // key -> { id, kind, marker, pin?, dot?, remove }
-  // Presses of the mouse or a finger on the globe, and the one that last chose a pin.
+  const pins = useRef(new Map()); // key -> { id, kind, marker, pin?, dot?, shown?, remove }
+  const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
+  // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const chosenOn = useRef(-1);
-  const latest = useRef(null);
-  latest.current = { onSelect, aim, selectedId };
+  // How strongly regions show right now, from the camera's distance.
+  const strength = useRef(1);
   const [mode, setMode] = useState(() => (googleMapsAvailable() ? '3d' : 'none'));
   const [ready, setReady] = useState(false);
+  const [countries, setCountries] = useState(null);
+
+  const regions = useMemo(() => (countries ? regionsFor(points, countries) : []), [countries, points]);
+  const covered = useMemo(() => new Set(regions.flatMap((r) => r.covered)), [regions]);
+
+  const latest = useRef(null);
+  latest.current = { onSelect, onRegion, aim, selectedId, regions, covered };
+
+  const wantsRegions = points.some((p) => p.kind === 'been' || p.kind === 'planned');
+  useEffect(() => {
+    if (!ready || countries || !wantsRegions) return undefined;
+    let live = true;
+    // Without borders the globe still has its pins, which is what it had before.
+    loadBorders().then((c) => { if (live) setCountries(c); }).catch(() => {});
+    return () => { live = false; };
+  }, [ready, countries, wantsRegions]);
 
   useEffect(() => {
     if (mode !== '3d') return undefined;
     let dead = false;
     let map = null;
+    let frame = 0;
     const offs = [];
     const listen = (target, name, fn, options) => {
       target.addEventListener(name, fn, options);
@@ -65,6 +119,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
         mode: 'HYBRID', defaultUIHidden: true, gestureHandling: 'GREEDY',
       });
       map.setAttribute('aria-label', 'Globe of your places');
+      strength.current = regionStrength(start.range);
       listen(map, 'gmp-error', fallback);
       listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) clearTimeout(timer); });
       /*
@@ -82,6 +137,19 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
         if (presses.current === chosenOn.current) return;
         latest.current.onSelect(null);
       });
+      // The camera's distance decides regions against pins; checked once a
+      // frame at most, and acted on only when it crosses a step.
+      listen(map, 'gmp-rangechange', () => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          const next = regionStrength(map.range);
+          if (next === strength.current) return;
+          strength.current = next;
+          paintRegions();
+          placePins();
+        });
+      });
       host.current.append(map);
       map3d.current = map;
       setReady(true);
@@ -89,13 +157,15 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
     return () => {
       dead = true;
       clearTimeout(timer);
+      if (frame) cancelAnimationFrame(frame);
       offs.forEach((off) => off());
-      if (map) map.remove(); // takes its markers with it
+      if (map) map.remove(); // takes its markers and regions with it
       pins.current.clear();
+      shapes.current.clear();
       map3d.current = null;
       setReady(false);
     };
-  }, [mode]);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (mode !== '2d') return undefined;
@@ -124,6 +194,8 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
       dead = true;
       pins.current.forEach((entry) => entry.remove());
       pins.current.clear();
+      shapes.current.forEach((entry) => entry.remove());
+      shapes.current.clear();
       map2d.current = null;
       setReady(false);
       if (el) el.replaceChildren();
@@ -155,6 +227,23 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
     });
   }
 
+  /*
+   * Which pins are on the globe. Far out, a town in a filled-in country is
+   * the country; the pin comes back as the fill fades. The selected place
+   * always keeps its pin. Pins are only added and removed as the camera
+   * crosses that line, never on every frame of a flight.
+   */
+  function placePins() {
+    const map = map3d.current;
+    if (!map) return;
+    const { covered: hidden, selectedId: selected } = latest.current;
+    pins.current.forEach((entry) => {
+      const want = entry.id === selected || strength.current < 1 || !hidden.has(entry.id);
+      if (want && !entry.shown) { map.append(entry.marker); entry.shown = true; }
+      if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
+    });
+  }
+
   function add3D(L, p) {
     const marker = new L.MarkerInteractiveElement({
       position: { lat: p.lat, lng: p.lng },
@@ -176,8 +265,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
       chosenOn.current = presses.current;
       latest.current.onSelect(p.id);
     });
-    map3d.current.append(marker);
-    return { id: p.id, kind: p.kind, marker, pin, remove: () => marker.remove() };
+    const entry = { id: p.id, kind: p.kind, marker, pin, shown: false };
+    entry.remove = () => { marker.remove(); entry.shown = false; };
+    return entry;
   }
 
   function add2D(L, p) {
@@ -197,6 +287,69 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
     return { id: p.id, kind: p.kind, marker, dot, remove: () => { marker.map = null; } };
   }
 
+  function chooseRegion(id) {
+    chosenOn.current = presses.current;
+    const region = latest.current.regions.find((r) => r.id === id);
+    if (region && latest.current.onRegion) latest.current.onRegion(region);
+  }
+
+  /*
+   * A region's fill and border at the current strength. Gone entirely, it is
+   * taken off the globe too: an invisible country would still catch clicks
+   * meant for the ground beneath it.
+   */
+  function paintRegions() {
+    const map = map3d.current;
+    if (!map) return;
+    const k = strength.current;
+    shapes.current.forEach((entry) => {
+      entry.elements.forEach((el) => {
+        el.fillColor = rgba(entry.rgb, +(FILL[entry.kind] * k).toFixed(3));
+        el.strokeColor = rgba(lighter(entry.rgb), +(0.9 * k).toFixed(3));
+      });
+      if (k > 0 && !entry.attached) { entry.elements.forEach((el) => map.append(el)); entry.attached = true; }
+      if (k === 0 && entry.attached) { entry.elements.forEach((el) => el.remove()); entry.attached = false; }
+    });
+  }
+
+  function addRegion3D(L, r) {
+    const rgb = rgbOf(r.kind);
+    const elements = r.parts.map((part) => {
+      const el = new L.Polygon3DInteractiveElement({
+        outerCoordinates: part.outer.map(([lng, lat]) => ({ lat, lng })),
+        // An empty list is refused outright, so a ring with no holes says nothing.
+        ...(part.holes.length ? { innerCoordinates: part.holes.map((h) => h.map(([lng, lat]) => ({ lat, lng }))) } : {}),
+        altitudeMode: 'CLAMP_TO_GROUND',
+        strokeWidth: 1.5,
+      });
+      el.addEventListener('gmp-click', (e) => {
+        e.stopPropagation();
+        chooseRegion(r.id);
+      });
+      return el;
+    });
+    const entry = { id: r.id, kind: r.kind, rgb, elements, attached: false };
+    entry.remove = () => { elements.forEach((el) => el.remove()); entry.attached = false; };
+    return entry;
+  }
+
+  function addRegion2D(L, r) {
+    const rgb = rgbOf(r.kind);
+    const polygon = new L.Polygon({
+      map: map2d.current,
+      paths: r.parts.flatMap((part) => [part.outer, ...part.holes]
+        .map((ring) => ring.map(([lng, lat]) => ({ lat, lng })))),
+      fillColor: rgba(rgb, 1),
+      fillOpacity: FILL[r.kind] * 0.8,
+      strokeColor: rgba(lighter(rgb), 1),
+      strokeOpacity: 0.9,
+      strokeWeight: 1,
+      zIndex: 0,
+    });
+    polygon.addListener('click', () => chooseRegion(r.id));
+    return { id: r.id, kind: r.kind, remove: () => polygon.setMap(null) };
+  }
+
   // Add the pins that are new and remove the ones that have gone; leave the
   // rest exactly where they are.
   useEffect(() => {
@@ -214,10 +367,32 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect }) {
       if (!pins.current.has(key)) pins.current.set(key, mode === '3d' ? add3D(L, p) : add2D(L, p));
     });
     restyle();
+    placePins();
   }, [ready, mode, points]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The same for regions, which also decides which pins they stand in for.
   useEffect(() => {
-    if (ready) restyle();
+    const L = lib.current;
+    if (!ready || !L) return;
+    if (mode === '3d' && !map3d.current) return;
+    if (mode === '2d' && !map2d.current) return;
+    const wanted = new Map(regions.map((r) => [regionKey(r), r]));
+    shapes.current.forEach((entry, key) => {
+      if (wanted.has(key)) return;
+      entry.remove();
+      shapes.current.delete(key);
+    });
+    wanted.forEach((r, key) => {
+      if (!shapes.current.has(key)) shapes.current.set(key, mode === '3d' ? addRegion3D(L, r) : addRegion2D(L, r));
+    });
+    paintRegions();
+    placePins();
+  }, [ready, mode, regions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!ready) return;
+    restyle();
+    placePins();
   }, [ready, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

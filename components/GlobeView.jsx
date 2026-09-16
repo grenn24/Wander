@@ -153,6 +153,17 @@ export default function GlobeView() {
     setOpen(false);
   }
 
+  /*
+   * A filled-in country, clicked. One place in it opens that place; several
+   * fly in far enough to see them all, where their pins take over from the fill.
+   */
+  function onRegion(region) {
+    if (region.points.length === 1) { select(region.points[0]); return; }
+    setSelected(null);
+    setPreview(null);
+    fly(groupCamera(region.points));
+  }
+
   function onCanvasSelect(id) {
     if (!id) { setSelected(null); setPreview(null); return; }
     const p = id === 'preview' ? preview : all.find((x) => x.id === id);
@@ -355,7 +366,7 @@ export default function GlobeView() {
       <TopBar><HomeNav active="globe" /></TopBar>
       <main className={s.stage}>
         <div className={s.canvas}>
-          <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} />
+          <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion} />
         </div>
 
         <button type="button" className={`btn ${s.overview}`} data-tip="Whole globe"
