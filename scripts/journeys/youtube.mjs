@@ -1,4 +1,5 @@
 import { keyWords } from './unsplash.mjs';
+import { rested } from './photos.mjs';
 
 /*
  * A video for a journey, from YouTube.
@@ -11,7 +12,7 @@ import { keyWords } from './unsplash.mjs';
  * the choice and can turn it down.
  *
  * Quota: a search costs 100 units and the details call 1, of 10,000 a day —
- * about a hundred journeys a day.
+ * about a hundred searches a day.
  */
 const API = 'https://www.googleapis.com/youtube/v3';
 let exhausted = false;
@@ -47,12 +48,32 @@ export function parseDuration(iso) {
 
 const fold = (s) => String(s || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
 
+/*
+ * How many views a video needs. A whole destination has a crowded shelf of
+ * videos, and ten thousand views keeps the choice to ones people found worth
+ * watching. A single stop does not: the best English guide to Valle de la
+ * Luna, fourteen minutes and three years old, has about three thousand. So a
+ * section's video needs fewer, and the review still watches for the rest.
+ */
+export const MAIN_VIEWS = 10000;
+export const SECTION_VIEWS = 2000;
+
+/*
+ * English videos, or ones whose language YouTube does not state. Most uploads
+ * never state it, so an unstated one is kept; one stated as Portuguese or
+ * Spanish is not, since the journal around it is in English.
+ */
+const english = (snippet) => {
+  const lang = snippet.defaultAudioLanguage || snippet.defaultLanguage || '';
+  return !lang || /^en/i.test(lang);
+};
+
 /**
  * The best video among YouTube's details for a set of candidates, or null.
  * Popular beats obscure, recent beats old, and nothing is chosen that fails
  * the rules above.
  */
-export function chooseVideo(items, { words = [], now = Date.now(), avoid = new Set() } = {}) {
+export function chooseVideo(items, { words = [], now = Date.now(), avoid = new Set(), minViews = MAIN_VIEWS } = {}) {
   const ranked = (items || []).map((v) => {
     const snippet = v.snippet || {};
     const seconds = parseDuration(v.contentDetails && v.contentDetails.duration);
@@ -63,7 +84,8 @@ export function chooseVideo(items, { words = [], now = Date.now(), avoid = new S
   }).filter((x) => !avoid.has(x.v.id)
     && x.v.status && x.v.status.embeddable !== false && x.v.status.privacyStatus === 'public'
     && x.seconds >= 180 && x.seconds <= 3600
-    && x.views >= 10000
+    && x.views >= minViews
+    && english(x.snippet)
     && x.years <= 6
     && !/#shorts/i.test(x.snippet.title || '')
     && (!words.length || words.some((w) => x.text.includes(w))))
@@ -110,7 +132,7 @@ export function videoWords(doc) {
 }
 
 /** The best video YouTube has for one search, or null. */
-async function findVideo(q, { words, avoid, log }) {
+async function findVideo(q, { words, avoid, log, minViews = MAIN_VIEWS }) {
   try {
     const found = await get('search', {
       part: 'snippet', type: 'video', maxResults: '15', q,
@@ -119,7 +141,7 @@ async function findVideo(q, { words, avoid, log }) {
     const ids = (found.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
     if (!ids.length) { log(`video: nothing found for "${q}"`); return null; }
     const details = await get('videos', { part: 'snippet,contentDetails,statistics,status', id: ids.join(',') });
-    const pick = chooseVideo(details.items, { words, avoid });
+    const pick = chooseVideo(details.items, { words, avoid, minViews });
     if (!pick) log(`video: nothing suitable for "${q}"`);
     return pick;
   } catch (e) {
@@ -141,11 +163,22 @@ export async function attachVideo(doc, { rejected = new Set(), log = () => {} } 
 }
 
 /*
+ * Searches that found nothing suitable are rested for a week, as photograph
+ * searches are. Without it every round asked again for the same eighteen
+ * stops YouTube had nothing for, a hundred units each, and spent a fifth of
+ * the day's quota learning nothing. A search cut short by the quota is not a
+ * miss, and a rewritten search is tried straight away.
+ */
+function noteMiss(doc, query, today) {
+  if (youtubeReady()) doc.videoMisses = { ...(doc.videoMisses || {}), [query]: today };
+}
+
+/*
  * The main video, then one for each video block still without one. A block's
  * video has to name what its own search names, and no video appears twice in
  * a journey. One search each: a block costs a hundred units of the day's quota.
  */
-export async function attachVideos(doc, { rejected = new Set(), log = () => {} } = {}) {
+export async function attachVideos(doc, { rejected = new Set(), log = () => {}, today = new Date().toISOString().slice(0, 10) } = {}) {
   if (!youtubeReady()) return 0;
   const used = () => new Set([
     ...rejected,
@@ -156,9 +189,10 @@ export async function attachVideos(doc, { rejected = new Set(), log = () => {} }
   const country = new Set(fold(doc.country).split(/\s+/).filter(Boolean));
   for (const b of doc.blocks) {
     if (b.type !== 'video' || b.video || !String(b.query || '').trim() || !youtubeReady()) continue;
+    if (rested(doc.videoMisses, b.query, today)) continue;
     const own = keyWords(b.query).filter((w) => !country.has(w));
-    const pick = await findVideo(b.query, { words: own.length ? own : videoWords(doc), avoid: used(), log });
-    if (pick) { b.video = pick; added += 1; }
+    const pick = await findVideo(b.query, { words: own.length ? own : videoWords(doc), avoid: used(), log, minViews: SECTION_VIEWS });
+    if (pick) { b.video = pick; added += 1; } else noteMiss(doc, b.query, today);
   }
   return added;
 }

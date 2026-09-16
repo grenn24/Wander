@@ -18,9 +18,14 @@ import { findCommonsPhotos, placeFor } from './commons.mjs';
  */
 const MISS_DAYS = 7;
 
-export function recentlyMissed(doc, query, today) {
-  const at = doc.photoMisses && doc.photoMisses[query];
+/** Whether a search in a set of misses came up empty within the last week. */
+export function rested(misses, query, today) {
+  const at = misses && misses[query];
   return !!at && (Date.parse(today) - Date.parse(at)) / 86400000 < MISS_DAYS;
+}
+
+export function recentlyMissed(doc, query, today) {
+  return rested(doc.photoMisses, query, today);
 }
 
 function noteMiss(doc, query, today) {

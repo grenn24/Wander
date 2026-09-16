@@ -300,14 +300,16 @@ async function main() {
       const doc = row.doc;
       const rejected = rejectedOf(doc);
       const attach = async () => (await attachMedia(doc, { rejected, log })) + (await attachVideos(doc, { rejected, log }));
-      const missesBefore = JSON.stringify(doc.photoMisses || {});
+      const missesOf = (d) => JSON.stringify([d.photoMisses || {}, d.videoMisses || {}]);
+      const missesBefore = missesOf(doc);
       const added = await attach();
       if (!added && !recheck) {
         // Remember what came up empty, so the next rounds spend their requests elsewhere.
-        if (JSON.stringify(doc.photoMisses || {}) !== missesBefore) {
+        if (missesOf(doc) !== missesBefore) {
           const { data: fresh } = await client.from('journeys').select('doc').eq('id', row.id).maybeSingle();
           if (fresh && fresh.doc) {
-            await client.from('journeys').update({ doc: { ...fresh.doc, photoMisses: doc.photoMisses } }).eq('id', row.id);
+            const misses = { photoMisses: doc.photoMisses, videoMisses: doc.videoMisses };
+            await client.from('journeys').update({ doc: { ...fresh.doc, ...misses } }).eq('id', row.id);
           }
         }
         log('nothing new found');

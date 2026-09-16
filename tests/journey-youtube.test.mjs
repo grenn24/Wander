@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDuration, chooseVideo, videoQueryFor, videoQueries, videoWords } from '../scripts/journeys/youtube.mjs';
+import { parseDuration, chooseVideo, videoQueryFor, videoQueries, videoWords, SECTION_VIEWS } from '../scripts/journeys/youtube.mjs';
+import { rested } from '../scripts/journeys/photos.mjs';
 
 test('a video must name the journey’s places, not just its country', () => {
   const words = videoWords({
@@ -21,9 +22,9 @@ test('YouTube durations read as seconds', () => {
 });
 
 const NOW = Date.parse('2026-09-14T00:00:00Z');
-const video = (id, { title = 'Escalante road trip', seconds = 900, views = 50000, published = '2025-05-01T00:00:00Z', embeddable = true, privacy = 'public' } = {}) => ({
+const video = (id, { title = 'Escalante road trip', seconds = 900, views = 50000, published = '2025-05-01T00:00:00Z', embeddable = true, privacy = 'public', lang } = {}) => ({
   id,
-  snippet: { title, description: '', publishedAt: published, channelTitle: 'Desert Channel', channelId: 'UC123' },
+  snippet: { title, description: '', publishedAt: published, channelTitle: 'Desert Channel', channelId: 'UC123', ...(lang ? { defaultAudioLanguage: lang } : {}) },
   contentDetails: { duration: `PT${Math.floor(seconds / 60)}M${seconds % 60}S` },
   statistics: { viewCount: String(views) },
   status: { embeddable, privacyStatus: privacy },
@@ -57,4 +58,23 @@ test('a long place line is searched again by its first name', () => {
   const place = 'Escalante, Cedar Mesa & Utah’s quiet canyon country';
   assert.deepEqual(videoQueries({ place, videoQuery: `${place} travel` }), [`${place} travel`, 'Escalante travel']);
   assert.deepEqual(videoQueries({ place: 'Kyoto', videoQuery: 'Kyoto travel' }), ['Kyoto travel']);
+});
+
+test('a single stop needs fewer views than a whole destination, and English or unstated audio', () => {
+  const words = ['luna'];
+  const guide = video('hhhhhhhhhhh', { title: 'Valle de la Luna travel guide', views: 3132 });
+  assert.equal(chooseVideo([guide], { words, now: NOW }), null);
+  assert.equal(chooseVideo([guide], { words, now: NOW, minViews: SECTION_VIEWS }).id, 'hhhhhhhhhhh');
+  const portuguese = video('iiiiiiiiiii', { title: 'Valle de la Luna', views: 90000, lang: 'pt-BR' });
+  const british = video('jjjjjjjjjjj', { title: 'Valle de la Luna', views: 20000, lang: 'en-GB' });
+  assert.equal(chooseVideo([portuguese], { words, now: NOW }), null);
+  assert.equal(chooseVideo([portuguese, british], { words, now: NOW }).id, 'jjjjjjjjjjj');
+});
+
+test('a video search that found nothing rests for a week', () => {
+  const misses = { 'Dove Lake Circuit walk': '2026-09-16' };
+  assert.equal(rested(misses, 'Dove Lake Circuit walk', '2026-09-17'), true);
+  assert.equal(rested(misses, 'Dove Lake Circuit walk', '2026-09-23'), false);
+  assert.equal(rested(misses, 'Cradle Mountain Dove Lake', '2026-09-17'), false);
+  assert.equal(rested(undefined, 'anything', '2026-09-17'), false);
 });
