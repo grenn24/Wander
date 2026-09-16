@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queryVariants, keyWords, describes, aboutPlace, recentlyMissed } from '../scripts/journeys/unsplash.mjs';
+import { queryVariants, keyWords, describes, aboutPlace } from '../scripts/journeys/unsplash.mjs';
+import { recentlyMissed } from '../scripts/journeys/photos.mjs';
 
 test('a photo search that came up empty rests for a week', () => {
   const doc = { photoMisses: { 'Pinkuylluna granaries Peru': '2026-09-15' } };

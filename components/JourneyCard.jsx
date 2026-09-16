@@ -3,7 +3,7 @@ import { BookOpen } from 'lucide-react';
 import MonthStrip from '@/components/MonthStrip';
 import Flag from '@/components/Flag';
 import { daysLabel, placeLine } from '@/lib/journeyKit';
-import { imageURL, srcSet } from '@/lib/journeyFormat';
+import { imageURL, srcSet, sourceOf } from '@/lib/journeyFormat';
 import s from './Journeys.module.css';
 
 /**
@@ -13,7 +13,7 @@ import s from './Journeys.module.css';
  */
 export default function JourneyCard({ journey: j, month = 0, mini = false }) {
   const cover = j.cover && j.cover.raw ? j.cover : null;
-  const credit = cover ? `${cover.author} · Unsplash` : j.cover_author;
+  const credit = cover ? `${cover.author} · ${sourceOf(cover).name}` : j.cover_author;
   return (
     <Link href={`/journeys/${j.slug}`} className={`${s.card}${mini ? ` ${s.mini}` : ''}`}>
       <span className={s.cover} style={cover && cover.color ? { backgroundColor: cover.color } : undefined}>

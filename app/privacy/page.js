@@ -142,8 +142,9 @@ export default function Privacy() {
           for and the coordinates being shown.
         </li>
         <li>
-          <b>Unsplash</b> — serves the photographs in journeys. Your browser requests each
-          photograph from Unsplash when a journey page shows it.
+          <b>Unsplash</b> and <b>Wikimedia Commons</b> — serve the photographs in journeys.
+          Your browser requests each photograph from whichever of the two it came from when
+          a journey page shows it.
         </li>
         <li>
           <b>YouTube</b> — only when you press play on a journey&rsquo;s video. Until then only

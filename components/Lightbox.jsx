@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { imageURL, sourceOf } from '@/lib/journeyFormat';
 import {
   X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut,
 } from 'lucide-react';
@@ -28,11 +29,11 @@ const STEP = 1.6;
  */
 const THUMB = 420;
 
-/** Whatever identifies this picture: a Google reference, an Unsplash link, or a data URL. */
+/** Whatever identifies this picture: a Google reference, a library link, or a data URL. */
 const idOf = (p) => (p && (p.ref || p.url || p.raw)) || '';
 
-/** An Unsplash link at a width; their CDN resizes on request. */
-const sized = (raw, w) => `${raw}${raw.includes('?') ? '&' : '?'}w=${w}&q=85&auto=format&fit=max`;
+/** A library photograph at a width, in whichever way its library asks for one. */
+const sized = (photo, w) => imageURL(photo, w, 85);
 
 /**
  * How big the full copy needs to be, snapped to a few sizes.
@@ -148,7 +149,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
       if (photos[at].url) return;
       const img = new Image();
       img.src = photos[at].raw
-        ? sized(photos[at].raw, fullWidth())
+        ? sized(photos[at], fullWidth())
         : `/api/places/photo?ref=${encodeURIComponent(photos[at].ref)}&w=${fullWidth()}`;
     });
   }, [mounted, index, photos]);
@@ -253,7 +254,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
    */
   const src = (p, w) => {
     if (p && p.url) return p.url;
-    if (p && p.raw) return sized(p.raw, w);
+    if (p && p.raw) return sized(p, w);
     return `/api/places/photo?ref=${encodeURIComponent((p && p.ref) || '')}&w=${w}`;
   };
 
@@ -323,11 +324,12 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
               {shot.authorUri
                 ? <a href={shot.authorUri} target="_blank" rel="noreferrer">{shot.author}</a>
                 : shot.author}
-              {shot.provider === 'unsplash' ? (
+              {shot.provider ? (
                 <>
                   {' '}on{' '}
-                  <a href={shot.pageUrl || 'https://unsplash.com/?utm_source=wander&utm_medium=referral'}
-                    target="_blank" rel="noreferrer">Unsplash</a>
+                  <a href={shot.pageUrl || sourceOf(shot).url}
+                    target="_blank" rel="noreferrer">{sourceOf(shot).name}</a>
+                  {shot.licence ? ` (${shot.licence})` : ''}
                 </>
               ) : null}
             </>

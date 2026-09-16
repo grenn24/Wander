@@ -2,7 +2,7 @@ import { WRITER_SCHEMA, normaliseDoc, validateDoc, modelFields, cleanSafety } fr
 import { MONTHS } from '../../lib/journeyKit.js';
 import { respond } from './openai.mjs';
 import { verifyPlaces } from './verify.mjs';
-import { attachMedia } from './unsplash.mjs';
+import { attachMedia } from './photos.mjs';
 import { attachVideos } from './youtube.mjs';
 import {
   WRITER, REVISER, RESTYLER, REVIEWER, REVIEW_SCHEMA, DISCOVER, DISCOVER_SCHEMA, MEDIA_CHECK, MEDIA_SCHEMA,

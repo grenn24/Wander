@@ -18,7 +18,7 @@ import {
   MONTHS, WHO, PACES, SAFETY_LEVELS, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/journeyKit';
-import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet } from '@/lib/journeyFormat';
+import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet, sourceOf } from '@/lib/journeyFormat';
 import { sectionsOf, routeOf } from '@/lib/journeyMap';
 import JourneyScrollMap, { mapsReady } from '@/components/JourneyScrollMap';
 import { BRIEF_KEY } from '@/lib/planBrief';
@@ -50,11 +50,27 @@ function restore(doc, raw, today) {
   return out;
 }
 
-/** An Unsplash photograph as the photo viewer takes it. */
+/** A photograph as the photo viewer takes it, whichever library it came from. */
 const forViewer = (m) => ({
-  id: m.id, raw: m.raw, width: m.width, provider: 'unsplash',
-  author: m.author, authorUri: m.authorUrl, pageUrl: m.pageUrl,
+  id: m.id, raw: m.raw, width: m.width, provider: m.provider || 'unsplash',
+  author: m.author, authorUri: m.authorUrl, pageUrl: m.pageUrl, licence: m.licence,
 });
+
+/*
+ * The credit a photograph's licence requires: its photographer, the library it
+ * came from, and — for Commons, whose pictures are licensed one by one — the
+ * licence that picture is under.
+ */
+function Credit({ photo, children }) {
+  const source = sourceOf(photo);
+  return (
+    <>
+      {children}
+      {' '}on <a href={photo.pageUrl || source.url} target="_blank" rel="noreferrer">{source.name}</a>
+      {photo.licence ? <> ({photo.licence})</> : null}
+    </>
+  );
+}
 
 function checkedOn(iso) {
   try {
@@ -336,8 +352,9 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
         </div>
         {cover ? (
           <span className={s.heroCredit}>
-            Photo by <a href={cover.authorUrl} target="_blank" rel="noreferrer">{cover.author}</a>
-            {' '}on <a href={cover.pageUrl} target="_blank" rel="noreferrer">Unsplash</a>
+            <Credit photo={cover}>
+              Photo by <a href={cover.authorUrl} target="_blank" rel="noreferrer">{cover.author}</a>
+            </Credit>
           </span>
         ) : hero && hero.author ? (
           <span className={s.heroCredit}>Photo: {hero.author}</span>
@@ -565,11 +582,12 @@ function PhotoBlock({ block: b, tilt = 0, onOpen }) {
       <figcaption>
         {b.caption ? <span className={s.bCaption}>{b.caption}</span> : <span />}
         <span className={s.bCredit}>
-          {authors.length > 1 ? 'Photos' : 'Photo'} by{' '}
-          {authors.map((m, k) => (
-            <span key={m.id}>{k ? ' and ' : ''}<a href={m.authorUrl} target="_blank" rel="noreferrer">{m.author}</a></span>
-          ))}
-          {' '}on <a href={photos[0].pageUrl} target="_blank" rel="noreferrer">Unsplash</a>
+          <Credit photo={photos[0]}>
+            {authors.length > 1 ? 'Photos' : 'Photo'} by{' '}
+            {authors.map((m, k) => (
+              <span key={m.id}>{k ? ' and ' : ''}<a href={m.authorUrl} target="_blank" rel="noreferrer">{m.author}</a></span>
+            ))}
+          </Credit>
         </span>
       </figcaption>
     </figure>

@@ -35,7 +35,9 @@ import {
   produce, resumeJourney, refreshJourney, restyleJourney, discoverIdeas, reviewMedia, rejectedOf, rewriteBrief, safetyFor,
   newTally, costLine,
 } from './pipeline.mjs';
-import { attachMedia, unsplashReady } from './unsplash.mjs';
+import { unsplashReady } from './unsplash.mjs';
+import { commonsReady } from './commons.mjs';
+import { attachMedia } from './photos.mjs';
 import { attachVideos, youtubeReady } from './youtube.mjs';
 import { verifyPlaces } from './verify.mjs';
 import { MODEL, EFFORT } from './openai.mjs';
@@ -121,6 +123,14 @@ async function keepOld(client, row, out, log, what) {
   await fail(client, row, `The ${what} was not published: ${out.review.summary}`);
 }
 
+/*
+ * Which photograph libraries this run can use. Unsplash needs a key; Commons
+ * needs nothing, so photographs keep arriving after Unsplash's hour is spent.
+ */
+function photoSources() {
+  return [unsplashReady() && 'Unsplash', commonsReady() && 'Commons'].filter(Boolean).join(' and ');
+}
+
 async function main() {
   const opt = parse(process.argv.slice(2));
   if (opt.prod) process.env.JOURNEYS_TARGET = 'prod';
@@ -135,7 +145,7 @@ async function main() {
     return;
   }
   console.log(`journeys ${command}: ${MODEL()} at ${EFFORT()} effort, `
-    + `photographs ${unsplashReady() ? 'on' : 'off (no UNSPLASH_ACCESS_KEY)'}, `
+    + `photographs ${photoSources() || 'off (no UNSPLASH_ACCESS_KEY)'}, `
     + `videos ${youtubeReady() ? 'on' : 'off (no YOUTUBE_DATA_API_KEY)'}`);
 
   if (command === 'add') {
@@ -274,7 +284,7 @@ async function main() {
     }
     console.log(opt.dry ? 'a dry run: nothing was written' : `${changed} journeys written to production`);
   } else if (command === 'media') {
-    if (!unsplashReady() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
+    if (!photoSources() && !youtubeReady()) throw new Error('Set UNSPLASH_ACCESS_KEY or YOUTUBE_DATA_API_KEY first.');
     const client = db();
     const recheck = !!opt.recheck;
     // Photographs come fifty requests an hour, so they go first where they
@@ -282,7 +292,7 @@ async function main() {
     // without a cover, then the rest.
     const urgency = (r) => (r.status === 'draft' ? 0 : 2) + (r.doc.cover && r.doc.cover.photo ? 1 : 0);
     const rows = (await written(client, { statuses: ['draft', 'published'], slug: opt.slug || null, limit: 500 }))
-      .filter((r) => recheck || (unsplashReady() && needsPhotos(r.doc)) || (youtubeReady() && needsVideos(r.doc)))
+      .filter((r) => recheck || (photoSources() && needsPhotos(r.doc)) || (youtubeReady() && needsVideos(r.doc)))
       .sort((a, b) => urgency(a) - urgency(b))
       .slice(0, limit || 20);
     for (const row of rows) {
