@@ -26,9 +26,13 @@ async function get(path) {
     signal: AbortSignal.timeout(30000),
   });
   const remaining = Number(res.headers.get('x-ratelimit-remaining'));
-  // Demo keys allow 50 requests an hour. Stop before the last one rather than
-  // after a refusal, and leave the rest for the next run.
-  if (Number.isFinite(remaining) && remaining < 3) exhausted = true;
+  /*
+   * Demo keys allow fifty requests an hour, but the count comes back from
+   * several of Unsplash's servers and dips at random: one search reported two
+   * left and the next nineteen. Stopping on a low reading abandoned rounds
+   * that had requests to spare, so only a refusal or a true zero stops a run.
+   */
+  if (Number.isFinite(remaining) && remaining <= 0) exhausted = true;
   if (res.status === 403 || res.status === 429) { exhausted = true; throw new Error('Unsplash rate limit reached'); }
   if (!res.ok) throw new Error(`Unsplash returned ${res.status}`);
   return res.json();
