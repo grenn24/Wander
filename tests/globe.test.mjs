@@ -116,3 +116,17 @@ test('a town with no photographs is looked up by its most photogenic stop', () =
   );
   assert.equal(withPhoto.photo_query, null);
 });
+
+test('choosing a journey frames its own stops, not a region round its middle', () => {
+  const kyotoNara = {
+    kind: 'idea', lat: 34.93, lng: 135.79,
+    spots: [{ lat: 35.0, lng: 135.77 }, { lat: 34.97, lng: 135.78 }, { lat: 34.69, lng: 135.84 }],
+  };
+  const cam = focusCamera(kyotoNara);
+  // Kyoto to Nara is about 35 km: framed from near, where the old fixed view stood 900 km back.
+  assert.ok(cam.range >= 60000 && cam.range < 200000, `range ${cam.range}`);
+  assert.ok(cam.center.lat < 35.0 && cam.center.lat > 34.69);
+  assert.equal(focusCamera({ kind: 'idea', lat: 64, lng: -19, spots: [] }).range, 900000);
+  const [idea] = ideaPoints([{ slug: 'k', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 }, spots: kyotoNara.spots }], []);
+  assert.equal(idea.spots.length, 3);
+});
