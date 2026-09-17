@@ -8,6 +8,7 @@ import { categoryIcon } from '@/lib/icons';
 import MapAppearance, { useMapPreferences } from '@/components/MapAppearance';
 import { mapColorScheme } from '@/lib/mapPreferences';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
+import { createPin } from '@/components/mapPin';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -413,7 +414,7 @@ function GoogleMapCanvas({
   }, [ready, stops, look]);
 
   /*
-   * Selection is a class, not a redraw.
+   * Selection is a change of state, not a redraw.
    *
    * Rebuilding every marker to move a ring also destroys the one the open
    * callout is anchored to — and since clicking a marker is what changes the
@@ -424,7 +425,8 @@ function GoogleMapCanvas({
   useEffect(() => {
     if (!ready) return;
     stopMarks.current.forEach((m) => {
-      if (m.__el) m.__el.classList.toggle('gmk-focus', m.__id === focused);
+      if (m.__pin) m.__pin.set({ active: m.__id === focused });
+      m.zIndex = m.__id === focused ? 500 : null;
     });
   }, [ready, focused, stops]);
 
@@ -656,42 +658,50 @@ function GoogleMapCanvas({
       });
     });
 
+    const PIN = 26;
     list.forEach((a, i) => {
-      const el = document.createElement('div');
-      el.className = `gmk${sel === a.id ? ' gmk-focus' : ''}`;
-      el.style.setProperty('--mk', colour(a));
-      el.innerHTML = `<span>${i + 1}</span>`;
-      /*
-       * The name on the marker itself, not through the marker's `title`
-       * option — that draws the operating system's tooltip, which is the one
-       * thing this app has just finished getting rid of. aria-label carries
-       * the same words for anything reading the page.
-       */
-      el.dataset.tip = a.title;
-      el.setAttribute('aria-label', a.title);
-
-      /* The pin is a rotated teardrop, so the nudge cannot go on the pin —
-         it goes on a wrapper, which keeps the shape and carries the leader. */
       const fan = fanned.get(a.id);
-      let content = el;
+      let mark = null;
+      /*
+       * The map's one pin (components/mapPin), numbered in its day's colour —
+       * the same circle the globe and the journal draw. Its name is on the pin
+       * itself, not the marker's `title`, which would draw the operating
+       * system's tooltip. A pin under the pointer comes up over its neighbours.
+       */
+      const face = createPin({
+        label: i + 1,
+        colour: colour(a),
+        size: PIN,
+        name: a.title,
+        // Google stands a marker above its point; a lone pin moves down onto it,
+        // a fanned one's wrapper does the moving so the leader starts at its middle.
+        lift: !fan,
+        onHover: (on) => {
+          if (mark) mark.zIndex = on ? 1000 : latest.current.focused === a.id ? 500 : null;
+        },
+      });
+      if (sel === a.id) face.set({ active: true });
+
+      /* The nudge goes on a wrapper, which carries the leader back to the spot. */
+      let content = face.el;
       if (fan) {
         content = document.createElement('div');
         content.className = 'gmk-fan';
         content.style.setProperty('--dx', `${Math.round(fan.dx)}px`);
-        content.style.setProperty('--dy', `${Math.round(fan.dy)}px`);
+        content.style.setProperty('--dy', `${Math.round(fan.dy + PIN / 2)}px`);
         content.style.setProperty('--len', `${fan.r}px`);
         content.style.setProperty(
           '--ang',
           `${Math.round((Math.atan2(-fan.dy, -fan.dx) * 180) / Math.PI)}deg`,
         );
-        content.appendChild(el);
+        content.appendChild(face.el);
       }
 
-      const mark = new L.AdvancedMarkerElement({
-        map, position: { lat: a.lat, lng: a.lng }, content,
+      mark = new L.AdvancedMarkerElement({
+        map, position: { lat: a.lat, lng: a.lng }, content, zIndex: sel === a.id ? 500 : null,
       });
       mark.__id = a.id;
-      mark.__el = el;
+      mark.__pin = face;
       mark.addListener('click', () => {
         // Clicking the marker whose card is already up closes it, the same way
         // clicking the map does.

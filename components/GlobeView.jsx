@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Search, X, Check, Trash2, BookOpen, Earth, Sparkles, ArrowRight, PanelLeftClose, PanelLeftOpen,
+  Search, X, Check, Trash2, BookOpen, Earth, Sparkles, PanelLeftClose, PanelLeftOpen,
   ChevronDown, ChevronUp,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
@@ -15,13 +16,16 @@ import {
   readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
 } from '@/lib/favourites';
 import { useApp } from '@/components/AppProvider';
+import { dayColor } from '@/components/GoogleMap';
+import { inkOn } from '@/components/mapPin';
+import { createMapPopup } from '@/lib/mapPopup';
 import { searchPlaces } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import {
   tripPoints, savedPoints, ideaPoints, overviewCamera, focusCamera, groupCamera, globeCounts,
   tripRoute, routeLegs, stopsNear,
 } from '@/lib/globe';
-import { fmtRange, humanError, todayISO } from '@/lib/util';
+import { fmtRange, fmtDay, fmtTime, humanError, todayISO, shortPlace } from '@/lib/util';
 import s from './Globe.module.css';
 
 const GlobeCanvas = dynamic(() => import('./GlobeCanvas'), {
@@ -67,6 +71,22 @@ function missingTable(e) {
 
 const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w=${w}`;
 
+/*
+ * The card for one stop, the same one the trip map opens for a stop: its
+ * photograph, name, when and where, and a way into it. Built by the trip map's
+ * own builder so the two cannot drift apart.
+ */
+function StopCard({ card }) {
+  const host = useRef(null);
+  useEffect(() => {
+    if (!host.current) return undefined;
+    const el = createMapPopup(card, { onClose: card.onClose });
+    host.current.append(el);
+    return () => el.remove();
+  }, [card.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <div ref={host} className={s.stopCard} />;
+}
+
 /**
  * Where you have been and where you might go, on a globe.
  *
@@ -79,6 +99,7 @@ const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w
  */
 export default function GlobeView() {
   const { supabase, user, sessionRevision, fail, pushToast } = useApp();
+  const router = useRouter();
   const [trips, setTrips] = useState([]);
   const [acts, setActs] = useState([]);
   const [saved, setSaved] = useState([]);
@@ -104,6 +125,12 @@ export default function GlobeView() {
   const [drawn, setDrawn] = useState(false);
   // Journeys' stops, fetched the first time each is chosen: slug -> { stops, sections }.
   const [journeyStops, setJourneyStops] = useState({});
+  // On an open trip: the stop chosen, and the one under a pointer, on the globe or in the list.
+  const [stopIndex, setStopIndex] = useState(null);
+  const [hoverStop, setHoverStop] = useState(null);
+  const stopRows = useRef([]);
+  const openStop = useRef(null);
+  openStop.current = stopIndex;
   const aimed = useRef(false);
   const arrived = useRef(false);
 
@@ -239,15 +266,24 @@ export default function GlobeView() {
   const route = useMemo(() => {
     let stops = [];
     let key = '';
+    let sections = [];
     if (point && point.tripId) {
       key = `trip:${point.tripId}`;
       stops = routeFor(point.tripId);
     } else if (chosenJourney && journeyStops[chosenJourney]) {
       key = `journey:${chosenJourney}`;
-      stops = journeyStops[chosenJourney].stops;
+      ({ stops, sections } = journeyStops[chosenJourney]);
     }
-    return stops.length ? { key, stops, legs: routeLegs(stops) } : null;
+    return stops.length ? { key, stops, sections, legs: routeLegs(stops) } : null;
   }, [point && point.tripId, chosenJourney, journeyStops, routeFor]); // eslint-disable-line react-hooks/exhaustive-deps
+  const routeKey = route ? route.key : '';
+  // A different trip starts with nothing chosen along it.
+  useEffect(() => { setStopIndex(null); setHoverStop(null); }, [routeKey]);
+  // Whatever is chosen on the globe comes into view in the list.
+  useEffect(() => {
+    const row = stopIndex != null && stopRows.current[stopIndex];
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [stopIndex]);
 
   const tripRows = useMemo(() => {
     const by = new Map();
@@ -294,6 +330,14 @@ export default function GlobeView() {
     setSelected(null);
     setPreview(null);
     fly(groupCamera(region.points));
+  }
+
+  /* A stop on the open trip, from the globe or the list: close in on it and open its card. */
+  function chooseStop(i) {
+    const stop = route && route.stops[i];
+    if (!stop) return;
+    setStopIndex(i);
+    setAim({ camera: { center: { lat: stop.lat, lng: stop.lng }, range: 2500, tilt: 55, heading: 0 }, key: Date.now() });
   }
 
   function onCanvasSelect(id) {
@@ -446,7 +490,11 @@ export default function GlobeView() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) { setSelected(null); setPreview(null); }
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      // A stop's card first, then the trip: the same order they were opened in.
+      if (openStop.current != null) { setStopIndex(null); return; }
+      setSelected(null);
+      setPreview(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -455,6 +503,88 @@ export default function GlobeView() {
   const own = counts.been + counts.planned + counts.favourite;
   const row = point && point.savedId ? saved.find((r) => r.id === point.savedId) : null;
   const pointJourney = point && point.journey && !point.savedId ? journeys.find((j) => j.slug === point.journey) : null;
+
+  /*
+   * The itinerary beside the globe for an open trip or journey: what it is, a
+   * way into it, and its places day by day, numbered and coloured as they are
+   * on the globe. Opening a trip from any of its towns opens the whole trip.
+   */
+  const plan = (() => {
+    if (!point) return null;
+    const trip = point.tripId ? trips.find((t) => t.id === point.tripId) : null;
+    if (!trip && !pointJourney) return null;
+    const stops = route ? route.stops : [];
+    const total = Math.max(1, ...stops.map((st) => st.section + 1));
+    const days = [];
+    stops.forEach((stop, i) => {
+      let day = days[days.length - 1];
+      if (!day || day.section !== stop.section) {
+        const part = (route.sections || [])[stop.section];
+        day = {
+          section: stop.section,
+          colour: dayColor(stop.section, total),
+          label: trip
+            ? (stop.day ? `Day ${stop.section + 1} · ${fmtDay(stop.day)}` : 'Not on a day yet')
+            : (part && part.kicker) || `Part ${stop.section + 1}`,
+          title: trip ? '' : (part && part.title) || '',
+          stops: [],
+        };
+        days.push(day);
+      }
+      day.stops.push({ stop, i });
+    });
+    const count = route ? `${stops.length} ${stops.length === 1 ? 'place' : 'places'}` : '';
+    const closeStop = () => setStopIndex(null);
+    if (trip) {
+      return {
+        key: `trip:${trip.id}`,
+        kind: KIND[point.kind],
+        title: trip.name,
+        meta: [fmtRange(trip.start_date, trip.end_date), count].filter(Boolean).join(' · '),
+        image: trip.cover_ref ? photoURL(trip.cover_ref, 680) : point.photo_ref ? photoURL(point.photo_ref, 680) : null,
+        href: `/trips/${trip.id}/itinerary`,
+        open: 'Open trip',
+        target: { tripId: trip.id },
+        days,
+        sub: (stop) => [stop.time ? fmtTime(stop.time) : '', shortPlace(stop.location)].filter(Boolean).join(' · '),
+        card: (stop, i) => ({
+          key: `${trip.id}:${i}`,
+          title: stop.name,
+          meta: [stop.day ? fmtDay(stop.day) : '', stop.time ? fmtTime(stop.time) : '', shortPlace(stop.location)]
+            .filter(Boolean).join(' · '),
+          photoRef: stop.photo_ref,
+          placeId: stop.place_id,
+          action: 'Open activity',
+          onAction: () => router.push(`/trips/${trip.id}/itinerary${stop.id ? `?focus=${stop.id}` : ''}`),
+          onClose: closeStop,
+        }),
+      };
+    }
+    const j = pointJourney;
+    return {
+      key: `journey:${j.slug}`,
+      kind: KIND[point.kind],
+      title: j.title,
+      meta: [point.label, `${j.days[0]}–${j.days[1]} days`, count].filter(Boolean).join(' · '),
+      image: point.image,
+      href: `/journeys/${j.slug}`,
+      open: 'Read the journey',
+      target: { journey: j.slug },
+      days,
+      sub: () => '',
+      card: (stop, i) => {
+        const part = (route.sections || [])[stop.section];
+        return {
+          key: `${j.slug}:${i}`,
+          title: stop.name,
+          meta: part ? [part.kicker, part.title].filter(Boolean).join(' · ') : '',
+          action: 'Read the journey',
+          onAction: () => router.push(`/journeys/${j.slug}`),
+          onClose: closeStop,
+        };
+      },
+    };
+  })();
 
   const plannedTrips = tripRows.filter((t) => t.kind === 'planned')
     .sort((a, b) => String(a.trip.start_date || '').localeCompare(String(b.trip.start_date || '')));
@@ -532,10 +662,11 @@ export default function GlobeView() {
   return (
     <div className="shell">
       <TopBar><HomeNav active="globe" /></TopBar>
-      <main className={s.stage}>
+      <main className={s.stage} data-route={route ? '' : undefined}>
         <div className={s.canvas}>
           <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
-            route={route} onDrawn={() => setDrawn(true)} />
+            route={route} focus={!!plan} stopIndex={stopIndex} hoverStop={hoverStop}
+            onStop={chooseStop} onStopHover={setHoverStop} onDrawn={() => setDrawn(true)} />
         </div>
         <div className={s.loading} data-done={drawn ? '' : undefined} aria-hidden={drawn ? 'true' : undefined}>
           {drawn ? null : <div className={s.loadingCard}><Loading label="Loading your globe" /></div>}
@@ -666,7 +797,56 @@ export default function GlobeView() {
           </div>
         </aside>
 
-        {point ? (
+        {plan ? (
+          <aside className={s.plan} aria-label={`${plan.title}: its places`} key={plan.key}>
+            <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
+              <X size={16} />
+            </button>
+            {plan.image ? <img className={s.planImg} src={plan.image} alt="" /> : null}
+            <div className={s.planHead}>
+              <span className={s.kind}><i className={s.dot} data-kind={point.kind} /> {plan.kind}</span>
+              <h2 className={s.detailTitle}>{plan.title}</h2>
+              <p className={s.detailMeta}>{plan.meta}</p>
+              <div className={s.acts}>
+                <Link className="btn primary" href={plan.href}>{plan.open}</Link>
+                <FavouriteButton on={!!point.favourite} name={plan.title}
+                  onToggle={(on) => favourite(plan.target, on, plan.title)} />
+              </div>
+            </div>
+            <div className={s.planList}>
+              {!route ? (
+                <p className={s.note}>Finding its places…</p>
+              ) : plan.days.map((day) => (
+                <section key={day.section} className={s.planDay}>
+                  <h3 className={s.planDayTitle}>
+                    <i className={s.planSwatch} style={{ background: day.colour }} />
+                    <span>{day.label}</span>
+                    {day.title ? <span className={s.planDaySub}>{day.title}</span> : null}
+                  </h3>
+                  <ol className={s.planStops}>
+                    {day.stops.map(({ stop, i }) => (
+                      <li key={i} ref={(el) => { stopRows.current[i] = el; }}>
+                        <button type="button" className={s.planStop}
+                          aria-current={i === stopIndex ? 'true' : undefined}
+                          data-hover={i === hoverStop ? '' : undefined}
+                          onMouseEnter={() => setHoverStop(i)} onMouseLeave={() => setHoverStop(null)}
+                          onFocus={() => setHoverStop(i)} onBlur={() => setHoverStop(null)}
+                          onClick={() => (i === stopIndex ? setStopIndex(null) : chooseStop(i))}>
+                          <span className={s.planNum} style={{ background: day.colour, color: inkOn(day.colour) }}>{stop.n}</span>
+                          <span className={s.itemText}>
+                            <span className={s.itemName}>{stop.name}</span>
+                            {plan.sub(stop) ? <span className={s.itemSub}>{plan.sub(stop)}</span> : null}
+                          </span>
+                        </button>
+                        {i === stopIndex ? <StopCard card={plan.card(stop, i)} /> : null}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          </aside>
+        ) : point ? (
           <div className={s.detail} role="region" aria-label={point.name} key={point.id}>
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
               <X size={16} />
@@ -677,40 +857,13 @@ export default function GlobeView() {
             <div className={s.detailBody}>
               <span className={s.kind}><i className={s.dot} data-kind={point.kind} /> {KIND[point.kind]}</span>
               <h2 className={s.detailTitle}>{point.name}</h2>
-              {point.tripId ? (
-                <>
-                  <p className={s.detailMeta}>
-                    {[point.trip.name, fmtRange(point.trip.start_date, point.trip.end_date),
-                      `${point.stops} ${point.stops === 1 ? 'stop' : 'stops'}`].filter(Boolean).join(' · ')}
-                  </p>
-                  <div className={s.acts}>
-                    <Link className="btn primary" href={`/trips/${point.tripId}/itinerary`}>
-                      Open trip <ArrowRight size={15} />
-                    </Link>
-                    <FavouriteButton on={!!point.favourite} name={point.trip.name}
-                      onToggle={(on) => favourite({ tripId: point.tripId }, on, point.trip.name)} />
-                  </div>
-                </>
-              ) : point.kind === 'preview' ? (
+              {point.kind === 'preview' ? (
                 <>
                   {point.label ? <p className={s.detailMeta}>{point.label}</p> : null}
                   <div className={s.acts}>
                     <button type="button" className="btn primary" disabled={busy} onClick={keepPreview}>
                       <Check size={15} /> I’ve been
                     </button>
-                  </div>
-                </>
-              ) : pointJourney ? (
-                <>
-                  <p className={s.detailMeta}>
-                    {[point.label, `${pointJourney.days[0]}–${pointJourney.days[1]} days`].filter(Boolean).join(' · ')}
-                  </p>
-                  <div className={s.acts}>
-                    <Link className="btn primary" href={`/journeys/${point.journey}`}>
-                      <BookOpen size={15} /> Read the journey
-                    </Link>
-                    <FavouriteButton on={!!point.favourite} name={point.name}
-                      onToggle={(on) => favourite({ journey: point.journey }, on, point.name)} />
                   </div>
                 </>
               ) : row ? (

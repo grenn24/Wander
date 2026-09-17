@@ -192,7 +192,11 @@ test('a trip unfolds in order: by day, then time, then place in the day, without
 });
 
 test('stop numbers are dark on light day colours and white on dark ones', async () => {
-  const { inkOn } = await import('../components/globeMarker.js');
+  const { inkOn, rgbOf } = await import('../components/mapPin.js');
+  // The day colours arrive as hsl() from the trip map's palette.
+  assert.deepEqual(rgbOf('hsl(61 70% 52%)'), [215, 218, 47]);
+  assert.deepEqual(rgbOf('#a34f35'), [163, 79, 53]);
+  assert.equal(inkOn('hsl(0 70% 52%)'), '#ffffff');
   assert.equal(inkOn([218, 47, 47]), '#ffffff'); // red
   assert.equal(inkOn([61, 47, 218]), '#ffffff'); // blue
   assert.equal(inkOn([215, 218, 47]), '#1d1b18'); // yellow

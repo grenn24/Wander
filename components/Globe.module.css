@@ -167,6 +167,44 @@
   animation: rise .22s var(--ease);
 }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+/* An open trip's or journey's places, down the right, under the whole-globe button. */
+.plan {
+  position: absolute; z-index: 6; top: 70px; right: 14px; bottom: 14px; width: 360px; max-width: calc(100% - 28px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 22px;
+  background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift-lg);
+  animation: rise .22s var(--ease);
+}
+.planImg { display: block; flex: none; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; background: var(--surface-2); }
+.planHead { flex: none; padding: 12px 16px 14px; border-bottom: 1px solid var(--border); }
+.planList { flex: 1; min-height: 0; padding: 2px 8px 12px; overflow-y: auto; overscroll-behavior: contain; }
+.planDay { margin-top: 8px; }
+.planDayTitle {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 0; padding: 8px 8px 4px;
+  font-size: 13px; font-weight: 650; color: var(--text-1);
+}
+.planSwatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.planDaySub { flex-basis: 100%; padding-left: 18px; color: var(--text-3); font-size: 12.5px; font-weight: 500; }
+.planStops { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.planStop {
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 7px 8px;
+  border: 0; border-radius: 12px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.planStop:hover, .planStop[data-hover] { background: var(--surface-2); }
+.planStop[aria-current="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); }
+/* The globe's pin, in the list: the same circle, number and day colour. */
+.planNum {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box;
+  border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace;
+}
+/* The trip map's card for the chosen stop, opened under it in the list. */
+.stopCard {
+  margin: 4px 8px 8px 45px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1);
+}
+.stopCard :global(.gminfo) { width: auto; }
 .detailImg { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); }
 .detailX {
   position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center;
@@ -218,11 +256,15 @@
   .layer { padding: 8px; }
   .layerN { font-size: 20px; }
   .detail { top: 66px; right: 10px; bottom: auto; left: 10px; width: auto; max-width: none; }
+  /* On a phone the open trip takes the screen's top half, and the menu steps aside for it. */
+  .plan { top: 66px; right: 10px; bottom: auto; left: 10px; width: auto; max-width: none; max-height: 52%; }
+  .planImg { aspect-ratio: 5 / 2; }
+  .stage[data-route] .panel { display: none; }
   .detailImg { aspect-ratio: 5 / 2; }
   .overview { top: 10px; right: 10px; }
   .setup { top: 66px; bottom: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .detail { animation: none; }
+  .detail, .plan { animation: none; }
   .panel, .switch, .switch::after, .layer, .loading, .loading[data-done], .fold { transition: none; }
 }

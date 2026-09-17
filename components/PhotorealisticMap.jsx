@@ -4,6 +4,7 @@ import { haversine, NEARBY_KINDS } from '@/lib/geo';
 import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from '@/lib/map3dCamera';
 import { move3DCamera } from '@/lib/map3dMotion';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
+import { createPin } from '@/components/mapPin';
 import styles from './PhotorealisticMap.module.css';
 
 const EMPTY = [];
@@ -157,20 +158,33 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       const key = `${kind}:${point.id}`;
       const category = point.category || NEARBY_KINDS.find((entry) => entry.id === point.kind)?.category || 'other';
       const colour = kind === 'stop' ? latest.current.stopColour(point) : latest.current.placeColour(category);
-      // HTML markers stay keyboard-accessible and allow shared-location stops
-      // to fan out, while their geographic anchors remain unchanged.
+      /*
+       * The map's one pin (components/mapPin): a stop numbered in its day's
+       * colour, a suggestion a smaller plain circle in its category's. Its name
+       * is the app's tooltip rather than the system's.
+       *
+       * The 3D map draws only inside a marker's own box, so the pin has room
+       * around it to grow under a pointer. The box is centred on the place; a
+       * stop sharing its spot with others is moved by the anchor, box and all,
+       * so it neither gets clipped nor lays an invisible box over its neighbours.
+       */
+      const size = kind === 'stop' ? 26 : 20;
+      const pin = createPin({
+        label: kind === 'stop' ? index + 1 : '',
+        colour,
+        size,
+        name: kind === 'stop' ? `${index + 1}. ${point.title}` : point.name,
+      });
+      const pad = Math.round(size * 0.45);
+      const room = document.createElement('div');
+      room.style.padding = `${pad}px`;
+      room.append(pin.el);
+      const fan = (kind === 'stop' && fans.get(point.id)) || [0, 0];
+      const half = size / 2 + pad;
       const marker = new library.MarkerInteractiveElement({ position: { lat: point.lat, lng: point.lng },
         altitudeMode: 'CLAMP_TO_GROUND', collisionBehavior: 'REQUIRED',
-        title: kind === 'stop' ? `${index + 1}. ${point.title}` : point.name });
-      const pin = new library.PinElement({ background: colour, borderColor: '#ffffff', glyphColor: '#ffffff',
-        glyphText: kind === 'stop' ? String(index + 1) : '•', scale: kind === 'stop' ? 1 : 0.85 });
-      const fan = kind === 'stop' && fans.get(point.id);
-      if (fan) {
-        const wrapper = document.createElement('div');
-        wrapper.style.transform = `translate(${fan[0]}px, ${fan[1]}px)`;
-        wrapper.append(pin);
-        marker.append(wrapper);
-      } else marker.append(pin);
+        anchorLeft: `${Math.round(fan[0] - half)}px`, anchorTop: `${Math.round(fan[1] - half)}px` });
+      marker.append(room);
       marker.addEventListener('gmp-click', (event) => {
         event.stopPropagation();
         selectPoint(point, kind, true);
@@ -223,8 +237,11 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
 
   useEffect(() => {
     if (!library) return;
-    markers.current.forEach(({ pin, kind }, key) => {
-      pin.scale = key === selection?.key ? 1.25 : kind === 'stop' ? 1 : 0.85;
+    markers.current.forEach(({ marker, pin }, key) => {
+      const on = key === selection?.key;
+      pin.set({ active: on });
+      // Markers are drawn in the order they were added: the chosen one goes last, over its neighbours.
+      if (on && marker.parentNode && marker.parentNode.lastElementChild !== marker) marker.parentNode.append(marker);
     });
     const isStop = selection?.kind === 'stop';
     const item = (isStop ? stops : places).find((point) => point.id === selection?.id);

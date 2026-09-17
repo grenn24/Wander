@@ -93,7 +93,10 @@ function loadAreas(code) {
  * `aim` is a camera plus a key: a new key means fly there, even to the same
  * place again, which is what "show me the whole globe" pressed twice needs.
  */
-export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion, onDrawn, route = null }) {
+export default function GlobeCanvas({
+  points, selectedId, aim, onSelect, onRegion, onDrawn, route = null,
+  focus = false, stopIndex = null, hoverStop = null, onStop, onStopHover,
+}) {
   const host = useRef(null);
   const map3d = useRef(null);
   const map2d = useRef(null);
@@ -101,6 +104,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const pins = useRef(new Map()); // key -> { id, kind, marker, face, shown?, remove }
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
   const routeDrawn = useRef([]); // the chosen trip's line and stops, to take away again
+  const stopMarks = useRef([]); // [{ marker, face }] for the chosen route's stops, in order
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const pressedAt = useRef(0);
@@ -123,7 +127,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const covered = useMemo(() => new Set(regions.flatMap((r) => r.covered)), [regions]);
 
   const latest = useRef(null);
-  latest.current = { onSelect, onRegion, onDrawn, aim, selectedId, regions, covered };
+  latest.current = {
+    onSelect, onRegion, onDrawn, aim, selectedId, regions, covered, focus, onStop, onStopHover, stopIndex,
+  };
   const drawn = () => { if (latest.current.onDrawn) latest.current.onDrawn(); };
 
   // With no maps at all there is nothing to wait for.
@@ -324,12 +330,20 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
    * crosses that line, never on every frame of a flight.
    */
   function placePins() {
+    const { covered: hidden, selectedId: selected, focus: routeOpen } = latest.current;
+    // With a trip's route open, its stops are the only markers: everything else steps aside.
+    if (map2d.current) {
+      pins.current.forEach((entry) => {
+        const want = !routeOpen;
+        if (entry.shown !== want) { entry.marker.map = want ? map2d.current : null; entry.shown = want; }
+      });
+      return;
+    }
     const map = map3d.current;
     if (!map) return;
-    const { covered: hidden, selectedId: selected } = latest.current;
     let added = false;
     pins.current.forEach((entry) => {
-      const want = entry.id === selected || strength.current < 1 || !hidden.has(entry.id);
+      const want = !routeOpen && (entry.id === selected || strength.current < 1 || !hidden.has(entry.id));
       if (want && !entry.shown) { entry.face.wake(); map.append(entry.marker); entry.shown = true; added = true; }
       if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
     });
@@ -342,7 +356,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       altitudeMode: 'CLAMP_TO_GROUND',
       // Ideas give way to your own places when they collide.
       collisionBehavior: p.kind === 'idea' ? 'OPTIONAL_AND_HIDES_LOWER_PRIORITY' : 'REQUIRED',
-      title: p.name,
+      // A circle sits centred on its place; its name is the app's tooltip, not the system's.
+      anchorLeft: '-50%',
+      anchorTop: '-50%',
     });
     const face = createMarker(p);
     marker.append(face.el);
@@ -361,18 +377,17 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }
 
   function add2D(L, p) {
-    const face = createMarker(p);
+    const face = createMarker(p, { lift: true });
     face.wake();
     const marker = new L.AdvancedMarkerElement({
       map: map2d.current,
       position: { lat: p.lat, lng: p.lng },
       content: face.el,
-      title: p.name,
       gmpClickable: true,
       zIndex: p.kind === 'idea' ? 1 : 10,
     });
     marker.addListener('click', () => latest.current.onSelect(p.id));
-    return { id: p.id, kind: p.kind, marker, face, remove: () => { marker.map = null; } };
+    return { id: p.id, kind: p.kind, marker, face, shown: true, remove: () => { marker.map = null; } };
   }
 
   function chooseRegion(id) {
@@ -521,10 +536,12 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     const L = lib.current;
     routeDrawn.current.forEach((clear) => clear());
     routeDrawn.current = [];
+    stopMarks.current = [];
     if (!ready || !L || !route || !route.stops.length) return undefined;
+    const hover = (i) => (on) => { if (latest.current.onStopHover) latest.current.onStopHover(on ? i : null); };
+    const choose = (i) => { if (latest.current.onStop) latest.current.onStop(i); };
     const total = Math.max(1, ...route.stops.map((s) => s.section + 1));
     const tone = (section) => `rgb(${toRgb(dayColor(section, total)).join(', ')})`;
-    const last = route.stops.length - 1;
     if (mode === '3d' && map3d.current) {
       const map = map3d.current;
       route.legs.forEach((leg) => {
@@ -544,19 +561,25 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         routeDrawn.current.push(() => line.remove());
       });
       route.stops.forEach((stop, i) => {
-        const marker = new L.MarkerElement({
+        // Every stop shows, crowded or not: with the trip open they are what you came to see.
+        const marker = new L.MarkerInteractiveElement({
           position: { lat: stop.lat, lng: stop.lng },
           altitudeMode: 'CLAMP_TO_GROUND',
-          // The first and last stops always show; the rest give way to each other when crowded.
-          collisionBehavior: i === 0 || i === last ? 'REQUIRED' : 'OPTIONAL_AND_HIDES_LOWER_PRIORITY',
-          collisionPriority: route.stops.length - i,
+          collisionBehavior: 'REQUIRED',
           // Centred on the spot, where the line passes, rather than standing above it.
           anchorLeft: '-50%',
           anchorTop: '-50%',
-          title: `${stop.n}. ${stop.name}`,
         });
-        marker.append(createStop(stop, tone(stop.section)));
+        const face = createStop(stop, tone(stop.section), { onHover: hover(i) });
+        marker.append(face.el);
+        marker.addEventListener('gmp-click', (e) => {
+          e.stopPropagation();
+          chosenOn.current = presses.current;
+          choose(i);
+          if (performance.now() - pressedAt.current < 800) setTimeout(() => marker.blur(), 0);
+        });
         map.append(marker);
+        stopMarks.current.push({ marker, face });
         routeDrawn.current.push(() => marker.remove());
       });
       // Stops were added after the photographs; the chosen one goes back on top.
@@ -575,14 +598,17 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         });
         routeDrawn.current.push(() => line.setMap(null));
       });
-      route.stops.forEach((stop) => {
+      route.stops.forEach((stop, i) => {
+        const face = createStop(stop, tone(stop.section), { lift: true, onHover: hover(i) });
         const marker = new L.AdvancedMarkerElement({
           map,
           position: { lat: stop.lat, lng: stop.lng },
-          content: createStop(stop, tone(stop.section)),
-          title: `${stop.n}. ${stop.name}`,
-          zIndex: 50,
+          content: face.el,
+          gmpClickable: true,
+          zIndex: 50 + i,
         });
+        marker.addListener('click', () => choose(i));
+        stopMarks.current.push({ marker, face });
         routeDrawn.current.push(() => { marker.map = null; });
       });
     }
@@ -590,6 +616,22 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   }, [ready, mode, route && route.key, route && route.stops.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { routeDrawn.current.forEach((clear) => clear()); routeDrawn.current = []; }, []);
+
+  // Opening or closing a route hides or brings back every other marker.
+  useEffect(() => { if (ready) placePins(); }, [ready, focus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /*
+   * The chosen stop and the one under a pointer — on the globe or in the
+   * itinerary beside it — drawn the way the trip map draws them: the chosen
+   * one a little larger, the pointed-at one larger still with a halo, and the
+   * chosen one moved last so nothing near it covers it.
+   */
+  useEffect(() => {
+    stopMarks.current.forEach(({ marker, face }, i) => {
+      face.set({ active: i === stopIndex, hover: i === hoverStop });
+      if (i === stopIndex && map3d.current && map3d.current.lastElementChild !== marker) map3d.current.append(marker);
+    });
+  }, [stopIndex, hoverStop, route && route.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!ready || !aim) return;
