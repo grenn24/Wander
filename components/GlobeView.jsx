@@ -3,11 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
-  Search, X, Star, Check, Trash2, BookOpen, Earth, Sparkles, ArrowRight,
+  Search, X, Check, Trash2, BookOpen, Earth, Sparkles, ArrowRight,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import HomeNav from '@/components/HomeNav';
+import Loading from '@/components/Loading';
 import PlacePhoto from '@/components/PlacePhoto';
+import FavouriteButton from '@/components/FavouriteButton';
+import {
+  readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
+} from '@/lib/favourites';
 import { useApp } from '@/components/AppProvider';
 import { searchPlaces } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
@@ -42,12 +47,13 @@ function rememberPhotos(found) {
 }
 // What each kind is called on screen. Inside, a completed trip is still 'been'
 // and an upcoming one 'planned', the names saved places are stored under.
-const KIND = { been: 'Completed', planned: 'Upcoming', want: 'Want to go', idea: 'Journey idea', preview: 'New place' };
+const KIND = { been: 'Completed', planned: 'Upcoming', favourite: 'Favourite', idea: 'Journey idea', preview: 'New place' };
+const LAYER = { been: 'Completed', planned: 'Upcoming', favourite: 'Favourites' };
 // What puts a place under each count, shown when the count is pointed at.
 const KIND_TIP = {
   been: 'Trips that have finished, and places you marked as been',
-  planned: 'Trips with dates still to come, or under way',
-  want: 'Trips without dates yet, and places you saved to go to',
+  planned: 'Trips still to come or under way, and trips without dates yet',
+  favourite: 'Trips and journeys you’ve favourited',
 };
 
 // The table arrives with a migration; a database that has not had it yet
@@ -62,11 +68,11 @@ const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w
  * Where you have been and where you might go, on a globe.
  *
  * Nothing here has to be entered by hand to be useful: every trip with located
- * stops puts its towns on the globe — finished trips as completed, trips still
- * to come as upcoming, and trips with no dates yet as want to go. Saved places
- * cover what Wander never saw — the trips before it, and places you mean to
- * get to — and journeys sit on the globe as ideas, which is what turns looking
- * back into planning the next one.
+ * stops puts its towns on the globe, finished trips as completed and the rest
+ * as upcoming. Favourites are the trips and journeys you have hearted, kept
+ * together whatever their dates. Places saved as been cover what Wander never
+ * saw, and journeys sit on the globe as ideas, which is what turns looking back
+ * into planning the next one.
  */
 export default function GlobeView() {
   const { supabase, user, sessionRevision, fail, pushToast } = useApp();
@@ -77,7 +83,9 @@ export default function GlobeView() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [noTable, setNoTable] = useState(false);
-  const [layers, setLayers] = useState({ been: true, planned: true, want: true, idea: true });
+  const [favs, setFavs] = useState(noFavourites);
+  const [noFavTable, setNoFavTable] = useState(false);
+  const [layers, setLayers] = useState({ been: true, planned: true, favourite: true, idea: true });
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null);
   const [aim, setAim] = useState(() => ({ camera: overviewCamera([]), key: 0, instant: true }));
@@ -87,8 +95,10 @@ export default function GlobeView() {
   const [searchError, setSearchError] = useState('');
   const [open, setOpen] = useState(false); // the phone sheet, pulled up
   const [busy, setBusy] = useState(false);
+  // The 3D Earth takes a few seconds to arrive, and until it does the stage is empty space.
+  const [drawn, setDrawn] = useState(false);
   const aimed = useRef(false);
-  const wanted = useRef(false);
+  const arrived = useRef(false);
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
@@ -115,9 +125,17 @@ export default function GlobeView() {
         if (!missingTable(sErr)) throw sErr;
         setNoTable(true);
       }
+      let f = noFavourites();
+      try {
+        f = await readFavourites(supabase);
+      } catch (e) {
+        if (!favouritesMissing(e)) throw e;
+        setNoFavTable(true);
+      }
       setTrips(t || []);
       setActs(a);
       setSaved(rows || []);
+      setFavs(f);
     } catch (e) {
       setLoadError(humanError(e));
     } finally {
@@ -142,10 +160,10 @@ export default function GlobeView() {
 
   const today = useMemo(() => todayISO(), []);
   const bare = useMemo(() => [
-    ...tripPoints(trips, acts, today),
+    ...tripPoints(trips, acts, today, favs.trips),
     ...savedPoints(saved),
-    ...ideaPoints(journeys, saved),
-  ], [trips, acts, saved, journeys, today]);
+    ...ideaPoints(journeys, favs.journeys),
+  ], [trips, acts, saved, journeys, today, favs]);
 
   /*
    * Photographs for towns that have none. A trip planned without place
@@ -183,8 +201,9 @@ export default function GlobeView() {
     const hit = p.photo_query && found[p.photo_query];
     return hit && hit.ref ? { ...p, photo_ref: hit.ref } : p;
   }), [bare, found]);
+  // A favourite trip shows while its dates' layer or Favourites is on.
   const shown = useMemo(() => {
-    const list = all.filter((p) => layers[p.kind]);
+    const list = all.filter((p) => layers[p.kind] || (p.favourite && layers.favourite));
     return preview ? [...list, preview] : list;
   }, [all, layers, preview]);
   const counts = useMemo(() => globeCounts(all), [all]);
@@ -196,7 +215,9 @@ export default function GlobeView() {
       if (!by.has(p.tripId)) by.set(p.tripId, []);
       by.get(p.tripId).push(p);
     });
-    return [...by.values()].map((pins) => ({ id: pins[0].tripId, kind: pins[0].kind, trip: pins[0].trip, pins }));
+    return [...by.values()].map((pins) => ({
+      id: pins[0].tripId, kind: pins[0].kind, favourite: pins[0].favourite, trip: pins[0].trip, pins,
+    }));
   }, [all]);
 
   // Once the places are known, turn the globe to face them.
@@ -254,9 +275,15 @@ export default function GlobeView() {
       pushToast('Saving places needs a database update first.', { kind: 'error' });
       return null;
     }
-    const dup = saved.find((r) => (row.place_id && r.place_id === row.place_id)
-      || (row.journey && r.journey === row.journey));
-    if (dup) return dup.kind === row.kind ? dup : changeKind(dup, row.kind);
+    const dup = saved.find((r) => row.place_id && r.place_id === row.place_id);
+    if (dup && dup.kind === row.kind) return dup;
+    if (dup) {
+      // Saved once as want to go, before favourites: it becomes a place you have been.
+      const { data, error } = await supabase.from('saved_places').update({ kind: row.kind }).eq('id', dup.id).select().single();
+      if (error) { fail(error); return null; }
+      setSaved((prev) => prev.map((r) => (r.id === dup.id ? data : r)));
+      return data;
+    }
     setBusy(true);
     const { data, error } = await supabase.from('saved_places').insert({
       user_id: user.id,
@@ -279,15 +306,6 @@ export default function GlobeView() {
     return data;
   }
 
-  async function changeKind(row, kind) {
-    setBusy(true);
-    const { data, error } = await supabase.from('saved_places')
-      .update({ kind }).eq('id', row.id).select().single();
-    setBusy(false);
-    if (error) { fail(error); return null; }
-    setSaved((prev) => prev.map((r) => (r.id === row.id ? data : r)));
-    return data;
-  }
 
   async function unsave(row) {
     setBusy(true);
@@ -299,42 +317,51 @@ export default function GlobeView() {
     pushToast(`Removed ${row.name}.`);
   }
 
-  async function keepPreview(kind) {
+  async function keepPreview() {
     if (!preview) return;
-    const row = await save({ ...preview, kind });
+    const row = await save({ ...preview, kind: 'been' });
     if (!row) return;
     setPreview(null);
     setSelected(`saved:${row.id}`);
-    pushToast(kind === 'want' ? `${row.name} is on your want-to-go list.` : `${row.name} is now under Completed.`);
+    pushToast(`${row.name} is now under Completed.`);
   }
 
-  async function saveJourney(slug) {
+  /*
+   * Heart a trip or a journey, or take the heart away. The globe changes at
+   * once; if the database refuses, it changes back and says why.
+   */
+  async function favourite(target, on, name) {
+    if (!supabase || !user) return;
+    if (noFavTable) {
+      pushToast('Favourites need a database update first.', { kind: 'error' });
+      return;
+    }
+    const before = favs;
+    setFavs(withFavourite(favs, target, on));
+    try {
+      await setFavourite(supabase, user.id, target, on);
+      pushToast(on ? `${name} is in your favourites.` : `${name} is no longer a favourite.`);
+    } catch (e) {
+      setFavs(before);
+      if (favouritesMissing(e)) setNoFavTable(true);
+      fail(e);
+    }
+  }
+
+  // Arriving from a journey's "Add to favourites" (or an older "Save to my globe" link).
+  useEffect(() => {
+    if (loading || arrived.current || !journeys.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('favourite') || params.get('want');
+    if (!slug) return;
+    arrived.current = true;
+    window.history.replaceState(window.history.state, '', '/globe');
     const j = journeys.find((x) => x.slug === slug);
     if (!j) return;
-    const row = await save({
-      kind: 'want',
-      name: j.place === j.country ? j.country : j.place,
-      label: j.title,
-      lat: j.center.lat,
-      lng: j.center.lng,
-      photo_ref: j.cover_ref,
-      journey: j.slug,
-    });
-    if (!row) return;
-    setSelected(`saved:${row.id}`);
-    fly(focusCamera({ kind: 'idea', lat: row.lat, lng: row.lng }));
-    pushToast(`${j.title} is on your want-to-go list.`);
-  }
-
-  // Arriving from a journey's "Save to my globe".
-  useEffect(() => {
-    if (loading || wanted.current || !journeys.length) return;
-    const slug = new URLSearchParams(window.location.search).get('want');
-    if (!slug) return;
-    wanted.current = true;
-    window.history.replaceState(window.history.state, '', '/globe');
     aimed.current = true;
-    saveJourney(slug);
+    if (!favs.journeys.has(slug)) favourite({ journey: slug }, true, j.title);
+    const [p] = ideaPoints([j], new Set([slug]));
+    if (p) { setSelected(p.id); setPreview(null); setAim({ camera: focusCamera(p), key: Date.now() }); }
   }, [loading, journeys]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -376,17 +403,17 @@ export default function GlobeView() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const own = counts.been + counts.planned + counts.want;
+  const own = counts.been + counts.planned + counts.favourite;
   const row = point && point.savedId ? saved.find((r) => r.id === point.savedId) : null;
-  const ideaJourney = point && point.kind === 'idea' ? journeys.find((j) => j.slug === point.journey) : null;
+  const pointJourney = point && point.journey && !point.savedId ? journeys.find((j) => j.slug === point.journey) : null;
 
   const plannedTrips = tripRows.filter((t) => t.kind === 'planned')
     .sort((a, b) => String(a.trip.start_date || '').localeCompare(String(b.trip.start_date || '')));
-  const wantTrips = tripRows.filter((t) => t.kind === 'want');
+  const favouriteTrips = tripRows.filter((t) => t.favourite);
+  const favouriteJourneys = all.filter((p) => p.kind === 'favourite');
   const beenTrips = tripRows.filter((t) => t.kind === 'been')
     .sort((a, b) => String(b.trip.start_date || '').localeCompare(String(a.trip.start_date || '')));
   const savedBeen = saved.filter((r) => r.kind === 'been');
-  const savedWant = saved.filter((r) => r.kind === 'want');
 
   const tripItem = (t) => {
     const active = point && point.tripId === t.id;
@@ -409,6 +436,24 @@ export default function GlobeView() {
       </li>
     );
   };
+
+  const journeyItem = (p) => (
+    <li key={p.id}>
+      <button type="button" className={s.item} aria-current={selected === p.id ? 'true' : undefined}
+        onClick={() => select(p)}>
+        <span className={s.itemPic}>
+          {p.thumb
+            ? <img src={p.thumb} alt="" width={42} height={42} style={{ width: 42, height: 42, borderRadius: 12, objectFit: 'cover', display: 'block' }} />
+            : <PlacePhoto photoRef={p.photo_ref} category="other" size={42} rounded={12} />}
+          <i className={`${s.dot} ${s.itemDot}`} data-kind="favourite" />
+        </span>
+        <span className={s.itemText}>
+          <span className={s.itemName}>{p.name}</span>
+          <span className={s.itemSub}>{['Journey', p.label].filter(Boolean).join(' · ')}</span>
+        </span>
+      </button>
+    </li>
+  );
 
   const savedItem = (r) => {
     const p = savedPoints([r])[0];
@@ -435,7 +480,11 @@ export default function GlobeView() {
       <TopBar><HomeNav active="globe" /></TopBar>
       <main className={s.stage}>
         <div className={s.canvas}>
-          <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion} />
+          <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
+            onDrawn={() => setDrawn(true)} />
+        </div>
+        <div className={s.loading} data-done={drawn ? '' : undefined} aria-hidden={drawn ? 'true' : undefined}>
+          {drawn ? null : <div className={s.loadingCard}><Loading label="Loading your globe" /></div>}
         </div>
 
         <button type="button" className={`btn ${s.overview}`} data-tip="Whole globe"
@@ -451,11 +500,11 @@ export default function GlobeView() {
           <div className={s.top}>
             <h1 className={s.title}>Your globe</h1>
             <div className={s.layers} role="group" aria-label="Show on the globe">
-              {['been', 'planned', 'want'].map((k) => (
+              {['been', 'planned', 'favourite'].map((k) => (
                 <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}
                   data-tip={KIND_TIP[k]}>
                   <span className={s.layerN}>{loading ? '–' : counts[k]}</span>
-                  <span className={s.layerL}><i className={s.dot} data-kind={k} /> {KIND[k]}</span>
+                  <span className={s.layerL}><i className={s.dot} data-kind={k} /> {LAYER[k]}</span>
                 </button>
               ))}
             </div>
@@ -469,7 +518,7 @@ export default function GlobeView() {
                 <Search size={16} aria-hidden="true" />
                 <input value={query} maxLength={120}
                   placeholder="Add a place"
-                  aria-label="Add a place you have been or want to go"
+                  aria-label="Add a place you have been"
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => setOpen(true)}
                   onKeyDown={(e) => {
@@ -514,7 +563,7 @@ export default function GlobeView() {
             ) : !own ? (
               <div className={s.empty}>
                 <p className={s.emptyTitle}>Nothing on your globe yet</p>
-                <p>Your trips land here by themselves. Search to add other places you’ve been or want to go.</p>
+                <p>Your trips land here by themselves. Heart a trip or a journey to keep it in Favourites, or search to add places you’ve been.</p>
               </div>
             ) : (
               <>
@@ -524,10 +573,10 @@ export default function GlobeView() {
                     <ul className={s.items}>{plannedTrips.map(tripItem)}</ul>
                   </section>
                 ) : null}
-                {layers.want && (wantTrips.length || savedWant.length) ? (
+                {layers.favourite && (favouriteTrips.length || favouriteJourneys.length) ? (
                   <section className={s.group}>
-                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="want" /> Want to go</h2>
-                    <ul className={s.items}>{wantTrips.map(tripItem)}{savedWant.map(savedItem)}</ul>
+                    <h2 className={s.groupTitle}><i className={s.dot} data-kind="favourite" /> Favourites</h2>
+                    <ul className={s.items}>{favouriteTrips.map(tripItem)}{favouriteJourneys.map(journeyItem)}</ul>
                   </section>
                 ) : null}
                 {layers.been && (beenTrips.length || savedBeen.length) ? (
@@ -567,33 +616,30 @@ export default function GlobeView() {
                     <Link className="btn primary" href={`/trips/${point.tripId}/itinerary`}>
                       Open trip <ArrowRight size={15} />
                     </Link>
+                    <FavouriteButton on={!!point.favourite} name={point.trip.name}
+                      onToggle={(on) => favourite({ tripId: point.tripId }, on, point.trip.name)} />
                   </div>
                 </>
               ) : point.kind === 'preview' ? (
                 <>
                   {point.label ? <p className={s.detailMeta}>{point.label}</p> : null}
                   <div className={s.acts}>
-                    <button type="button" className="btn primary" disabled={busy} onClick={() => keepPreview('want')}>
-                      <Star size={15} /> Want to go
-                    </button>
-                    <button type="button" className="btn" disabled={busy} onClick={() => keepPreview('been')}>
+                    <button type="button" className="btn primary" disabled={busy} onClick={keepPreview}>
                       <Check size={15} /> I’ve been
                     </button>
                   </div>
                 </>
-              ) : point.kind === 'idea' ? (
+              ) : pointJourney ? (
                 <>
                   <p className={s.detailMeta}>
-                    {[point.label, ideaJourney ? `${ideaJourney.days[0]}–${ideaJourney.days[1]} days` : '']
-                      .filter(Boolean).join(' · ')}
+                    {[point.label, `${pointJourney.days[0]}–${pointJourney.days[1]} days`].filter(Boolean).join(' · ')}
                   </p>
                   <div className={s.acts}>
                     <Link className="btn primary" href={`/journeys/${point.journey}`}>
                       <BookOpen size={15} /> Read the journey
                     </Link>
-                    <button type="button" className="btn" disabled={busy} onClick={() => saveJourney(point.journey)}>
-                      <Star size={15} /> Want to go
-                    </button>
+                    <FavouriteButton on={!!point.favourite} name={point.name}
+                      onToggle={(on) => favourite({ journey: point.journey }, on, point.name)} />
                   </div>
                 </>
               ) : row ? (
@@ -612,11 +658,6 @@ export default function GlobeView() {
                         <Sparkles size={15} /> {row.kind === 'been' ? 'Plan a return' : 'Plan a trip here'}
                       </Link>
                     )}
-                    {row.kind === 'want' ? (
-                      <button type="button" className="btn" disabled={busy} onClick={() => changeKind(row, 'been')}>
-                        <Check size={15} /> I’ve been
-                      </button>
-                    ) : null}
                     <button type="button" className="btn ghost" disabled={busy} data-tip="Remove"
                       aria-label={`Remove ${row.name}`} onClick={() => unsave(row)}>
                       <Trash2 size={15} />
@@ -628,9 +669,11 @@ export default function GlobeView() {
           </div>
         ) : null}
 
-        {noTable && !loading ? (
+        {(noTable || noFavTable) && !loading ? (
           <p className={s.setup} role="status">
-            Trips show here now. Saving your own places needs the latest database update.
+            {noFavTable
+              ? 'Trips show here now. Favourites need the latest database update.'
+              : 'Trips show here now. Saving your own places needs the latest database update.'}
           </p>
         ) : null}
       </main>

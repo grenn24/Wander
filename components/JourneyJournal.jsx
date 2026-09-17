@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Check, Plus, Minus, Sparkles, Star, X, Camera, Info, Route, EyeOff, MapPin, Play, MessageCircle,
+  ArrowLeft, Check, Plus, Minus, Sparkles, Heart, X, Camera, Info, Route, EyeOff, MapPin, Play, MessageCircle,
   Shield, ShieldAlert, ShieldCheck,
 } from 'lucide-react';
 import JourneyAsk from '@/components/JourneyAsk';
@@ -429,6 +429,10 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
             <div className={s.mapCol}>
               <JourneyScrollMap flowRef={flowRef} route={route} sections={sections} places={places} dropped={dropped} />
               <div className={s.mapBar}>
+                <Link href={`/globe?favourite=${doc.slug}`} className="btn ghost" aria-label="Add to favourites"
+                  data-tip="Add to favourites">
+                  <Heart size={16} aria-hidden="true" />
+                </Link>
                 <button type="button" className="btn ghost" onClick={() => openAsk()}>
                   <MessageCircle size={16} aria-hidden="true" /> Ask
                 </button>
@@ -444,6 +448,9 @@ export default function JourneyJournal({ journey: doc, hero = null }) {
       </div>
 
       <div className={s.dock}>
+        <Link href={`/globe?favourite=${doc.slug}`} className="btn ghost" aria-label="Add to favourites">
+          <Heart size={16} aria-hidden="true" />
+        </Link>
         <button type="button" className="btn ghost" onClick={() => openAsk()}>
           <MessageCircle size={16} aria-hidden="true" /> Ask
         </button>
@@ -800,8 +807,10 @@ function MakeItYours({ doc, choice, set, today, kept, total, dropped, onToggle, 
           disabled={choice.mode === 'dates' && !choice.start}>
           <Sparkles size={17} aria-hidden="true" /> Plan my version
         </button>
-        <Link href={`/globe?want=${doc.slug}`} className={`btn ghost ${s.wide}`}>
-          <Star size={16} aria-hidden="true" /> Save to my globe
+        {/* The journal is public, so this goes by way of the globe, which asks you
+            to sign in if you have not and then adds it to your favourites. */}
+        <Link href={`/globe?favourite=${doc.slug}`} className={`btn ghost ${s.wide}`}>
+          <Heart size={16} aria-hidden="true" /> Add to favourites
         </Link>
       </div>
     </form>

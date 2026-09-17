@@ -5,11 +5,12 @@
  * disappears into the fields around it — and a small pointer beneath whose tip
  * is the place on the map. What kind of place it is sits in a badge on the
  * corner, in the colours the panel's counts use:
- *   been     a tick
- *   planned  a clock
- *   want     a star
- *   idea     no badge, and smaller: a journey someone could take
- *   preview  a place just searched for, not saved yet: a plus, and no photo
+ *   been       a tick
+ *   planned    a clock
+ *   favourite  a heart — a favourited journey, or any trip you favourited,
+ *              whose heart says more than whether it is done
+ *   idea       no badge, and smaller: a journey someone could take
+ *   preview    a place just searched for, not saved yet: a plus, and no photo
  *
  * The 3D globe draws a marker's HTML as it is, but only what lies inside the
  * marker's own box, so the badge that hangs off the corner is given room
@@ -18,13 +19,13 @@
  */
 
 const WHITE = '#ffffff';
-const INK = { been: '#b85a3c', planned: '#b8862f', want: '#6e7a52', idea: '#5f5a55', preview: '#2b2724' };
+const INK = { been: '#b85a3c', planned: '#b8862f', favourite: '#c4506a', idea: '#5f5a55', preview: '#2b2724' };
 
 const svg = (body, size = 11) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 const BADGE = {
   been: svg(`<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="${WHITE}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>`),
   planned: svg(`<circle cx="12" cy="12" r="8" fill="none" stroke="${WHITE}" stroke-width="2.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="${WHITE}" stroke-width="2.6" stroke-linecap="round"/>`),
-  want: svg(`<path fill="${WHITE}" d="M12 2.5l2.9 6.2 6.8.8-5 4.6 1.4 6.7L12 17.4 5.9 20.8l1.4-6.7-5-4.6 6.8-.8z"/>`),
+  favourite: svg(`<path fill="${WHITE}" d="M12 20.3l-1.3-1.2C5.9 14.8 3 12.1 3 8.8 3 6.1 5.1 4 7.8 4c1.5 0 3 .7 4.2 1.9C13.2 4.7 14.7 4 16.2 4 18.9 4 21 6.1 21 8.8c0 3.3-2.9 6-7.7 10.3L12 20.3z"/>`),
 };
 const PLUS = svg(`<path d="M12 5v14M5 12h14" stroke="${WHITE}" stroke-width="2.8" stroke-linecap="round"/>`, 18);
 // No photograph to show: a quiet landscape, so the tile still reads as a picture of somewhere.
@@ -49,6 +50,7 @@ export function thumbOf(point) {
 export function createMarker(point) {
   const kind = INK[point.kind] ? point.kind : 'been';
   const small = kind === 'idea';
+  const badge = point.favourite ? 'favourite' : kind;
   const size = small ? 34 : 48;
   const radius = small ? 9 : 12;
   const ink = INK[kind];
@@ -81,11 +83,11 @@ export function createMarker(point) {
 
   const holder = div('position:relative');
   holder.append(tile);
-  if (BADGE[kind]) {
-    const badge = div(`position:absolute;right:-7px;top:-7px;width:19px;height:19px;border-radius:50%;background:${ink};`
+  if (BADGE[badge]) {
+    const mark = div(`position:absolute;right:-7px;top:-7px;width:19px;height:19px;border-radius:50%;background:${INK[badge]};`
       + `box-shadow:0 0 0 2px ${WHITE};display:grid;place-items:center`);
-    badge.innerHTML = BADGE[kind];
-    holder.append(badge);
+    mark.innerHTML = BADGE[badge];
+    holder.append(mark);
   }
   // The pointer: a small white triangle under the photograph, its tip on the spot.
   const pointer = div(`width:0;height:0;border-left:${small ? 5 : 7}px solid transparent;`

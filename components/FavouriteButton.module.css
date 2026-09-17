@@ -1,0 +1,24 @@
+/* The heart fills in when on, in the colour the globe gives favourites. */
+.heart { transition: fill .14s var(--ease), color .14s var(--ease); }
+[aria-pressed="true"] > .heart { fill: #c4506a; color: #c4506a; }
+
+.full { gap: 7px; }
+
+/* On a trip card: quiet like the card's menu button until the card is under
+   the pointer — except once favourited, when the heart is the point. */
+.compact {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px;
+  border-radius: 8px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-3); opacity: 0;
+  transition: opacity .14s var(--ease), background .14s var(--ease), color .14s var(--ease);
+}
+.compact[aria-pressed="true"],
+.compact:focus-visible,
+:global(.tripcard):hover .compact,
+:global(.triprow):hover .compact { opacity: 1; }
+.compact:hover { background: var(--surface-2); color: var(--text-1); }
+.compact:disabled { cursor: default; }
+@media (hover: none) { .compact { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .heart, .compact { transition: none; }
+}

@@ -34,10 +34,20 @@ const rgba = ([r, g, b], a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 const lighter = (rgb) => rgb.map((c) => Math.round(c + (255 - c) * 0.55));
 
 // A pin is the same pin while it is the same place of the same kind with the
-// same photograph; a town whose photograph has just been found is redrawn.
-const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}|${thumbOf(p) || ''}`;
+// same photograph and heart; a town whose photograph has just been found, or a
+// trip just favourited, is redrawn.
+const keyOf = (p) => `${p.id}|${p.kind}|${p.lat}|${p.lng}|${thumbOf(p) || ''}|${p.favourite ? 'fav' : ''}`;
 // A region is redrawn only when what it draws changes.
 const regionKey = (r) => `${r.id}|${r.kind}|${r.filled}|${r.parts.length}`;
+
+/*
+ * How far the camera is from what it looks at. The 3D map describes the same
+ * view two ways: a point on the ground seen from 17,000 km, or a point 17,000
+ * km up seen from 0 — and after some flights it switches to the second. Read
+ * only the range, the globe from space measured 0 km, so it showed every town
+ * and drew no regions. The distance is the two together.
+ */
+const distanceOf = (map) => (Number(map.range) || 0) + (Number(map.center && map.center.altitude) || 0);
 
 const getJSON = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${url} ${r.status}`))));
 
@@ -71,8 +81,8 @@ function loadAreas(code) {
  *
  * Places are photographs (see globeMarker). Far out, the countries you have
  * been to and are going to are outlined and their areas filled, and their
- * towns' markers give way to them; closer in the markers come back. Journey
- * ideas and places you want to go stay markers throughout: somewhere in particular, not
+ * towns' markers give way to them; closer in the markers come back. Journeys,
+ * favourite or not, stay markers throughout: somewhere in particular, not
  * somewhere you have been.
  *
  * It needs WebGL and the Map Tiles API. Where either is missing it falls back
@@ -81,7 +91,7 @@ function loadAreas(code) {
  * `aim` is a camera plus a key: a new key means fly there, even to the same
  * place again, which is what "show me the whole globe" pressed twice needs.
  */
-export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion }) {
+export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion, onDrawn }) {
   const host = useRef(null);
   const map3d = useRef(null);
   const map2d = useRef(null);
@@ -110,7 +120,11 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   const covered = useMemo(() => new Set(regions.flatMap((r) => r.covered)), [regions]);
 
   const latest = useRef(null);
-  latest.current = { onSelect, onRegion, aim, selectedId, regions, covered };
+  latest.current = { onSelect, onRegion, onDrawn, aim, selectedId, regions, covered };
+  const drawn = () => { if (latest.current.onDrawn) latest.current.onDrawn(); };
+
+  // With no maps at all there is nothing to wait for.
+  useEffect(() => { if (mode === 'none') drawn(); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wantsRegions = points.some((p) => p.kind === 'been' || p.kind === 'planned');
   useEffect(() => {
@@ -159,9 +173,10 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         mode: 'HYBRID', defaultUIHidden: true, gestureHandling: 'GREEDY',
       });
       map.setAttribute('aria-label', 'Globe of your places');
-      strength.current = regionStrength(start.range);
+      strength.current = regionStrength(distanceOf(start));
       listen(map, 'gmp-error', fallback);
-      listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) clearTimeout(timer); });
+      // Steady for the first time means the Earth is on screen: the loader can go.
+      listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) { clearTimeout(timer); drawn(); } });
       /*
        * A click on the ground closes the open place, but not the click that
        * opened it. The 3D map reports one press twice: the marker at once, then
@@ -178,12 +193,14 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         latest.current.onSelect(null);
       });
       // The camera's distance decides regions against pins; checked once a
-      // frame at most, and acted on only when it crosses a step.
-      listen(map, 'gmp-rangechange', () => {
+      // frame at most, and acted on only when it crosses a step. A camera held
+      // as a point in the air moves its centre, not its range, as it zooms, so
+      // both are listened to.
+      const moved = () => {
         if (frame) return;
         frame = requestAnimationFrame(() => {
           frame = 0;
-          const next = regionStrength(map.range);
+          const next = regionStrength(distanceOf(map));
           const crossed = next !== strength.current;
           strength.current = next;
           // Areas fade on their own sizes, so they are checked on every move;
@@ -191,7 +208,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
           paintRegions();
           if (crossed) placePins();
         });
-      });
+      };
+      listen(map, 'gmp-rangechange', moved);
+      listen(map, 'gmp-centerchange', moved);
       host.current.append(map);
       map3d.current = map;
       setReady(true);
@@ -229,6 +248,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
         gestureHandling: 'greedy',
       });
       map.addListener('click', () => latest.current.onSelect(null));
+      L.event.addListenerOnce(map, 'tilesloaded', drawn);
       map2d.current = map;
       setReady(true);
     }).catch(() => { if (!dead) setMode('none'); });
@@ -366,7 +386,7 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
   function paintRegions() {
     const map = map3d.current;
     if (!map) return;
-    const range = map.range;
+    const range = distanceOf(map);
     let countryAdded = false;
     shapes.current.forEach((entry) => {
       const k = entry.level === 'area' ? areaStrength(entry.size, range) : strength.current;
@@ -486,8 +506,9 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     if (mode === '3d' && map3d.current) {
       const map = map3d.current;
       // Moving to a place keeps you as close as you are, if that is closer.
-      if (aim.closerOnly && map.range < cam.range) cam = { ...cam, range: map.range };
-      const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: map.range }, cam);
+      const now = distanceOf(map);
+      if (aim.closerOnly && now < cam.range) cam = { ...cam, range: now };
+      const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: now }, cam);
       try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }
       if (!ms || typeof map.flyCameraTo !== 'function') {
         Object.assign(map, cam);

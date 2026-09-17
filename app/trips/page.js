@@ -18,6 +18,10 @@ import PlacePhoto from '@/components/PlacePhoto';
 import TravelArt from '@/components/TravelArt';
 import HomeNav from '@/components/HomeNav';
 import JourneyRail from '@/components/JourneyRail';
+import FavouriteButton from '@/components/FavouriteButton';
+import {
+  readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
+} from '@/lib/favourites';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 
@@ -55,6 +59,9 @@ export default function TripsHome() {
   const [confirmKill, setConfirmKill] = useState(null);
   // trip id -> who owns it, for the ones somebody else does.
   const [sharedBy, setSharedBy] = useState({});
+  // Hearted trips. Without the favourites table yet, the hearts are simply not offered.
+  const [favs, setFavs] = useState(noFavourites);
+  const [canFavourite, setCanFavourite] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const failedLoad = useRef(false);
@@ -74,6 +81,12 @@ export default function TripsHome() {
       if (error) throw error;
       setTrips(data || []);
       setLoading(false);
+
+      readFavourites(supabase).then((f) => {
+        if (mine === loadToken.current) setFavs(f);
+      }).catch((e) => {
+        if (mine === loadToken.current && favouritesMissing(e)) setCanFavourite(false);
+      });
 
       const tripIds = (data || []).map((t) => t.id);
       if (!tripIds.length) {
@@ -147,6 +160,21 @@ export default function TripsHome() {
       if (saved === 'list' || saved === 'cards') setView(saved);
     } catch (e) { /* storage off; use the default list */ }
   }, []);
+
+  /* Heart a trip on the spot; if the database refuses, the heart goes back. */
+  async function favourite(t, on) {
+    if (!supabase || !user) return;
+    const before = favs;
+    setFavs(withFavourite(favs, { tripId: t.id }, on));
+    try {
+      await setFavourite(supabase, user.id, { tripId: t.id }, on);
+      pushToast(on ? `${t.name} is in your favourites.` : `${t.name} is no longer a favourite.`);
+    } catch (e) {
+      setFavs(before);
+      if (favouritesMissing(e)) setCanFavourite(false);
+      fail(e);
+    }
+  }
 
   function chooseView(v) {
     setView(v);
@@ -346,6 +374,10 @@ export default function TripsHome() {
                       </span>
                       <span className="triprow-end">
                         <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
+                        {canFavourite ? (
+                          <FavouriteButton compact on={favs.trips.has(t.id)} name={t.name}
+                            onToggle={(on) => favourite(t, on)} />
+                        ) : null}
                         <button className="tripcard-more" type="button"
                           data-tip="Edit, copy, delete"
                           aria-label={`Actions for ${t.name}`}
@@ -383,6 +415,10 @@ export default function TripsHome() {
                         }}>
                         <MoreHorizontal size={16} />
                       </button>
+                      {canFavourite ? (
+                        <FavouriteButton compact on={favs.trips.has(t.id)} name={t.name}
+                          onToggle={(on) => favourite(t, on)} />
+                      ) : null}
                       <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </div>
                     <h3 className="tripcard-name">{t.name}</h3>

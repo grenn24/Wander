@@ -5,6 +5,18 @@
   background: radial-gradient(120% 90% at 62% 46%, #17212d 0%, #070a0f 64%);
 }
 .canvas, .host, .hold { position: absolute; inset: 0; }
+
+/* Over the empty stage until the Earth is drawn. Space is dark in both themes,
+   so the loader sits on a panel of its own that follows the theme. */
+.loading {
+  position: absolute; inset: 0; z-index: 3; display: grid; place-items: center;
+  pointer-events: none; transition: opacity .45s var(--ease), visibility 0s linear 0s;
+}
+.loading[data-done] { opacity: 0; visibility: hidden; transition: opacity .45s var(--ease), visibility 0s linear .45s; }
+.loadingCard {
+  padding: 18px 24px 16px; border: 1px solid var(--border); border-radius: 18px;
+  background: var(--surface-1); box-shadow: var(--lift-lg, 0 12px 32px rgb(0 0 0 / .35));
+}
 .host > :global(gmp-map-3d) { display: block; width: 100%; height: 100%; }
 .notice {
   position: absolute; z-index: 4; top: 14px; left: 50%; transform: translateX(-50%);
@@ -49,7 +61,7 @@
 }
 .dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
 .dot[data-kind="planned"] { background: var(--warn); }
-.dot[data-kind="want"] { background: var(--good); }
+.dot[data-kind="favourite"] { background: #c4506a; }
 .dot[data-kind="idea"] { background: var(--text-3); }
 .dot[data-kind="preview"] { background: var(--text-1); }
 .ideas {
@@ -191,5 +203,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .detail { animation: none; }
-  .panel, .switch, .switch::after, .layer { transition: none; }
+  .panel, .switch, .switch::after, .layer, .loading, .loading[data-done] { transition: none; }
 }

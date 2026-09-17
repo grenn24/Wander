@@ -135,6 +135,7 @@ export function loadMaps() {
         window.google.maps.importLibrary('marker'),
       ]).then(([core, maps, marker]) => resolve({
         LatLngBounds: core.LatLngBounds,
+        event: core.event,
         Map: maps.Map,
         InfoWindow: maps.InfoWindow,
         Polyline: maps.Polyline,
