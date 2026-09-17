@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
 import {
   flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear,
-  zoomToward, ZOOM_OWN_BELOW_M,
 } from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
@@ -228,57 +227,6 @@ export default function GlobeCanvas({
       };
       listen(host.current, 'pointerdown', touched, true);
       listen(host.current, 'wheel', touched, { capture: true, passive: true });
-
-      /*
-       * The wheel zooms toward the ground under the pointer (see zoomToward in
-       * lib/globe). Google's map does not do this reliably: with some wheels
-       * and touchpads it zooms on the middle of the screen, and tilted, what
-       * you pointed at slides away. So close in, the globe takes the wheel
-       * itself; far out, where the Earth's curve matters, the map keeps it.
-       * Each notch is eased over a few frames rather than jumped.
-       */
-      const zoom = { log: 0, x: 0, y: 0, width: 0, height: 0, frame: 0 };
-      const cameraNow = () => {
-        const c = map.center;
-        const range = Number(map.range);
-        if (!c || !Number.isFinite(c.lat) || !(range > 5 && range < ZOOM_OWN_BELOW_M)) return null;
-        return {
-          lat: c.lat, lng: c.lng, altitude: Number(c.altitude) || 0,
-          range, tilt: Number(map.tilt) || 0, heading: Number(map.heading) || 0,
-        };
-      };
-      const fov = () => Number(map.getAttribute('fov')) || 35;
-      const stepZoom = () => {
-        zoom.frame = 0;
-        const cam = cameraNow();
-        if (!cam) { zoom.log = 0; return; }
-        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const part = still || Math.abs(zoom.log) < 0.004 ? zoom.log : zoom.log * 0.35;
-        zoom.log -= part;
-        Object.assign(map, zoomToward(cam, zoom.x, zoom.y, zoom.width, zoom.height, part, fov()));
-        if (zoom.log !== 0) zoom.frame = requestAnimationFrame(stepZoom);
-      };
-      const onWheel = (e) => {
-        if (!cameraNow()) return; // far out: the map's own zoom
-        const lines = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
-        // A touchpad pinch arrives as a wheel with Ctrl held, in much smaller steps.
-        const delta = Math.max(-400, Math.min(400, e.deltaY * lines * (e.ctrlKey ? 4 : 1)));
-        if (!delta) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (!zoom.frame && !zoom.log) {
-          try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (err) { /* nothing flying */ }
-        }
-        const box = map.getBoundingClientRect();
-        zoom.x = e.clientX - box.left;
-        zoom.y = e.clientY - box.top;
-        zoom.width = box.width;
-        zoom.height = box.height;
-        zoom.log += delta * 0.0014;
-        if (!zoom.frame) zoom.frame = requestAnimationFrame(stepZoom);
-      };
-      listen(host.current, 'wheel', onWheel, { capture: true, passive: false });
-      offs.push(() => { if (zoom.frame) cancelAnimationFrame(zoom.frame); });
       /*
        * A click on the ground closes the open place, but not the click that
        * opened it. The 3D map reports one press twice: the marker at once, then

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints, photoQueryOf,
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
-  groundOffset, nextGroundAltitude, groundNear, groundUnderScreen, zoomToward,
+  groundOffset, nextGroundAltitude, groundNear,
 } from '../lib/globe.js';
 
 test('a group camera frames a whole trip, a single pin gets the close view', () => {
@@ -232,32 +232,4 @@ test('a close view aimed at sea level is moved in onto the ground', () => {
   const samples = [{ lat: 35.49, lng: 138.78, alt: 820 }, { lat: 35.25, lng: 139.02, alt: 1000 }];
   assert.equal(groundNear(samples, { lat: 35.4869, lng: 138.7805 }), 820);
   assert.equal(groundNear(samples, { lat: 35.68, lng: 139.77 }), 0);
-});
-
-test('a scroll zooms toward the ground under the pointer, tilted or not', () => {
-  // Measured on the 3D map: 1856 × 1214 px, range 10 km, tilted 55°, turned 30°.
-  // A marker 2 km north of the centre drew at (759.6, 439.5), one 2 km east at (1235.9, 504.8).
-  const cam = { lat: 35.52, lng: 139.93, altitude: 0, range: 10000, tilt: 55, heading: 30 };
-  const north = groundUnderScreen(cam, 759.6, 439.5, 1856, 1214);
-  assert.ok(Math.abs(north.east) < 15 && Math.abs(north.north - 2000) < 15);
-  const east = groundUnderScreen(cam, 1235.9, 504.8, 1856, 1214);
-  assert.ok(Math.abs(east.east - 2000) < 15 && Math.abs(east.north) < 15);
-  // Straight down, the screen's middle is the centre.
-  const down = groundUnderScreen({ ...cam, tilt: 0 }, 928, 607, 1856, 1214);
-  assert.ok(Math.hypot(down.east, down.north) < 1);
-  // Above the horizon there is no ground to zoom toward.
-  assert.equal(groundUnderScreen({ ...cam, tilt: 85 }, 928, 5, 1856, 1214), null);
-
-  // Zooming in toward the northern marker keeps it where it was on the screen.
-  const next = zoomToward(cam, 759.6, 439.5, 1856, 1214, Math.log(0.5));
-  assert.equal(Math.round(next.range), 5000);
-  const after = { ...cam, lat: next.center.lat, lng: next.center.lng, range: next.range };
-  const shifted = {
-    east: (35.52 - after.lat) * 0 + (139.93 - after.lng) * 111320 * Math.cos(35.52 * Math.PI / 180),
-    north: (35.52 - after.lat) * 111320,
-  };
-  const still = groundUnderScreen(after, 759.6, 439.5, 1856, 1214);
-  assert.ok(Math.abs(still.east - (0 + shifted.east)) < 15 && Math.abs(still.north - (2000 + shifted.north)) < 15);
-  // Never closer than street level.
-  assert.equal(zoomToward(cam, 928, 607, 1856, 1214, -20).range, 60);
 });
