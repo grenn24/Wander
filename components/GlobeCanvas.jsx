@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { load3D, loadMaps, googleMapsAvailable, readScheme } from '@/components/GoogleMap';
-import { flightMillis } from '@/lib/globe';
+import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
+import { flightMillis, km } from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
 } from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
-import { createMarker, thumbOf } from '@/components/globeMarker';
+import { createMarker, createStop, thumbOf } from '@/components/globeMarker';
 import s from './Globe.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
@@ -18,16 +18,18 @@ function colour(kind) {
   return v || '#a34f35';
 }
 
-/** A theme colour as red, green and blue, whatever form the stylesheet wrote it in. */
-function rgbOf(kind) {
+/** Any CSS colour as red, green and blue, whatever form it was written in. */
+function toRgb(css) {
   const ctx = document.createElement('canvas').getContext('2d');
   ctx.fillStyle = '#a34f35';
-  ctx.fillStyle = colour(kind);
+  ctx.fillStyle = css;
   const v = ctx.fillStyle;
   return v[0] === '#'
     ? [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16))
     : v.match(/[\d.]+/g).slice(0, 3).map(Number);
 }
+
+const rgbOf = (kind) => toRgb(colour(kind));
 
 const rgba = ([r, g, b], a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 // The border is the fill's colour lifted towards white, so it reads against dark sea.
@@ -91,13 +93,14 @@ function loadAreas(code) {
  * `aim` is a camera plus a key: a new key means fly there, even to the same
  * place again, which is what "show me the whole globe" pressed twice needs.
  */
-export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion, onDrawn }) {
+export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegion, onDrawn, route = null }) {
   const host = useRef(null);
   const map3d = useRef(null);
   const map2d = useRef(null);
   const lib = useRef(null);
   const pins = useRef(new Map()); // key -> { id, kind, marker, face, shown?, remove }
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
+  const routeDrawn = useRef([]); // the chosen trip's line and stops, to take away again
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const pressedAt = useRef(0);
@@ -499,6 +502,87 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
     placePins();
   }, [ready, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /*
+   * The chosen trip's or journey's route: a line from stop to stop, a new
+   * colour for each day, and every stop numbered in order — the same colours
+   * the trip's own map gives its days, walking round the hue circle, so the
+   * route reads as progress. Drawn above the regions and under the
+   * photographs, and gone as soon as nothing is chosen.
+   */
+  useEffect(() => {
+    const L = lib.current;
+    routeDrawn.current.forEach((clear) => clear());
+    routeDrawn.current = [];
+    if (!ready || !L || !route || !route.stops.length) return undefined;
+    const total = Math.max(1, ...route.stops.map((s) => s.section + 1));
+    const tone = (section) => `rgb(${toRgb(dayColor(section, total)).join(', ')})`;
+    const last = route.stops.length - 1;
+    if (mode === '3d' && map3d.current) {
+      const map = map3d.current;
+      route.legs.forEach((leg) => {
+        const line = new L.Polyline3DElement({
+          coordinates: leg.points.map((p) => ({ lat: p.lat, lng: p.lng })),
+          altitudeMode: 'CLAMP_TO_GROUND',
+          strokeColor: tone(leg.section),
+          strokeWidth: 5,
+          outerColor: 'rgba(255, 255, 255, 0.9)',
+          outerWidth: 0.45,
+          // A hop between cities follows the Earth's curve, not a straight cut through it.
+          geodesic: true,
+          drawsOccludedSegments: false,
+          zIndex: 5,
+        });
+        map.append(line);
+        routeDrawn.current.push(() => line.remove());
+      });
+      route.stops.forEach((stop, i) => {
+        const marker = new L.MarkerElement({
+          position: { lat: stop.lat, lng: stop.lng },
+          altitudeMode: 'CLAMP_TO_GROUND',
+          // The first and last stops always show; the rest give way to each other when crowded.
+          collisionBehavior: i === 0 || i === last ? 'REQUIRED' : 'OPTIONAL_AND_HIDES_LOWER_PRIORITY',
+          collisionPriority: route.stops.length - i,
+          // Centred on the spot, where the line passes, rather than standing above it.
+          anchorLeft: '-50%',
+          anchorTop: '-50%',
+          title: `${stop.n}. ${stop.name}`,
+        });
+        marker.append(createStop(stop, tone(stop.section)));
+        map.append(marker);
+        routeDrawn.current.push(() => marker.remove());
+      });
+      // Stops were added after the photographs; the chosen one goes back on top.
+      raiseSelected();
+    } else if (mode === '2d' && map2d.current) {
+      const map = map2d.current;
+      route.legs.forEach((leg) => {
+        const line = new L.Polyline({
+          map,
+          path: leg.points.map((p) => ({ lat: p.lat, lng: p.lng })),
+          geodesic: true,
+          strokeColor: tone(leg.section),
+          strokeOpacity: 1,
+          strokeWeight: 4,
+          zIndex: 5,
+        });
+        routeDrawn.current.push(() => line.setMap(null));
+      });
+      route.stops.forEach((stop) => {
+        const marker = new L.AdvancedMarkerElement({
+          map,
+          position: { lat: stop.lat, lng: stop.lng },
+          content: createStop(stop, tone(stop.section)),
+          title: `${stop.n}. ${stop.name}`,
+          zIndex: 50,
+        });
+        routeDrawn.current.push(() => { marker.map = null; });
+      });
+    }
+    return undefined;
+  }, [ready, mode, route && route.key, route && route.stops.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => { routeDrawn.current.forEach((clear) => clear()); routeDrawn.current = []; }, []);
+
   useEffect(() => {
     if (!ready || !aim) return;
     let cam = aim.camera;
@@ -507,7 +591,14 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       const map = map3d.current;
       // Moving to a place keeps you as close as you are, if that is closer.
       const now = distanceOf(map);
-      if (aim.closerOnly && now < cam.range) cam = { ...cam, range: now };
+      /*
+       * Moving to a place keeps you as close as you are, if that is closer —
+       * but only when the place is already in view. Choosing the Kyoto journey
+       * while at street level in Tokyo, 400 km away, would otherwise land at
+       * street level somewhere in the middle of it and show none of its route.
+       */
+      const inView = map.center && km(map.center, cam.center) < (now / 1000) * 0.6;
+      if (aim.closerOnly && now < cam.range && inView) cam = { ...cam, range: now };
       const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: now }, cam);
       try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }
       if (!ms || typeof map.flyCameraTo !== 'function') {

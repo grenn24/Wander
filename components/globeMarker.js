@@ -106,3 +106,29 @@ export function createMarker(point) {
     },
   };
 }
+
+/*
+ * A stop on the chosen trip's route: its number along the way, in its day's
+ * colour, with a white ring like the photographs' edge. Small, so a day of
+ * eight stops in one neighbourhood stays readable, and centred on the spot
+ * rather than pointing at it — the route's line already runs through it.
+ */
+/*
+ * The number's colour on a day's colour: the days walk round the hue circle,
+ * and white on the yellow and green days all but disappears, so light days
+ * get dark numbers. By perceived brightness, not by hue.
+ */
+export function inkOn(rgb) {
+  const [r, g, b] = rgb;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 130 ? '#1d1b18' : WHITE;
+}
+
+export function createStop(stop, colour) {
+  const rgb = (colour.match(/[\d.]+/g) || [0, 0, 0]).slice(0, 3).map(Number);
+  const dot = div(`box-sizing:border-box;min-width:24px;height:24px;padding:0 6px;border-radius:12px;`
+    + `background:${colour};border:2px solid ${WHITE};color:${inkOn(rgb)};`
+    + 'font:700 12px/20px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;'
+    + 'box-shadow:0 2px 6px rgba(0,0,0,.45)');
+  dot.textContent = String(stop.n);
+  return dot;
+}

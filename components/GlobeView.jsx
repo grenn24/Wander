@@ -18,6 +18,7 @@ import { searchPlaces } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import {
   tripPoints, savedPoints, ideaPoints, overviewCamera, focusCamera, groupCamera, globeCounts,
+  tripRoute, routeLegs, stopsNear,
 } from '@/lib/globe';
 import { fmtRange, humanError, todayISO } from '@/lib/util';
 import s from './Globe.module.css';
@@ -97,6 +98,8 @@ export default function GlobeView() {
   const [busy, setBusy] = useState(false);
   // The 3D Earth takes a few seconds to arrive, and until it does the stage is empty space.
   const [drawn, setDrawn] = useState(false);
+  // Journeys' stops, fetched the first time each is chosen: slug -> { stops, sections }.
+  const [journeyStops, setJourneyStops] = useState({});
   const aimed = useRef(false);
   const arrived = useRef(false);
 
@@ -112,7 +115,7 @@ export default function GlobeView() {
       let a = [];
       if (ids.length) {
         const { data, error } = await supabase.from('activities')
-          .select('trip_id, title, lat, lng, location, category, photo_ref')
+          .select('trip_id, title, lat, lng, location, category, photo_ref, day, start_time, sort_order')
           .in('trip_id', ids)
           .not('lat', 'is', null)
           .limit(5000);
@@ -209,6 +212,38 @@ export default function GlobeView() {
   const counts = useMemo(() => globeCounts(all), [all]);
   const point = selected === 'preview' ? preview : all.find((p) => p.id === selected) || null;
 
+  /*
+   * The route of whatever is chosen: every stop of the trip a town belongs to,
+   * in the order the trip visits them, or every stop of a journey in the
+   * order its journal does. Drawn on the globe so a trip can be seen unfolding
+   * day by day rather than as a pin or two.
+   */
+  const routeFor = useCallback((tripId) => tripRoute(acts.filter((a) => a.trip_id === tripId)), [acts]);
+  const chosenJourney = point && point.journey && !point.savedId ? point.journey : null;
+  useEffect(() => {
+    if (!chosenJourney || journeyStops[chosenJourney]) return undefined;
+    let live = true;
+    fetch(`/api/journeys/${encodeURIComponent(chosenJourney)}/stops`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d) setJourneyStops((prev) => ({ ...prev, [chosenJourney]: { stops: d.stops || [], sections: d.sections || [] } }));
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [chosenJourney, journeyStops]);
+  const route = useMemo(() => {
+    let stops = [];
+    let key = '';
+    if (point && point.tripId) {
+      key = `trip:${point.tripId}`;
+      stops = routeFor(point.tripId);
+    } else if (chosenJourney && journeyStops[chosenJourney]) {
+      key = `journey:${chosenJourney}`;
+      stops = journeyStops[chosenJourney].stops;
+    }
+    return stops.length ? { key, stops, legs: routeLegs(stops) } : null;
+  }, [point && point.tripId, chosenJourney, journeyStops, routeFor]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const tripRows = useMemo(() => {
     const by = new Map();
     all.filter((p) => p.tripId).forEach((p) => {
@@ -238,7 +273,10 @@ export default function GlobeView() {
     if (!p) { setSelected(null); setPreview(null); return; }
     setSelected(p.id);
     if (p.id !== 'preview') setPreview(null);
-    setAim({ camera: focusCamera(p), key: Date.now(), closerOnly: true });
+    // A town frames its stretch of the trip's route; everything else, its own view.
+    const near = p.tripId ? stopsNear(routeFor(p.tripId), p) : [];
+    const camera = near.length > 1 ? groupCamera(near) : focusCamera(p);
+    setAim({ camera, key: Date.now(), closerOnly: true });
     setOpen(false);
   }
 
@@ -420,7 +458,12 @@ export default function GlobeView() {
     return (
       <li key={t.id}>
         <button type="button" className={s.item} aria-current={active ? 'true' : undefined}
-          onClick={() => { setSelected(t.pins[0].id); setPreview(null); setOpen(false); fly(groupCamera(t.pins)); }}>
+          onClick={() => {
+            setSelected(t.pins[0].id); setPreview(null); setOpen(false);
+            // From the list, the whole trip: every stop, start to finish.
+            const stops = routeFor(t.id);
+            fly(groupCamera(stops.length > 1 ? stops : t.pins));
+          }}>
           <span className={s.itemPic}>
             <PlacePhoto photoRef={t.pins[0].photo_ref} category="other" size={42} rounded={12} />
             <i className={`${s.dot} ${s.itemDot}`} data-kind={t.kind} />
@@ -481,7 +524,7 @@ export default function GlobeView() {
       <main className={s.stage}>
         <div className={s.canvas}>
           <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
-            onDrawn={() => setDrawn(true)} />
+            route={route} onDrawn={() => setDrawn(true)} />
         </div>
         <div className={s.loading} data-done={drawn ? '' : undefined} aria-hidden={drawn ? 'true' : undefined}>
           {drawn ? null : <div className={s.loadingCard}><Loading label="Loading your globe" /></div>}

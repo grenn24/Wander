@@ -168,3 +168,34 @@ test('favourites turn on and off without touching the sets they came from', asyn
   assert.equal(favouritesMissing({ code: '42P01', message: 'relation "public.favourites" does not exist' }), true);
   assert.equal(favouritesMissing({ code: '23505', message: 'duplicate key' }), false);
 });
+
+test('a trip unfolds in order: by day, then time, then place in the day, without transport', async () => {
+  const { tripRoute, routeLegs, stopsNear } = await import('../lib/globe.js');
+  const acts = [
+    { title: 'Gion at dusk', category: 'sightseeing', day: '2026-08-24', start_time: '18:00:00', sort_order: 0, lat: 35.0, lng: 135.78 },
+    { title: 'Senso-ji', category: 'sightseeing', day: '2026-08-22', start_time: '11:30:00', sort_order: 0, lat: 35.71, lng: 139.8 },
+    { title: 'Shinkansen to Kyoto', category: 'transport', day: '2026-08-24', start_time: '13:20:00', lat: 34.98, lng: 135.76 },
+    { title: 'Breakfast at Tsukiji', category: 'food', day: '2026-08-22', start_time: '09:00:00', sort_order: 0, lat: 35.66, lng: 139.77 },
+    { title: 'Owakudani', category: 'sightseeing', day: '2026-08-24', start_time: '09:00:00', sort_order: 0, lat: 35.24, lng: 139.02 },
+    { title: 'Someday', category: 'food', lat: 35.1, lng: 135.7 },
+  ];
+  const route = tripRoute(acts);
+  assert.deepEqual(route.map((s) => [s.n, s.name, s.section]), [
+    [1, 'Breakfast at Tsukiji', 0], [2, 'Senso-ji', 0],
+    [3, 'Owakudani', 1], [4, 'Gion at dusk', 1],
+    [5, 'Someday', 2],
+  ]);
+  // One unbroken line: day two's leg starts at day one's last stop.
+  const legs = routeLegs(route);
+  assert.deepEqual(legs.map((l) => [l.section, l.points.map((p) => p.n)]), [[0, [1, 2]], [1, [2, 3, 4]], [2, [4, 5]]]);
+  assert.deepEqual(stopsNear(route, { lat: 35.68, lng: 139.77 }).map((s) => s.n), [1, 2]);
+});
+
+test('stop numbers are dark on light day colours and white on dark ones', async () => {
+  const { inkOn } = await import('../components/globeMarker.js');
+  assert.equal(inkOn([218, 47, 47]), '#ffffff'); // red
+  assert.equal(inkOn([61, 47, 218]), '#ffffff'); // blue
+  assert.equal(inkOn([215, 218, 47]), '#1d1b18'); // yellow
+  assert.equal(inkOn([47, 218, 53]), '#1d1b18'); // green
+  assert.equal(inkOn([47, 207, 218]), '#1d1b18'); // cyan
+});
