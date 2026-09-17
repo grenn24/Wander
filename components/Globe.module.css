@@ -53,9 +53,15 @@
 /* Folded: the title and the button to bring the rest back, and nothing else.
    `hidden` alone would lose to the display these set. */
 .menu[hidden], .list[hidden] { display: none; }
-.panel[data-collapsed] { width: auto; }
-.panel[data-collapsed] .top { gap: 0; padding: 10px 12px 10px 16px; border-bottom: 0; }
-.panel[data-collapsed] .title { font-size: 22px; }
+/* Folded on a wide screen: one icon button, the size and shape of the globe button opposite. */
+@media (min-width: 861px) {
+  .panel[data-collapsed] { width: 44px; height: 44px; border-radius: 15px; box-shadow: var(--lift); }
+  .panel[data-collapsed] .top { gap: 0; padding: 0; border-bottom: 0; }
+  .panel[data-collapsed] .title {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .panel[data-collapsed] .fold { width: 42px; height: 42px; margin: 0; border-radius: 14px; color: var(--text-1); }
+}
 .title {
   margin: 0; font-family: var(--font-serif), Georgia, "Times New Roman", serif;
   font-weight: 400; font-size: 30px; line-height: 1.05;
@@ -256,7 +262,8 @@
   .foldSide { display: none; }
   .foldSheet { display: grid; }
   .panel[data-collapsed] { max-height: none; }
-  .panel[data-collapsed] .top { padding: 0 14px 10px; }
+  .panel[data-collapsed] .top { gap: 0; padding: 0 14px 10px; border-bottom: 0; }
+  .panel[data-collapsed] .title { font-size: 22px; }
   .title { font-size: 25px; }
   .layer { padding: 8px; }
   .layerN { font-size: 20px; }
