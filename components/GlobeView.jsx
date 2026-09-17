@@ -18,7 +18,6 @@ import {
 import { useApp } from '@/components/AppProvider';
 import { dayColor } from '@/components/GoogleMap';
 import { inkOn } from '@/components/mapPin';
-import { createMapPopup } from '@/lib/mapPopup';
 import { searchPlaces } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import {
@@ -70,22 +69,6 @@ function missingTable(e) {
 }
 
 const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w=${w}`;
-
-/*
- * The card for one stop, the same one the trip map opens for a stop: its
- * photograph, name, when and where, and a way into it. Built by the trip map's
- * own builder so the two cannot drift apart.
- */
-function StopCard({ card }) {
-  const host = useRef(null);
-  useEffect(() => {
-    if (!host.current) return undefined;
-    const el = createMapPopup(card, { onClose: card.onClose });
-    host.current.append(el);
-    return () => el.remove();
-  }, [card.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={host} className={s.stopCard} />;
-}
 
 /**
  * Where you have been and where you might go, on a globe.
@@ -332,15 +315,22 @@ export default function GlobeView() {
     fly(groupCamera(region.points));
   }
 
-  /* A stop on the open trip, from the globe or the list: close in on it and open its card. */
+  /*
+   * A stop on the open trip, from the globe or the list: close in on it and
+   * open its card over its pin. Choosing the open one again closes its card,
+   * as on the trip map.
+   */
   function chooseStop(i) {
     const stop = route && route.stops[i];
     if (!stop) return;
+    if (openStop.current === i) { setStopIndex(null); return; }
     setStopIndex(i);
     setAim({ camera: { center: { lat: stop.lat, lng: stop.lng }, range: 2500, tilt: 55, heading: 0 }, key: Date.now() });
   }
 
   function onCanvasSelect(id) {
+    // The ground, pressed: a stop's card closes first, and the trip after it.
+    if (!id && openStop.current != null) { setStopIndex(null); return; }
     if (!id) { setSelected(null); setPreview(null); return; }
     const p = id === 'preview' ? preview : all.find((x) => x.id === id);
     if (p) select(p);
@@ -666,6 +656,7 @@ export default function GlobeView() {
         <div className={s.canvas}>
           <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
             route={route} focus={!!plan} stopIndex={stopIndex} hoverStop={hoverStop}
+            stopCard={plan && route && stopIndex != null && route.stops[stopIndex] ? plan.card(route.stops[stopIndex], stopIndex) : null}
             onStop={chooseStop} onStopHover={setHoverStop} onDrawn={() => setDrawn(true)} />
         </div>
         <div className={s.loading} data-done={drawn ? '' : undefined} aria-hidden={drawn ? 'true' : undefined}>
@@ -831,14 +822,13 @@ export default function GlobeView() {
                           data-hover={i === hoverStop ? '' : undefined}
                           onMouseEnter={() => setHoverStop(i)} onMouseLeave={() => setHoverStop(null)}
                           onFocus={() => setHoverStop(i)} onBlur={() => setHoverStop(null)}
-                          onClick={() => (i === stopIndex ? setStopIndex(null) : chooseStop(i))}>
+                          onClick={() => chooseStop(i)}>
                           <span className={s.planNum} style={{ background: day.colour, color: inkOn(day.colour) }}>{stop.n}</span>
                           <span className={s.itemText}>
                             <span className={s.itemName}>{stop.name}</span>
                             {plan.sub(stop) ? <span className={s.itemSub}>{plan.sub(stop)}</span> : null}
                           </span>
                         </button>
-                        {i === stopIndex ? <StopCard card={plan.card(stop, i)} /> : null}
                       </li>
                     ))}
                   </ol>

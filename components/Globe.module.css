@@ -200,11 +200,16 @@
   font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace;
 }
 /* The trip map's card for the chosen stop, opened under it in the list. */
-.stopCard {
-  margin: 4px 8px 8px 45px; overflow: hidden;
-  border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1);
+/*
+ * A stop's card over its pin on the 3D globe: the map's popover, dressed as
+ * the trip map's callout. Its own frame is padded, square-cornered and drawn
+ * in the map's colours, and it takes focus as it opens, which would ring it.
+ */
+.callout {
+  padding: 0; border-radius: 14px; outline: none;
+  background: var(--surface-1); border: 1px solid var(--border);
+  box-shadow: 0 12px 34px -10px rgba(0, 0, 0, 0.55);
 }
-.stopCard :global(.gminfo) { width: auto; }
 .detailImg { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); }
 .detailX {
   position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center;

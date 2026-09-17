@@ -7,6 +7,7 @@ import {
 } from '@/lib/globeRegions';
 import { rangeToZoom } from '@/lib/map3dCamera';
 import { createMarker, createStop, thumbOf } from '@/components/globeMarker';
+import { createMapPopup } from '@/lib/mapPopup';
 import s from './Globe.module.css';
 
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
@@ -95,7 +96,7 @@ function loadAreas(code) {
  */
 export default function GlobeCanvas({
   points, selectedId, aim, onSelect, onRegion, onDrawn, route = null,
-  focus = false, stopIndex = null, hoverStop = null, onStop, onStopHover,
+  focus = false, stopIndex = null, hoverStop = null, stopCard = null, onStop, onStopHover,
 }) {
   const host = useRef(null);
   const map3d = useRef(null);
@@ -105,6 +106,7 @@ export default function GlobeCanvas({
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
   const routeDrawn = useRef([]); // the chosen trip's line and stops, to take away again
   const stopMarks = useRef([]); // [{ marker, face }] for the chosen route's stops, in order
+  const callout = useRef(null); // takes the open stop's card off the map again
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const pressedAt = useRef(0);
@@ -197,7 +199,8 @@ export default function GlobeCanvas({
       listen(host.current, 'pointerup', () => { presses.current += 1; pressedAt.current = performance.now(); }, true);
       listen(map, 'gmp-click', (e) => {
         e.preventDefault();
-        if (e.composedPath().some((n) => n.tagName === 'GMP-MARKER-INTERACTIVE')) return;
+        // A press on a pin, or on the card standing over one, is not a press on the ground.
+        if (e.composedPath().some((n) => n.tagName === 'GMP-MARKER-INTERACTIVE' || n.tagName === 'GMP-POPOVER')) return;
         if (presses.current === chosenOn.current) return;
         latest.current.onSelect(null);
       });
@@ -627,11 +630,55 @@ export default function GlobeCanvas({
    * chosen one moved last so nothing near it covers it.
    */
   useEffect(() => {
-    stopMarks.current.forEach(({ marker, face }, i) => {
-      face.set({ active: i === stopIndex, hover: i === hoverStop });
-      if (i === stopIndex && map3d.current && map3d.current.lastElementChild !== marker) map3d.current.append(marker);
-    });
+    stopMarks.current.forEach(({ face }, i) => face.set({ active: i === stopIndex, hover: i === hoverStop }));
   }, [stopIndex, hoverStop, route && route.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const chosen = stopIndex != null && stopMarks.current[stopIndex];
+    if (chosen && map3d.current) map3d.current.append(chosen.marker);
+  }, [stopIndex, route && route.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /*
+   * The chosen stop's card, standing over its pin the way the trip map's does:
+   * the same card, from the same builder. On the 3D globe it is the map's own
+   * popover, anchored to the pin so it rides along as the camera flies in; on
+   * the flat map, Google's info window, as on the trip map. Closed by its ✕,
+   * by choosing the pin again, by a press on the ground or by Escape.
+   */
+  useEffect(() => {
+    if (callout.current) { callout.current(); callout.current = null; }
+    const L = lib.current;
+    const chosen = ready && L && stopCard && stopIndex != null && stopMarks.current[stopIndex];
+    if (!chosen) return undefined;
+    const content = createMapPopup(stopCard, { onClose: stopCard.onClose });
+    if (mode === '3d' && map3d.current && L.PopoverElement) {
+      const pop = new L.PopoverElement({
+        positionAnchor: chosen.marker,
+        open: true,
+        // The globe closes it itself, so a press that lands on the ground can
+        // tell a stop's card from the trip it belongs to.
+        lightDismissDisabled: true,
+        // The camera is already flying to the stop; the card is not to pull it elsewhere.
+        autoPanDisabled: true,
+      });
+      pop.className = s.callout;
+      // It takes focus as it opens and keeps Escape to itself, so the page never hears it.
+      pop.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && stopCard.onClose) { e.preventDefault(); stopCard.onClose(); }
+      }, true);
+      pop.append(content);
+      map3d.current.append(pop);
+      callout.current = () => pop.remove();
+    } else if (mode === '2d' && map2d.current) {
+      const info = new L.InfoWindow({ maxWidth: 268, headerDisabled: true });
+      info.setContent(content);
+      info.open({ map: map2d.current, anchor: chosen.marker });
+      callout.current = () => info.close();
+    }
+    return undefined;
+  }, [ready, mode, stopCard && stopCard.key, stopIndex, route && route.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => { if (callout.current) callout.current(); }, []);
 
   useEffect(() => {
     if (!ready || !aim) return;
