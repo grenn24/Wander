@@ -189,6 +189,16 @@ export default function GlobeCanvas({
       // Steady for the first time means the Earth is on screen: the loader can go.
       listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) { clearTimeout(timer); drawn(); } });
       /*
+       * Steady is not the only proof. Choose a trip before the Earth has
+       * finished loading and the camera sets off for street level, where every
+       * tile is new: steady then comes long after the wait above, and a globe
+       * that was plainly working turned flat under you. A flight that finished,
+       * or a press the map could place on the ground, needs a working renderer too.
+       */
+      const working = () => clearTimeout(timer);
+      listen(map, 'gmp-animationend', working);
+      listen(map, 'gmp-click', working);
+      /*
        * A click on the ground closes the open place, but not the click that
        * opened it. The 3D map reports one press twice: the marker at once, then
        * the map a few hundred milliseconds later, once it has worked out where
@@ -650,7 +660,7 @@ export default function GlobeCanvas({
     const L = lib.current;
     const chosen = ready && L && stopCard && stopIndex != null && stopMarks.current[stopIndex];
     if (!chosen) return undefined;
-    const content = createMapPopup(stopCard, { onClose: stopCard.onClose });
+    const content = createMapPopup(stopCard, { onClose: stopCard.onClose, onPhoto: stopCard.onPhoto });
     if (mode === '3d' && map3d.current && L.PopoverElement) {
       const pop = new L.PopoverElement({
         positionAnchor: chosen.marker,

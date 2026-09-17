@@ -10,6 +10,7 @@ import {
 import TopBar from '@/components/TopBar';
 import HomeNav from '@/components/HomeNav';
 import Loading from '@/components/Loading';
+import Lightbox from '@/components/Lightbox';
 import PlacePhoto from '@/components/PlacePhoto';
 import FavouriteButton from '@/components/FavouriteButton';
 import {
@@ -18,7 +19,7 @@ import {
 import { useApp } from '@/components/AppProvider';
 import { dayColor } from '@/components/GoogleMap';
 import { inkOn } from '@/components/mapPin';
-import { searchPlaces } from '@/lib/geo';
+import { searchPlaces, placeDetails } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import {
   tripPoints, savedPoints, ideaPoints, overviewCamera, focusCamera, groupCamera, globeCounts,
@@ -114,6 +115,11 @@ export default function GlobeView() {
   const stopRows = useRef([]);
   const openStop = useRef(null);
   openStop.current = stopIndex;
+  // Google's photographs of the stops opened so far: place ID -> photos ([] for none found).
+  const [placeShots, setPlaceShots] = useState({});
+  // Place IDs whose photographs took too long: their cards open without one.
+  const [slowShots, setSlowShots] = useState({});
+  const [viewer, setViewer] = useState(null); // { photos, index, title }
   const aimed = useRef(false);
   const arrived = useRef(false);
 
@@ -129,7 +135,7 @@ export default function GlobeView() {
       let a = [];
       if (ids.length) {
         const { data, error } = await supabase.from('activities')
-          .select('trip_id, title, lat, lng, location, category, photo_ref, day, start_time, sort_order')
+          .select('id, trip_id, title, lat, lng, location, category, photo_ref, place_id, day, start_time, sort_order')
           .in('trip_id', ids)
           .not('lat', 'is', null)
           .limit(5000);
@@ -238,7 +244,8 @@ export default function GlobeView() {
   useEffect(() => {
     if (!chosenJourney || journeyStops[chosenJourney]) return undefined;
     let live = true;
-    fetch(`/api/journeys/${encodeURIComponent(chosenJourney)}/stops`)
+    // `v` changes with what a stop carries, so a copy cached before it is not used.
+    fetch(`/api/journeys/${encodeURIComponent(chosenJourney)}/stops?v=2`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (live && d) setJourneyStops((prev) => ({ ...prev, [chosenJourney]: { stops: d.stops || [], sections: d.sections || [] } }));
@@ -262,6 +269,24 @@ export default function GlobeView() {
   const routeKey = route ? route.key : '';
   // A different trip starts with nothing chosen along it.
   useEffect(() => { setStopIndex(null); setHoverStop(null); }, [routeKey]);
+  /*
+   * A stop's photograph, looked up as it is opened, the way the journal's own
+   * place card does it: a journey keeps each place's Google ID and nothing
+   * Google returns for it, and a trip's stop may have its ID but no photograph
+   * saved. The flight in gives the lookup time to land; if it has not within a
+   * moment, the card opens without it rather than keep you waiting.
+   */
+  const chosenStop = route && stopIndex != null ? route.stops[stopIndex] : null;
+  const shotId = chosenStop && !chosenStop.photo_ref && chosenStop.place_id ? chosenStop.place_id : null;
+  useEffect(() => {
+    if (!shotId || placeShots[shotId]) return undefined;
+    let live = true;
+    const done = (photos) => { if (live) setPlaceShots((v) => ({ ...v, [shotId]: photos })); };
+    placeDetails(shotId).then((d) => done((d && d.photos) || []), () => done([]));
+    const late = setTimeout(() => { if (live) setSlowShots((v) => ({ ...v, [shotId]: true })); }, 1200);
+    return () => { live = false; clearTimeout(late); };
+  }, [shotId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Whatever is chosen on the globe comes into view in the list.
   useEffect(() => {
     const row = stopIndex != null && stopRows.current[stopIndex];
@@ -576,6 +601,30 @@ export default function GlobeView() {
     };
   })();
 
+  /*
+   * The open stop's card, with its photograph: the one saved with it, or
+   * Google's, once looked up. Held back while the lookup is under way, and
+   * built again if it lands after the card has opened anyway.
+   */
+  const stopCard = (() => {
+    if (!plan || !chosenStop) return null;
+    const card = plan.card(chosenStop, stopIndex);
+    const photos = shotId ? placeShots[shotId] : null;
+    if (shotId && !photos && !slowShots[shotId]) return null;
+    const ref = chosenStop.photo_ref || (photos && photos[0] && photos[0].ref) || null;
+    const title = card.title;
+    return {
+      ...card,
+      key: `${card.key}:${ref || ''}`,
+      photoRef: ref,
+      placeId: chosenStop.place_id || null,
+      onPhoto: () => {
+        const shots = photos && photos.length ? photos : ref ? [{ ref, author: '', authorUri: '' }] : [];
+        if (shots.length) setViewer({ photos: shots, index: 0, title });
+      },
+    };
+  })();
+
   const plannedTrips = tripRows.filter((t) => t.kind === 'planned')
     .sort((a, b) => String(a.trip.start_date || '').localeCompare(String(b.trip.start_date || '')));
   const favouriteTrips = tripRows.filter((t) => t.favourite);
@@ -656,7 +705,7 @@ export default function GlobeView() {
         <div className={s.canvas}>
           <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
             route={route} focus={!!plan} stopIndex={stopIndex} hoverStop={hoverStop}
-            stopCard={plan && route && stopIndex != null && route.stops[stopIndex] ? plan.card(route.stops[stopIndex], stopIndex) : null}
+            stopCard={stopCard}
             onStop={chooseStop} onStopHover={setHoverStop} onDrawn={() => setDrawn(true)} />
         </div>
         <div className={s.loading} data-done={drawn ? '' : undefined} aria-hidden={drawn ? 'true' : undefined}>
@@ -891,6 +940,11 @@ export default function GlobeView() {
           </p>
         ) : null}
       </main>
+      {viewer ? (
+        <Lightbox photos={viewer.photos} index={viewer.index} alt={viewer.title}
+          onIndex={(i) => setViewer((v) => (v ? { ...v, index: i } : v))}
+          onClose={() => setViewer(null)} />
+      ) : null}
     </div>
   );
 }
