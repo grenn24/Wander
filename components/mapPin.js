@@ -145,3 +145,54 @@ export function createPin({
     },
   };
 }
+
+/**
+ * Several stops in one marker, where their pins would pile up at this zoom.
+ *
+ * A darker circle than any stop, with how many it holds in the middle, a ring
+ * in the colours of the days those stops belong to, and a second circle just
+ * behind it, so it reads as a stack rather than as one more numbered stop.
+ *
+ *   count    how many stops
+ *   colours  their days' colours, each once, in the order the stops come
+ *   name     what a pointer over it shows, and what a screen reader says
+ *   lift     as for a pin, on Google's flat map
+ */
+export function createCluster({ count, colours = [], name = '', size = 34, lift = false } = {}) {
+  const ink = '#2b2724';
+  const days = colours.length ? colours : [PIN_BROWN];
+  const step = 360 / days.length;
+  const ring = days.length === 1
+    ? `linear-gradient(${days[0]}, ${days[0]})`
+    : `conic-gradient(${days.map((c, i) => `${c} ${Math.round(i * step)}deg ${Math.round((i + 1) * step)}deg`).join(', ')})`;
+
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:relative;width:${size}px;height:${size}px;cursor:pointer;`
+    + 'transition:transform .2s cubic-bezier(.2,.7,.2,1);';
+
+  const behind = document.createElement('div');
+  behind.style.cssText = `position:absolute;inset:0;border-radius:50%;background:${ink};`
+    + `border:2px solid ${WHITE};transform:translate(4px,-4px);opacity:.75;box-sizing:border-box;`;
+  holder.append(behind);
+
+  const face = document.createElement('div');
+  face.style.cssText = 'position:absolute;inset:0;box-sizing:border-box;border-radius:50%;border:3px solid transparent;'
+    + `background:linear-gradient(${ink}, ${ink}) padding-box, ${ring} border-box;`
+    + `color:${WHITE};display:grid;place-items:center;`
+    + `font:700 ${Math.round(size * 0.4)}px/1 var(--font-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;`
+    + 'box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 2px 6px rgba(0,0,0,.45);';
+  face.textContent = String(count);
+  holder.append(face);
+
+  if (name) {
+    holder.dataset.tip = name;
+    holder.setAttribute('aria-label', name);
+  }
+  const paint = (hover) => {
+    holder.style.transform = `${lift ? `translateY(${size / 2}px) ` : ''}scale(${hover ? 1.12 : 1})`;
+  };
+  paint(false);
+  holder.addEventListener('pointerenter', () => paint(true));
+  holder.addEventListener('pointerleave', () => paint(false));
+  return { el: holder };
+}

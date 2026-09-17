@@ -8,7 +8,8 @@ import { categoryIcon } from '@/lib/icons';
 import MapAppearance, { useMapPreferences } from '@/components/MapAppearance';
 import { mapColorScheme } from '@/lib/mapPreferences';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
-import { createPin } from '@/components/mapPin';
+import { createPin, createCluster } from '@/components/mapPin';
+import { clusterUnits } from '@/lib/mapClusters';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -249,6 +250,10 @@ function GoogleMapCanvas({
   const mapRef = useRef(null);
   const libs = useRef(null);
   const stopMarks = useRef([]);
+  // The stops as the map gathers them: one unit per pin, or per fan of pins sharing a spot.
+  const stopUnits = useRef([]);
+  const clusterMarks = useRef([]);
+  const grouping = useRef('');
   const placeMarks = useRef([]);
   const lines = useRef([]);
   const route = useRef(null);
@@ -344,6 +349,7 @@ function GoogleMapCanvas({
        */
       mapRef.current.addListener('idle', () => {
         applyFit();
+        regroup();
         const current = mapRef.current;
         const center = current.getCenter();
         if (center) camera.current = {
@@ -391,6 +397,7 @@ function GoogleMapCanvas({
       dead = true;
       if (info.current) info.current.close();
       stopMarks.current.forEach((mark) => { mark.map = null; });
+      clusterMarks.current.forEach((mark) => { mark.map = null; });
       placeMarks.current.forEach((mark) => { mark.map = null; });
       lines.current.forEach((line) => line.setMap(null));
       if (route.current) route.current.setMap(null);
@@ -428,6 +435,8 @@ function GoogleMapCanvas({
       if (m.__pin) m.__pin.set({ active: m.__id === focused });
       m.zIndex = m.__id === focused ? 500 : null;
     });
+    regroup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focused, stops]);
 
   useEffect(() => {
@@ -618,6 +627,9 @@ function GoogleMapCanvas({
 
     stopMarks.current.forEach((m) => { m.map = null; });
     stopMarks.current = [];
+    clusterMarks.current.forEach((m) => { m.map = null; });
+    clusterMarks.current = [];
+    grouping.current = '';
     lines.current.forEach((l) => l.setMap(null));
     lines.current = [];
 
@@ -647,18 +659,19 @@ function GoogleMapCanvas({
     });
 
     const fanned = new Map();
-    spots.forEach((g) => {
+    const PIN = 26;
+    stopUnits.current = spots.map((g) => {
       const k = g.items.length;
-      if (k < 2) return;
       // Enough room for k pins around the circle without them touching again.
-      const r = Math.max(17, Math.round(5 * k));
+      const r = k < 2 ? 0 : Math.max(17, Math.round(5 * k));
       g.items.forEach((a, i) => {
+        if (k < 2) return;
         const ang = (-90 + (360 / k) * i) * (Math.PI / 180);
         fanned.set(a.id, { dx: Math.cos(ang) * r, dy: Math.sin(ang) * r, r });
       });
+      return { lat: g.lat, lng: g.lng, ids: g.items.map((a) => a.id), radius: PIN / 2 + r };
     });
 
-    const PIN = 26;
     list.forEach((a, i) => {
       const fan = fanned.get(a.id);
       let mark = null;
@@ -702,6 +715,9 @@ function GoogleMapCanvas({
       });
       mark.__id = a.id;
       mark.__pin = face;
+      mark.__n = i + 1;
+      mark.__colour = colour(a);
+      mark.__at = { lat: a.lat, lng: a.lng };
       mark.addListener('click', () => {
         // Clicking the marker whose card is already up closes it, the same way
         // clicking the map does.
@@ -766,6 +782,69 @@ function GoogleMapCanvas({
       owedFit.current = { center: latest.current.look };
     }
     applyFit();
+    regroup();
+  }
+
+  /*
+   * Stops that would pile up at this zoom, gathered into one marker each.
+   *
+   * Worked out again whenever the zoom settles, and whenever the chosen stop
+   * changes: the stop you picked, from the list or on the map, always keeps
+   * its own pin, so it never disappears into a cluster while its card is open.
+   * A fan of stops sharing a spot is one unit here, so it gathers with its
+   * neighbours when zoomed out and fans out again when not.
+   *
+   * Tapping a cluster zooms to its stops. Those still close enough to touch at
+   * that zoom stay gathered, and another tap takes you closer.
+   */
+  function regroup() {
+    const L = libs.current;
+    const map = mapRef.current;
+    const zoom = map && map.getZoom();
+    if (!L || !map || zoom == null) return;
+    const chosen = latest.current.focused;
+    const units = stopUnits.current.map((u, key) => ({
+      key, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.ids.length, alone: u.ids.includes(chosen),
+    }));
+    const groups = clusterUnits(units, zoom);
+    const signature = groups.map((g) => g.keys.join('.')).join('|');
+    if (signature === grouping.current) return;
+    grouping.current = signature;
+
+    clusterMarks.current.forEach((m) => { m.map = null; });
+    clusterMarks.current = [];
+    const byId = new Map(stopMarks.current.map((m) => [m.__id, m]));
+    groups.forEach((g) => {
+      const marks = g.keys.flatMap((k) => stopUnits.current[k].ids).map((id) => byId.get(id)).filter(Boolean);
+      if (g.keys.length < 2) {
+        marks.forEach((m) => { if (!m.map) m.map = map; });
+        return;
+      }
+      marks.forEach((m) => { m.map = null; });
+      // A card open on a stop that has just been gathered has nothing left to point at.
+      if (marks.includes(shownFor.current)) closeInfo();
+      const numbers = marks.map((m) => m.__n).sort((p, q) => p - q);
+      const listed = numbers.length > 6
+        ? `${numbers.slice(0, 5).join(', ')} and ${numbers.length - 5} more`
+        : `${numbers.slice(0, -1).join(', ')} and ${numbers[numbers.length - 1]}`;
+      const face = createCluster({
+        count: marks.length,
+        colours: [...new Set(marks.map((m) => m.__colour))],
+        name: `Stops ${listed}. Zoom in`,
+        lift: true,
+      });
+      const cluster = new L.AdvancedMarkerElement({
+        map, position: { lat: g.lat, lng: g.lng }, content: face.el, zIndex: 400, gmpClickable: true,
+      });
+      cluster.addListener('click', () => {
+        const box = new L.LatLngBounds();
+        marks.forEach((m) => box.extend(m.__at));
+        map.fitBounds(box, 64);
+        // Stops a few dozen metres apart would otherwise fit at a zoom that shows single rooms.
+        window.google.maps.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > 18) map.setZoom(18); });
+      });
+      clusterMarks.current.push(cluster);
+    });
   }
 
   /**
