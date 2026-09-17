@@ -95,15 +95,14 @@ export default function MapView({
     const groups = new Map();
     stops.forEach((activity, index) => {
       if (!groups.has(activity.day)) {
-        groups.set(activity.day, { day: activity.day, stops: [], km: 0 });
+        groups.set(activity.day, { day: activity.day, stops: [] });
       }
       const group = groups.get(activity.day);
       // Keep the number from the complete visible list so it matches the pin.
       group.stops.push({ activity, number: index + 1 });
-      group.km += legs[activity.id] || 0;
     });
     return [...groups.values()];
-  }, [stops, legs]);
+  }, [stops]);
 
   /* ------------------------------------------------- resolve locations --- */
   const resolving = useRef(false);
@@ -614,14 +613,12 @@ export default function MapView({
                 return (
                   <section key={group.day || 'undated'} aria-labelledby={dayId}>
                     <div className={m.dayTitle}>
-                      <i className={m.swatch} style={{ background: colour }} aria-hidden="true" />
                       <h4 id={dayId} className={m.dayName}>
                         {days.includes(group.day) ? `Day ${days.indexOf(group.day) + 1}` : 'Other stops'}
                         {group.day ? ` · ${fmtDay(group.day)}` : ''}
                       </h4>
                       <span className={m.daySub}>
                         {group.stops.length} stop{group.stops.length === 1 ? '' : 's'}
-                        {group.km > 0 ? ` · ≈ ${fmtKm(group.km)} between stops` : ''}
                       </span>
                     </div>
                     <ol className={m.stops}>

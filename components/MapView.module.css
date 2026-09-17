@@ -50,13 +50,9 @@
 
 /* ------------------------------------------------------------- the stops */
 .days { display: grid; gap: 14px; }
-.dayTitle {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 0; padding: 4px 8px;
-  font-size: 13px; font-weight: 650; color: var(--text-1);
-}
-.swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
-.dayName { margin: 0; font: inherit; color: inherit; }
-.daySub { flex-basis: 100%; padding-left: 18px; color: var(--text-3); font-size: 12.5px; font-weight: 500; }
+.dayTitle { display: grid; gap: 2px; padding: 4px 8px; }
+.dayName { margin: 0; color: var(--text-1); font-size: 16px; font-weight: 650; line-height: 1.3; }
+.daySub { color: var(--text-3); font-size: 13.5px; }
 
 .stops { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
 .stop {
