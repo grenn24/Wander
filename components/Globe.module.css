@@ -40,6 +40,22 @@
 }
 .grip { display: none; }
 .top { display: grid; gap: 12px; padding: 18px 16px 14px; border-bottom: 1px solid var(--border); }
+.menu { display: grid; gap: 12px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fold {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px; margin: -4px -4px -4px 0;
+  padding: 0; border: 0; border-radius: 11px; background: transparent; color: var(--text-2); cursor: pointer;
+  transition: background .14s var(--ease), color .14s var(--ease);
+}
+.fold:hover { background: var(--surface-2); color: var(--text-1); }
+.foldSide, .foldSheet { display: grid; place-items: center; }
+.foldSheet { display: none; }
+/* Folded: the title and the button to bring the rest back, and nothing else.
+   `hidden` alone would lose to the display these set. */
+.menu[hidden], .list[hidden] { display: none; }
+.panel[data-collapsed] { width: auto; }
+.panel[data-collapsed] .top { gap: 0; padding: 10px 12px 10px 16px; border-bottom: 0; }
+.panel[data-collapsed] .title { font-size: 22px; }
 .title {
   margin: 0; font-family: var(--font-serif), Georgia, "Times New Roman", serif;
   font-weight: 400; font-size: 30px; line-height: 1.05;
@@ -193,6 +209,11 @@
   }
   .grip span { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); }
   .top { gap: 10px; padding: 0 14px 12px; }
+  .menu { gap: 10px; }
+  .foldSide { display: none; }
+  .foldSheet { display: grid; }
+  .panel[data-collapsed] { max-height: none; }
+  .panel[data-collapsed] .top { padding: 0 14px 10px; }
   .title { font-size: 25px; }
   .layer { padding: 8px; }
   .layerN { font-size: 20px; }
@@ -203,5 +224,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .detail { animation: none; }
-  .panel, .switch, .switch::after, .layer, .loading, .loading[data-done] { transition: none; }
+  .panel, .switch, .switch::after, .layer, .loading, .loading[data-done], .fold { transition: none; }
 }

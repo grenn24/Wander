@@ -215,6 +215,14 @@ export default function GlobeCanvas({ points, selectedId, aim, onSelect, onRegio
       listen(map, 'gmp-rangechange', moved);
       listen(map, 'gmp-centerchange', moved);
       host.current.append(map);
+      /*
+       * Steady means every tile has arrived at full detail, which on a slow
+       * connection can be half a minute after the Earth is plainly on screen.
+       * The loader is for the empty stage, so it also goes a few seconds after
+       * the globe starts drawing, whichever comes first.
+       */
+      const appeared = setTimeout(drawn, 6000);
+      offs.push(() => clearTimeout(appeared));
       map3d.current = map;
       setReady(true);
     }).catch(fallback);

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
-  Search, X, Check, Trash2, BookOpen, Earth, Sparkles, ArrowRight,
+  Search, X, Check, Trash2, BookOpen, Earth, Sparkles, ArrowRight, PanelLeftClose, PanelLeftOpen,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import HomeNav from '@/components/HomeNav';
@@ -29,6 +30,7 @@ const GlobeCanvas = dynamic(() => import('./GlobeCanvas'), {
 });
 
 const IDEAS_KEY = 'wander:globe-ideas';
+const PANEL_KEY = 'wander:globe-panel';
 const PHOTOS_KEY = 'wander:globe-photos';
 // A found photograph is remembered for a month, then looked up again.
 const PHOTO_DAYS = 30;
@@ -95,6 +97,8 @@ export default function GlobeView() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [open, setOpen] = useState(false); // the phone sheet, pulled up
+  // The menu folded down to its title, to see more of the globe. Remembered between visits.
+  const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(false);
   // The 3D Earth takes a few seconds to arrive, and until it does the stage is empty space.
   const [drawn, setDrawn] = useState(false);
@@ -157,7 +161,8 @@ export default function GlobeView() {
       .catch(() => {});
     try {
       if (localStorage.getItem(IDEAS_KEY) === 'off') setLayers((l) => ({ ...l, idea: false }));
-    } catch (e) { /* storage off: ideas stay on */ }
+      if (localStorage.getItem(PANEL_KEY) === 'collapsed') setCollapsed(true);
+    } catch (e) { /* storage off: ideas stay on, the menu starts open */ }
     return () => { alive = false; };
   }, []);
 
@@ -295,6 +300,12 @@ export default function GlobeView() {
     if (!id) { setSelected(null); setPreview(null); return; }
     const p = id === 'preview' ? preview : all.find((x) => x.id === id);
     if (p) select(p);
+  }
+
+  function fold(next) {
+    setCollapsed(next);
+    if (next) setOpen(false);
+    try { localStorage.setItem(PANEL_KEY, next ? 'collapsed' : 'open'); } catch (e) { /* not remembered */ }
   }
 
   function toggle(kind) {
@@ -535,66 +546,83 @@ export default function GlobeView() {
           <Earth size={18} />
         </button>
 
-        <aside className={s.panel} data-open={open ? '' : undefined} aria-label="Your places">
-          <button type="button" className={s.grip} aria-expanded={open}
-            aria-label={open ? 'Show less' : 'Show all your places'} onClick={() => setOpen((o) => !o)}>
+        <aside className={s.panel} data-open={open ? '' : undefined} data-collapsed={collapsed ? '' : undefined}
+          aria-label="Your places">
+          <button type="button" className={s.grip} aria-expanded={open && !collapsed}
+            aria-label={open && !collapsed ? 'Show less' : 'Show all your places'}
+            onClick={() => { if (collapsed) { fold(false); setOpen(true); } else setOpen((o) => !o); }}>
             <span />
           </button>
           <div className={s.top}>
-            <h1 className={s.title}>Your globe</h1>
-            <div className={s.layers} role="group" aria-label="Show on the globe">
-              {['been', 'planned', 'favourite'].map((k) => (
-                <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}
-                  data-tip={KIND_TIP[k]}>
-                  <span className={s.layerN}>{loading ? '–' : counts[k]}</span>
-                  <span className={s.layerL}><i className={s.dot} data-kind={k} /> {LAYER[k]}</span>
-                </button>
-              ))}
+            <div className={s.head}>
+              <h1 className={s.title}>Your globe</h1>
+              <button type="button" className={s.fold} aria-expanded={!collapsed} aria-controls="globe-menu"
+                aria-label={collapsed ? 'Show the globe menu' : 'Hide the globe menu'}
+                data-tip={collapsed ? 'Show menu' : 'Hide menu'} onClick={() => fold(!collapsed)}>
+                {/* A side panel on a wide screen, a sheet from the bottom on a phone: each folds its own way. */}
+                <span className={s.foldSide}>
+                  {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+                </span>
+                <span className={s.foldSheet}>
+                  {collapsed ? <ChevronUp size={20} aria-hidden="true" /> : <ChevronDown size={20} aria-hidden="true" />}
+                </span>
+              </button>
             </div>
-            <button type="button" role="switch" aria-checked={layers.idea} className={s.ideas}
-              onClick={() => toggle('idea')}>
-              <span className={s.layerL}><i className={s.dot} data-kind="idea" /> Journey ideas</span>
-              <span className={s.switch} aria-hidden="true" />
-            </button>
-            <div>
-              <label className={s.search}>
-                <Search size={16} aria-hidden="true" />
-                <input value={query} maxLength={120}
-                  placeholder="Add a place"
-                  aria-label="Add a place you have been"
-                  onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => setOpen(true)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); }
-                    if (e.key === 'Enter' && results[0]) { e.preventDefault(); pick(results[0]); }
-                  }} />
-                {query ? (
-                  <button type="button" className={s.clearQ} aria-label="Clear search" onClick={() => setQuery('')}>
-                    <X size={15} />
+            <div id="globe-menu" className={s.menu} hidden={collapsed}>
+              <div className={s.layers} role="group" aria-label="Show on the globe">
+                {['been', 'planned', 'favourite'].map((k) => (
+                  <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}
+                    data-tip={KIND_TIP[k]}>
+                    <span className={s.layerN}>{loading ? '–' : counts[k]}</span>
+                    <span className={s.layerL}><i className={s.dot} data-kind={k} /> {LAYER[k]}</span>
                   </button>
+                ))}
+              </div>
+              <button type="button" role="switch" aria-checked={layers.idea} className={s.ideas}
+                onClick={() => toggle('idea')}>
+                <span className={s.layerL}><i className={s.dot} data-kind="idea" /> Journey ideas</span>
+                <span className={s.switch} aria-hidden="true" />
+              </button>
+              <div>
+                <label className={s.search}>
+                  <Search size={16} aria-hidden="true" />
+                  <input value={query} maxLength={120}
+                    placeholder="Add a place"
+                    aria-label="Add a place you have been"
+                    onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => setOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); }
+                      if (e.key === 'Enter' && results[0]) { e.preventDefault(); pick(results[0]); }
+                    }} />
+                  {query ? (
+                    <button type="button" className={s.clearQ} aria-label="Clear search" onClick={() => setQuery('')}>
+                      <X size={15} />
+                    </button>
+                  ) : null}
+                </label>
+                {query.trim().length >= 3 ? (
+                  <ul className={s.results} aria-label="Places found">
+                    {!results.length ? (
+                      <li className={s.note}>{searching ? 'Looking…' : searchError || 'Nothing found.'}</li>
+                    ) : results.map((r) => (
+                      <li key={r.place_id || `${r.lat},${r.lng}`}>
+                        <button type="button" className={s.result} onClick={() => pick(r)}>
+                          <PlacePhoto photoRef={r.photo_ref} category="other" size={36} rounded={10} />
+                          <span className={s.resultText}>
+                            <strong>{r.name || r.label}</strong>
+                            <span>{r.label}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
-              </label>
-              {query.trim().length >= 3 ? (
-                <ul className={s.results} aria-label="Places found">
-                  {!results.length ? (
-                    <li className={s.note}>{searching ? 'Looking…' : searchError || 'Nothing found.'}</li>
-                  ) : results.map((r) => (
-                    <li key={r.place_id || `${r.lat},${r.lng}`}>
-                      <button type="button" className={s.result} onClick={() => pick(r)}>
-                        <PlacePhoto photoRef={r.photo_ref} category="other" size={36} rounded={10} />
-                        <span className={s.resultText}>
-                          <strong>{r.name || r.label}</strong>
-                          <span>{r.label}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+              </div>
             </div>
           </div>
 
-          <div className={s.list}>
+          <div className={s.list} hidden={collapsed}>
             {loading ? (
               [0, 1, 2].map((i) => <div key={i} className={`skel ${s.skel}`} />)
             ) : loadError ? (
