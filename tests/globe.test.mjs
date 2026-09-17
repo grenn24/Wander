@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints, photoQueryOf,
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
+  groundOffset, nextGroundAltitude, groundNear,
 } from '../lib/globe.js';
 
 test('a group camera frames a whole trip, a single pin gets the close view', () => {
@@ -202,4 +203,26 @@ test('stop numbers are dark on light day colours and white on dark ones', async 
   assert.equal(inkOn([215, 218, 47]), '#1d1b18'); // yellow
   assert.equal(inkOn([47, 218, 53]), '#1d1b18'); // green
   assert.equal(inkOn([47, 207, 218]), '#1d1b18'); // cyan
+});
+
+test('a close view aimed at sea level is moved in onto the ground', () => {
+  // Owakudani, seen from the south at 55°: aimed at sea level, the view met the
+  // hillside 1.8 km short at 1,270 m; aimed at 1,270 m, 0.5 km past at 917 m.
+  const stop = { lat: 35.2444, lng: 139.0198 };
+  const short = groundOffset(stop, { lat: 35.22809, lng: 139.0198 }, 0);
+  const past = groundOffset(stop, { lat: 35.24893, lng: 139.0198 }, 0);
+  assert.ok(Math.abs(short + 1816) < 5 && Math.abs(past - 504) < 5);
+  // Facing east, a miss to the north is off to the side, not short or past.
+  assert.ok(Math.abs(groundOffset(stop, { lat: 35.25, lng: 139.0198 }, 90)) < 1);
+  // One try assumes level ground; two follow the slope between them.
+  const first = nextGroundAltitude([{ alt: 0, off: short }], 55);
+  assert.ok(Math.abs(first - 1271) < 5);
+  const second = nextGroundAltitude([{ alt: 0, off: short }, { alt: 1270, off: past }], 55);
+  assert.ok(second > 960 && second < 1020);
+  // Nothing absurd, whatever the map reports.
+  assert.equal(nextGroundAltitude([{ alt: 0, off: -900000 }], 55), 8900);
+  // The nearest height known, and sea level where none is near.
+  const samples = [{ lat: 35.49, lng: 138.78, alt: 820 }, { lat: 35.25, lng: 139.02, alt: 1000 }];
+  assert.equal(groundNear(samples, { lat: 35.4869, lng: 138.7805 }), 820);
+  assert.equal(groundNear(samples, { lat: 35.68, lng: 139.77 }), 0);
 });

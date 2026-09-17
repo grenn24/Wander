@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
-import { flightMillis, km } from '@/lib/globe';
+import {
+  flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear,
+} from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
 } from '@/lib/globeRegions';
@@ -51,6 +53,12 @@ const regionKey = (r) => `${r.id}|${r.kind}|${r.filled}|${r.parts.length}`;
  * and drew no regions. The distance is the two together.
  */
 const distanceOf = (map) => (Number(map.range) || 0) + (Number(map.center && map.center.altitude) || 0);
+
+// Where the camera is, to the metre: two the same a moment apart means it has stopped.
+const spotOf = (map) => {
+  const c = map.center || {};
+  return [Number(c.lat).toFixed(5), Number(c.lng).toFixed(5), Math.round(c.altitude), Math.round(map.range), Math.round(map.tilt)].join(',');
+};
 
 const getJSON = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${url} ${r.status}`))));
 
@@ -107,6 +115,10 @@ export default function GlobeCanvas({
   const routeDrawn = useRef([]); // the chosen trip's line and stops, to take away again
   const stopMarks = useRef([]); // [{ marker, face }] for the chosen route's stops, in order
   const callout = useRef(null); // takes the open stop's card off the map again
+  // Ground heights the 3D map has reported where its view met the ground: [{ lat, lng, alt }].
+  const ground = useRef([]);
+  const flight = useRef(0); // counts camera flights, so a late check for an old one does nothing
+  const touchedAt = useRef(0); // when the globe was last dragged, pinched or scrolled
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const pressedAt = useRef(0);
@@ -198,6 +210,12 @@ export default function GlobeCanvas({
       const working = () => clearTimeout(timer);
       listen(map, 'gmp-animationend', working);
       listen(map, 'gmp-click', working);
+      // Wherever the camera comes to rest, how high the ground under the middle of the view is.
+      listen(map, 'gmp-animationend', () => noteGround(map));
+      listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) noteGround(map); });
+      const touched = () => { touchedAt.current = performance.now(); };
+      listen(host.current, 'pointerdown', touched, true);
+      listen(host.current, 'wheel', touched, { capture: true, passive: true });
       /*
        * A click on the ground closes the open place, but not the click that
        * opened it. The 3D map reports one press twice: the marker at once, then
@@ -690,6 +708,98 @@ export default function GlobeCanvas({
 
   useEffect(() => () => { if (callout.current) callout.current(); }, []);
 
+  function rememberGround(sample) {
+    ground.current = [sample, ...ground.current.filter((s) => km(s, sample) > 0.05)].slice(0, 80);
+  }
+
+  // The map's centre is where its view meets the ground only while the camera
+  // looks at the ground from a distance; far out it holds the camera as a point
+  // in the air instead, with no range, and that height is not the ground's.
+  function reportedGround(map) {
+    const c = map.center;
+    const range = Number(map.range);
+    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.altitude)) return null;
+    if (!(range > 5 && range < 60000) || c.altitude < -450 || c.altitude > 8900) return null;
+    return { lat: c.lat, lng: c.lng, alt: c.altitude };
+  }
+
+  function noteGround(map) {
+    const seen = reportedGround(map);
+    if (seen) rememberGround(seen);
+  }
+
+  /*
+   * Calls `go` once the camera has come to rest after a flight: its end
+   * reported, the camera no longer where it set off from (a flight stopped to
+   * make way for this one reports an end as well), and the view holding still
+   * for a moment, since the ground under it sharpens as its tiles load and
+   * moves where the map says its view meets it.
+   */
+  function whenLanded(map, id, from, duration, go) {
+    const began = performance.now();
+    let done = false;
+    let giveUp = 0;
+    const settle = (last, waited = 0) => setTimeout(() => {
+      if (flight.current !== id) return;
+      const at = spotOf(map);
+      if (at !== last && waited < 6) settle(at, waited + 1);
+      else go();
+    }, 300);
+    const ended = () => {
+      if (done) return;
+      if (flight.current !== id) { finish(); return; }
+      if (performance.now() - began < duration * 0.6 || spotOf(map) === from) return;
+      finish();
+      settle(spotOf(map));
+    };
+    function finish() {
+      done = true;
+      map.removeEventListener('gmp-animationend', ended);
+      clearTimeout(giveUp);
+    }
+    if (!duration) { settle(spotOf(map)); return; }
+    map.addEventListener('gmp-animationend', ended);
+    giveUp = setTimeout(finish, duration + 8000);
+  }
+
+  /*
+   * Once a close view lands, check it landed on its target and, if the ground
+   * there is higher or lower than it was aimed at, move in by what it missed:
+   * at most twice, quickly, and never once the globe has been touched.
+   */
+  function settleOnGround(map, id, cam, startedAt, from, ms) {
+    const tries = [];
+    let current = cam;
+    const quick = window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof map.flyCameraTo !== 'function' ? 0 : 700;
+    const check = () => {
+      if (flight.current !== id || touchedAt.current > startedAt) return;
+      const seen = reportedGround(map);
+      if (!seen) return;
+      const target = current.center;
+      const missed = km(seen, target) * 1000;
+      if (missed <= Math.max(60, current.range * 0.06)) {
+        rememberGround({ lat: target.lat, lng: target.lng, alt: target.altitude || 0 });
+        return;
+      }
+      // Too far off to be this flight's view, or tried enough: leave it where it is.
+      if (tries.length >= 2 || missed > current.range * 3 + 3000) return;
+      tries.push({ alt: target.altitude || 0, off: groundOffset(target, seen, current.heading || 0) });
+      current = { ...current, center: { ...target, altitude: nextGroundAltitude(tries, current.tilt || 0) } };
+      const before = spotOf(map);
+      if (!quick) {
+        Object.assign(map, current);
+      } else {
+        try {
+          Promise.resolve(map.flyCameraTo({ endCamera: current, durationMillis: quick })).catch(() => {});
+        } catch (e) {
+          Object.assign(map, current);
+        }
+      }
+      whenLanded(map, id, before, quick, check);
+    };
+    whenLanded(map, id, from, ms, check);
+  }
+
   useEffect(() => {
     if (!ready || !aim) return;
     let cam = aim.camera;
@@ -706,17 +816,26 @@ export default function GlobeCanvas({
        */
       const inView = map.center && km(map.center, cam.center) < (now / 1000) * 0.6;
       if (aim.closerOnly && now < cam.range && inView) cam = { ...cam, range: now };
+      // A close view aims at the height of the ground there, as far as it is known.
+      const grounded = cam.range <= GROUNDED_RANGE;
+      if (grounded) {
+        cam = { ...cam, center: { lat: cam.center.lat, lng: cam.center.lng, altitude: groundNear(ground.current, cam.center) } };
+      }
       const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: now }, cam);
+      const id = ++flight.current;
+      const startedAt = performance.now();
+      const from = spotOf(map);
       try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }
       if (!ms || typeof map.flyCameraTo !== 'function') {
         Object.assign(map, cam);
-        return;
+      } else {
+        try {
+          Promise.resolve(map.flyCameraTo({ endCamera: cam, durationMillis: ms })).catch(() => Object.assign(map, cam));
+        } catch (e) {
+          Object.assign(map, cam);
+        }
       }
-      try {
-        Promise.resolve(map.flyCameraTo({ endCamera: cam, durationMillis: ms })).catch(() => Object.assign(map, cam));
-      } catch (e) {
-        Object.assign(map, cam);
-      }
+      if (grounded) settleOnGround(map, id, cam, startedAt, from, typeof map.flyCameraTo === 'function' ? ms : 0);
     } else if (mode === '2d' && map2d.current) {
       const h = host.current ? host.current.clientHeight : 600;
       const zoom = Math.round(rangeToZoom(cam.range, cam.center.lat, h));
