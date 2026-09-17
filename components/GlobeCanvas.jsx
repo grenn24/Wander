@@ -119,6 +119,7 @@ export default function GlobeCanvas({
   const ground = useRef([]);
   const flight = useRef(0); // counts camera flights, so a late check for an old one does nothing
   const touchedAt = useRef(0); // when the globe was last dragged, pinched or scrolled
+  const correcting = useRef(false); // a correction onto the ground is flying right now
   // Presses of the mouse or a finger on the globe, and the one that last chose something.
   const presses = useRef(0);
   const pressedAt = useRef(0);
@@ -213,7 +214,17 @@ export default function GlobeCanvas({
       // Wherever the camera comes to rest, how high the ground under the middle of the view is.
       listen(map, 'gmp-animationend', () => noteGround(map));
       listen(map, 'gmp-steadychange', (e) => { if (e.isSteady) noteGround(map); });
-      const touched = () => { touchedAt.current = performance.now(); };
+      /*
+       * Your hand on the globe ends any correction onto the ground, including
+       * one already flying: a correction that starts as you begin to zoom
+       * would otherwise carry the view somewhere you did not scroll to.
+       */
+      const touched = () => {
+        touchedAt.current = performance.now();
+        if (!correcting.current) return;
+        correcting.current = false;
+        try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }
+      };
       listen(host.current, 'pointerdown', touched, true);
       listen(host.current, 'wheel', touched, { capture: true, passive: true });
       /*
@@ -789,13 +800,14 @@ export default function GlobeCanvas({
       if (!quick) {
         Object.assign(map, current);
       } else {
+        correcting.current = true;
         try {
           Promise.resolve(map.flyCameraTo({ endCamera: current, durationMillis: quick })).catch(() => {});
         } catch (e) {
           Object.assign(map, current);
         }
       }
-      whenLanded(map, id, before, quick, check);
+      whenLanded(map, id, before, quick, () => { correcting.current = false; check(); });
     };
     whenLanded(map, id, from, ms, check);
   }
@@ -823,6 +835,7 @@ export default function GlobeCanvas({
       }
       const ms = aim.instant || still ? 0 : flightMillis({ center: map.center, range: now }, cam);
       const id = ++flight.current;
+      correcting.current = false;
       const startedAt = performance.now();
       const from = spotOf(map);
       try { Promise.resolve(map.stopCameraAnimation && map.stopCameraAnimation()).catch(() => {}); } catch (e) { /* nothing flying */ }

@@ -219,8 +219,15 @@ test('a close view aimed at sea level is moved in onto the ground', () => {
   assert.ok(Math.abs(first - 1271) < 5);
   const second = nextGroundAltitude([{ alt: 0, off: short }, { alt: 1270, off: past }], 55);
   assert.ok(second > 960 && second < 1020);
-  // Nothing absurd, whatever the map reports.
-  assert.equal(nextGroundAltitude([{ alt: 0, off: -900000 }], 55), 8900);
+  // Two landings on the same side are not a slope to follow: a reading a few
+  // metres different while terrain loads once sent the aim 1,300 m underground.
+  const same = nextGroundAltitude([{ alt: 0, off: -1200 }, { alt: 840, off: -1250 }], 55);
+  assert.ok(same > 840 && same < 1800);
+  const sameOther = nextGroundAltitude([{ alt: 0, off: -1200 }, { alt: 840, off: -1150 }], 55);
+  assert.ok(sameOther > 840 && sameOther < 1700);
+  // No step further than a slope could need, whatever the map reports.
+  assert.equal(nextGroundAltitude([{ alt: 0, off: -900000 }], 55), 1500);
+  assert.equal(nextGroundAltitude([{ alt: 8000, off: -900000 }], 55), 8900);
   // The nearest height known, and sea level where none is near.
   const samples = [{ lat: 35.49, lng: 138.78, alt: 820 }, { lat: 35.25, lng: 139.02, alt: 1000 }];
   assert.equal(groundNear(samples, { lat: 35.4869, lng: 138.7805 }), 820);
