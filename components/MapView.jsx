@@ -4,8 +4,8 @@ import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
   Search, Crosshair, ChevronUp, ChevronDown,
 } from 'lucide-react';
-import { categoryOf, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
-import { activityIcon, categoryIcon } from '@/lib/icons';
+import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
+import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
   NEARBY_KINDS,
@@ -18,6 +18,8 @@ import Lightbox from '@/components/Lightbox';
 import { viewportChanged } from '@/lib/explore';
 import TravelEstimate from '@/components/TravelEstimate';
 import TravelArt from '@/components/TravelArt';
+import { inkOn } from '@/components/mapPin';
+import m from './MapView.module.css';
 
 
 export default function MapView({
@@ -379,7 +381,7 @@ export default function MapView({
    * there is not.
    */
   return (
-    <div className={`mapstage${sheetOpen ? ' is-open' : ''}`}>
+    <div className={`mapstage ${m.stage}${sheetOpen ? ' is-open' : ''}`}>
       <div className="mapcanvas">
         {mapsReady ? (
           <GoogleMap
@@ -605,65 +607,65 @@ export default function MapView({
           </div>
 
           {stops.length ? (
-            <div className="stoplist">
-              {stopGroups.map((group) => (
-                <section className="map-day-group" key={group.day || 'undated'}
-                  aria-labelledby={`map-day-${group.day || 'undated'}`}
-                  style={{ '--day-colour': dayColor(days.indexOf(group.day), days.length) }}>
-                  <div className="map-day-head">
-                    <h4 id={`map-day-${group.day || 'undated'}`}>
-                      <span className="map-day-dot" aria-hidden="true" />
-                      {days.includes(group.day) ? `Day ${days.indexOf(group.day) + 1}` : 'Other stops'}
-                      {group.day ? <span className="map-day-date">{fmtDayTiny(group.day)}</span> : null}
-                    </h4>
-                    <span className="map-day-summary">
-                      {group.stops.length} stop{group.stops.length === 1 ? '' : 's'}
-                      {group.km > 0 ? ` · ≈ ${fmtKm(group.km)} between stops` : ''}
-                    </span>
-                  </div>
-                  <div className="map-day-stops">
-                    {group.stops.map(({ activity: a, number }) => {
-                      const cat = categoryOf(a.category);
-                      const leg = legs[a.id];
-                      return (
-                        <div key={a.id}>
-                          {leg != null ? (
-                            <div className={`leg${leg > 60 ? ' leg-far' : ''}`}>
-                              <TravelEstimate km={leg} />
-                            </div>
-                          ) : null}
-                          <div id={`stop-${a.id}`}
-                            className={`stop${focused === a.id ? ' is-focus' : ''}`
-                              + `${opening === String(a.id) ? ' is-opening' : ''}`}
-                            data-tip={focused === a.id ? 'Open' : 'Show on map'}
-                            role="button" tabIndex={0}
-                            onClick={() => focus(a)}
-                            onKeyDown={(e) => {
-                              if (e.target !== e.currentTarget) return;
-                              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(a); }
-                            }}>
-                            <span className="stop-n">{number}</span>
-                            <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={38} alt={a.title} />
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div className="stop-name">{a.title}</div>
-                              <div className="map-stop-meta">
-                                {a.start_time ? fmtTime(a.start_time) : 'Time not set'}
+            <div className={m.days}>
+              {stopGroups.map((group) => {
+                const colour = dayColor(days.indexOf(group.day), days.length);
+                const dayId = `map-day-${group.day || 'undated'}`;
+                return (
+                  <section key={group.day || 'undated'} aria-labelledby={dayId}>
+                    <div className={m.dayTitle}>
+                      <i className={m.swatch} style={{ background: colour }} aria-hidden="true" />
+                      <h4 id={dayId} className={m.dayName}>
+                        {days.includes(group.day) ? `Day ${days.indexOf(group.day) + 1}` : 'Other stops'}
+                        {group.day ? ` · ${fmtDay(group.day)}` : ''}
+                      </h4>
+                      <span className={m.daySub}>
+                        {group.stops.length} stop{group.stops.length === 1 ? '' : 's'}
+                        {group.km > 0 ? ` · ≈ ${fmtKm(group.km)} between stops` : ''}
+                      </span>
+                    </div>
+                    <ol className={m.stops}>
+                      {group.stops.map(({ activity: a, number }) => {
+                        const leg = legs[a.id];
+                        const sub = [a.start_time ? fmtTime(a.start_time) : 'Time not set', shortPlace(a.location)]
+                          .filter(Boolean).join(' · ');
+                        return (
+                          <li key={a.id}>
+                            {leg != null ? (
+                              <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
+                                <TravelEstimate km={leg} />
                               </div>
+                            ) : null}
+                            <div id={`stop-${a.id}`} className={m.stop}
+                              aria-current={focused === a.id ? 'true' : undefined}
+                              data-opening={opening === String(a.id) ? '' : undefined}
+                              data-tip={focused === a.id ? 'Open' : 'Show on map'}
+                              role="button" tabIndex={0}
+                              onClick={() => focus(a)}
+                              onKeyDown={(e) => {
+                                if (e.target !== e.currentTarget) return;
+                                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(a); }
+                              }}>
+                              <span className={m.num} style={{ background: colour, color: inkOn(colour) }}>{number}</span>
+                              <span className={m.text}>
+                                <span className={m.name}>{a.title}</span>
+                                <span className={m.sub}>{sub}</span>
+                              </span>
+                              <button type="button" className={`btn ghost sm icon-btn ${m.edit}`}
+                                data-tip="Edit" aria-label={`Edit ${a.title}`}
+                                onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+                                <SquarePen size={14} />
+                              </button>
                             </div>
-                            <button className="btn ghost sm icon-btn"
-                              data-tip="Edit" aria-label={`Edit ${a.title}`}
-                              onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-                              <SquarePen size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </section>
+                );
+              })}
               {Object.keys(legs).length ? (
-                <p className="map-distance-note">Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
+                <p className={m.note}>Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
               ) : null}
             </div>
           ) : (

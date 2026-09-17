@@ -1,0 +1,116 @@
+/*
+ * The trip map, in the globe's clothes.
+ *
+ * Everything that floats over the map — the panel, the day chips, Map
+ * appearance, "Search this area" — is a solid surface with a hairline border,
+ * the way the globe's panels are, rather than frosted glass: over a busy map
+ * the glass let streets and labels show through the text. The lens is set in
+ * app/globals.css for every floating control; these rules are scoped to this
+ * page and outrank it by specificity, not by load order.
+ *
+ * The stop list is the globe's itinerary list: days headed by their colour,
+ * stops as rows numbered in the pin's own circle.
+ */
+
+.stage :global(:is(.mappanel, .map-appearance, .mapredo, .mapdays .daychip)) {
+  background: var(--surface-1);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: var(--border);
+  box-shadow: var(--lift);
+}
+.stage :global(.mappanel.mappanel) { box-shadow: var(--lift-lg); }
+.stage :global(:is(.mapredo, .mapdays .daychip)):hover,
+.stage :global(.map-appearance):has(:global(summary):hover) {
+  border-color: var(--border-strong);
+}
+.stage :global(.mapdays .daychip.active) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.stage :global(.mappanel-head) {
+  background: transparent;
+  border-color: var(--border);
+}
+.stage :global(.mappanel .mapfind) { background: var(--surface-0); }
+
+@media (max-width: 1000px) {
+  .stage :global(.mappanel-views) { background: var(--surface-2); }
+  .stage :global(.mappanel-views button[aria-pressed="true"]) {
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .stage :global(.map-stops-trigger) { background: var(--surface-2); border-color: var(--border); }
+  .stage :global(.mappanel-head .mapkinds .btn:not([aria-pressed="true"])) {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+}
+
+/* ------------------------------------------------------------- the stops */
+.days { display: grid; gap: 14px; }
+.dayTitle {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 0; padding: 4px 8px;
+  font-size: 13px; font-weight: 650; color: var(--text-1);
+}
+.swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.dayName { margin: 0; font: inherit; color: inherit; }
+.daySub { flex-basis: 100%; padding-left: 18px; color: var(--text-3); font-size: 12.5px; font-weight: 500; }
+
+.stops { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
+.stop {
+  position: relative; display: flex; align-items: center; gap: 11px; padding: 7px 4px 7px 8px;
+  border-radius: 12px; cursor: pointer; scroll-margin: 10px; outline: none;
+}
+.stop:hover { background: var(--surface-2); }
+.stop:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.stop[aria-current="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.stop[aria-current="true"]:focus-visible { box-shadow: inset 0 0 0 1px var(--border-strong), 0 0 0 2px var(--accent); }
+/* The map's pin, in the list: the same circle, number and day colour. */
+.num {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box;
+  border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace;
+}
+.text { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.name, .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name { font-size: 14.5px; font-weight: 600; }
+.sub { color: var(--text-3); font-size: 12.5px; }
+.stop > .edit.edit {
+  flex: none; width: 30px; min-width: 30px; min-height: 30px; padding: 0;
+  border-color: transparent; background: transparent; color: var(--text-3);
+}
+.stop > .edit.edit:hover { background: var(--surface-1); color: var(--text-1); }
+
+/* Clicked through to its editor, which takes a moment: a sweep of light says it landed. */
+.stop[data-opening]::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background-image: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--accent) 16%, transparent) 50%, transparent 80%);
+  background-size: 220% 100%;
+  animation: sweep 1s var(--ease) infinite;
+}
+@keyframes sweep { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+/* The way to the next stop, hung on a dotted line from one number to the next. */
+.leg {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 4px 45px; color: var(--text-2); font-size: 12px;
+}
+.leg::before {
+  content: ''; position: absolute; left: 20px; top: 0; bottom: 0;
+  border-left: 2px dotted var(--border-strong);
+}
+.leg > svg {
+  position: absolute; left: 14px; top: 50%; width: 15px; height: 15px; padding: 2px 0;
+  transform: translateY(-50%); background: var(--surface-1); color: var(--text-3);
+}
+.legFar > svg { color: var(--accent-ink); }
+.leg :global(.map-leg-detail) { gap: 0 8px; }
+.leg :global(.map-leg-detail > span) { color: var(--text-3); }
+.note { margin: 10px 8px 0; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stop[data-opening]::after { animation: none; opacity: .5; }
+}
