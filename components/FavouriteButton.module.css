@@ -4,21 +4,18 @@
 
 .full { gap: 7px; }
 
-/* On a trip card: quiet like the card's menu button until the card is under
-   the pointer — except once favourited, when the heart is the point. */
+/* On a trip card or row: always there, as a quiet outline until it is on.
+   It used to wait for the pointer, and a heart nobody can see is not a way
+   to favourite a trip. */
 .compact {
-  flex: none; display: grid; place-items: center; width: 26px; height: 26px;
-  border-radius: 8px; border: none; background: transparent; cursor: pointer;
-  color: var(--text-3); opacity: 0;
-  transition: opacity .14s var(--ease), background .14s var(--ease), color .14s var(--ease);
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 9px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-3);
+  transition: background .14s var(--ease), color .14s var(--ease);
 }
-.compact[aria-pressed="true"],
-.compact:focus-visible,
-:global(.tripcard):hover .compact,
-:global(.triprow):hover .compact { opacity: 1; }
 .compact:hover { background: var(--surface-2); color: var(--text-1); }
+.compact:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .compact:disabled { cursor: default; }
-@media (hover: none) { .compact { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .heart, .compact { transition: none; }
 }
