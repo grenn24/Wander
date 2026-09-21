@@ -4,7 +4,8 @@ import { haversine, NEARBY_KINDS } from '@/lib/geo';
 import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from '@/lib/map3dCamera';
 import { move3DCamera } from '@/lib/map3dMotion';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
-import { createPin } from '@/components/mapPin';
+import { createPin, createCluster } from '@/components/mapPin';
+import { clusterScreen, projectToScreen } from '@/lib/mapClusters';
 import styles from './PhotorealisticMap.module.css';
 
 const EMPTY = [];
@@ -19,6 +20,11 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   const popupHost = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef(new Map());
+  // Stops as the map gathers them (one unit per pin, or per fan sharing a spot), and the clusters drawn.
+  const stopUnits = useRef([]);
+  const clusters = useRef([]);
+  const grouping = useRef('');
+  const libraryRef = useRef(null);
   const restored = useRef(!!camera.current);
   const initialSelection = useRef(true);
   const lastFocus = useRef({ focused, focusedPlace });
@@ -29,6 +35,106 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto };
   const [library, setLibrary] = useState(null);
   const [selection, setSelection] = useState(null);
+  libraryRef.current = library;
+  latest.current.regroup = regroup;
+
+  /*
+   * Stops that would pile up in this view, gathered into one marker each, as
+   * on the flat map (see lib/mapClusters). The 3D map has no zoom to measure
+   * by, so each stop is placed on the screen through the map's own camera.
+   * Worked out again once the camera comes to rest, and when the chosen stop
+   * changes: that one always keeps its own pin. Tapping a cluster flies to
+   * its stops; any still touching there stay gathered for another tap.
+   */
+  function regroup() {
+    const L = libraryRef.current;
+    const map = mapRef.current;
+    const box = host.current;
+    const c = map && map.center;
+    if (!L || !map || !box || !c || !Number.isFinite(c.lat)) return;
+    const cam = {
+      lat: c.lat, lng: c.lng, altitude: Number(c.altitude) || 0,
+      range: Number(map.range) || 0, tilt: Number(map.tilt) || 0, heading: Number(map.heading) || 0,
+    };
+    const width = box.clientWidth;
+    const height = box.clientHeight;
+    const fov = Number(map.getAttribute('fov')) || 35;
+    const chosen = selectedRef.current;
+    const units = [];
+    stopUnits.current.forEach((u, key) => {
+      const at = projectToScreen(cam, u, width, height, fov);
+      // Behind the camera: nothing to overlap, so its pins stay as they are.
+      if (at) units.push({ key, x: at.x, y: at.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length, alone: u.keys.includes(chosen) });
+    });
+    const groups = clusterScreen(units);
+    const signature = groups.map((g) => g.keys.join('.')).join('|');
+    if (signature === grouping.current) return;
+    grouping.current = signature;
+
+    clusters.current.forEach((m) => m.remove());
+    clusters.current = [];
+    const gathered = new Set();
+    groups.forEach((g) => {
+      if (g.keys.length < 2) return;
+      const entries = g.keys.flatMap((k) => stopUnits.current[k].keys)
+        .map((key) => markers.current.get(key)).filter(Boolean);
+      entries.forEach((entry) => gathered.add(entry));
+      const numbers = entries.map((entry) => entry.n).sort((a, b) => a - b);
+      const listed = numbers.length > 6
+        ? `${numbers.slice(0, 5).join(', ')} and ${numbers.length - 5} more`
+        : `${numbers.slice(0, -1).join(', ')} and ${numbers[numbers.length - 1]}`;
+      const face = createCluster({
+        count: entries.length,
+        colours: [...new Set(entries.map((entry) => entry.colour))],
+        name: `Stops ${listed}. Zoom in`,
+      });
+      // Room to grow under a pointer, and for the circle stacked behind it: the 3D map clips a marker to its box.
+      const room = document.createElement('div');
+      room.style.padding = '10px';
+      room.append(face.el);
+      const cluster = new L.MarkerInteractiveElement({
+        position: { lat: g.lat, lng: g.lng }, altitudeMode: 'CLAMP_TO_GROUND', collisionBehavior: 'REQUIRED',
+        anchorLeft: '-50%', anchorTop: '-50%',
+      });
+      cluster.append(room);
+      cluster.addEventListener('gmp-click', (event) => {
+        event.stopPropagation();
+        const points = entries.map((entry) => entry.point);
+        let next = { ...fit3DCamera(points, null, width / Math.max(1, height)), heading: map.heading || 0 };
+        /*
+         * Framing the stops is not always enough to part them: stops a few
+         * dozen metres apart still touch from the nearest a framing goes, and
+         * the tap would fly nowhere. So the view is tried before flying, and
+         * brought closer only until the cluster breaks — not until every stop
+         * does, which would leave the rest of them off the screen. What still
+         * touches there takes another tap, as on the flat map.
+         */
+        const own = g.keys.map((k) => stopUnits.current[k]);
+        for (let i = 0; i < 12 && next.range > 150; i += 1) {
+          const view = { ...next.center, altitude: cam.altitude, range: next.range, tilt: next.tilt, heading: next.heading };
+          const placed = [];
+          own.forEach((u, key) => {
+            const spot = projectToScreen(view, u, width, height, fov);
+            if (spot) placed.push({ key, x: spot.x, y: spot.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length });
+          });
+          // With room to spare: where the camera settles is never exactly where it was sent.
+          if (clusterScreen(placed, 16).length > 1) break;
+          next = { ...next, range: Math.max(150, next.range * 0.7) };
+        }
+        // And always somewhat closer than now, so a tap is never a flight to the same view.
+        moveTo({ ...next, range: Math.max(150, Math.min(next.range, cam.range * 0.85)) });
+      });
+      map.append(cluster);
+      clusters.current.push(cluster);
+    });
+    // Gathered pins leave the map; the rest come back, those that had been gathered included.
+    markers.current.forEach((entry) => {
+      if (entry.kind !== 'stop') return;
+      const hide = gathered.has(entry);
+      if (hide && entry.marker.parentNode) entry.marker.remove();
+      else if (!hide && !entry.marker.parentNode) map.append(entry.marker);
+    });
+  }
 
   function moveTo(target, onComplete, animate = true) {
     motion.current?.();
@@ -68,7 +174,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   }
 
   useEffect(() => {
-    let dead = false, map, timer, reportTimer;
+    let dead = false, map, timer, reportTimer, groupTimer;
     const listeners = [];
     function listen(target, name, handler) {
       target.addEventListener(name, handler);
@@ -109,10 +215,21 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       listen(map, 'gmp-steadychange', (event) => {
         if (event.isSteady) { clearTimeout(timer); report(); }
       });
+      /*
+       * Steady is not the only sign 3D is working. Fly somewhere before the
+       * first view has finished loading — to a stop, into a cluster — and
+       * steady comes long after the wait above, and a map that was plainly
+       * working switched to the road map (and stayed switched). A flight that
+       * finished, or a tap the map could place, needs a working renderer too.
+       */
+      listen(map, 'gmp-animationend', () => clearTimeout(timer));
+      listen(map, 'gmp-click', () => clearTimeout(timer));
       ['gmp-centerchange', 'gmp-rangechange', 'gmp-headingchange', 'gmp-tiltchange'].forEach((name) => listen(map, name, () => {
         remember();
         clearTimeout(reportTimer);
         reportTimer = setTimeout(report, 250);
+        clearTimeout(groupTimer);
+        groupTimer = setTimeout(() => latest.current.regroup?.(), 200);
       }));
       listen(map, 'gmp-click', (event) => {
         event.preventDefault();
@@ -128,6 +245,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       dead = true;
       clearTimeout(timer);
       clearTimeout(reportTimer);
+      clearTimeout(groupTimer);
       listeners.forEach((remove) => remove());
       motion.current?.();
       map?.remove();
@@ -153,6 +271,14 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       const radius = Math.max(24, items.length * 8);
       fans.set(stop.id, [Math.cos(angle) * radius, Math.sin(angle) * radius]);
     }));
+    // A pin reaches 13 px from its spot; a fan, its circle's radius further.
+    stopUnits.current = groups.map((items) => ({
+      lat: items[0].lat, lng: items[0].lng, keys: items.map((stop) => `stop:${stop.id}`),
+      radius: 13 + (items.length > 1 ? Math.max(24, items.length * 8) : 0),
+    }));
+    clusters.current.forEach((m) => m.remove());
+    clusters.current = [];
+    grouping.current = '';
     function addMarker(point, index, kind) {
       if (!validMapPoint(point)) return;
       const key = `${kind}:${point.id}`;
@@ -193,7 +319,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       });
       map.append(marker);
       overlays.push(marker);
-      markers.current.set(key, { marker, pin, kind });
+      markers.current.set(key, { marker, pin, kind, point, n: index + 1, colour });
     }
     stops.forEach((point, i) => addMarker(point, i, 'stop'));
     places.forEach((point, i) => addMarker(point, i, 'place'));
@@ -211,7 +337,14 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       map.append(line);
       overlays.push(line);
     });
-    return () => { overlays.forEach((overlay) => overlay.remove()); markers.current.clear(); };
+    regroup();
+    return () => {
+      overlays.forEach((overlay) => overlay.remove());
+      markers.current.clear();
+      clusters.current.forEach((m) => m.remove());
+      clusters.current = [];
+      grouping.current = '';
+    };
   }, [library, stops, places]);
 
   const extent = JSON.stringify(stops.map(({ id, lat, lng }) => [id, lat, lng]));
@@ -237,6 +370,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
 
   useEffect(() => {
     if (!library) return;
+    regroup();
     markers.current.forEach(({ marker, pin }, key) => {
       const on = key === selection?.key;
       pin.set({ active: on });

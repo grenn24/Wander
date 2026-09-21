@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { worldPixel, clusterUnits } from '../lib/mapClusters.js';
+import { worldPixel, clusterUnits, clusterScreen, projectToScreen } from '../lib/mapClusters.js';
 
 // Tsukiji, Ginza and Senso-ji: 1 km and 4 km apart.
 const tsukiji = { lat: 35.6654, lng: 139.7707 };
@@ -42,4 +42,32 @@ test('a cluster sits at the middle of its stops, weighted by how many each unit 
   assert.equal(g.weight, 4);
   assert.ok(Math.abs(g.lat - (tsukiji.lat * 3 + ginza.lat) / 4) < 1e-9);
   assert.ok(Math.abs(g.lng - (tsukiji.lng * 3 + ginza.lng) / 4) < 1e-9);
+});
+
+test('the 3D camera puts places where the live map drew them', () => {
+  // Measured on the 3D map: 1856 × 1214 px, looking at Tokyo Bay from 10 km.
+  const at = { lat: 35.52, lng: 139.93 };
+  const north = { lat: 35.52 + 2000 / 111320, lng: 139.93 };
+  const east = { lat: 35.52, lng: 139.93 + 2000 / (111320 * Math.cos(35.52 * Math.PI / 180)) };
+  const near = (p, x, y) => Math.abs(p.x - x) < 2 && Math.abs(p.y - y) < 2;
+  // Straight down: the centre in the middle, 2 km north 384 px above it.
+  const down = { ...at, altitude: 0, range: 10000, tilt: 0, heading: 0 };
+  assert.ok(near(projectToScreen(down, at, 1856, 1214), 928, 607));
+  assert.ok(near(projectToScreen(down, north, 1856, 1214), 928, 222.5));
+  // Tilted 55° and turned 30°, as the markers drew.
+  const tilted = { ...down, tilt: 55, heading: 30 };
+  assert.ok(near(projectToScreen(tilted, north, 1856, 1214), 759.6, 439.5));
+  assert.ok(near(projectToScreen(tilted, east, 1856, 1214), 1235.9, 504.8));
+  // Behind the camera there is nothing to draw.
+  const level = { ...down, tilt: 89, heading: 0 };
+  assert.equal(projectToScreen(level, { lat: 35.3, lng: 139.93 }, 1856, 1214), null);
+});
+
+test('stops placed on the screen gather the same way', () => {
+  const units = [
+    { key: 'a', x: 100, y: 100, radius: 13, weight: 1, lat: 1, lng: 1 },
+    { key: 'b', x: 120, y: 105, radius: 13, weight: 1, lat: 2, lng: 2 },
+    { key: 'c', x: 400, y: 100, radius: 13, weight: 1, lat: 3, lng: 3 },
+  ];
+  assert.deepEqual(clusterScreen(units).map((g) => g.keys), [['a', 'b'], ['c']]);
 });
