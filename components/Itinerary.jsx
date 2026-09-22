@@ -22,7 +22,7 @@ import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
 import { activityDistance } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
-import useLegs from '@/components/useLegs';
+import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 
@@ -61,6 +61,7 @@ export default function Itinerary({
    * this device, so switching between the two costs nothing.
    */
   const [mapPrefs] = useMapPreferences();
+  const [choices, choose] = useLegChoices(trip && trip.id);
   const hops = useMemo(() => {
     const perDay = {};
     itineraryEntries(activities).forEach((a) => { (perDay[a.day] = perDay[a.day] || []).push(a); });
@@ -72,13 +73,15 @@ export default function Itinerary({
         if (km == null) return;
         out.push({
           key: `${prev._entryId || prev.id}>${a._entryId || a.id}`,
+          // The same pair of stops the trip map keeps a chosen way under.
+          hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
         });
       });
     });
     return out;
   }, [activities]);
-  const travel = useLegs(hops, mapPrefs.routes);
+  const travel = useLegs(hops, mapPrefs.routes, choices);
   const params = useSearchParams();
   const pathname = usePathname();
   // Two ways in: the search bar asks through the trip, and a link from outside
@@ -440,7 +443,8 @@ export default function Itinerary({
                           <div className="itinerary-leg"
                             data-tip={travel.on ? undefined : 'Straight-line distance. Actual routes may take longer.'}>
                             <LegLine km={distance} gap={gapMins}
-                              leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null} />
+                              leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null}
+                              onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)} />
                           </div>
                         ) : null}
                         {gapMins != null ? <span className="itinerary-gap-time">

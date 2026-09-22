@@ -19,11 +19,17 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  * way the map is drawing is picked out; and where the time between two
  * activities is shorter than the quickest way between them, it says so.
  *
- *   km    the straight-line distance
- *   leg   this hop from useLegs, or nothing while Routes are off
- *   gap   minutes between the two activities, where known
+ * Each way is also a button: the map's Routes setting decides how every hop
+ * is drawn, and a click on one way draws this hop that way instead — the train
+ * for the long hop across town when the setting says walk. Clicked again, the
+ * hop goes back to following the setting.
+ *
+ *   km        the straight-line distance
+ *   leg       this hop from useLegs, or nothing while Routes are off
+ *   gap       minutes between the two activities, where known
+ *   onChoose  called with the way chosen for this hop, or null to follow the setting
  */
-export default function LegLine({ km, leg, gap = null }) {
+export default function LegLine({ km, leg, gap = null, onChoose = null }) {
   if (!leg || !leg.options || (!leg.options.length && !leg.drawn)) return <TravelEstimate km={km} />;
   const known = leg.options.filter((o) => Number.isFinite(o.minutes));
   const quickest = known.length ? Math.min(...known.map((o) => o.minutes)) : null;
@@ -40,12 +46,33 @@ export default function LegLine({ km, leg, gap = null }) {
           const why = o.waiting ? 'Asking Google…'
             : o.estimate ? `Estimate${leg.gap ? `: Google has no ${o.mode === 'TRANSIT' ? 'transit' : TRAVEL_LABEL[o.mode].toLowerCase()} routes in ${leg.gap}` : ''}`
               : `${TRAVEL_LABEL[o.mode]}, by Google`;
+          const chosen = o.mode === leg.chosen;
+          const said = `${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`;
+          const shared = {
+            className: s.way,
+            'data-on': o.mode === leg.drawn ? '' : undefined,
+            'data-chosen': chosen ? '' : undefined,
+            'data-estimate': o.estimate ? '' : undefined,
+          };
+          if (!onChoose) {
+            return (
+              <span key={o.mode} {...shared} data-tip={why} aria-label={said}>
+                <Icon size={12} aria-hidden="true" />{time}
+              </span>
+            );
+          }
           return (
-            <span key={o.mode} className={s.way} data-on={o.mode === leg.drawn ? '' : undefined}
-              data-estimate={o.estimate ? '' : undefined} data-tip={why}
-              aria-label={`${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`}>
+            <button key={o.mode} type="button" {...shared} aria-pressed={o.mode === leg.drawn}
+              data-tip={chosen ? `${why}. Chosen for this hop; click again to follow the map's Routes setting`
+                : `${why}. Click to show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
+              aria-label={chosen ? `${said}, chosen for this hop` : `${said}. Show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onChoose(chosen ? null : o.mode);
+              }}>
               <Icon size={12} aria-hidden="true" />{time}
-            </span>
+            </button>
           );
         })}
       </span>

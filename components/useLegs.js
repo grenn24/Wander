@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { routeBetween } from '@/lib/geo';
 import { prepareCountries, countryAt } from '@/lib/globeRegions';
 import {
@@ -77,15 +77,59 @@ function loadBorders() {
   return borders;
 }
 
-/**
- * hops     [{ key, from: { lat, lng }, to: { lat, lng }, km }]
- * setting  the map's Routes setting: 'off', 'auto', or one way for every hop
- *
- * Returns { on, byKey, gaps }: for each hop its options (see travelOptions) and
- * the way the map draws, and the names of countries on the trip where Google
- * leaves a way out, for saying why some times are estimates.
+/*
+ * The way chosen for a particular hop, over the map's Routes setting: the
+ * train for the long hop across town when the setting says walk. Kept on this
+ * device, per trip, beside the setting itself, and shared by the trip map and
+ * the itinerary, which each hear when the other changes one.
  */
-export default function useLegs(hops, setting) {
+const CHOICES = 'wander-leg-choices-v1';
+const CHOSEN = 'wander-leg-choices-change';
+const NONE = Object.freeze({});
+
+function readChoices() {
+  try { return JSON.parse(localStorage.getItem(CHOICES)) || {}; } catch { return {}; }
+}
+
+/** [choices, choose]: this trip's chosen ways by hop ("fromId>toId"), and choose(hop, mode or null). */
+export function useLegChoices(tripId) {
+  const [all, setAll] = useState(NONE);
+  useEffect(() => {
+    const read = () => setAll(readChoices());
+    const stored = (event) => { if (!event.key || event.key === CHOICES) read(); };
+    read();
+    window.addEventListener(CHOSEN, read);
+    window.addEventListener('storage', stored);
+    return () => {
+      window.removeEventListener(CHOSEN, read);
+      window.removeEventListener('storage', stored);
+    };
+  }, []);
+  const choose = useCallback((hop, mode) => {
+    if (!tripId) return;
+    const next = readChoices();
+    const trip = { ...(next[tripId] || {}) };
+    if (mode) trip[hop] = mode; else delete trip[hop];
+    if (Object.keys(trip).length) next[tripId] = trip; else delete next[tripId];
+    try { localStorage.setItem(CHOICES, JSON.stringify(next)); } catch { /* this session still has it */ }
+    setAll(next);
+    window.dispatchEvent(new Event(CHOSEN));
+  }, [tripId]);
+  return [(tripId && all[tripId]) || NONE, choose];
+}
+
+/**
+ * hops     [{ key, hop, from: { lat, lng }, to: { lat, lng }, km }] — `hop` names
+ *          the pair of stops ("fromId>toId") a chosen way is kept under
+ * setting  the map's Routes setting: 'off', 'auto', or one way for every hop
+ * choices  ways chosen for particular hops, from useLegChoices, over the setting
+ *
+ * Returns { on, byKey, gaps }: for each hop its options (see travelOptions),
+ * the way the map draws and whether it was chosen for that hop, and the names
+ * of countries on the trip where Google leaves a way out, for saying why some
+ * times are estimates.
+ */
+export default function useLegs(hops, setting, choices = NONE) {
   const on = !!setting && setting !== 'off';
   const [countries, setCountries] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -147,16 +191,18 @@ export default function useLegs(hops, setting) {
         const answer = answers[legKey(h.from, h.to, mode)];
         if (answer !== undefined) got[mode] = answer;
       });
+      const chosen = (h.hop && choices[h.hop]) || null;
       byKey[h.key] = {
         km: h.km,
         country,
         gap: name,
         options: countries ? travelOptions(h.km, country, got)
           : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true })),
-        drawn: drawnMode(setting, h.km, country),
+        chosen,
+        drawn: chosen || drawnMode(setting, h.km, country),
       };
     });
     return { on, byKey, gaps: [...gaps] };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, setting, countries, answers, signature]);
+  }, [on, setting, countries, answers, signature, choices]);
 }

@@ -18,7 +18,7 @@ import Lightbox from '@/components/Lightbox';
 import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
-import useLegs from '@/components/useLegs';
+import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import m from './MapView.module.css';
@@ -98,17 +98,24 @@ export default function MapView({
    * appearance: times for each way in the list, and the way it draws on the map.
    */
   const [mapPrefs] = useMapPreferences();
+  const [choices, choose] = useLegChoices(trip && trip.id);
   const hops = useMemo(() => {
     const out = [];
     let prev = null;
     stops.forEach((a) => {
       const km = activityDistance(prev, a);
-      if (km != null) out.push({ key: a.id, day: a.day, from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km });
+      if (km != null) {
+        out.push({
+          key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
+          from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+        });
+      }
       prev = a;
     });
     return out;
   }, [stops]);
-  const travel = useLegs(hops, mapPrefs.routes);
+  const hopOf = useMemo(() => Object.fromEntries(hops.map((h) => [h.key, h.hop])), [hops]);
+  const travel = useLegs(hops, mapPrefs.routes, choices);
   const routeLines = useMemo(() => {
     if (!travel.on) return null;
     return hops.map((h) => {
@@ -663,7 +670,8 @@ export default function MapView({
                           <li key={a.id}>
                             {leg != null ? (
                               <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
-                                <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null} />
+                                <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null}
+                                  onChoose={(mode) => choose(hopOf[a.id], mode)} />
                               </div>
                             ) : null}
                             <div id={`stop-${a.id}`} className={m.stop}
