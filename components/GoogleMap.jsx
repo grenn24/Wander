@@ -10,7 +10,7 @@ import { mapColorScheme } from '@/lib/mapPreferences';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 import { createPin, createCluster } from '@/components/mapPin';
 import { clusterUnits } from '@/lib/mapClusters';
-import { backOff, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
+import { centreBeside, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -293,6 +293,8 @@ function GoogleMapCanvas({
   // Whether the map has ever been aimed. The first fit is ours to make; after
   // that the view belongs to whoever is looking at it.
   const fitted = useRef(false);
+  // Which stops were drawn last, to tell a different stop to look at from the same one moved.
+  const drawnIds = useRef('');
   const initialCamera = useRef(camera.current);
   const restoreCamera = useRef(camera.current);
   const [ready, setReady] = useState(false);
@@ -606,12 +608,14 @@ function GoogleMapCanvas({
     const map = mapRef.current;
     const el = elRef.current;
     const cover = latest.current.covered ? latest.current.covered() : null;
-    map.fitBounds(bounds, coverPadding(el.clientWidth, el.clientHeight, cover) || FIT_MARGIN);
+    const pad = coverPadding(el.clientWidth, el.clientHeight, cover);
+    map.fitBounds(bounds, pad || FIT_MARGIN);
     const zoom = map.getZoom();
     if (zoom == null || zoom <= most) return;
-    const centre = map.getCenter();
+    // Backed out, and the middle of the stops kept in the middle of what can be seen.
     const middle = bounds.getCenter();
-    map.setCenter(backOff({ lat: centre.lat(), lng: centre.lng() }, { lat: middle.lat(), lng: middle.lng() }, zoom, most));
+    const even = { top: FIT_MARGIN, right: FIT_MARGIN, bottom: FIT_MARGIN, left: FIT_MARGIN };
+    map.setCenter(centreBeside({ lat: middle.lat(), lng: middle.lng() }, most, pad || even));
     map.setZoom(most);
   }
 
@@ -794,8 +798,19 @@ function GoogleMapCanvas({
      * destination: hold the phone still and it stayed put, move and the map
      * leapt to the far end of the journey.
      */
+    const ids = list.map((a) => a.id).join('|');
+    const different = ids !== drawnIds.current;
+    drawnIds.current = ids;
     if (latest.current.follow) {
       // nothing to aim at: you are the centre until you say otherwise
+    } else if (list.length === 1 && different && fitted.current) {
+      /*
+       * A different stop to look at — the first one picked from the list, a
+       * day with one stop — is gone to as two would be, not just kept on the
+       * screen at whatever zoom showed the whole trip.
+       */
+      const at = { lat: list[0].lat, lng: list[0].lng };
+      owedFit.current = { bounds: new L.LatLngBounds(at, at), most: 16 };
     } else if (list.length === 1) {
       owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
     } else if (list.length > 1 && !bounds.isEmpty()) {

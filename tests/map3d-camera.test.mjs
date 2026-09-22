@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  backOff, coverPadding, fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange,
+  centreBeside, coverPadding, fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange,
 } from '../lib/map3dCamera.js';
 
 test('switching 2D and 3D preserves the ground scale across latitudes and phone sizes', () => {
@@ -43,12 +43,16 @@ test('a fit leaves room for the controls over the map, unless that leaves too li
   assert.deepEqual(coverPadding(390, 700, null, 0), { top: 0, right: 0, bottom: 0, left: 0 });
 });
 
-test('backing out of a fit keeps the stops where the fit put them on the screen', () => {
-  // The fit centred the map 0.004 east of the stops, to put them left of the panel, at zoom 18.
-  const centre = backOff({ lat: 35.55, lng: 139.784 }, { lat: 35.55, lng: 139.78 }, 18, 16);
-  // Four times the ground per pixel at 16: the same pixels from the stops are four times the degrees.
-  assert.ok(Math.abs(centre.lng - 139.796) < 1e-9);
-  assert.equal(centre.lat, 35.55);
+test('a stop is put in the middle of what the panel and chips leave of the flat map', () => {
+  const stop = { lat: 35.55, lng: 139.78 };
+  const none = { top: 0, right: 0, bottom: 0, left: 0 };
+  const same = centreBeside(stop, 16, none);
+  assert.ok(Math.abs(same.lat - stop.lat) < 1e-9 && Math.abs(same.lng - stop.lng) < 1e-9);
+  // The panel's 380 px on the right: the map is centred 190 px east, a pixel being 360 / (256 * 2^16) degrees at 16.
+  const beside = centreBeside(stop, 16, { ...none, right: 380 });
+  assert.ok(Math.abs(beside.lng - (stop.lng + (190 * 360) / (256 * 2 ** 16))) < 1e-9);
+  // Chips across the top: centred north of the stop, so it shows lower down.
+  assert.ok(centreBeside(stop, 16, { ...none, top: 60 }).lat > stop.lat);
 });
 
 test('3D framing puts the stops in the middle of the open part of the map', () => {
