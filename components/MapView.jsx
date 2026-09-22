@@ -59,8 +59,9 @@ export default function MapView({
   /*
    * How far in from each edge of the map the things laid over it reach, for
    * the map to frame stops in what is left: the day chips along the top, and
-   * the panel down the right — or, on a phone, the sheet along the bottom.
-   * Measured when asked, since the panel's size depends on the window.
+   * the panel down the right, with the route card beside it while stops are
+   * picked — or, on a phone, the sheet along the bottom. Measured when asked,
+   * since the panel's size depends on the window.
    */
   const covered = useCallback(() => {
     const stage = stageRef.current;
@@ -78,6 +79,9 @@ export default function MapView({
       if (side.width > box.width * 0.8) cover.bottom = Math.max(0, box.bottom - side.top);
       else if (side.left > box.left + box.width / 2) cover.right = Math.max(0, box.right - side.left);
     }
+    const card = stage.querySelector('[data-route-card]');
+    const beside = card && card.getBoundingClientRect();
+    if (beside && beside.width && cover.right) cover.right = Math.max(cover.right, box.right - beside.left);
     return cover;
   }, []);
   const panelScrollRef = useRef(null);
@@ -478,6 +482,39 @@ export default function MapView({
   }, [focused, sheetOpen]);
 
   /*
+   * The way through the picked stops. On a wide screen it is a card of its
+   * own, beside the panel rather than in it, so the list of stops being
+   * picked from keeps its room; on a phone, where the panel is the sheet
+   * along the bottom and nothing can go beside it, it stays in the sheet.
+   * Drawn in both places, and CSS shows the one for the screen.
+   */
+  const routeCard = (className, floating = false) => (
+    <section className={className} data-route-card={floating ? '' : undefined}
+      aria-label="The way between the picked stops">
+      <div className={m.pickHead}>
+        <span>Route through {pickedStops.length} stops</span>
+        <button type="button" className="btn ghost sm" onClick={() => setPicked(new Set())}>Clear</button>
+      </div>
+      {pickHops.map((h) => {
+        const fromColour = dayColor(days.indexOf(pickedStops.find((a) => a.id === h.fromId)?.day), days.length);
+        const toColour = dayColor(days.indexOf(h.day), days.length);
+        return (
+          <div key={h.key} className={m.pickHop}>
+            <span className={m.pickPair} aria-label={`From stop ${numberOf.get(h.fromId)} to stop ${numberOf.get(h.toId)}`}>
+              <i style={{ background: fromColour, color: inkOn(fromColour) }}>{numberOf.get(h.fromId)}</i>
+              <span aria-hidden="true">→</span>
+              <i style={{ background: toColour, color: inkOn(toColour) }}>{numberOf.get(h.toId)}</i>
+            </span>
+            <div className={m.pickLeg}>
+              <LegLine km={h.km} leg={pickTravel.byKey[h.key]} onChoose={(mode) => choose(h.hop, mode)} />
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+
+  /*
    * The map is the page.
    *
    * It used to be a rectangle in a column, sharing the screen with a heading
@@ -575,6 +612,8 @@ export default function MapView({
           <Search size={14} /> Search this area
         </button>
       ) : null}
+
+      {picking && pickHops.length ? routeCard(m.pickFloat, true) : null}
 
       <aside className="mappanel" data-view={panelView} aria-label="Places and stops">
         <div className="mappanel-compact">
@@ -728,30 +767,7 @@ export default function MapView({
           </div>
 
           {picking ? (
-            pickHops.length ? (
-              <section className={m.pickRoute} aria-label="The way between the picked stops">
-                <div className={m.pickHead}>
-                  <span>Route through {pickedStops.length} stops</span>
-                  <button type="button" className="btn ghost sm" onClick={() => setPicked(new Set())}>Clear</button>
-                </div>
-                {pickHops.map((h) => {
-                  const fromColour = dayColor(days.indexOf(pickedStops.find((a) => a.id === h.fromId)?.day), days.length);
-                  const toColour = dayColor(days.indexOf(h.day), days.length);
-                  return (
-                    <div key={h.key} className={m.pickHop}>
-                      <span className={m.pickPair} aria-label={`From stop ${numberOf.get(h.fromId)} to stop ${numberOf.get(h.toId)}`}>
-                        <i style={{ background: fromColour, color: inkOn(fromColour) }}>{numberOf.get(h.fromId)}</i>
-                        <span aria-hidden="true">→</span>
-                        <i style={{ background: toColour, color: inkOn(toColour) }}>{numberOf.get(h.toId)}</i>
-                      </span>
-                      <div className={m.pickLeg}>
-                        <LegLine km={h.km} leg={pickTravel.byKey[h.key]} onChoose={(mode) => choose(h.hop, mode)} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </section>
-            ) : (
+            pickHops.length ? routeCard(m.pickRoute) : (
               <p className={m.pickHint}>
                 {pickedStops.length ? 'Pick another stop to see the way between them.'
                   : 'Tap the stops you want, and the map shows just those, with the way between them.'}

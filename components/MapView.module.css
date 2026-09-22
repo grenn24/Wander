@@ -128,6 +128,25 @@
 }
 .pickLeg { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 12px; }
 .pickLeg > svg { flex: none; margin-top: 2px; color: var(--text-3); }
+/*
+ * On a wide screen, its own card beside the panel: the same surface, border
+ * and lift as the panel, top-aligned with it, as tall as its hops and no
+ * taller than the map. The day chips give way so the two never overlap.
+ */
+.pickFloat {
+  position: absolute; z-index: 6; top: 12px; right: 396px; width: 320px;
+  max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+  padding: 12px 14px 6px; border: 1px solid var(--border); border-radius: 16px;
+  background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift-lg);
+}
+.stage:has(.pickFloat) :global(.mapdays) { max-width: calc(100% - 420px - 332px); }
+@media (min-width: 1001px) {
+  .pickRoute { display: none; }
+}
+@media (max-width: 1000px) {
+  .pickFloat { display: none; }
+  .stage:has(.pickFloat) :global(.mapdays) { max-width: calc(100% - 24px); }
+}
 .stop[data-picked] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
 .check {
   flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 4px; box-sizing: border-box;
