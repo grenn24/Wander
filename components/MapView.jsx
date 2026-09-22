@@ -55,6 +55,31 @@ export default function MapView({
   const [panelView, setPanelView] = useState('explore');
   const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
+  const stageRef = useRef(null);
+  /*
+   * How far in from each edge of the map the things laid over it reach, for
+   * the map to frame stops in what is left: the day chips along the top, and
+   * the panel down the right — or, on a phone, the sheet along the bottom.
+   * Measured when asked, since the panel's size depends on the window.
+   */
+  const covered = useCallback(() => {
+    const stage = stageRef.current;
+    const canvas = stage && stage.querySelector('.mapcanvas');
+    if (!canvas) return null;
+    const box = canvas.getBoundingClientRect();
+    const cover = { top: 0, right: 0, bottom: 0, left: 0 };
+    const chips = stage.querySelector('.mapdays');
+    const top = chips && chips.getBoundingClientRect();
+    if (top && top.height) cover.top = Math.max(0, top.bottom - box.top);
+    const panel = stage.querySelector('.mappanel');
+    const side = panel && panel.getBoundingClientRect();
+    if (side && side.width && side.height) {
+      // Nearly the whole width is the sheet along the bottom; otherwise it is the column down the right.
+      if (side.width > box.width * 0.8) cover.bottom = Math.max(0, box.bottom - side.top);
+      else if (side.left > box.left + box.width / 2) cover.right = Math.max(0, box.right - side.left);
+    }
+    return cover;
+  }, []);
   const panelScrollRef = useRef(null);
 
   // A newly dropped pin must not open below the list's previous scroll position.
@@ -464,7 +489,7 @@ export default function MapView({
    * there is not.
    */
   return (
-    <div className={`mapstage ${m.stage}${sheetOpen ? ' is-open' : ''}`}>
+    <div ref={stageRef} className={`mapstage ${m.stage}${sheetOpen ? ' is-open' : ''}`}>
       <div className="mapcanvas">
         {mapsReady ? (
           <GoogleMap
@@ -475,6 +500,7 @@ export default function MapView({
             stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
             allowRoutes
             routeLines={routeLines}
+            covered={covered}
             placeColour={catColor}
             /*
              * Selecting, not opening the drawer. The marker's own card already

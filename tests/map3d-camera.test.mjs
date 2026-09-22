@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from '../lib/map3dCamera.js';
+import {
+  backOff, coverPadding, fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange,
+} from '../lib/map3dCamera.js';
 
 test('switching 2D and 3D preserves the ground scale across latitudes and phone sizes', () => {
   for (const lat of [0, 35.68, -60, 85]) for (const height of [320, 844]) for (const zoom of [9, 14, 17]) {
@@ -31,4 +33,35 @@ test('phone framing fits the same stops at a wider range and clamps polar search
   assert.equal(view.radius, 50000);
   assert.ok(view.bounds.north <= 90 && view.bounds.east <= 180 && view.bounds.west >= -180);
   assert.equal(viewport3D({ lat: NaN, lng: 0 }, 500), null);
+});
+
+test('a fit leaves room for the controls over the map, unless that leaves too little', () => {
+  // The day chips across the top and the stops panel down the right of a wide window.
+  assert.deepEqual(coverPadding(1870, 947, { top: 60, right: 380 }), { top: 108, right: 428, bottom: 48, left: 48 });
+  // A phone with its sheet pulled up: fit to the whole map instead.
+  assert.equal(coverPadding(390, 700, { bottom: 480 }), null);
+  assert.deepEqual(coverPadding(390, 700, null, 0), { top: 0, right: 0, bottom: 0, left: 0 });
+});
+
+test('backing out of a fit keeps the stops where the fit put them on the screen', () => {
+  // The fit centred the map 0.004 east of the stops, to put them left of the panel, at zoom 18.
+  const centre = backOff({ lat: 35.55, lng: 139.784 }, { lat: 35.55, lng: 139.78 }, 18, 16);
+  // Four times the ground per pixel at 16: the same pixels from the stops are four times the degrees.
+  assert.ok(Math.abs(centre.lng - 139.796) < 1e-9);
+  assert.equal(centre.lat, 35.55);
+});
+
+test('3D framing puts the stops in the middle of the open part of the map', () => {
+  // Two stops 3.6 km apart east to west, on a wide window with the panel down the right.
+  const stops = [{ lat: 35.55, lng: 139.76 }, { lat: 35.55, lng: 139.8 }];
+  const whole = fit3DCamera(stops, null, 1870 / 947);
+  const open = fit3DCamera(stops, null, 1870 / 947, { width: 1870, height: 947, top: 60, right: 380 });
+  // Framed into less of the map, so from further away...
+  assert.ok(open.range > whole.range);
+  // ...and the camera aimed east of the stops, so they sit left of the panel.
+  assert.ok(open.center.lng > whole.center.lng);
+  // With the chips across the top, aimed north a little, so they sit a little lower.
+  assert.ok(open.center.lat > whole.center.lat);
+  // Nothing over the map, the same as without a frame.
+  assert.deepEqual(fit3DCamera(stops, null, 1870 / 947, { width: 1870, height: 947 }).center, whole.center);
 });

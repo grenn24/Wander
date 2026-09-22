@@ -10,6 +10,7 @@ import { mapColorScheme } from '@/lib/mapPreferences';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 import { createPin, createCluster } from '@/components/mapPin';
 import { clusterUnits } from '@/lib/mapClusters';
+import { backOff, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -247,6 +248,12 @@ function GoogleMapCanvas({
    */
   routeLines = null,
   /*
+   * How far the controls laid over the map reach in from each edge, asked at
+   * the moment of a fit: () => ({ top, right, bottom, left }) in pixels. The
+   * stops are framed in the part that can be seen rather than under a panel.
+   */
+  covered,
+  /*
    * Cooperative by default: a map that swallows the wheel is a trap on a page
    * you are trying to scroll. A map that owns its whole column has no such
    * problem and should just respond, so the caller decides.
@@ -296,7 +303,7 @@ function GoogleMapCanvas({
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
-    describeStop, onStopOpen, onPhoto, routeLines,
+    describeStop, onStopOpen, onPhoto, routeLines, covered,
   };
 
   useEffect(() => {
@@ -580,9 +587,32 @@ function GoogleMapCanvas({
       }
       fitted.current = true;
     } else {
-      map.fitBounds(want.bounds, 48);
+      frame(want.bounds, want.most);
       fitted.current = true;
     }
+  }
+
+  /*
+   * Fit to `bounds` in the part of the map that can be seen, and no closer
+   * than `most`.
+   *
+   * A vector map fits at any zoom, not just whole ones, so a fit puts the
+   * outermost stops exactly at the margin — and the margin was measured from
+   * the edges of the whole map, most of which the stops panel and the day
+   * chips cover. Two stops at an airport, 900 m apart east to west, went in to
+   * the aprons with one under the panel and the other at the edge.
+   */
+  function frame(bounds, most = Infinity) {
+    const map = mapRef.current;
+    const el = elRef.current;
+    const cover = latest.current.covered ? latest.current.covered() : null;
+    map.fitBounds(bounds, coverPadding(el.clientWidth, el.clientHeight, cover) || FIT_MARGIN);
+    const zoom = map.getZoom();
+    if (zoom == null || zoom <= most) return;
+    const centre = map.getCenter();
+    const middle = bounds.getCenter();
+    map.setCenter(backOff({ lat: centre.lat(), lng: centre.lng() }, { lat: middle.lat(), lng: middle.lng() }, zoom, most));
+    map.setZoom(most);
   }
 
   /** A pulsing dot for the reader, distinct from anything in the plan. */
@@ -769,7 +799,8 @@ function GoogleMapCanvas({
     } else if (list.length === 1) {
       owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
     } else if (list.length > 1 && !bounds.isEmpty()) {
-      owedFit.current = { bounds };
+      // Stops close together are shown with the streets around them, not fitted to the aprons between them.
+      owedFit.current = { bounds, most: 16 };
     } else if (!list.length && latest.current.look) {
       owedFit.current = { center: latest.current.look };
     }
@@ -879,9 +910,8 @@ function GoogleMapCanvas({
       cluster.addListener('click', () => {
         const box = new L.LatLngBounds();
         marks.forEach((m) => box.extend(m.__at));
-        map.fitBounds(box, 64);
-        // Stops a few dozen metres apart would otherwise fit at a zoom that shows single rooms.
-        window.google.maps.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > 18) map.setZoom(18); });
+        // Closer than a fit of the trip goes, to part them; but stops a few dozen metres apart would otherwise fit at a zoom that shows single rooms.
+        frame(box, 18);
       });
       clusterMarks.current.push(cluster);
     });

@@ -15,7 +15,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   stops = EMPTY, places = EMPTY, focused, focusedPlace, look,
   stopColour = DEFAULT_COLOUR, placeColour = DEFAULT_COLOUR,
   onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onViewport, describeStop, onPhoto,
-  routeLines = null, gestures = 'cooperative' }) {
+  routeLines = null, covered, gestures = 'cooperative' }) {
   const host = useRef(null);
   const popupHost = useRef(null);
   const mapRef = useRef(null);
@@ -34,7 +34,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   const motion = useRef(null);
   const aimed = useRef(false);
   const latest = useRef(null);
-  latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto };
+  latest.current = { onFallback, onViewport, onFocus, onPlaceFocus, stopColour, placeColour, stops, places, look, describeStop, onStopOpen, onPlaceAdd, onPhoto, covered };
   const [library, setLibrary] = useState(null);
   const [selection, setSelection] = useState(null);
   libraryRef.current = library;
@@ -210,10 +210,18 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       heading: map.heading || 0, tilt: map.tilt });
   }
 
+  // The map's size and how much of it the controls over it cover, for framing the stops in what can be seen.
+  function framing() {
+    const width = host.current.clientWidth;
+    const height = host.current.clientHeight;
+    return { ...(latest.current.covered ? latest.current.covered() : null), width, height };
+  }
+
   function fit(animate = true) {
     const map = mapRef.current;
     if (!map) return;
-    const next = fit3DCamera(latest.current.stops, latest.current.look, host.current.clientWidth / Math.max(1, host.current.clientHeight));
+    const next = fit3DCamera(latest.current.stops, latest.current.look,
+      host.current.clientWidth / Math.max(1, host.current.clientHeight), framing());
     closeSelection();
     moveTo(next, undefined, animate);
   }
@@ -251,7 +259,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       const saved = camera.current;
       const initial = saved ? { center: saved.center, heading: saved.heading || 0, tilt: saved.tilt ?? 60,
         range: zoomToRange(saved.zoom, saved.center.lat, host.current.clientHeight) }
-        : fit3DCamera(latest.current.stops, latest.current.look, host.current.clientWidth / Math.max(1, host.current.clientHeight));
+        : fit3DCamera(latest.current.stops, latest.current.look,
+          host.current.clientWidth / Math.max(1, host.current.clientHeight), framing());
       map = new L.Map3DElement({ ...initial, mode: 'HYBRID', defaultUIHidden: true,
         gestureHandling: gestures.toUpperCase() });
       map.setAttribute('aria-label', 'Photorealistic 3D trip map');
