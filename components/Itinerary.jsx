@@ -10,6 +10,7 @@ import PlacePhoto from '@/components/PlacePhoto';
 import Select from '@/components/Select';
 import Popover from '@/components/Popover';
 import ConfirmModal from '@/components/ConfirmModal';
+import useKept from '@/components/useKept';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
   shortPlace, activityGap, fmtDuration,
@@ -94,6 +95,7 @@ export default function Itinerary({
   const [menuFor, setMenuFor] = useState(null);
   const [menuEl, setMenuEl] = useState(null);
   const [deleteAct, setDeleteAct] = useState(null);
+  const deleteShown = useKept(deleteAct); // on screen while it plays its way out
   const lastMenuAct = useRef(null);
   const [activeDay, setActiveDay] = useState(null);
   const [stripStuck, setStripStuck] = useState(false);
@@ -617,11 +619,11 @@ export default function Itinerary({
         ) : null}
       </Popover>
 
-      {deleteAct ? (
-        <ConfirmModal title="Delete activity?" confirmLabel="Delete activity"
+      {deleteShown.value ? (
+        <ConfirmModal title="Delete activity?" confirmLabel="Delete activity" leaving={deleteShown.leaving}
           onClose={() => setDeleteAct(null)}
-          onConfirm={() => { onDelete(deleteAct); setDeleteAct(null); }}>
-          <p>Delete "{deleteAct.title}" from this trip? You can undo it from the message afterwards.</p>
+          onConfirm={() => { onDelete(deleteShown.value); setDeleteAct(null); }}>
+          <p>Delete "{deleteShown.value.title}" from this trip? You can undo it from the message afterwards.</p>
         </ConfirmModal>
       ) : null}
     </div>

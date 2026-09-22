@@ -5,13 +5,13 @@ import { X } from 'lucide-react';
 import { useModalChrome } from '@/lib/useModal';
 
 export default function ConfirmModal({
-  title, children, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onClose,
+  title, children, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onClose, leaving = false,
 }) {
   const confirm = useCallback(() => onConfirm(), [onConfirm]);
   useModalChrome({ onEscape: onClose, onSubmit: confirm });
 
   return (
-    <div className="backdrop confirm-backdrop"
+    <div className="backdrop confirm-backdrop" data-state={leaving ? 'exit' : undefined}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal confirm-modal" role="alertdialog" aria-modal="true"
         aria-labelledby="confirm-title">

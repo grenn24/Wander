@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Copy, Check, Trash2, LogOut, Share2, Link2, Users } from 'lucide-react';
 import { colorFor, initials } from '@/lib/util';
 import ConfirmModal from '@/components/ConfirmModal';
+import useKept from '@/components/useKept';
 
 /**
  * Trip settings: who can reach this trip, who is on it, and how to get rid of
@@ -31,6 +32,7 @@ export default function People({
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
   const [pending, setPending] = useState(null);
+  const pendingShown = useKept(pending); // on screen while it plays its way out
   const onlineIds = online.map((o) => o.id);
 
   // Asked after mount: navigator.share does not exist on the server, and on
@@ -150,15 +152,15 @@ export default function People({
         </Section>
       )}
 
-      {pending ? (
-        <ConfirmModal
-          title={pending.kind === 'trip' ? 'Delete trip?'
-            : pending.kind === 'leave' ? 'Leave this trip?' : 'Remove traveller?'}
-          confirmLabel={pending.kind === 'trip' ? 'Delete trip'
-            : pending.kind === 'leave' ? 'Leave trip' : 'Remove access'}
+      {pendingShown.value ? (
+        <ConfirmModal leaving={pendingShown.leaving}
+          title={pendingShown.value.kind === 'trip' ? 'Delete trip?'
+            : pendingShown.value.kind === 'leave' ? 'Leave this trip?' : 'Remove traveller?'}
+          confirmLabel={pendingShown.value.kind === 'trip' ? 'Delete trip'
+            : pendingShown.value.kind === 'leave' ? 'Leave trip' : 'Remove access'}
           onClose={() => setPending(null)}
           onConfirm={() => {
-            const action = pending;
+            const action = pendingShown.value;
             setPending(null);
             if (action.kind === 'trip') onDeleteTrip();
             else if (action.kind === 'leave') onLeaveTrip();

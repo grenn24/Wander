@@ -9,7 +9,7 @@ import { useModalChrome } from '@/lib/useModal';
 
 const TAB_ICONS = { details: SlidersHorizontal, people: Users, offline: Download, calendar: CalendarDays };
 
-export default function TripModal({ draft, onChange, onSave, onClose, sections = [], initialSection = 'details' }) {
+export default function TripModal({ draft, onChange, onSave, onClose, sections = [], initialSection = 'details', leaving = false }) {
   const [active, setActive] = useState(initialSection);
   const id = useId();
   const dialog = useRef(null);
@@ -47,7 +47,8 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
   const onEnter = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
 
   return (
-    <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
+    <div className="backdrop" data-state={leaving ? 'exit' : undefined}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
       <div ref={dialog} className={`modal${sections.length ? ' trip-edit-modal' : ''}`} role="dialog" aria-modal="true" aria-label={draft.id ? 'Edit trip' : 'New trip'}>
         <div className="modal-head">
           <h3>{draft.id ? 'Edit trip' : 'New trip'}</h3>

@@ -21,6 +21,7 @@ import LegLine from '@/components/LegLine';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
+import useKept from '@/components/useKept';
 import m from './MapView.module.css';
 
 
@@ -52,6 +53,13 @@ export default function MapView({
    * and a gesture that lands anywhere in between is a gesture to get wrong.
    */
   const [sheetOpen, setSheetOpen] = useState(false);
+  /*
+   * On a phone the sheet slides up to open and back down to close: it keeps
+   * its open shape for the length of the slide down, marked as leaving from
+   * the moment it is put away, and the corner controls take its place once it
+   * has gone (MapView.module.css).
+   */
+  const sheet = useKept(sheetOpen ? 'open' : null, 260);
   const [panelView, setPanelView] = useState('explore');
   const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
@@ -83,7 +91,8 @@ export default function MapView({
       if (side.width > box.width * 0.8 || side.height < box.height * 0.3) cover.bottom = Math.max(0, box.bottom - side.top);
       else if (side.left > box.left + box.width / 2) cover.right = Math.max(0, box.right - side.left);
     }
-    const card = stage.querySelector('[data-route-card]');
+    // Not the card on its way out: the stops are about to have that room back.
+    const card = stage.dataset.card === 'leaving' ? null : stage.querySelector('[data-route-card]');
     const beside = card && card.getBoundingClientRect();
     if (beside && beside.width && cover.right) cover.right = Math.max(cover.right, box.right - beside.left);
     return cover;
@@ -518,6 +527,9 @@ export default function MapView({
     </section>
   );
 
+  // Kept on screen while it slides away, once the picks no longer make a route.
+  const floatCard = useKept(picking && pickHops.length ? routeCard(m.pickFloat, true) : null, 170);
+
   /*
    * The map is the page.
    *
@@ -530,7 +542,8 @@ export default function MapView({
    * there is not.
    */
   return (
-    <div ref={stageRef} className={`mapstage ${m.stage}${sheetOpen ? ' is-open' : ''}`}>
+    <div ref={stageRef} className={`mapstage ${m.stage}${sheet.value ? ' is-open' : ''}`}
+      data-sheet={sheet.leaving ? 'leaving' : undefined} data-card={floatCard.leaving ? 'leaving' : undefined}>
       <div className="mapcanvas">
         {mapsReady ? (
           <GoogleMap
@@ -617,7 +630,7 @@ export default function MapView({
         </button>
       ) : null}
 
-      {picking && pickHops.length ? routeCard(m.pickFloat, true) : null}
+      {floatCard.value}
 
       <aside className="mappanel" data-view={panelView} aria-label="Places and stops">
         <div className="mappanel-compact">

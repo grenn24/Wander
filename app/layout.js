@@ -4,6 +4,7 @@ import Tips from '@/components/Tips';
 import OfflineNotice from '@/components/OfflineNotice';
 import { browserThemeScript } from '@/lib/browserTheme';
 import './globals.css';
+import './motion.css';
 
 /*
  * Three faces, each doing one job.

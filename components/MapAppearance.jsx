@@ -43,6 +43,24 @@ export function useMapPreferences() {
   return [preferences, update, ready];
 }
 
+/*
+ * Put the panel away, folding its options up first (app/motion.css). A
+ * <details> closes the instant it is told to, so it is told once the fold has
+ * played; for anyone who has asked for less motion, straight away.
+ */
+const FOLD_MS = 140;
+function shut(panel, refocus = false) {
+  if (!panel || !panel.open || panel.dataset.state === 'exit') return;
+  const finish = () => {
+    delete panel.dataset.state;
+    panel.open = false;
+    if (refocus) panel.querySelector('summary')?.focus();
+  };
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
+  panel.dataset.state = 'exit';
+  setTimeout(finish, FOLD_MS);
+}
+
 export default function MapAppearance({ preferences, onChange, allow3D = false, allowRoutes = false }) {
   const is3D = preferences.type === '3d';
   const imagery = preferences.type === 'hybrid' || is3D;
@@ -64,7 +82,7 @@ export default function MapAppearance({ preferences, onChange, allow3D = false, 
       const path = event.composedPath ? event.composedPath() : [event.target];
       if (path.includes(el)) return;
       if (path.some((node) => node instanceof Element && node.classList.contains('pop'))) return;
-      el.open = false;
+      shut(el);
     };
     document.addEventListener('pointerdown', pressed, true);
     return () => document.removeEventListener('pointerdown', pressed, true);
@@ -75,19 +93,18 @@ export default function MapAppearance({ preferences, onChange, allow3D = false, 
       onKeyDown={(event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        event.currentTarget.open = false;
-        event.currentTarget.querySelector('summary').focus();
+        shut(event.currentTarget, true);
       }
     }}>
-      <summary aria-label="Map appearance">
+      <summary aria-label="Map appearance" onClick={(event) => {
+        // Opening is the browser's; closing folds away first.
+        const panel = event.currentTarget.parentElement;
+        if (panel.open) { event.preventDefault(); shut(panel); }
+      }}>
         <Layers size={15} aria-hidden="true" /><span className="map-appearance-label">Map appearance</span>
       </summary>
       <button type="button" className="btn icon-btn map-appearance-close" aria-label="Close map appearance"
-        onClick={(event) => {
-          const panel = event.currentTarget.closest('details');
-          panel.open = false;
-          panel.querySelector('summary').focus();
-        }}><X size={16} aria-hidden="true" /></button>
+        onClick={(event) => shut(event.currentTarget.closest('details'), true)}><X size={16} aria-hidden="true" /></button>
       <div className="map-appearance-options">
         <div className="map-appearance-field">
           <span>Map theme</span>

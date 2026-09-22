@@ -82,7 +82,17 @@
     height: calc(var(--sheet-h) + var(--tabbar-h, 0px) - var(--vv-bottom, 0px));
     max-height: calc(100% - 12px);
     border-bottom: 0; border-radius: 22px 22px 0 0;
+    transition: height .3s var(--ease);
+    animation: sheetUp .3s var(--ease) backwards;
   }
+  /*
+   * Up from below the screen as it opens, and back down as it is put away.
+   * Not the springy curve: an overshoot would lift the sheet off the foot of
+   * the screen.
+   */
+  .stage[data-sheet="leaving"] :global(.mappanel.mappanel) { animation: sheetDown .26s var(--ease) forwards; pointer-events: none; }
+  /* Put away, the corner controls come back in as the sheet leaves. */
+  .stage:not(:global(.is-open)) :global(.mappanel-compact) { animation: cornerIn .22s var(--ease) backwards; }
   .stage:global(.is-open) :global(.mappanel-scroll) {
     padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
     scroll-padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
@@ -181,6 +191,9 @@
   background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift-lg);
 }
 .stage:has(.pickFloat) :global(.mapdays) { max-width: calc(100% - 420px - 332px); }
+/* In from beside the panel when a second stop is picked, and back out when the route goes. */
+.pickFloat { animation: cardIn .22s var(--ease) backwards; }
+.stage[data-card="leaving"] .pickFloat { animation: cardOut .17s var(--ease) forwards; pointer-events: none; }
 @media (min-width: 1001px) {
   .pickRoute { display: none; }
 }
@@ -194,7 +207,21 @@
   border: 1.5px solid var(--border-strong); border-radius: 7px; color: transparent;
 }
 .stop[data-picked] .check { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Picking: the tick pops in, and the hint and the route in the sheet ease in. */
+.stop[data-picked] .check > svg { animation: tick .22s var(--spring) backwards; }
+.pickHint, .pickRoute { animation: cardIn .2s var(--ease) backwards; }
+
+@keyframes cardIn { from { opacity: 0; transform: translateX(10px); } }
+@keyframes cardOut { to { opacity: 0; transform: translateX(10px); } }
+@keyframes cornerIn { from { opacity: 0; transform: translateY(8px) scale(.96); } }
+@keyframes sheetUp { from { transform: translateY(100%); } }
+@keyframes sheetDown { to { transform: translateY(100%); } }
+@keyframes tick { from { opacity: 0; transform: scale(.4); } }
 
 @media (prefers-reduced-motion: reduce) {
   .stop[data-opening]::after { animation: none; opacity: .5; }
+  .pickFloat, .pickHint, .pickRoute, .stop[data-picked] .check > svg,
+  .stage :global(.mappanel-compact), .stage :global(.mappanel.mappanel) { animation: none !important; }
+  .stage :global(.mappanel.mappanel) { transition: none !important; }
+  .stage[data-card="leaving"] .pickFloat { opacity: 0; }
 }

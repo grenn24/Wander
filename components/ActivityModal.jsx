@@ -47,7 +47,7 @@ function useRoomForMap() {
   return wide;
 }
 
-export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose }) {
+export default function ActivityModal({ draft, days, currency, onChange, onSave, onDelete, onClose, leaving = false }) {
   const [hits, setHits] = useState([]);
   const [searching, setSearching] = useState(false);
   const [geoErr, setGeoErr] = useState('');
@@ -211,7 +211,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   );
 
   return (
-    <div className="backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
+    <div className="backdrop" data-state={leaving ? 'exit' : undefined}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
       <div className={`modal${beside ? ' modal-wide' : ''}`} ref={boxRef} tabIndex={-1}
         aria-hidden={mapExpanded ? 'true' : undefined}
         role="dialog" aria-modal="true" aria-label="Activity">

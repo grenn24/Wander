@@ -13,6 +13,7 @@ import TopBar from '@/components/TopBar';
 import { removeDownload } from '@/public/offline-store';
 import TripModal from '@/components/TripModal';
 import ConfirmModal from '@/components/ConfirmModal';
+import useKept from '@/components/useKept';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
 import TravelArt from '@/components/TravelArt';
@@ -67,6 +68,9 @@ export default function TripsHome() {
   const failedLoad = useRef(false);
   const loadToken = useRef(0);
   const [draft, setDraft] = useState(null);
+  // Dialogs stay on screen long enough to play their way out.
+  const tripShown = useKept(draft);
+  const killShown = useKept(confirmKill);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -475,14 +479,15 @@ export default function TripsHome() {
         </div>
       </Popover>
 
-      {draft ? (
-        <TripModal draft={draft} onChange={setDraft} onSave={saveTrip} onClose={() => setDraft(null)} />
+      {tripShown.value ? (
+        <TripModal draft={tripShown.value} leaving={tripShown.leaving}
+          onChange={setDraft} onSave={saveTrip} onClose={() => setDraft(null)} />
       ) : null}
 
-      {confirmKill ? (
-        <ConfirmModal title="Delete trip?" confirmLabel="Delete trip"
-          onClose={() => setConfirmKill(null)} onConfirm={() => kill(confirmKill)}>
-          <p>Delete "{confirmKill.name}" and its itinerary, packing list, and shared access? This cannot be undone.</p>
+      {killShown.value ? (
+        <ConfirmModal title="Delete trip?" confirmLabel="Delete trip" leaving={killShown.leaving}
+          onClose={() => setConfirmKill(null)} onConfirm={() => kill(killShown.value)}>
+          <p>Delete "{killShown.value.name}" and its itinerary, packing list, and shared access? This cannot be undone.</p>
         </ConfirmModal>
       ) : null}
     </div>

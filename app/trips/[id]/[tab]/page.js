@@ -17,6 +17,7 @@ import People from '@/components/People';
 import CalendarLink from '@/components/CalendarLink';
 import ActivityModal from '@/components/ActivityModal';
 import TripModal from '@/components/TripModal';
+import useKept from '@/components/useKept';
 import { todayISO } from '@/lib/util';
 import { placeDetails } from '@/lib/geo';
 
@@ -40,6 +41,9 @@ export default function TripTabPage({ params }) {
   const [opening, setOpening] = useState(''); // the row we are fetching for
   const [tripDraft, setTripDraft] = useState(null);
   const [tripSection, setTripSection] = useState(segment === 'people' ? 'people' : 'details');
+  // Dialogs stay on screen long enough to play their way out.
+  const editingShown = useKept(editing);
+  const tripShown = useKept(tripDraft || (tab === 'settings' ? trip : null));
 
   /*
    * Open the editor with the place already in hand.
@@ -192,16 +196,16 @@ export default function TripTabPage({ params }) {
         <Notes trip={trip} activities={activities} onSave={saveNotes} />
       ) : null}
 
-      {editing ? (
-        <ActivityModal draft={editing} days={days} currency={trip.currency}
+      {editingShown.value ? (
+        <ActivityModal draft={editingShown.value} leaving={editingShown.leaving} days={days} currency={trip.currency}
           onChange={setEditing}
           onSave={(d) => { saveActivity(d); setEditing(null); }}
           onDelete={(d) => { deleteActivity(d); setEditing(null); }}
           onClose={() => setEditing(null)} />
       ) : null}
 
-      {tripDraft || tab === 'settings' ? (
-        <TripModal draft={tripDraft || trip} onChange={setTripDraft} onSave={saveTrip}
+      {tripShown.value ? (
+        <TripModal draft={tripShown.value} leaving={tripShown.leaving} onChange={setTripDraft} onSave={saveTrip}
           onClose={closeTripEditor} initialSection={tripSection}
           sections={[
             { id: 'people', label: 'Travellers', content: <People compact members={members} online={online}

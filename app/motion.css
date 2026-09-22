@@ -1,0 +1,41 @@
+/*
+ * How things arrive and leave.
+ *
+ * Dialogs rise in over a fading backdrop and fall away when closed. A stop's
+ * card on the map rises into place each time it opens. Map appearance drops
+ * open and folds away. Menus, lists and toasts already come and go the same
+ * way (.pop and .toast in globals.css), with the same short timings and the
+ * same curve; the trip map's own sheet and cards are in MapView.module.css.
+ *
+ * Whatever keeps a leaving thing on screen marks it data-state="exit"
+ * (components/useKept.js, components/usePresence.js). Arrivals fill only
+ * backwards, so once they finish nothing is left holding a transform: a held
+ * one would make the dialog the frame for anything fixed inside it.
+ *
+ * Nothing moves for anyone who has asked for less motion.
+ */
+@keyframes motion-fade-in { from { opacity: 0; } }
+@keyframes motion-fade-out { to { opacity: 0; } }
+@keyframes motion-rise-in { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@keyframes motion-fall-out { to { opacity: 0; transform: translateY(10px) scale(.985); } }
+@keyframes motion-drop-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes motion-drop-out { to { opacity: 0; transform: translateY(-6px); } }
+
+.backdrop { animation: motion-fade-in .18s var(--ease) backwards; }
+.backdrop > .modal { animation: motion-rise-in .24s var(--ease) backwards; }
+.backdrop[data-state="exit"] { animation: motion-fade-out .17s var(--ease) forwards; pointer-events: none; }
+.backdrop[data-state="exit"] > .modal { animation: motion-fall-out .17s var(--ease) forwards; }
+
+/* A stop's card on the map, flat or 3D. */
+.gminfo { animation: motion-rise-in .2s var(--ease) backwards; }
+
+.map-appearance[open] > .map-appearance-options,
+.map-appearance[open] > .map-appearance-close { animation: motion-drop-in .18s var(--ease) backwards; }
+.map-appearance[data-state="exit"] > .map-appearance-options,
+.map-appearance[data-state="exit"] > .map-appearance-close { animation: motion-drop-out .14s var(--ease) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop, .backdrop > .modal, .gminfo,
+  .map-appearance > .map-appearance-options, .map-appearance > .map-appearance-close { animation: none; }
+  .backdrop[data-state="exit"] { opacity: 0; }
+}
