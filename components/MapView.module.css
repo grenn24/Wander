@@ -107,6 +107,34 @@
 .leg :global(.map-leg-detail > span) { color: var(--text-3); }
 .note { margin: 10px 8px 0; color: var(--text-3); font-size: 11px; line-height: 1.5; }
 
+/* ------------------------------------------------ picking stops for a route */
+.titleEnd { display: inline-flex; align-items: center; gap: 8px; }
+.pickToggle.pickToggle { min-height: 28px; padding: 3px 11px; font-size: 12.5px; }
+.pickToggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pickHint { margin: 8px 8px 2px; color: var(--text-3); font-size: 12.5px; line-height: 1.45; }
+.pickRoute {
+  margin: 10px 0 4px; padding: 10px 10px 4px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface-0);
+}
+.pickHead {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 0 6px; font-size: 13.5px; font-weight: 650; color: var(--text-1);
+}
+.pickHop { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.pickPair { flex: none; display: inline-flex; align-items: center; gap: 4px; padding-top: 1px; color: var(--text-3); font-size: 11px; }
+.pickPair i {
+  display: grid; place-items: center; width: 20px; height: 20px; box-sizing: border-box; border: 1.5px solid #fff;
+  border-radius: 50%; font: 700 10px/1 var(--font-mono), ui-monospace, monospace; font-style: normal;
+}
+.pickLeg { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 12px; }
+.pickLeg > svg { flex: none; margin-top: 2px; color: var(--text-3); }
+.stop[data-picked] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+.check {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 4px; box-sizing: border-box;
+  border: 1.5px solid var(--border-strong); border-radius: 7px; color: transparent;
+}
+.stop[data-picked] .check { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 @media (prefers-reduced-motion: reduce) {
   .stop[data-opening]::after { animation: none; opacity: .5; }
 }

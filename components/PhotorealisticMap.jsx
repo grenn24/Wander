@@ -341,10 +341,10 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
        */
       const size = kind === 'stop' ? 26 : 20;
       const pin = createPin({
-        label: kind === 'stop' ? index + 1 : '',
+        label: kind === 'stop' ? point.pinLabel ?? index + 1 : '',
         colour,
         size,
-        name: kind === 'stop' ? `${index + 1}. ${point.title}` : point.name,
+        name: kind === 'stop' ? `${point.pinLabel ?? index + 1}. ${point.title}` : point.name,
       });
       const pad = Math.round(size * 0.45);
       const room = document.createElement('div');
@@ -364,7 +364,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       });
       map.append(marker);
       overlays.push(marker);
-      markers.current.set(key, { marker, pin, kind, point, n: index + 1, colour, fan });
+      markers.current.set(key, { marker, pin, kind, point, n: point.pinLabel ?? index + 1, colour, fan });
     }
     stops.forEach((point, i) => addMarker(point, i, 'stop'));
     places.forEach((point, i) => addMarker(point, i, 'place'));

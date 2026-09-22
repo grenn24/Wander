@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
-  Search, Crosshair, ChevronUp, ChevronDown,
+  Search, Crosshair, ChevronUp, ChevronDown, Check,
 } from 'lucide-react';
 import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
@@ -116,18 +116,64 @@ export default function MapView({
   }, [stops]);
   const hopOf = useMemo(() => Object.fromEntries(hops.map((h) => [h.key, h.hop])), [hops]);
   const travel = useLegs(hops, mapPrefs.routes, choices);
-  const routeLines = useMemo(() => {
-    if (!travel.on) return null;
-    return hops.map((h) => {
-      const leg = travel.byKey[h.key];
-      const way = leg && leg.options.find((o) => o.mode === leg.drawn);
-      const real = !!(way && !way.estimate && way.polyline);
-      return {
-        from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
-        path: real ? decodePath(way.polyline) : null, estimate: !real,
-      };
+
+  /*
+   * Picking stops to see the way between them.
+   *
+   * With Select on, a tap on a stop ticks it instead of opening it, and the
+   * map shows only the ticked stops — each keeping its number from the trip —
+   * framed together, with the route from each to the next in trip order,
+   * whatever days they fall on. The ways follow the Routes setting, or the
+   * suggested way for each hop while Routes are off: seeing the routes is the
+   * point. Done lets them all go.
+   */
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const numberOf = useMemo(() => new Map(stops.map((a, i) => [a.id, i + 1])), [stops]);
+  const pickedStops = useMemo(() => stops.filter((a) => picked.has(a.id)), [stops, picked]);
+  const pickHops = useMemo(() => pickedStops.slice(1).map((a, i) => {
+    const prev = pickedStops[i];
+    return {
+      key: `pick:${prev.id}>${a.id}`, hop: `${prev.id}>${a.id}`, day: a.day,
+      fromId: prev.id, toId: a.id,
+      from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng },
+      km: haversine(prev.lat, prev.lng, a.lat, a.lng),
+    };
+  }), [pickedStops]);
+  const showingPicks = picking && pickedStops.length > 0;
+  const pickTravel = useLegs(pickHops, showingPicks && pickHops.length
+    ? (mapPrefs.routes === 'off' ? 'auto' : mapPrefs.routes) : 'off', choices);
+  const mapStops = useMemo(
+    () => (showingPicks ? pickedStops.map((a) => ({ ...a, pinLabel: numberOf.get(a.id) })) : stops),
+    [showingPicks, pickedStops, stops, numberOf],
+  );
+  function togglePick(a) {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
+      return next;
     });
-  }, [travel, hops, days]);
+  }
+  function setPickingMode(on) {
+    setPicking(on);
+    setPicked(new Set());
+  }
+
+  const linesFor = (list, legsFound) => list.map((h) => {
+    const leg = legsFound.byKey[h.key];
+    const way = leg && leg.options.find((o) => o.mode === leg.drawn);
+    const real = !!(way && !way.estimate && way.polyline);
+    return {
+      from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
+      path: real ? decodePath(way.polyline) : null, estimate: !real,
+    };
+  });
+  const routeLines = useMemo(() => {
+    if (showingPicks) return linesFor(pickHops, pickTravel);
+    if (!travel.on) return null;
+    return linesFor(hops, travel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showingPicks, pickHops, pickTravel, travel, hops, days]);
 
   const stopGroups = useMemo(() => {
     const groups = new Map();
@@ -423,7 +469,7 @@ export default function MapView({
         {mapsReady ? (
           <GoogleMap
             allow3D
-            stops={stops}
+            stops={mapStops}
             places={places}
             focused={focused}
             stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
@@ -639,11 +685,53 @@ export default function MapView({
             <h3 className="mapside-h">
               Your stops
             </h3>
-            <span className="tiny dim">
-              {stops.length} stop{stops.length === 1 ? '' : 's'}
-              {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
+            <span className={m.titleEnd}>
+              <span className="tiny dim">
+                {picking ? `${pickedStops.length} of ${stops.length} picked`
+                  : `${stops.length} stop${stops.length === 1 ? '' : 's'}`}
+                {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
+              </span>
+              {stops.length > 1 ? (
+                <button type="button" className={`btn sm ${m.pickToggle}`} aria-pressed={picking}
+                  data-tip={picking ? 'Show every stop again' : 'Pick stops to see the way between them'}
+                  onClick={() => setPickingMode(!picking)}>
+                  {picking ? 'Done' : 'Select'}
+                </button>
+              ) : null}
             </span>
           </div>
+
+          {picking ? (
+            pickHops.length ? (
+              <section className={m.pickRoute} aria-label="The way between the picked stops">
+                <div className={m.pickHead}>
+                  <span>Route through {pickedStops.length} stops</span>
+                  <button type="button" className="btn ghost sm" onClick={() => setPicked(new Set())}>Clear</button>
+                </div>
+                {pickHops.map((h) => {
+                  const fromColour = dayColor(days.indexOf(pickedStops.find((a) => a.id === h.fromId)?.day), days.length);
+                  const toColour = dayColor(days.indexOf(h.day), days.length);
+                  return (
+                    <div key={h.key} className={m.pickHop}>
+                      <span className={m.pickPair} aria-label={`From stop ${numberOf.get(h.fromId)} to stop ${numberOf.get(h.toId)}`}>
+                        <i style={{ background: fromColour, color: inkOn(fromColour) }}>{numberOf.get(h.fromId)}</i>
+                        <span aria-hidden="true">→</span>
+                        <i style={{ background: toColour, color: inkOn(toColour) }}>{numberOf.get(h.toId)}</i>
+                      </span>
+                      <div className={m.pickLeg}>
+                        <LegLine km={h.km} leg={pickTravel.byKey[h.key]} onChoose={(mode) => choose(h.hop, mode)} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            ) : (
+              <p className={m.pickHint}>
+                {pickedStops.length ? 'Pick another stop to see the way between them.'
+                  : 'Tap the stops you want, and the map shows just those, with the way between them.'}
+              </p>
+            )
+          ) : null}
 
           {stops.length ? (
             <div className={m.days}>
@@ -675,25 +763,34 @@ export default function MapView({
                               </div>
                             ) : null}
                             <div id={`stop-${a.id}`} className={m.stop}
-                              aria-current={focused === a.id ? 'true' : undefined}
+                              aria-current={!picking && focused === a.id ? 'true' : undefined}
+                              aria-pressed={picking ? picked.has(a.id) : undefined}
+                              data-picked={picking && picked.has(a.id) ? '' : undefined}
                               data-opening={opening === String(a.id) ? '' : undefined}
-                              data-tip={focused === a.id ? 'Open' : 'Show on map'}
+                              data-tip={picking ? (picked.has(a.id) ? 'Unpick' : 'Pick') : focused === a.id ? 'Open' : 'Show on map'}
                               role="button" tabIndex={0}
-                              onClick={() => focus(a)}
+                              onClick={() => (picking ? togglePick(a) : focus(a))}
                               onKeyDown={(e) => {
                                 if (e.target !== e.currentTarget) return;
-                                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(a); }
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (picking) togglePick(a); else focus(a);
+                                }
                               }}>
                               <span className={m.num} style={{ background: colour, color: inkOn(colour) }}>{number}</span>
                               <span className={m.text}>
                                 <span className={m.name}>{a.title}</span>
                                 <span className={m.sub}>{sub}</span>
                               </span>
-                              <button type="button" className={`btn ghost sm icon-btn ${m.edit}`}
-                                data-tip="Edit" aria-label={`Edit ${a.title}`}
-                                onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-                                <SquarePen size={14} />
-                              </button>
+                              {picking ? (
+                                <span className={m.check} aria-hidden="true"><Check size={14} /></span>
+                              ) : (
+                                <button type="button" className={`btn ghost sm icon-btn ${m.edit}`}
+                                  data-tip="Edit" aria-label={`Edit ${a.title}`}
+                                  onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+                                  <SquarePen size={14} />
+                                </button>
+                              )}
                             </div>
                           </li>
                         );

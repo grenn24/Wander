@@ -691,7 +691,7 @@ function GoogleMapCanvas({
        * system's tooltip. A pin under the pointer comes up over its neighbours.
        */
       const face = createPin({
-        label: i + 1,
+        label: a.pinLabel ?? i + 1,
         colour: colour(a),
         size: PIN,
         name: a.title,
@@ -724,7 +724,7 @@ function GoogleMapCanvas({
       });
       mark.__id = a.id;
       mark.__pin = face;
-      mark.__n = i + 1;
+      mark.__n = a.pinLabel ?? i + 1;
       mark.__colour = colour(a);
       mark.__at = { lat: a.lat, lng: a.lng };
       mark.addListener('click', () => {
