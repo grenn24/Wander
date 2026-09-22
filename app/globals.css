@@ -23,8 +23,6 @@
   --glass-strong: #f7f4ee;
   --glass-edge: transparent;
   --glass-line: #ddd2c0;
-  --glass-blur: 0px;
-  --glass-sat: 100%;
   --lift: 0 12px 34px -26px rgba(73,54,36,.34);
   --lift-lg: 0 24px 58px -32px rgba(73,54,36,.46);
   --aura-1: var(--accent);
@@ -338,7 +336,6 @@ a { color: var(--accent); }
 .backdrop {
   position: fixed; inset: 0; background: rgba(10,10,10,.5); z-index: 60;
   display: flex; align-items: flex-end; justify-content: center; padding: 0;
-  backdrop-filter: blur(2px);
 }
 @media (min-width: 700px) { .backdrop { align-items: center; padding: 24px; } }
 .modal {
@@ -869,8 +866,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   font-size: 11px; font-weight: 650; padding: 2px 9px; border-radius: 999px;
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  -webkit-backdrop-filter: blur(9px) saturate(150%);
-  backdrop-filter: blur(9px) saturate(150%);
 }
 .sharedpill svg { flex: none; color: var(--text-3); }
 .tripcard-go { color: var(--text-3); transition: transform .12s, color .12s; }
@@ -899,8 +894,8 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .lp { min-height: 100dvh; display: flex; flex-direction: column; }
 
 .lp-nav {
-  position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--surface-0) 88%, transparent);
-  backdrop-filter: blur(9px); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 30; background: var(--surface-0);
+  border-bottom: 1px solid var(--border);
 }
 .lp-nav-in {
   max-width: 1080px; margin: 0 auto; padding: 12px 22px;
@@ -1211,11 +1206,9 @@ body::before {
   to   { transform: translate3d(-1%, .8%, 0) scale(1.03); }
 }
 
-/* The glass recipe, applied by the surfaces below. */
+/* The surface the app's chrome shares. */
 .topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .lp-nav {
   background: var(--glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 /* ---------------------------------------------------------------- shell --- */
@@ -1257,9 +1250,7 @@ body::before {
 
 /* ---------------------------------------------------------------- atoms --- */
 .card {
-  background: color-mix(in srgb, var(--surface-1) 72%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  backdrop-filter: blur(12px) saturate(140%);
+  background: var(--surface-1);
   border-color: var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
 }
@@ -1289,7 +1280,7 @@ body::before {
 .btn.sm { border-radius: 9px; }
 
 .input, .select, .textarea, .quickadd-in {
-  background: color-mix(in srgb, var(--surface-1) 66%, transparent);
+  background: var(--surface-1);
   border-radius: 11px;
   transition: border-color .16s var(--ease), box-shadow .16s var(--ease),
               background .16s var(--ease);
@@ -1304,16 +1295,10 @@ body::before {
               0 4px 14px -6px color-mix(in srgb, var(--accent) 85%, transparent);
 }
 
-.tag, .statuspill, .live, .daychip, .today-badge {
-  -webkit-backdrop-filter: blur(9px) saturate(150%);
-  backdrop-filter: blur(9px) saturate(150%);
-}
 
 /* ------------------------------------------------------------- surfaces --- */
 .act, .stop, .pack-item, .person, .nearby, .tripcard, .lp-card, .lp-steps li, .lp-points li {
-  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  backdrop-filter: blur(10px) saturate(140%);
+  background: var(--surface-1);
   border-color: var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge);
 }
@@ -1338,8 +1323,6 @@ body::before {
 /* --------------------------------------------------------------- modals --- */
 .backdrop {
   background: color-mix(in srgb, #0a0a0f 46%, transparent);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
 }
 .modal {
   background: var(--glass-strong);
@@ -1361,9 +1344,7 @@ body::before {
      children come later in the document and would otherwise sit on top of a
      bar they are supposed to slide under. */
   z-index: 2;
-  background: color-mix(in srgb, var(--surface-1) 86%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(165%);
-  backdrop-filter: blur(16px) saturate(165%);
+  background: var(--surface-1);
   border-color: var(--glass-line);
 }
 
@@ -1381,17 +1362,13 @@ body::before {
 
 .geo-list {
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
   border-color: var(--glass-line);
   border-radius: 12px;
 }
 
-/* Sticky day headers ride over content, so they need the material too. */
+/* Sticky day headers ride over content, so they need a surface of their own. */
 .day-head {
-  background: color-mix(in srgb, var(--surface-0) 72%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  backdrop-filter: blur(12px) saturate(150%);
+  background: var(--surface-0);
   border-radius: 10px;
   padding-inline: 8px;
   margin-inline: -8px;
@@ -1407,8 +1384,6 @@ body::before {
 }
 .lp-eyebrow {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  -webkit-backdrop-filter: blur(9px);
-  backdrop-filter: blur(9px);
   box-shadow: inset 0 1px 0 var(--glass-edge);
 }
 .lp-hero h1 {
@@ -1429,11 +1404,9 @@ body::before {
   background-image: linear-gradient(160deg, var(--accent), var(--cat-3));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 5px 14px -6px color-mix(in srgb, var(--accent) 80%, transparent);
 }
-.lp-band { background: color-mix(in srgb, var(--surface-1) 55%, transparent); }
+.lp-band { background: var(--surface-1); }
 .mock {
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
   border-color: var(--glass-line);
   border-radius: 18px;
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
@@ -1482,9 +1455,7 @@ body::before {
 .daystrip {
   position: sticky; top: var(--topbar-h); z-index: 12;
   padding: 9px 8px; margin: 0 -8px 6px;
-  background: color-mix(in srgb, var(--surface-0) 70%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  backdrop-filter: blur(14px) saturate(150%);
+  background: var(--surface-0);
   scroll-behavior: smooth;
 }
 .daychip.active {
@@ -1526,8 +1497,6 @@ body::before {
   padding: 13px 13px 13px var(--pad-l);
   border-radius: 18px;
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
   transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
@@ -1624,8 +1593,7 @@ body::before {
 .samplechip {
   font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
   color: var(--text-2); text-align: left;
-  background: color-mix(in srgb, var(--surface-1) 62%, transparent);
-  -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
+  background: var(--surface-1);
   border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge);
   transition: transform .16s var(--spring), color .16s var(--ease), border-color .16s var(--ease);
@@ -1680,7 +1648,7 @@ body::before {
 .suggest-item {
   display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px;
   border: 1px solid var(--border); border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  background: var(--surface-1);
 }
 .suggest-item.is-done { opacity: .55; }
 .suggest-item .catico { margin-top: 1px; }
@@ -1857,8 +1825,7 @@ body:has(.lp)::before { display: none; }
 .planact {
   display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px; margin-bottom: 6px;
   border: 1px solid var(--glass-line); border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-1) 66%, transparent);
-  -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
+  background: var(--surface-1);
   box-shadow: inset 0 1px 0 var(--glass-edge);
   animation: landin .32s var(--spring) both;
 }
@@ -2016,7 +1983,6 @@ body:has(.lp)::before { display: none; }
   font-size: 12px; line-height: 1;
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(16,16,20,.6); color: #fff;
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .gminfo-x:hover { background: rgba(40,40,48,.85); }
 
@@ -2088,8 +2054,7 @@ body:has(.lp)::before { display: none; }
   display: flex; align-items: center; gap: 8px; width: 100%;
   padding: 9px 11px; min-height: 38px; border-radius: 11px;
   border: 1px solid var(--border-strong);
-  background: color-mix(in srgb, var(--surface-1) 66%, transparent);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  background: var(--surface-1);
   color: var(--text-1); cursor: pointer; text-align: left; font: inherit;
   box-shadow: inset 0 1px 0 var(--glass-edge);
   transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
@@ -2108,8 +2073,6 @@ body:has(.lp)::before { display: none; }
 .sel-list {
   margin: 0; padding: 6px; list-style: none;
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line); border-radius: 13px;
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
 }
@@ -2240,7 +2203,7 @@ body:has(.lp)::before { display: none; }
 .qa-input::placeholder { color: var(--text-3); }
 .qa-input:focus {
   border-style: solid; border-color: var(--accent);
-  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  background: var(--surface-1);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .qa-input:disabled { opacity: .6; }
@@ -2293,8 +2256,6 @@ body:has(.lp)::before { display: none; }
   padding: 10px 15px; border-radius: 999px; cursor: pointer;
   font-size: 13.5px; color: var(--text-2);
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
   transition: border-color .16s var(--ease), color .16s var(--ease);
@@ -2331,8 +2292,6 @@ body:has(.lp)::before { display: none; }
 .cmd {
   padding: 12px;
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(20px) saturate(175%);
-  backdrop-filter: blur(20px) saturate(175%);
   border-color: var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
   animation: cmdin .16s var(--ease);
@@ -2359,7 +2318,7 @@ body:has(.lp)::before { display: none; }
 .cmd-ops li {
   display: flex; align-items: center; gap: 9px; padding: 8px 10px;
   border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px;
-  background: color-mix(in srgb, var(--surface-1) 60%, transparent);
+  background: var(--surface-1);
 }
 .cmd-ops li svg { flex: none; color: var(--text-3); }
 .cmd-ops li span:first-of-type { flex: 1; min-width: 0; }
@@ -2784,7 +2743,6 @@ body:has(.lp)::before { display: none; }
   --ck-top: clamp(24px, 9svh, 80px);
   position: fixed; inset: 0; z-index: 90;
   background: rgba(10,10,10,.5);
-  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   /* flex-start, or the panel stretches to the height of the backdrop and
      hangs a column of empty card under its own last row. */
   display: flex; justify-content: center; align-items: flex-start;
@@ -2933,7 +2891,6 @@ body:has(.lp)::before { display: none; }
   padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
     max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
   background: color-mix(in srgb, #0a0a0f 62%, transparent);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .amap-expanded-shell {
   display: flex; flex-direction: column;
@@ -3196,8 +3153,6 @@ body:has(.lp)::before { display: none; }
 .mapdays::-webkit-scrollbar { display: none; }
 .mapdays .daychip {
   background: var(--glass-strong); border-color: var(--glass-line);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
   box-shadow: var(--lift);
 }
 .mapdays .daychip.active { background: var(--accent); border-color: var(--accent); }
@@ -3211,7 +3166,6 @@ body:has(.lp)::before { display: none; }
 .mapredo {
   position: absolute; top: 66px; left: 50%; transform: translateX(-50%); z-index: 7;
   background: var(--glass-strong); border-color: var(--glass-line);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   box-shadow: var(--lift);
 }
 
@@ -3221,8 +3175,6 @@ body:has(.lp)::before { display: none; }
   top: 12px; right: 12px; bottom: 12px; width: 372px;
   border: 1px solid var(--glass-line); border-radius: 16px; overflow: hidden;
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(18px) saturate(165%);
-  backdrop-filter: blur(18px) saturate(165%);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
 }
 .mappanel-grab { display: none; }
@@ -3284,10 +3236,10 @@ body:has(.lp)::before { display: none; }
   .mappanel-compact button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 14px; font: inherit; cursor: pointer; }
   .map-explore-trigger { flex: 1; min-width: 0; border: 0; padding: 0 10px; background: transparent; color: var(--text-1); }
   .map-explore-trigger span { flex: 1; text-align: left; font-size: 14px; }
-  .map-stops-trigger { flex: none; border: 1px solid color-mix(in srgb, var(--text-1) 15%, transparent); padding: 0 12px; background: color-mix(in srgb, var(--surface-1) 24%, transparent); color: var(--text-1); font-size: 12px !important; }
-  .mappanel-views { display: flex; gap: 4px; margin: 0 12px 8px; padding: 4px; flex: none; border-radius: 14px; background: color-mix(in srgb, var(--surface-1) 26%, transparent); }
+  .map-stops-trigger { flex: none; border: 1px solid color-mix(in srgb, var(--text-1) 15%, transparent); padding: 0 12px; background: var(--surface-1); color: var(--text-1); font-size: 12px !important; }
+  .mappanel-views { display: flex; gap: 4px; margin: 0 12px 8px; padding: 4px; flex: none; border-radius: 14px; background: var(--surface-1); }
   .mappanel-views button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--overlay-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .mappanel-views button[aria-pressed="true"] { background: color-mix(in srgb, var(--surface-1) 65%, transparent); color: var(--text-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-1) 12%, transparent), 0 2px 5px rgb(0 0 0 / .1); }
+  .mappanel-views button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-1) 12%, transparent), 0 2px 5px rgb(0 0 0 / .1); }
   .mappanel-views button span { font-size: 11px; opacity: .75; }
   .mappanel-compact button:focus-visible, .mappanel-views button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .mapstage.is-open .mappanel-compact { display: none; }
@@ -3309,7 +3261,7 @@ body:has(.lp)::before { display: none; }
   .mappanel-head .mapkinds .btn {
     flex-direction: column; min-width: 0; min-height: 62px; gap: 6px; padding: 9px 4px;
     border-radius: 14px; font-size: 12px; white-space: normal; text-align: center;
-    background: color-mix(in srgb, var(--surface-1) 24%, transparent);
+    background: var(--surface-1);
     border-color: color-mix(in srgb, var(--text-1) 12%, transparent);
   }
   .mappanel-head .mapkinds .btn svg { width: 18px; height: 18px; color: var(--overlay-muted); }
@@ -3378,8 +3330,6 @@ body:has(.lp)::before { display: none; }
   font-size: 12px; font-weight: 550; line-height: 1.4; letter-spacing: .005em;
   color: var(--text-1); background: var(--glass-strong);
   border: 1px solid var(--glass-line);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
   pointer-events: none; /* never in the way of the thing it describes */
   white-space: pre-wrap; text-align: center;
@@ -3716,8 +3666,6 @@ body:has(.lp)::before { display: none; }
   max-height: 232px; overflow-y: auto; overscroll-behavior: contain;
   padding: 5px; display: flex; flex-direction: column;
   background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
   border: 1px solid var(--glass-line); border-radius: 13px;
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
 }
@@ -3737,8 +3685,6 @@ body:has(.lp)::before { display: none; }
   width: 40px; height: 40px; display: grid; place-items: center;
   border-radius: 12px; cursor: pointer;
   color: var(--text-1); background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift);
   transition: color .16s var(--ease), transform .16s var(--spring);
@@ -3891,7 +3837,7 @@ body::before {
   border-color: var(--border);
   border-radius: 0;
 }
-.triprow:hover { background: color-mix(in srgb, var(--surface-1) 68%, transparent); }
+.triprow:hover { background: var(--surface-1); }
 .triprow > .photo { align-self: center; border-radius: 16px !important; }
 .triprow-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .triprow-name {
@@ -3971,7 +3917,7 @@ body::before {
 .act:hover {
   transform: none;
   border-color: var(--border);
-  background: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  background: var(--surface-1);
   box-shadow: none;
 }
 .act .photo { margin-right: 4px; border-radius: 15px !important; }
@@ -4185,19 +4131,17 @@ body::before {
   .planquestions-actions .btn { flex: 1; }
 }
 
-/* A shared glass lens for floating controls. Gradients catch the light without
-   extra layers over the controls or fading text, icons and day colours. */
+/* Floating controls — the map's panel and chips, the command pill and palette,
+   the phone's tab bar — are solid surfaces with a hairline border and a lift.
+   No glass: whatever is behind them never shows through their text, icons
+   and day colours. */
 :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar) {
   --overlay-muted: color-mix(in srgb, var(--text-2) 80%, var(--text-1));
-  --lens-light: linear-gradient(135deg, rgb(255 255 255 / .16),
-    rgb(255 255 255 / .025) 38%, transparent 60%, rgb(255 255 255 / .07));
   background: var(--surface-1);
-  border-color: color-mix(in srgb, var(--text-1) 20%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .42),
-    inset 1px 0 0 rgb(255 255 255 / .14),
-    inset 0 -1px 0 rgb(255 255 255 / .09),
-    0 2px 5px rgb(0 0 0 / .06), 0 12px 32px -16px rgb(0 0 0 / .38);
+  border-color: var(--border);
+  box-shadow: var(--lift);
 }
+:is(.mappanel, .ck) { box-shadow: var(--lift-lg); }
 .mapdays .daychip.active {
   background: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 65%, white);
@@ -4207,7 +4151,7 @@ body::before {
 }
 :is(.cmd-pill, .mapredo, .mapdays .daychip):hover,
 .map-appearance:has(summary:hover) {
-  border-color: color-mix(in srgb, var(--text-1) 36%, transparent);
+  border-color: var(--border-strong);
 }
 .map-appearance[open] { border-radius: 18px; }
 .mappanel { border-radius: 22px; }
@@ -4226,13 +4170,6 @@ body::before {
 @media (max-width: 1000px) {
   .mappanel { border-radius: 22px; border-bottom: 1px solid color-mix(in srgb, var(--text-1) 20%, transparent); }
 }
-/* Let the command lens sample the page: filtering its parent creates a
-   backdrop boundary and would leave the panel looking flat. */
-.ck-back {
-  background: rgb(10 10 10 / .28);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
 .mappanel .muted, .mappanel .dim, .mappanel .mapside-h,
 .mappanel .mapside-where, .mappanel .mappanel-grab-label,
 .cmd-pill, .cmd-pill kbd, .ck .muted, .ck .dim, .ck-empty {
@@ -4240,48 +4177,10 @@ body::before {
 }
 .tabbar a:not([aria-current="true"]) { color: var(--overlay-muted); }
 
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar) {
-    background: var(--lens-light), color-mix(in srgb, var(--surface-1) 72%, transparent);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
-    backdrop-filter: blur(22px) saturate(180%);
-  }
-  .mapdays .daychip.active {
-    background: var(--lens-light), color-mix(in srgb, var(--accent) 88%, transparent);
-  }
-  .mappanel-head, .ck-top {
-    background: color-mix(in srgb, var(--surface-1) 16%, transparent);
-    border-color: color-mix(in srgb, var(--text-1) 12%, transparent);
-  }
-  .mappanel .mapfind, .cmd-pill kbd {
-    background: color-mix(in srgb, var(--surface-1) 36%, transparent);
-  }
-  .mappanel .stop:not(.is-focus) {
-    background: color-mix(in srgb, var(--surface-1) 18%, transparent);
-  }
-  .mappanel .stop.is-focus {
-    background: color-mix(in srgb, var(--accent-soft) 86%, transparent);
-  }
-}
 
-/* Keep both the lens and its nested surfaces solid when requested. */
-@media (prefers-reduced-transparency: reduce) {
-  :is(.mappanel, .cmd-pill, .ck, .map-appearance, .mapdays .daychip, .mapredo, .tabbar),
-  .mappanel-head, .ck-top, .mappanel .stop:not(.is-focus),
-  .mappanel .mapfind, .cmd-pill kbd {
-    background: var(--surface-1);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  .mapdays .daychip.active { background: var(--accent); }
-  .mappanel .stop.is-focus { background: var(--accent-soft); }
-  .ck-back { background: rgb(10 10 10 / .6); }
-}
-/* Quiet glass for navigation and transient surfaces. Keep the stronger lens
-   above for floating command/map controls; content and inputs stay solid. */
+/* Navigation and transient surfaces: solid, with a soft top edge. */
 @media screen {
   :root {
-    --chrome-light: linear-gradient(145deg, rgb(255 255 255 / .12), transparent 55%);
     --chrome-edge: color-mix(in srgb, var(--surface-1) 80%, white);
     --chrome-shadow: inset 0 1px 0 var(--chrome-edge), 0 4px 16px -12px rgb(0 0 0 / .22);
   }
@@ -4313,25 +4212,6 @@ body::before {
   }
   .act { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    :is(.topbar, .rail, .lp-nav, .daystrip) {
-      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 86%, transparent);
-      -webkit-backdrop-filter: blur(18px) saturate(120%);
-      backdrop-filter: blur(18px) saturate(120%);
-    }
-    /* The strip supplies the blur; its individual day buttons need no filter. */
-    .daystrip.is-stuck {
-      background: linear-gradient(var(--surface-1), color-mix(in srgb, var(--surface-1) 86%, transparent));
-    }
-    .daystrip .daychip:not(.active):not([aria-current="true"]) {
-      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 76%, transparent);
-    }
-    :is(.modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list) {
-      background: var(--chrome-light), color-mix(in srgb, var(--surface-1) 96%, transparent);
-      -webkit-backdrop-filter: blur(20px) saturate(120%);
-      backdrop-filter: blur(20px) saturate(120%);
-    }
-  }
   @media (prefers-reduced-transparency: reduce) {
     :is(.topbar, .rail, .lp-nav, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list), .daystrip.is-stuck,
     .daystrip .daychip:not(.active):not([aria-current="true"]) {

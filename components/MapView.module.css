@@ -4,9 +4,9 @@
  * Everything that floats over the map — the panel, the day chips, Map
  * appearance, "Search this area" — is a solid surface with a hairline border,
  * the way the globe's panels are, rather than frosted glass: over a busy map
- * the glass let streets and labels show through the text. The lens is set in
- * app/globals.css for every floating control; these rules are scoped to this
- * page and outrank it by specificity, not by load order.
+ * the glass let streets and labels show through the text. The app's floating
+ * controls are all solid now (app/globals.css); these rules are this page's
+ * own finish and outrank it by specificity, not by load order.
  *
  * The stop list is the globe's itinerary list: days headed by their colour,
  * stops as rows numbered in the pin's own circle.
