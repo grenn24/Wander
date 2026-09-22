@@ -99,6 +99,27 @@ export default function MapView({
   }, []);
   const panelScrollRef = useRef(null);
 
+  /*
+   * On a phone, a press on the map puts the sheet away: the map is what the
+   * press was for. Heard before the map hears it and not stopped, so the same
+   * press still pans the map or taps a pin. Not a press on the controls laid
+   * over the map (Map appearance, a stop's card), which are not the map.
+   */
+  useEffect(() => {
+    if (!sheetOpen) return undefined;
+    const canvas = stageRef.current && stageRef.current.querySelector('.mapcanvas');
+    if (!canvas) return undefined;
+    const phone = window.matchMedia('(max-width: 1000px)');
+    const pressed = (event) => {
+      if (!phone.matches) return;
+      const path = event.composedPath ? event.composedPath() : [event.target];
+      if (path.some((node) => node instanceof Element && node.matches('.map-appearance, .gminfo'))) return;
+      setSheetOpen(false);
+    };
+    canvas.addEventListener('pointerdown', pressed, true);
+    return () => canvas.removeEventListener('pointerdown', pressed, true);
+  }, [sheetOpen]);
+
   // A newly dropped pin must not open below the list's previous scroll position.
   useEffect(() => {
     if (dropped && panelScrollRef.current) panelScrollRef.current.scrollTop = 0;
