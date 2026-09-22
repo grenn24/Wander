@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Pause, Play } from 'lucide-react';
 
 /** Decorative motion is independent of progress; the text comes from the planner. */
@@ -31,7 +32,9 @@ export default function PlanningJourney({ status }) {
 
   return <div className="planning-journey">
     <div ref={scene} className="planning-journey-scene" aria-hidden="true" data-running={running && !paused}>
-      <img className="planning-journey-map" src="/artwork/hero-atlas.webp" width="1920" height="1086" alt="" decoding="async" />
+      {/* The same atlas as the landing hero, cut to the screen asking (see HeroAtlas). */}
+      <Image className="planning-journey-map" src="/artwork/hero-atlas.webp" width={1920} height={1086}
+        sizes="100vw" quality={60} alt="" />
       <div className="planning-journey-track">
         <img className="planning-journey-train" src="/artwork/planning-train.webp" width="480" height="323" alt="" decoding="async" />
       </div>

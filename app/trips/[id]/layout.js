@@ -95,6 +95,13 @@ function TripChrome({ tripId, children }) {
 
   return (
     <CommandProvider floating={active !== 'map'}>
+      {/*
+        * The map is one tap away from every tab of a trip, and its script and
+        * tiles come from Google. Opening those connections while the trip
+        * itself is loading takes the handshakes off the front of the map.
+        */}
+      <link rel="preconnect" href="https://maps.googleapis.com" />
+      <link rel="preconnect" href="https://maps.gstatic.com" crossOrigin="anonymous" />
       <div className="shell">
         <TopBar
           online={online}

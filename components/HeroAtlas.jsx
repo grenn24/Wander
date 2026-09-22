@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Pause, Play } from 'lucide-react';
 
 /** One self-hosted illustration; only the route and light layers animate. */
@@ -34,8 +35,14 @@ export default function HeroAtlas() {
 
   return <>
     <div ref={ref} className="hero-atlas" aria-hidden="true" data-running={running && !paused}>
-      <img className="hero-atlas-paper" src="/artwork/hero-atlas.webp" width={1920} height={1086}
-        alt="" decoding="async" draggable={false} />
+      {/*
+        * The backdrop is the heaviest thing on the page. Through next/image it
+        * is cut to the width of the screen asking and served as AVIF where
+        * that is understood, rather than 186 kB of full-width WebP to a phone.
+        * It is what the eye lands on first, so it is not deferred.
+        */}
+      <Image className="hero-atlas-paper" src="/artwork/hero-atlas.webp" width={1920} height={1086}
+        sizes="100vw" quality={60} priority alt="" draggable={false} />
       <svg className="hero-atlas-routes" viewBox="0 0 1600 900" preserveAspectRatio="none" focusable="false">
         <g className="hero-atlas-route">
           <path className="atlas-trail" d="M 65 470 C 160 500 85 610 190 650 S 340 675 460 790" />

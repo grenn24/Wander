@@ -1,22 +1,31 @@
 'use client';
 
 import { use, useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { useApp } from '@/components/AppProvider';
 import { useTrip } from '@/components/TripProvider';
 import { isTripTab, resolveTab } from '@/lib/icons';
 import Itinerary from '@/components/Itinerary';
-import MapView from '@/components/MapView';
-import OfflineDownload from '@/components/OfflineDownload';
 import { removeDownload } from '@/public/offline-store';
-import Budget from '@/components/Budget';
-import Packing from '@/components/Packing';
-import Notes from '@/components/Notes';
-import People from '@/components/People';
-import CalendarLink from '@/components/CalendarLink';
-import ActivityModal from '@/components/ActivityModal';
-import TripModal from '@/components/TripModal';
+
+/*
+ * A trip opens on its itinerary, so that is the only tab whose code is part of
+ * the page. The map alone is as much again — it carries Google's map, the
+ * routes and the picking — and budget, packing, notes and the editors are all
+ * paid for on a screen nobody has asked for yet. Each is fetched when it is
+ * opened; they are rendered on the server as before.
+ */
+const MapView = dynamic(() => import('@/components/MapView'));
+const Budget = dynamic(() => import('@/components/Budget'));
+const Packing = dynamic(() => import('@/components/Packing'));
+const Notes = dynamic(() => import('@/components/Notes'));
+const People = dynamic(() => import('@/components/People'));
+const CalendarLink = dynamic(() => import('@/components/CalendarLink'));
+const OfflineDownload = dynamic(() => import('@/components/OfflineDownload'));
+const ActivityModal = dynamic(() => import('@/components/ActivityModal'));
+const TripModal = dynamic(() => import('@/components/TripModal'));
 import useKept from '@/components/useKept';
 import { todayISO } from '@/lib/util';
 import { placeDetails } from '@/lib/geo';
