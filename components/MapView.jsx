@@ -75,8 +75,12 @@ export default function MapView({
     const panel = stage.querySelector('.mappanel');
     const side = panel && panel.getBoundingClientRect();
     if (side && side.width && side.height) {
-      // Nearly the whole width is the sheet along the bottom; otherwise it is the column down the right.
-      if (side.width > box.width * 0.8) cover.bottom = Math.max(0, box.bottom - side.top);
+      /*
+       * The sheet along the bottom spans nearly the whole width. Put away, it
+       * is two small controls in a bottom corner, which is a bottom edge too,
+       * not a strip down the right. Otherwise it is the column down the right.
+       */
+      if (side.width > box.width * 0.8 || side.height < box.height * 0.3) cover.bottom = Math.max(0, box.bottom - side.top);
       else if (side.left > box.left + box.width / 2) cover.right = Math.max(0, box.right - side.left);
     }
     const card = stage.querySelector('[data-route-card]');

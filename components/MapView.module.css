@@ -41,11 +41,34 @@
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
-  .stage :global(.map-stops-trigger) { background: var(--surface-2); border-color: var(--border); }
   .stage :global(.mappanel-head .mapkinds .btn:not([aria-pressed="true"])) {
     background: var(--surface-2);
     border-color: var(--border);
   }
+}
+
+/*
+ * On a phone, the sheet put away is two small controls in the corner, a
+ * search button and the count of stops, rather than a bar across the foot of
+ * the map. The bar sat on the tab bar and hid a strip of map as wide as the
+ * screen. Either control opens the sheet, as before.
+ */
+@media (max-width: 1000px) {
+  .stage:not(:global(.is-open)) :global(.mappanel.mappanel) {
+    left: auto; right: 12px; width: auto; height: auto;
+    border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible;
+  }
+  .stage:not(:global(.is-open)) :global(.mappanel-compact) { height: auto; padding: 0; gap: 8px; }
+  .stage :global(.mappanel-compact button) {
+    min-height: 44px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift);
+  }
+  .stage :global(.map-explore-trigger) { flex: none; width: 44px; padding: 0; }
+  /* Its words stay for screen readers; the magnifier is what shows. */
+  .stage :global(.map-explore-trigger span) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .stage :global(.map-stops-trigger) { padding: 0 14px; font-size: 13px !important; font-weight: 600; }
 }
 
 /* ------------------------------------------------------------- the stops */
