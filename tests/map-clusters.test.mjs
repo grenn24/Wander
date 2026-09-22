@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { worldPixel, clusterUnits, clusterScreen, projectToScreen } from '../lib/mapClusters.js';
+import {
+  worldPixel, clusterUnits, clusterScreen, projectToScreen, screenDrift,
+} from '../lib/mapClusters.js';
 
 // Tsukiji, Ginza and Senso-ji: 1 km and 4 km apart.
 const tsukiji = { lat: 35.6654, lng: 139.7707 };
@@ -98,4 +100,30 @@ test('the same camera, however the map describes it, puts places in the same spo
   const wrong = projectToScreen(under, { lat: 35.6717, lng: 139.7650 }, 1600, 1000);
   const right = projectToScreen(ground, places[0], 1600, 1000);
   assert.ok(!wrong || Math.hypot(wrong.x - right.x, wrong.y - right.y) > 50);
+});
+
+test('a cluster is judged where it will be drawn, not at the middle of where its stops appear', () => {
+  // Two stops far apart in depth: the near one low on the screen, the far one
+  // squeezed up near the horizon. Their middle on the ground draws well below
+  // their middle on the screen.
+  const units = [
+    { key: 'near', x: 500, y: 700, radius: 13, weight: 1, lat: 0, lng: 0 },
+    { key: 'far', x: 500, y: 680, radius: 13, weight: 1, lat: 2, lng: 0 },
+    // A pin 36 px from their screen middle (clear of it), but 19 px from where the cluster is drawn.
+    { key: 'pin', x: 536, y: 690, radius: 13, weight: 1, lat: 9, lng: 9 },
+  ];
+  const place = () => ({ x: 520, y: 700 });
+  // Judged at the screen middle, the pin was left out and ended up under the cluster.
+  assert.deepEqual(clusterScreen(units, 0).map((g) => g.keys), [['near', 'far'], ['pin']]);
+  // Judged where the cluster is drawn, it joins.
+  assert.deepEqual(clusterScreen(units, 0, place).map((g) => g.keys), [['near', 'far', 'pin']]);
+});
+
+test('the drawn map corrects the worked-out one by the shift most markers agree on', () => {
+  const at = (x, y, ax, ay) => ({ expected: { x, y }, actual: { x: ax, y: ay } });
+  // Every marker drawn 27 px higher than worked out, and one not drawn yet.
+  const drift = screenDrift([at(100, 100, 101, 73), at(400, 300, 400, 272), at(700, 500, 699, 474), at(50, 50, -9000, -9000)]);
+  assert.deepEqual(drift, { dx: 0, dy: -27 });
+  // One marker is not enough to go by.
+  assert.deepEqual(screenDrift([at(100, 100, 100, 70)]), { dx: 0, dy: 0 });
 });

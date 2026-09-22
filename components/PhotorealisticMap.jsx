@@ -5,7 +5,7 @@ import { fit3DCamera, rangeToZoom, validMapPoint, viewport3D, zoomToRange } from
 import { move3DCamera } from '@/lib/map3dMotion';
 import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 import { createPin, createCluster } from '@/components/mapPin';
-import { clusterScreen, projectToScreen } from '@/lib/mapClusters';
+import { clusterScreen, projectToScreen, screenDrift } from '@/lib/mapClusters';
 import styles from './PhotorealisticMap.module.css';
 
 const EMPTY = [];
@@ -69,14 +69,43 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
      */
     if (cam.range > 50 && cam.altitude > -100 && cam.altitude < 5000) groundRef.current = cam.altitude;
     const ground = groundRef.current;
+    /*
+     * Checked against what is drawn: every stop pin and cluster already on the
+     * map says where the worked-out view puts it and where it really is, and
+     * the shift they agree on is taken off everything (see screenDrift).
+     */
+    const frame = box.getBoundingClientRect();
+    const drawnAt = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.width ? { x: r.x + r.width / 2 - frame.x, y: r.y + r.height / 2 - frame.y } : null;
+    };
+    const samples = [];
+    markers.current.forEach((entry) => {
+      if (entry.kind !== 'stop' || !entry.marker.parentNode) return;
+      const expected = projectToScreen(cam, { lat: entry.point.lat, lng: entry.point.lng, altitude: ground }, width, height, fov);
+      const actual = drawnAt(entry.pin.el);
+      // A fanned pin is drawn off its spot by its fan's offset.
+      if (expected && actual) samples.push({ expected, actual: { x: actual.x - entry.fan[0], y: actual.y - entry.fan[1] } });
+    });
+    clusters.current.forEach((cluster) => {
+      const expected = projectToScreen(cam, { ...cluster.__at, altitude: ground }, width, height, fov);
+      const actual = drawnAt(cluster.__face);
+      if (expected && actual) samples.push({ expected, actual });
+    });
+    const drift = screenDrift(samples);
+    const onScreen = (lat, lng) => {
+      const at = projectToScreen(cam, { lat, lng, altitude: ground }, width, height, fov);
+      return at && { x: at.x + drift.dx, y: at.y + drift.dy };
+    };
     const chosen = selectedRef.current;
     const units = [];
     stopUnits.current.forEach((u, key) => {
-      const at = projectToScreen(cam, { lat: u.lat, lng: u.lng, altitude: ground }, width, height, fov);
+      const at = onScreen(u.lat, u.lng);
       // Behind the camera: nothing to overlap, so its pins stay as they are.
       if (at) units.push({ key, x: at.x, y: at.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length, alone: u.keys.includes(chosen) });
     });
-    const groups = clusterScreen(units);
+    // Each cluster judged where it will be drawn: the middle of its stops on the ground.
+    const groups = clusterScreen(units, 6, onScreen);
     const signature = groups.map((g) => g.keys.join('.')).join('|');
     if (signature === grouping.current) return;
     grouping.current = signature;
@@ -107,6 +136,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
         anchorLeft: '-50%', anchorTop: '-50%',
       });
       cluster.append(room);
+      cluster.__at = { lat: g.lat, lng: g.lng };
+      cluster.__face = face.el;
       cluster.addEventListener('gmp-click', (event) => {
         event.stopPropagation();
         const points = entries.map((entry) => entry.point);
@@ -129,7 +160,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
             if (spot) placed.push({ key, x: spot.x, y: spot.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length });
           });
           // With room to spare: where the camera settles is never exactly where it was sent.
-          if (clusterScreen(placed, 16).length > 1) break;
+          const there = (lat, lng) => projectToScreen(view, { lat, lng, altitude: ground }, width, height, fov);
+          if (clusterScreen(placed, 16, there).length > 1) break;
           next = { ...next, range: Math.max(150, next.range * 0.7) };
         }
         // And always somewhat closer than now, so a tap is never a flight to the same view. "Now" is
@@ -332,7 +364,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       });
       map.append(marker);
       overlays.push(marker);
-      markers.current.set(key, { marker, pin, kind, point, n: index + 1, colour });
+      markers.current.set(key, { marker, pin, kind, point, n: index + 1, colour, fan });
     }
     stops.forEach((point, i) => addMarker(point, i, 'stop'));
     places.forEach((point, i) => addMarker(point, i, 'place'));
