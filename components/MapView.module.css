@@ -69,6 +69,24 @@
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
   .stage :global(.map-stops-trigger) { padding: 0 14px; font-size: 13px !important; font-weight: 600; }
+
+  /*
+   * Pulled up, the sheet runs to the foot of the screen behind the tab bar, as
+   * a phone's own sheets do. It used to stop just above the bar, where it
+   * looked cut off, with map showing round its lower corners. The part above
+   * the bar is as tall as before, and what it holds scrolls clear of the bar.
+   * The keyboard's inset comes off both, since the bar rides up with it.
+   */
+  .stage:global(.is-open) :global(.mappanel.mappanel) {
+    bottom: 0;
+    height: calc(var(--sheet-h) + var(--tabbar-h, 0px) - var(--vv-bottom, 0px));
+    max-height: calc(100% - 12px);
+    border-bottom: 0; border-radius: 22px 22px 0 0;
+  }
+  .stage:global(.is-open) :global(.mappanel-scroll) {
+    padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
+    scroll-padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
+  }
 }
 
 /* ------------------------------------------------------------- the stops */
