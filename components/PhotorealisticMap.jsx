@@ -15,7 +15,7 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   stops = EMPTY, places = EMPTY, focused, focusedPlace, look,
   stopColour = DEFAULT_COLOUR, placeColour = DEFAULT_COLOUR,
   onFocus, onPlaceFocus, onStopOpen, onPlaceAdd, onViewport, describeStop, onPhoto,
-  gestures = 'cooperative' }) {
+  routeLines = null, gestures = 'cooperative' }) {
   const host = useRef(null);
   const popupHost = useRef(null);
   const mapRef = useRef(null);
@@ -336,20 +336,6 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
     }
     stops.forEach((point, i) => addMarker(point, i, 'stop'));
     places.forEach((point, i) => addMarker(point, i, 'place'));
-    const days = new Map();
-    stops.filter(validMapPoint).forEach((point) => {
-      if (!days.has(point.day)) days.set(point.day, []);
-      days.get(point.day).push(point);
-    });
-    days.forEach((points) => {
-      if (points.length < 2) return;
-      const line = new library.Polyline3DElement({ altitudeMode: 'CLAMP_TO_GROUND',
-        strokeColor: latest.current.stopColour(points[0]), strokeWidth: 3,
-        drawsOccludedSegments: true,
-        path: points.map(({ lat, lng }) => ({ lat, lng })) });
-      map.append(line);
-      overlays.push(line);
-    });
     regroup();
     return () => {
       overlays.forEach((overlay) => overlay.remove());
@@ -359,6 +345,41 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       grouping.current = '';
     };
   }, [library, stops, places]);
+
+  /*
+   * The lines between stops: each day's stops joined straight, or, with the
+   * Routes setting on, each hop's real route from Google, drawn heavier. A hop
+   * Google could not route that way stays a thin straight line, so an estimate
+   * never looks like a road.
+   */
+  useEffect(() => {
+    if (!library || !mapRef.current) return undefined;
+    const map = mapRef.current;
+    const drawn = [];
+    const draw = (path, colour, real) => {
+      const line = new library.Polyline3DElement({ altitudeMode: 'CLAMP_TO_GROUND',
+        strokeColor: colour, strokeWidth: real ? 5 : 3, drawsOccludedSegments: true,
+        path: path.map(({ lat, lng }) => ({ lat, lng })) });
+      map.append(line);
+      drawn.push(line);
+    };
+    if (routeLines) {
+      routeLines.forEach((h) => {
+        const real = h.path && h.path.length > 1 && !h.estimate;
+        draw(real ? h.path : [h.from, h.to], h.colour, real);
+      });
+    } else {
+      const days = new Map();
+      stops.filter(validMapPoint).forEach((point) => {
+        if (!days.has(point.day)) days.set(point.day, []);
+        days.get(point.day).push(point);
+      });
+      days.forEach((points) => {
+        if (points.length > 1) draw(points, latest.current.stopColour(points[0]), false);
+      });
+    }
+    return () => drawn.forEach((line) => line.remove());
+  }, [library, stops, routeLines]);
 
   const extent = JSON.stringify(stops.map(({ id, lat, lng }) => [id, lat, lng]));
   useEffect(() => {

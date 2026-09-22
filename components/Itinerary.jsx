@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock, BedDouble,
@@ -21,7 +21,9 @@ import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
 import { activityDistance } from '@/lib/geo';
-import TravelEstimate from '@/components/TravelEstimate';
+import LegLine from '@/components/LegLine';
+import useLegs from '@/components/useLegs';
+import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 
 /** Structural stops anchor a day; everything else sits between them. */
@@ -53,6 +55,30 @@ export default function Itinerary({
    */
   const { supabase } = useApp();
   const commitments = useCommitments(supabase, trip);
+  /*
+   * The way between each activity and the next, from Google, once Routes are
+   * on in the map's appearance — the same answers the trip map shows, kept on
+   * this device, so switching between the two costs nothing.
+   */
+  const [mapPrefs] = useMapPreferences();
+  const hops = useMemo(() => {
+    const perDay = {};
+    itineraryEntries(activities).forEach((a) => { (perDay[a.day] = perDay[a.day] || []).push(a); });
+    const out = [];
+    Object.values(perDay).forEach((list) => {
+      list.slice().sort(sortActs).forEach((a, k, all) => {
+        const prev = all[k - 1];
+        const km = activityDistance(prev, a);
+        if (km == null) return;
+        out.push({
+          key: `${prev._entryId || prev.id}>${a._entryId || a.id}`,
+          from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+        });
+      });
+    });
+    return out;
+  }, [activities]);
+  const travel = useLegs(hops, mapPrefs.routes);
   const params = useSearchParams();
   const pathname = usePathname();
   // Two ways in: the search bar asks through the trip, and a link from outside
@@ -412,8 +438,9 @@ export default function Itinerary({
                       <div className="gap itinerary-between">
                         {distance != null ? (
                           <div className="itinerary-leg"
-                            data-tip="Straight-line distance. Actual routes may take longer.">
-                            <TravelEstimate km={distance} />
+                            data-tip={travel.on ? undefined : 'Straight-line distance. Actual routes may take longer.'}>
+                            <LegLine km={distance} gap={gapMins}
+                              leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null} />
                           </div>
                         ) : null}
                         {gapMins != null ? <span className="itinerary-gap-time">
@@ -483,7 +510,11 @@ export default function Itinerary({
             </div>
 
             {list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
-              <p className="itinerary-distance-note">Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
+              <p className="itinerary-distance-note">
+                {travel.on
+                  ? 'Distances are straight-line. Travel times are Google\'s; ~ marks an estimate where Google can\'t route that way.'
+                  : 'Straight-line distances. Walking times are estimates; actual routes may take longer.'}
+              </p>
             ) : null}
 
             <QuickAdd

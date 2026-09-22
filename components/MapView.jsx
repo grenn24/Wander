@@ -8,7 +8,7 @@ import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
-  NEARBY_KINDS,
+  NEARBY_KINDS, decodePath,
 } from '@/lib/geo';
 import GoogleMap, {
   googleMapsAvailable, catColor, dayColor,
@@ -16,8 +16,10 @@ import GoogleMap, {
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
 import { viewportChanged } from '@/lib/explore';
-import TravelEstimate from '@/components/TravelEstimate';
 import TravelArt from '@/components/TravelArt';
+import LegLine from '@/components/LegLine';
+import useLegs from '@/components/useLegs';
+import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import m from './MapView.module.css';
 
@@ -90,6 +92,35 @@ export default function MapView({
     });
     return out;
   }, [stops]);
+
+  /*
+   * The real way from each stop to the next, once Routes are turned on in Map
+   * appearance: times for each way in the list, and the way it draws on the map.
+   */
+  const [mapPrefs] = useMapPreferences();
+  const hops = useMemo(() => {
+    const out = [];
+    let prev = null;
+    stops.forEach((a) => {
+      const km = activityDistance(prev, a);
+      if (km != null) out.push({ key: a.id, day: a.day, from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km });
+      prev = a;
+    });
+    return out;
+  }, [stops]);
+  const travel = useLegs(hops, mapPrefs.routes);
+  const routeLines = useMemo(() => {
+    if (!travel.on) return null;
+    return hops.map((h) => {
+      const leg = travel.byKey[h.key];
+      const way = leg && leg.options.find((o) => o.mode === leg.drawn);
+      const real = !!(way && !way.estimate && way.polyline);
+      return {
+        from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
+        path: real ? decodePath(way.polyline) : null, estimate: !real,
+      };
+    });
+  }, [travel, hops, days]);
 
   const stopGroups = useMemo(() => {
     const groups = new Map();
@@ -389,6 +420,8 @@ export default function MapView({
             places={places}
             focused={focused}
             stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
+            allowRoutes
+            routeLines={routeLines}
             placeColour={catColor}
             /*
              * Selecting, not opening the drawer. The marker's own card already
@@ -630,7 +663,7 @@ export default function MapView({
                           <li key={a.id}>
                             {leg != null ? (
                               <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
-                                <TravelEstimate km={leg} />
+                                <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null} />
                               </div>
                             ) : null}
                             <div id={`stop-${a.id}`} className={m.stop}
@@ -662,7 +695,12 @@ export default function MapView({
                 );
               })}
               {Object.keys(legs).length ? (
-                <p className={m.note}>Straight-line distances. Walking times are estimates; actual routes may take longer.</p>
+                <p className={m.note}>
+                  {travel.on
+                    ? `Distances are straight-line. Travel times are Google's; ~ marks an estimate${travel.gaps.length
+                      ? `, where Google can't route that way in ${travel.gaps.join(' or ')}` : ''}.`
+                    : 'Straight-line distances. Walking times are estimates; actual routes may take longer. Turn on Routes in Map appearance for real travel times.'}
+                </p>
               ) : null}
             </div>
           ) : (

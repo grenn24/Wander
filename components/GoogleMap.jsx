@@ -172,7 +172,7 @@ export function loadMaps() {
  * order, a dashed route per day, a separate layer for nearby results, and a
  * click anywhere to drop a new stop.
  */
-export default function GoogleMap({ showAppearance = true, allow3D = false, ...props }) {
+export default function GoogleMap({ showAppearance = true, allow3D = false, allowRoutes = false, ...props }) {
   const appScheme = useMapScheme();
   const [preferences, updatePreferences, preferencesReady] = useMapPreferences();
   const camera = useRef(null);
@@ -194,7 +194,8 @@ export default function GoogleMap({ showAppearance = true, allow3D = false, ...p
         onFallback={fallback} />
         : <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
           mapType={type} camera={camera} />}
-      {showAppearance ? <MapAppearance preferences={{ ...preferences, type }} allow3D={allow3D} onChange={change} /> : null}
+      {showAppearance ? <MapAppearance preferences={{ ...preferences, type }} allow3D={allow3D} allowRoutes={allowRoutes}
+        onChange={change} /> : null}
       {notice ? <div className={map3dStyles.notice} role="status">
         <span>{notice}</span><button type="button" className="btn small" onClick={() => setNotice('')}>Dismiss</button>
       </div> : null}
@@ -239,6 +240,12 @@ function GoogleMapCanvas({
   // it. The words belong to the page — it knows the trip's currency and how it
   // writes a date — so the map asks rather than deciding.
   describeStop, onStopOpen, onPhoto,
+  /*
+   * The real way between stops, when the map's Routes setting asks for it:
+   * [{ from, to, colour, path, estimate }], one per hop. Without it each day's
+   * stops are joined by one dashed straight line, as they always were.
+   */
+  routeLines = null,
   /*
    * Cooperative by default: a map that swallows the wheel is a trap on a page
    * you are trying to scroll. A map that owns its whole column has no such
@@ -289,7 +296,7 @@ function GoogleMapCanvas({
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
-    describeStop, onStopOpen, onPhoto,
+    describeStop, onStopOpen, onPhoto, routeLines,
   };
 
   useEffect(() => {
@@ -419,6 +426,11 @@ function GoogleMapCanvas({
     if (ready) drawStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, stops, look]);
+
+  useEffect(() => {
+    if (ready) drawLines();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, routeLines]);
 
   /*
    * Selection is a change of state, not a redraw.
@@ -630,10 +642,7 @@ function GoogleMapCanvas({
     clusterMarks.current.forEach((m) => { m.map = null; });
     clusterMarks.current = [];
     grouping.current = '';
-    lines.current.forEach((l) => l.setMap(null));
-    lines.current = [];
 
-    const byDay = {};
     const bounds = new L.LatLngBounds();
 
     /*
@@ -741,26 +750,9 @@ function GoogleMapCanvas({
 
       stopMarks.current.push(mark);
       bounds.extend({ lat: a.lat, lng: a.lng });
-      const seen = byDay[a.day] || (byDay[a.day] = { line: colour(a), path: [] });
-      seen.path.push({ lat: a.lat, lng: a.lng });
     });
 
-    // The route line belongs to its day, so it wears the day's colour rather
-    // than a fixed one that agreed with nothing on the map.
-    Object.keys(byDay).forEach((d) => {
-      if (byDay[d].path.length < 2) return;
-      lines.current.push(new L.Polyline({
-        path: byDay[d].path,
-        strokeOpacity: 0,
-        icons: [{
-          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.65, scale: 3 },
-          offset: '0',
-          repeat: '11px',
-        }],
-        strokeColor: byDay[d].line,
-        map,
-      }));
-    });
+    drawLines();
 
     /*
      * While following, the view belongs to where you are standing and to
@@ -783,6 +775,54 @@ function GoogleMapCanvas({
     }
     applyFit();
     regroup();
+  }
+
+  /*
+   * The lines between stops.
+   *
+   * Each day's stops joined by one dashed straight line in the day's colour,
+   * as they always were — unless the Routes setting has asked Google for the
+   * real way. Then each hop is its route, solid in its day's colour, and a hop
+   * Google could not route that way (trains in Japan) stays a dashed straight
+   * line, so an estimate never looks like a road.
+   */
+  function drawLines() {
+    const L = libs.current;
+    const map = mapRef.current;
+    if (!L || !map) return;
+    lines.current.forEach((l) => l.setMap(null));
+    lines.current = [];
+    const dashed = (path, colour) => new L.Polyline({
+      path,
+      strokeOpacity: 0,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.65, scale: 3 },
+        offset: '0',
+        repeat: '11px',
+      }],
+      strokeColor: colour,
+      map,
+    });
+    const hops = latest.current.routeLines;
+    if (hops) {
+      hops.forEach((h) => {
+        lines.current.push(h.path && h.path.length > 1 && !h.estimate
+          ? new L.Polyline({ path: h.path, strokeColor: h.colour, strokeOpacity: 0.9, strokeWeight: 4, map })
+          : dashed([h.from, h.to], h.colour));
+      });
+      return;
+    }
+    // The line belongs to its day, so it wears the day's colour rather than a
+    // fixed one that agreed with nothing on the map.
+    const { stops: list, stopColour: colour } = latest.current;
+    const byDay = {};
+    list.forEach((a) => {
+      const seen = byDay[a.day] || (byDay[a.day] = { line: colour(a), path: [] });
+      seen.path.push({ lat: a.lat, lng: a.lng });
+    });
+    Object.keys(byDay).forEach((d) => {
+      if (byDay[d].path.length > 1) lines.current.push(dashed(byDay[d].path, byDay[d].line));
+    });
   }
 
   /*

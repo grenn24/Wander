@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import { Layers, X } from 'lucide-react';
 import Select from '@/components/Select';
-import { MAP_PREFERENCE_KEY, MAP_TYPE_OPTIONS, normalizeMapPreferences } from '@/lib/mapPreferences';
+import {
+  MAP_PREFERENCE_KEY, MAP_TYPE_OPTIONS, MAP_ROUTE_OPTIONS, normalizeMapPreferences,
+} from '@/lib/mapPreferences';
 
 const CHANGE = 'wander-map-preferences-change';
 const THEMES = [
@@ -41,7 +43,7 @@ export function useMapPreferences() {
   return [preferences, update, ready];
 }
 
-export default function MapAppearance({ preferences, onChange, allow3D = false }) {
+export default function MapAppearance({ preferences, onChange, allow3D = false, allowRoutes = false }) {
   const is3D = preferences.type === '3d';
   const imagery = preferences.type === 'hybrid' || is3D;
   return (
@@ -72,6 +74,17 @@ export default function MapAppearance({ preferences, onChange, allow3D = false }
           <Select label="Map type" value={preferences.type} options={MAP_TYPE_OPTIONS.filter((option) => allow3D || option.value !== '3d')}
             onChange={(type) => onChange({ type })} />
         </div>
+        {/* Only on a map of a trip's stops: routes are the way from one stop to the next. */}
+        {allowRoutes ? (
+          <div className="map-appearance-field">
+            <span>Routes between stops</span>
+            <Select label="Routes between stops" value={preferences.routes} options={MAP_ROUTE_OPTIONS}
+              onChange={(routes) => onChange({ routes })} />
+          </div>
+        ) : null}
+        {allowRoutes && preferences.routes !== 'off' ? (
+          <p>Routes and times from Google. A time marked ~ is an estimate, where Google cannot route that way.</p>
+        ) : null}
         <p>{is3D ? 'Explore real buildings and landscapes. Detail varies by location; imagery keeps its natural colours.'
           : imagery ? 'Satellite imagery keeps its natural colours. Your theme applies to road and terrain maps.'
           : 'Saved on this device, separately from the app theme.'}</p>
