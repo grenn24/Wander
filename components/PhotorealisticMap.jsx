@@ -25,6 +25,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
   const clusters = useRef([]);
   const grouping = useRef('');
   const libraryRef = useRef(null);
+  // The height of the ground under the view, as last reported where the map could tell.
+  const groundRef = useRef(0);
   const restored = useRef(!!camera.current);
   const initialSelection = useRef(true);
   const lastFocus = useRef({ focused, focusedPlace });
@@ -59,10 +61,18 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
     const width = box.clientWidth;
     const height = box.clientHeight;
     const fov = Number(map.getAttribute('fov')) || 35;
+    /*
+     * Stops sit on the ground, and the map's centre is only on the ground
+     * after its own flights: after a scroll or a drag it can be kilometres up
+     * or down (see projectToScreen). Its height is taken as the ground's only
+     * while it looks like ground; otherwise the last that did, or sea level.
+     */
+    if (cam.range > 50 && cam.altitude > -100 && cam.altitude < 5000) groundRef.current = cam.altitude;
+    const ground = groundRef.current;
     const chosen = selectedRef.current;
     const units = [];
     stopUnits.current.forEach((u, key) => {
-      const at = projectToScreen(cam, u, width, height, fov);
+      const at = projectToScreen(cam, { lat: u.lat, lng: u.lng, altitude: ground }, width, height, fov);
       // Behind the camera: nothing to overlap, so its pins stay as they are.
       if (at) units.push({ key, x: at.x, y: at.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length, alone: u.keys.includes(chosen) });
     });
@@ -100,7 +110,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       cluster.addEventListener('gmp-click', (event) => {
         event.stopPropagation();
         const points = entries.map((entry) => entry.point);
-        let next = { ...fit3DCamera(points, null, width / Math.max(1, height)), heading: map.heading || 0 };
+        const framed = fit3DCamera(points, null, width / Math.max(1, height));
+        let next = { ...framed, center: { ...framed.center, altitude: ground }, heading: map.heading || 0 };
         /*
          * Framing the stops is not always enough to part them: stops a few
          * dozen metres apart still touch from the nearest a framing goes, and
@@ -111,18 +122,20 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
          */
         const own = g.keys.map((k) => stopUnits.current[k]);
         for (let i = 0; i < 12 && next.range > 150; i += 1) {
-          const view = { ...next.center, altitude: cam.altitude, range: next.range, tilt: next.tilt, heading: next.heading };
+          const view = { ...next.center, range: next.range, tilt: next.tilt, heading: next.heading };
           const placed = [];
           own.forEach((u, key) => {
-            const spot = projectToScreen(view, u, width, height, fov);
+            const spot = projectToScreen(view, { lat: u.lat, lng: u.lng, altitude: ground }, width, height, fov);
             if (spot) placed.push({ key, x: spot.x, y: spot.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length });
           });
           // With room to spare: where the camera settles is never exactly where it was sent.
           if (clusterScreen(placed, 16).length > 1) break;
           next = { ...next, range: Math.max(150, next.range * 0.7) };
         }
-        // And always somewhat closer than now, so a tap is never a flight to the same view.
-        moveTo({ ...next, range: Math.max(150, Math.min(next.range, cam.range * 0.85)) });
+        // And always somewhat closer than now, so a tap is never a flight to the same view. "Now" is
+        // how far the eye is from the ground along the view, whichever way the map describes it.
+        const now = cam.range + (cam.altitude - ground) / Math.max(0.1, Math.cos((cam.tilt * Math.PI) / 180));
+        moveTo({ ...next, range: Math.max(150, Math.min(next.range, now * 0.85)) });
       });
       map.append(cluster);
       clusters.current.push(cluster);

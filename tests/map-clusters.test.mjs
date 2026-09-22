@@ -71,3 +71,31 @@ test('stops placed on the screen gather the same way', () => {
   ];
   assert.deepEqual(clusterScreen(units).map((g) => g.keys), [['a', 'b'], ['c']]);
 });
+
+test('the same camera, however the map describes it, puts places in the same spots', () => {
+  // On the ground: Tokyo station from 12 km, tilted 60°, turned 20°.
+  const ground = { lat: 35.681, lng: 139.767, altitude: 0, range: 12000, tilt: 60, heading: 20 };
+  // The same eye as a point 5 km further along the view, underground, seen from 17 km.
+  const t = 60 * Math.PI / 180;
+  const h = 20 * Math.PI / 180;
+  const d = 5000;
+  const under = {
+    lat: 35.681 + (d * Math.sin(t) * Math.cos(h)) / 111320,
+    lng: 139.767 + (d * Math.sin(t) * Math.sin(h)) / (111320 * Math.cos(35.681 * Math.PI / 180)),
+    altitude: -d * Math.cos(t), range: 12000 + d, tilt: 60, heading: 20,
+  };
+  const places = [
+    { lat: 35.6717, lng: 139.7650, altitude: 0 },
+    { lat: 35.7148, lng: 139.7967, altitude: 0 },
+    { lat: 35.6896, lng: 139.7006, altitude: 0 },
+  ];
+  places.forEach((place) => {
+    const a = projectToScreen(ground, place, 1600, 1000);
+    const b = projectToScreen(under, place, 1600, 1000);
+    assert.ok(Math.hypot(a.x - b.x, a.y - b.y) < 3, `${place.lat}: ${a.x},${a.y} vs ${b.x},${b.y}`);
+  });
+  // Placed at the underground centre's height instead, they land somewhere else entirely.
+  const wrong = projectToScreen(under, { lat: 35.6717, lng: 139.7650 }, 1600, 1000);
+  const right = projectToScreen(ground, places[0], 1600, 1000);
+  assert.ok(!wrong || Math.hypot(wrong.x - right.x, wrong.y - right.y) > 50);
+});
