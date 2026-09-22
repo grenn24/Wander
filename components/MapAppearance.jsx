@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Layers, X } from 'lucide-react';
 import Select from '@/components/Select';
 import {
@@ -46,8 +46,33 @@ export function useMapPreferences() {
 export default function MapAppearance({ preferences, onChange, allow3D = false, allowRoutes = false }) {
   const is3D = preferences.type === '3d';
   const imagery = preferences.type === 'hybrid' || is3D;
+  const panel = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  /*
+   * A press anywhere else — on the map, the stop list, the day chips — puts
+   * the panel away, the way every other popover in the app goes. Its choice
+   * lists are drawn outside it, on the page, so a press in one of those is
+   * still a press in the panel. Heard before the map hears it, and not
+   * stopped: the same press still does whatever it does on the map.
+   */
+  useEffect(() => {
+    if (!open) return undefined;
+    const pressed = (event) => {
+      const el = panel.current;
+      if (!el || !el.open) return;
+      const path = event.composedPath ? event.composedPath() : [event.target];
+      if (path.includes(el)) return;
+      if (path.some((node) => node instanceof Element && node.classList.contains('pop'))) return;
+      el.open = false;
+    };
+    document.addEventListener('pointerdown', pressed, true);
+    return () => document.removeEventListener('pointerdown', pressed, true);
+  }, [open]);
+
   return (
-    <details className="map-appearance" onKeyDown={(event) => {
+    <details ref={panel} className="map-appearance" onToggle={(event) => setOpen(event.currentTarget.open)}
+      onKeyDown={(event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
         event.currentTarget.open = false;
