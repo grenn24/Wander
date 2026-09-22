@@ -1,4 +1,4 @@
-import { placesKey } from '@/lib/places';
+import { leadPhoto, placeOfPhoto, placesKey } from '@/lib/places';
 
 export const runtime = 'nodejs';
 
@@ -21,16 +21,24 @@ export async function GET(req) {
   const width = Math.min(4800, Math.max(80, Number(searchParams.get('w')) || 400));
 
   // Only ever a Google photo resource name — never an arbitrary URL.
-  if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(ref)) {
-    return new Response('Bad photo reference.', { status: 400 });
-  }
+  const placeId = placeOfPhoto(ref);
+  if (!placeId) return new Response('Bad photo reference.', { status: 400 });
 
-  const url = `https://places.googleapis.com/v1/${ref}/media`
-    + `?maxWidthPx=${width}&key=${encodeURIComponent(key)}`;
+  const media = (name) => fetch(`https://places.googleapis.com/v1/${name}/media`
+    + `?maxWidthPx=${width}&key=${encodeURIComponent(key)}`, { redirect: 'follow' });
 
   let upstream;
   try {
-    upstream = await fetch(url, { redirect: 'follow' });
+    upstream = await media(ref);
+    /*
+     * References are only good for a while, and the ones stored with stops go
+     * stale (lib/places, placeOfPhoto): Google refuses them. The place's own
+     * lead photo is served in its place, so an old stop still has its picture.
+     */
+    if (!upstream.ok && [400, 403, 404].includes(upstream.status)) {
+      const fresh = await leadPhoto(placeId).catch(() => '');
+      if (fresh && fresh !== ref) upstream = await media(fresh);
+    }
   } catch (e) {
     return new Response('Could not fetch the photo.', { status: 502 });
   }
