@@ -88,9 +88,11 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-/* Modal scroll locks hide the page scrollbar. Keep its space so centred
-   content and fixed controls do not move when a dialog opens or closes. */
-html { scrollbar-gutter: stable; }
+/* A dialog holds the page still, which takes its scrollbar away. The space is
+   kept while one is open, so centred content and fixed controls do not move;
+   the rest of the time the page — chrome included — runs to the edge of the
+   window rather than stopping short of an empty strip (lib/useModal). */
+html[data-locked] { scrollbar-gutter: stable; }
 
 /*
  * No grey-blue wash over whatever a finger lands on.
