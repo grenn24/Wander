@@ -48,12 +48,16 @@ export async function GET(req) {
     headers: {
       'Content-Type': upstream.headers.get('content-type') || 'image/jpeg',
       /*
-       * A day in the browser, a month at the edge. The bytes behind a photo
-       * reference never change, so every reader after the first is served
-       * without touching Google at all — which is where most of the saving in
-       * this app is, since a trip with twenty stops paints twenty thumbnails.
+       * A week in the browser, and a week beyond it in which a photo already
+       * held is drawn at once and refreshed behind the reader, so a list of
+       * trips comes back with its pictures rather than a row of placeholders.
+       * A month at the edge, which is as long as Google's terms allow its
+       * content to be held; a fortnight in the browser stays well inside that.
+       * The bytes behind a reference do not change, so every reader after the
+       * first is served without touching Google at all — most of the saving in
+       * this app, since a trip with twenty stops paints twenty thumbnails.
        */
-      'Cache-Control': 'public, max-age=86400, s-maxage=2592000, immutable',
+      'Cache-Control': 'public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800, immutable',
     },
   });
 }

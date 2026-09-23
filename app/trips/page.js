@@ -25,6 +25,7 @@ import {
 } from '@/lib/favourites';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
+import { keepCovers, mergeCovers, readCovers } from '@/lib/tripCovers';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
 
@@ -45,7 +46,13 @@ export default function TripsHome() {
   const router = useRouter();
   const [trips, setTrips] = useState([]);
   const [view, setView] = useState('list'); // cards | list
+  /*
+   * Which photo heads each trip. Borrowed covers take a second read, so the
+   * ones this device saw last time stand in until it lands and the row can
+   * ask for its picture in the first paint (lib/tripCovers).
+   */
   const [covers, setCovers] = useState({});
+  useEffect(() => { setCovers((now) => ({ ...readCovers(), ...now })); }, []);
   const [memberCounts, setMemberCounts] = useState({});
   /*
    * The row menu: which trip it belongs to, and what it hangs off.
@@ -113,7 +120,9 @@ export default function TripsHome() {
       (photos || []).forEach((a) => {
         if (!nextCovers[a.trip_id] && a.photo_ref) nextCovers[a.trip_id] = a.photo_ref;
       });
-      setCovers(nextCovers);
+      const covered = mergeCovers(readCovers(), nextCovers, tripIds);
+      setCovers(covered);
+      keepCovers(covered);
 
       /*
        * Whose trips these are.
