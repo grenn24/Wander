@@ -50,9 +50,21 @@
 .fold:hover { background: var(--surface-2); color: var(--text-1); }
 .foldSide, .foldSheet { display: grid; place-items: center; }
 .foldSheet { display: none; }
-/* Folded: the title and the button to bring the rest back, and nothing else.
-   `hidden` alone would lose to the display these set. */
-.menu[hidden], .list[hidden] { display: none; }
+/*
+ * Folded: the title and the button to bring the rest back, and nothing else.
+ * The rest closes to nothing and the panel follows it down, rather than the
+ * two of them blinking out together. Nothing folded can be touched or read.
+ */
+.foldArea {
+  display: grid; grid-template-rows: 1fr; min-height: 0;
+  transition: grid-template-rows .28s var(--ease);
+}
+.foldArea > * { min-height: 0; overflow: hidden; transition: padding .28s var(--ease); }
+.foldArea[data-folded] { grid-template-rows: 0fr; }
+/* Padding is not part of a row, and would hold the fold open by its own height. */
+.foldArea[data-folded] > * { padding-top: 0; padding-bottom: 0; }
+.listArea { flex: 1; }
+.listArea[data-folded] { flex: none; }
 /* Folded on a wide screen: one icon button, the size and shape of the globe button opposite. */
 @media (min-width: 861px) {
   .panel[data-collapsed] { width: 44px; height: 44px; border-radius: 15px; box-shadow: var(--lift); }
@@ -252,6 +264,18 @@
     transition: max-height .28s var(--ease);
   }
   .panel[data-open] { max-height: 84dvh; }
+  /*
+   * With a trip open the panel steps aside, sliding out rather than being
+   * taken away, and comes back the same way. Hidden from touch and from
+   * anything reading the page while it is gone.
+   */
+  .stage[data-route] .panel {
+    transform: translateY(105%); visibility: hidden;
+    transition: transform .3s var(--ease), visibility 0s linear .3s;
+  }
+  .panel {
+    transition: max-height .28s var(--ease), transform .3s var(--ease), visibility 0s linear 0s;
+  }
   .grip {
     display: grid; place-items: center; flex: none; width: 100%; height: 24px;
     padding: 0; border: 0; background: transparent; cursor: pointer;
@@ -268,8 +292,19 @@
   .layer { padding: 8px; }
   .layerN { font-size: 20px; }
   .detail { top: 66px; right: 10px; bottom: auto; left: 10px; width: auto; max-width: none; }
-  /* On a phone the open trip takes the screen's top half, and the menu steps aside for it. */
-  .plan { top: 66px; right: 10px; bottom: auto; left: 10px; width: auto; max-width: none; max-height: 52%; }
+  /*
+   * An open trip is a sheet across the foot of the screen, as the panel it
+   * replaces is, and it slides up from there. It used to take the top half,
+   * over the very markers it lists — the globe aims the trip into what is
+   * left above it instead (GlobeCanvas, insets).
+   */
+  .plan {
+    top: auto; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 52dvh;
+    border-radius: 22px 22px 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheetUp .3s var(--ease);
+  }
+  @keyframes sheetUp { from { transform: translateY(100%); } }
   .planImg { aspect-ratio: 5 / 2; }
   .stage[data-route] .panel { display: none; }
   .detailImg { aspect-ratio: 5 / 2; }
@@ -279,4 +314,5 @@
 @media (prefers-reduced-motion: reduce) {
   .detail, .plan { animation: none; }
   .panel, .switch, .switch::after, .layer, .loading, .loading[data-done], .fold { transition: none; }
+  .foldArea { transition: none; }
 }

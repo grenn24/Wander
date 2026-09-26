@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints, photoQueryOf,
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
-  groundOffset, nextGroundAltitude, groundNear,
+  groundOffset, nextGroundAltitude, groundNear, offsetCamera,
 } from '../lib/globe.js';
 
 test('a group camera frames a whole trip, a single pin gets the close view', () => {
@@ -232,4 +232,19 @@ test('a close view aimed at sea level is moved in onto the ground', () => {
   const samples = [{ lat: 35.49, lng: 138.78, alt: 820 }, { lat: 35.25, lng: 139.02, alt: 1000 }];
   assert.equal(groundNear(samples, { lat: 35.4869, lng: 138.7805 }), 820);
   assert.equal(groundNear(samples, { lat: 35.68, lng: 139.77 }), 0);
+});
+
+test('a card across the foot of a phone moves the aim, not the place behind it', () => {
+  const camera = { center: { lat: 35.68, lng: 139.76 }, range: 45000, tilt: 45, heading: 0 };
+  // A sheet over the lower half: the camera aims short of the trip, so the trip sits above it.
+  const lifted = offsetCamera(camera, { bottom: 400 }, 800);
+  assert.ok(lifted.center.lat < camera.center.lat);
+  assert.ok(Math.abs(lifted.center.lng - camera.center.lng) < 1e-9);
+  // Turned to face east, the same room is made to the side instead.
+  const east = offsetCamera({ ...camera, heading: 90 }, { bottom: 400 }, 800);
+  assert.ok(east.center.lng < camera.center.lng);
+  assert.ok(Math.abs(east.center.lat - camera.center.lat) < 1e-9);
+  // Nothing covering it, nothing to move; and never so much of it that no globe is left.
+  assert.deepEqual(offsetCamera(camera, null, 800), camera);
+  assert.deepEqual(offsetCamera(camera, { bottom: 760 }, 800), camera);
 });

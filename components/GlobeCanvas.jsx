@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
 import {
-  flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear,
+  flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear, offsetCamera,
 } from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
@@ -103,7 +103,7 @@ function loadAreas(code) {
  * place again, which is what "show me the whole globe" pressed twice needs.
  */
 export default function GlobeCanvas({
-  points, selectedId, aim, onSelect, onRegion, onDrawn, route = null,
+  points, selectedId, aim, onSelect, onRegion, onDrawn, route = null, insets = null,
   focus = false, stopIndex = null, hoverStop = null, stopCard = null, onStop, onStopHover,
 }) {
   const host = useRef(null);
@@ -143,7 +143,7 @@ export default function GlobeCanvas({
 
   const latest = useRef(null);
   latest.current = {
-    onSelect, onRegion, onDrawn, aim, selectedId, regions, covered, focus, onStop, onStopHover, stopIndex,
+    onSelect, onRegion, onDrawn, aim, selectedId, regions, covered, focus, onStop, onStopHover, stopIndex, insets,
   };
   const drawn = () => { if (latest.current.onDrawn) latest.current.onDrawn(); };
 
@@ -814,7 +814,13 @@ export default function GlobeCanvas({
 
   useEffect(() => {
     if (!ready || !aim) return;
-    let cam = aim.camera;
+    /*
+     * Aimed around whatever is laid over the globe: on a phone an open trip's
+     * card is a sheet across the foot of the screen, and a camera aimed at the
+     * middle would put the trip's markers behind it (lib/globe, offsetCamera).
+     */
+    const box = host.current;
+    let cam = offsetCamera(aim.camera, insets && insets(), box ? box.clientHeight : 0);
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (mode === '3d' && map3d.current) {
       const map = map3d.current;

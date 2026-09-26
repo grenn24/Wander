@@ -122,6 +122,24 @@ export default function GlobeView() {
   const [viewer, setViewer] = useState(null); // { photos, index, title }
   const aimed = useRef(false);
   const arrived = useRef(false);
+  const stageRef = useRef(null);
+  const planRef = useRef(null);
+  /*
+   * How far the cards over the globe reach in from its top and foot, so it can
+   * aim a place into what is left rather than behind them. On a phone an open
+   * trip is a sheet across the foot of the screen; on a wide one the cards are
+   * down the side and nothing is in the way.
+   */
+  const insets = useCallback(() => {
+    const stage = stageRef.current;
+    const card = planRef.current;
+    if (!stage || !card || !card.offsetHeight) return null;
+    // Where it is laid out, not where it is drawn: it may be mid-slide.
+    const foot = stage.clientHeight - (card.offsetTop + card.offsetHeight);
+    // Down the side of a wide screen it covers nothing the globe needs.
+    if (card.offsetWidth < stage.clientWidth * 0.8) return null;
+    return foot <= 2 ? { bottom: card.offsetHeight } : { top: card.offsetTop + card.offsetHeight };
+  }, []);
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
@@ -701,10 +719,10 @@ export default function GlobeView() {
   return (
     <div className="shell">
       <TopBar><HomeNav active="globe" /></TopBar>
-      <main className={s.stage} data-route={route ? '' : undefined}>
+      <main ref={stageRef} className={s.stage} data-route={route ? '' : undefined}>
         <div className={s.canvas}>
           <GlobeCanvas points={shown} selectedId={selected} aim={aim} onSelect={onCanvasSelect} onRegion={onRegion}
-            route={route} focus={!!plan} stopIndex={stopIndex} hoverStop={hoverStop}
+            route={route} focus={!!plan} stopIndex={stopIndex} hoverStop={hoverStop} insets={insets}
             stopCard={stopCard}
             onStop={chooseStop} onStopHover={setHoverStop} onDrawn={() => setDrawn(true)} />
         </div>
@@ -739,7 +757,9 @@ export default function GlobeView() {
                 </span>
               </button>
             </div>
-            <div id="globe-menu" className={s.menu} hidden={collapsed}>
+            <div className={s.foldArea} data-folded={collapsed ? '' : undefined}
+              inert={collapsed || undefined} aria-hidden={collapsed ? 'true' : undefined}>
+            <div id="globe-menu" className={s.menu}>
               <div className={s.layers} role="group" aria-label="Show on the globe">
                 {['been', 'planned', 'favourite'].map((k) => (
                   <button key={k} type="button" className={s.layer} aria-pressed={layers[k]} onClick={() => toggle(k)}
@@ -792,8 +812,11 @@ export default function GlobeView() {
               </div>
             </div>
           </div>
+          </div>
 
-          <div className={s.list} hidden={collapsed}>
+          <div className={`${s.foldArea} ${s.listArea}`} data-folded={collapsed ? '' : undefined}
+            inert={collapsed || undefined} aria-hidden={collapsed ? 'true' : undefined}>
+          <div className={s.list}>
             {loading ? (
               [0, 1, 2].map((i) => <div key={i} className={`skel ${s.skel}`} />)
             ) : loadError ? (
@@ -835,10 +858,11 @@ export default function GlobeView() {
               </Link>
             ) : null}
           </div>
+          </div>
         </aside>
 
         {plan ? (
-          <aside className={s.plan} aria-label={`${plan.title}: its places`} key={plan.key}>
+          <aside ref={planRef} className={s.plan} aria-label={`${plan.title}: its places`} key={plan.key}>
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
               <X size={16} />
             </button>
