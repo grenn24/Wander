@@ -62,16 +62,29 @@
     border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible;
   }
   .stage:not(:global(.is-open)) :global(.mappanel-compact) { height: auto; padding: 0; gap: 8px; }
+  /*
+   * The four controls over the map are one family: the same height, the same
+   * round ends, the same surface. Two are icons alone and round; the two that
+   * carry a word are the same shape drawn out.
+   */
   .stage :global(.mappanel-compact button) {
-    min-height: 44px; border: 1px solid var(--border); border-radius: 999px;
+    min-height: 44px; height: 44px; border: 1px solid var(--border); border-radius: 999px;
     background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift);
   }
+  /* Its own border sits outside the summary's height; held to the row's 44. */
+  .stage :global(.map-appearance:not([open])) { height: 44px; border-radius: 999px; }
+  .stage :global(.map-appearance:not([open]) summary) { height: 100%; }
+  .stage :global(.map-appearance summary) { justify-content: center; }
   .stage :global(.map-explore-trigger) { flex: none; width: 44px; padding: 0; }
   /* Its words stay for screen readers; the magnifier is what shows. */
   .stage :global(.map-explore-trigger span) {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
-  .stage :global(.map-stops-trigger) { padding: 0 14px; font-size: 13px !important; font-weight: 600; }
+  .stage :global(.map-stops-trigger) {
+    gap: 6px; padding: 0 13px; font-size: 14px !important; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .stage :global(.map-stops-trigger svg:last-child) { color: var(--text-3); }
 
   /*
    * One row of controls above the tab bar, and nothing over the map's top: the
@@ -82,10 +95,10 @@
   .dayPick {
     position: absolute; z-index: 6; left: 68px;
     bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 8px);
-    display: inline-flex; align-items: center; gap: 7px; min-height: 44px; max-width: calc(100% - 200px);
-    padding: 0 12px; border: 1px solid var(--border); border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 7px; height: 44px; max-width: calc(100% - 210px);
+    padding: 0 13px; border: 1px solid var(--border); border-radius: 999px;
     background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift);
-    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 650; cursor: pointer;
   }
   .dayPick > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dayPick > svg { flex: none; color: var(--text-3); }

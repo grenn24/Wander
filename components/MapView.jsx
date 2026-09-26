@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
-  Search, Crosshair, ChevronUp, ChevronDown, Check,
+  Search, Crosshair, ChevronUp, ChevronDown, Check, List,
 } from 'lucide-react';
 import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
@@ -228,6 +228,8 @@ export default function MapView({
 
   const dayLabel = day === 'all' ? `All · ${days.length} days`
     : `Day ${days.indexOf(day) + 1} · ${fmtDayTiny(day)}`;
+  // On the button itself, the shortest thing that still says which day.
+  const dayShort = day === 'all' ? 'All days' : `Day ${days.indexOf(day) + 1}`;
 
   const linesFor = (list, legsFound) => list.map((h) => {
     const leg = legsFound.byKey[h.key];
@@ -641,7 +643,7 @@ export default function MapView({
           <button ref={setDayEl} type="button" className={m.dayPick} aria-expanded={dayOpen}
             aria-label={`Showing ${dayLabel}. Choose a day`} onClick={() => setDayOpen((o) => !o)}>
             <i style={{ background: day === 'all' ? 'var(--text-3)' : dayColor(days.indexOf(day), days.length) }} />
-            <span>{dayLabel}</span>
+            <span>{dayShort}</span>
             <ChevronDown size={14} aria-hidden="true" />
           </button>
           <Popover anchorEl={dayEl} open={dayOpen} align="start" width={232} onClose={() => setDayOpen(false)}>
@@ -698,8 +700,11 @@ export default function MapView({
           <button type="button" className="map-explore-trigger" onClick={() => openPanel('explore')}>
             <Search size={18} aria-hidden="true" /><span>Explore nearby…</span>
           </button>
-          <button type="button" className="map-stops-trigger" onClick={() => openPanel('stops')}>
-            {stops.length} {stops.length === 1 ? 'stop' : 'stops'} <ChevronUp size={15} aria-hidden="true" />
+          <button type="button" className="map-stops-trigger" onClick={() => openPanel('stops')}
+            aria-label={`${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}. Show the list`}>
+            <List size={15} aria-hidden="true" />
+            {stops.length}
+            <ChevronUp size={15} aria-hidden="true" />
           </button>
         </div>
         {/*
