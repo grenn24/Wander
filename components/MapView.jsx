@@ -15,6 +15,7 @@ import GoogleMap, {
 } from '@/components/GoogleMap';
 import PlacePhoto from '@/components/PlacePhoto';
 import Lightbox from '@/components/Lightbox';
+import Popover from '@/components/Popover';
 import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
@@ -61,6 +62,9 @@ export default function MapView({
    */
   const sheet = useKept(sheetOpen ? 'open' : null, 260);
   const [panelView, setPanelView] = useState('explore');
+  // The day being shown, on a phone: one button over the map, its days in a list.
+  const [dayEl, setDayEl] = useState(null);
+  const [dayOpen, setDayOpen] = useState(false);
   const [shots, setShots] = useState(null); // { photos, index, title }
   const viewRef = useRef(null);
   const stageRef = useRef(null);
@@ -221,6 +225,9 @@ export default function MapView({
     setPicking(on);
     setPicked(new Set());
   }
+
+  const dayLabel = day === 'all' ? `All · ${days.length} days`
+    : `Day ${days.indexOf(day) + 1} · ${fmtDayTiny(day)}`;
 
   const linesFor = (list, legsFound) => list.map((h) => {
     const leg = legsFound.byKey[h.key];
@@ -622,6 +629,39 @@ export default function MapView({
           </div>
         )}
       </div>
+
+      {/*
+        * A phone shows the day as one button beside the other map controls,
+        * and its days in a list over the map. The row of chips is a band
+        * across the top of a screen that has little enough map on it already;
+        * a wide screen has the room and keeps them.
+        */}
+      {days.length > 1 ? (
+        <>
+          <button ref={setDayEl} type="button" className={m.dayPick} aria-expanded={dayOpen}
+            aria-label={`Showing ${dayLabel}. Choose a day`} onClick={() => setDayOpen((o) => !o)}>
+            <i style={{ background: day === 'all' ? 'var(--text-3)' : dayColor(days.indexOf(day), days.length) }} />
+            <span>{dayLabel}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+          <Popover anchorEl={dayEl} open={dayOpen} align="start" width={232} onClose={() => setDayOpen(false)}>
+            <div className={`act-menu ${m.dayMenu}`} role="group" aria-label="Show one day">
+              <button type="button" aria-current={day === 'all' ? 'true' : undefined}
+                onClick={() => { setDay('all'); setFocused(null); setDayOpen(false); }}>
+                <i style={{ background: 'var(--text-3)' }} />
+                All days<span>{days.length}</span>
+              </button>
+              {days.map((d, i) => (
+                <button key={d} type="button" aria-current={day === d ? 'true' : undefined}
+                  onClick={() => { setDay(d); setFocused(null); setDayOpen(false); }}>
+                  <i style={{ background: dayColor(i, days.length) }} />
+                  Day {i + 1}<span>{fmtDayTiny(d)}</span>
+                </button>
+              ))}
+            </div>
+          </Popover>
+        </>
+      ) : null}
 
       {days.length > 1 ? (
         <div className="mapdays" role="group" aria-label="Show one day">
