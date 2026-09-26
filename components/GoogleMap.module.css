@@ -1,0 +1,21 @@
+.status {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.card {
+  max-width: min(320px, calc(100% - 24px));
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-1);
+  color: var(--text-1);
+  box-shadow: 0 4px 20px #0002;
+  font-size: 14px;
+  text-align: center;
+  pointer-events: auto;
+}
+.card p { margin: 0 0 12px; }

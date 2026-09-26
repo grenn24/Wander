@@ -11,6 +11,8 @@ import { createMapPopup, placePopupMeta } from '@/lib/mapPopup';
 import { createPin, createCluster } from '@/components/mapPin';
 import { clusterUnits } from '@/lib/mapClusters';
 import { centreBeside, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
+import { createMapsLoader } from '@/lib/googleMapsLoader';
+import loadStyles from './GoogleMap.module.css';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -111,62 +113,7 @@ export function catColor(id) {
   return v || '#2a78d6';
 }
 
-let loader = null;
-
-/**
- * Loads the Maps API and hands back the classes it provides.
- *
- * With `loading=async` the script's load event fires once the *bootstrap* has
- * downloaded, not once the API is ready — reading google.maps.Map at that
- * moment yields undefined, which is what "maps.Map is not a constructor" was.
- * The documented fix is a callback plus importLibrary, which is also the only
- * supported way to pull in the marker library.
- */
-export function loadMaps() {
-  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
-  if (loader) return loader;
-
-  loader = new Promise((resolve, reject) => {
-    const ready = () => {
-      // Three libraries, because the classes are split across them:
-      // core has LatLngBounds, maps has Map/InfoWindow/Polyline, marker has
-      // AdvancedMarkerElement. Taking any of them from the wrong one yields
-      // undefined rather than an error at import time.
-      Promise.all([
-        window.google.maps.importLibrary('core'),
-        window.google.maps.importLibrary('maps'),
-        window.google.maps.importLibrary('marker'),
-      ]).then(([core, maps, marker]) => resolve({
-        LatLngBounds: core.LatLngBounds,
-        event: core.event,
-        Map: maps.Map,
-        InfoWindow: maps.InfoWindow,
-        Polyline: maps.Polyline,
-        Polygon: maps.Polygon,
-        AdvancedMarkerElement: marker.AdvancedMarkerElement,
-      })).catch(reject);
-    };
-
-    if (window.google && window.google.maps && window.google.maps.importLibrary) {
-      ready();
-      return;
-    }
-
-    const cbName = '__wanderMapsReady';
-    window[cbName] = ready;
-
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY)}`
-      + `&loading=async&callback=${cbName}&v=weekly`;
-    s.async = true;
-    s.addEventListener('error', () => reject(new Error(
-      'Google Maps failed to load. Check the key and that Maps JavaScript API is enabled.',
-    )));
-    document.head.appendChild(s);
-  });
-
-  return loader;
-}
+export const loadMaps = createMapsLoader(KEY);
 
 /**
  * The trip drawn on Google Maps: numbered, category-coloured stops in time
@@ -178,6 +125,8 @@ export default function GoogleMap({ showAppearance = true, allow3D = false, allo
   const [preferences, updatePreferences, preferencesReady] = useMapPreferences();
   const camera = useRef(null);
   const [notice, setNotice] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const scheme = mapColorScheme(preferences.theme, appScheme);
   // Navigation and pin editing retain their street-level gestures. The saved
   // explorer preference must not silently change those specialised maps.
@@ -187,14 +136,33 @@ export default function GoogleMap({ showAppearance = true, allow3D = false, allo
     setNotice(message);
     updatePreferences({ type: 'roadmap' });
   }
+  function failed(message) {
+    setLoadError(message);
+    props.onError?.(message);
+  }
+  function retry() {
+    setLoadError('');
+    props.onError?.('');
+    setAttempt((value) => value + 1);
+  }
+  function loaded() {
+    setLoadError('');
+    if (loadError) props.onError?.('');
+  }
   // Resolve the saved choice before mounting either billable renderer.
   if (!preferencesReady) return <div className="map-el" aria-label="Loading map" />;
   return (
     <>
       {type === '3d' ? <PhotorealisticMap {...props} camera={camera} loadLibrary={load3D}
         onFallback={fallback} />
-        : <GoogleMapCanvas {...props} key={scheme} scheme={scheme}
-          mapType={type} camera={camera} />}
+        : <GoogleMapCanvas {...props} key={`${scheme}:${attempt}`} scheme={scheme}
+          mapType={type} camera={camera} onError={failed} onReady={loaded} />}
+      {type !== '3d' && loadError ? <div className={loadStyles.status}>
+        <div className={loadStyles.card} role="alert">
+          <p>The map couldn’t load. Check your connection and try again.</p>
+          <button type="button" className="btn small" onClick={retry}>Retry map</button>
+        </div>
+      </div> : null}
       {showAppearance ? <MapAppearance preferences={{ ...preferences, type }} allow3D={allow3D} allowRoutes={allowRoutes}
         onChange={change} /> : null}
       {notice ? <div className={map3dStyles.notice} role="status">
@@ -236,7 +204,7 @@ function GoogleMapCanvas({
   // at all. Only a vector Map ID can, and the caller should not offer to point
   // the map at north-east if the answer is always going to be north.
   onRotatable,
-  onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError,
+  onFocus, onPlaceFocus, onPlaceAdd, onDropPin, onViewport, onError, onReady,
   // What a stop should say when its marker is clicked, and what to do about
   // it. The words belong to the page — it knows the trip's currency and how it
   // writes a date — so the map asks rather than deciding.
@@ -298,6 +266,7 @@ function GoogleMapCanvas({
   const initialCamera = useRef(camera.current);
   const restoreCamera = useRef(camera.current);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   // Latest props, so drawing never closes over a stale render.
   const latest = useRef(null);
@@ -408,7 +377,12 @@ function GoogleMapCanvas({
         say(kind === R.VECTOR && typeof map.setHeading === 'function');
       });
       setReady(true);
-    }).catch((e) => { if (!dead && onError) onError(e.message); });
+      onReady?.();
+    }).catch((e) => {
+      if (dead) return;
+      setFailed(true);
+      if (onError) onError(e.message);
+    });
     return () => {
       dead = true;
       if (info.current) info.current.close();
@@ -1038,6 +1012,9 @@ function GoogleMapCanvas({
         })}
       </div>
       <div className="map-el" ref={elRef} />
+      {!ready && !failed ? <div className={loadStyles.status}>
+        <div className={loadStyles.card} role="status">Loading map…</div>
+      </div> : null}
     </>
   );
 }
