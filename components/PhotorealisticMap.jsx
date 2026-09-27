@@ -104,9 +104,26 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       // Behind the camera: nothing to overlap, so its pins stay as they are.
       if (at) units.push({ key, x: at.x, y: at.y, lat: u.lat, lng: u.lng, radius: u.radius, weight: u.keys.length, alone: u.keys.includes(chosen) });
     });
-    // Each cluster judged where it will be drawn: the middle of its stops on the ground.
-    const groups = clusterScreen(units, 6, onScreen);
-    const signature = groups.map((g) => g.keys.join('.')).join('|');
+    /*
+     * Each cluster judged where it will be drawn: the middle of its stops on
+     * the ground. A phone gathers them at a wider gap — every marker is an
+     * element the 3D renderer carries through every frame it draws, and a
+     * trip's worth of them is felt on a phone as a map that will not keep up.
+     */
+    const groups = clusterScreen(units, width < 1000 ? 16 : 6, onScreen);
+    /*
+     * Nothing far outside the view. A trip is spread across a city, and a
+     * marker off the screen is still an element the renderer carries through
+     * every frame it draws. A wide margin either side, so a pan does not run
+     * into empty map before the camera rests and this is worked out again;
+     * and only for a trip with enough stops for it to be worth the trouble.
+     */
+    const cull = stopUnits.current.length > 12;
+    const near = (at) => !!at && at.x > -width * 0.6 && at.x < width * 1.6
+      && at.y > -height * 0.6 && at.y < height * 1.6;
+    const inView = new Set();
+    if (cull) units.forEach((u) => { if (near(u)) stopUnits.current[u.key].keys.forEach((k) => inView.add(k)); });
+    const signature = `${groups.map((g) => g.keys.join('.')).join('|')}#${cull ? [...inView].sort().join(',') : ''}`;
     if (signature === grouping.current) return;
     grouping.current = signature;
 
@@ -118,6 +135,8 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       const entries = g.keys.flatMap((k) => stopUnits.current[k].keys)
         .map((key) => markers.current.get(key)).filter(Boolean);
       entries.forEach((entry) => gathered.add(entry));
+      // Its stops are away, so it is too, and they stay gathered behind it.
+      if (cull && !near(g)) return;
       const numbers = entries.map((entry) => entry.n).sort((a, b) => a - b);
       const listed = numbers.length > 6
         ? `${numbers.slice(0, 5).join(', ')} and ${numbers.length - 5} more`
@@ -173,9 +192,11 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       clusters.current.push(cluster);
     });
     // Gathered pins leave the map; the rest come back, those that had been gathered included.
-    markers.current.forEach((entry) => {
+    markers.current.forEach((entry, key) => {
       if (entry.kind !== 'stop') return;
-      const hide = gathered.has(entry);
+      // The open stop keeps its pin wherever it is: its card is anchored to it.
+      const hide = key !== selectedRef.current
+        && (gathered.has(entry) || (cull && !inView.has(key)));
       if (hide && entry.marker.parentNode) entry.marker.remove();
       else if (!hide && !entry.marker.parentNode) map.append(entry.marker);
     });
@@ -267,7 +288,12 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
       mapRef.current = map;
       listen(map, 'gmp-error', fail);
       listen(map, 'gmp-steadychange', (event) => {
-        if (event.isSteady) { clearTimeout(timer); report(); }
+        if (!event.isSteady) return;
+        clearTimeout(timer);
+        clearTimeout(reportTimer);
+        clearTimeout(groupTimer);
+        report();
+        latest.current.regroup?.();
       });
       /*
        * Steady is not the only sign 3D is working. Fly somewhere before the
@@ -278,12 +304,22 @@ export default function PhotorealisticMap({ loadLibrary, camera, onFallback,
        */
       listen(map, 'gmp-animationend', () => clearTimeout(timer));
       listen(map, 'gmp-click', () => clearTimeout(timer));
+      /*
+       * A moving camera says so many times a second, and the two things that
+       * answer are the expensive ones: gathering the pins reads where every
+       * one of them is drawn, and telling the page where the map is redraws
+       * the trip beside it. Both wait for the camera to come to rest —
+       * steady above does them — and the timers here are only in case steady
+       * is slow to arrive, which it can be while tiles are still coming in.
+       * On a phone this is the difference between a map that follows a finger
+       * and one that catches up with it.
+       */
       ['gmp-centerchange', 'gmp-rangechange', 'gmp-headingchange', 'gmp-tiltchange'].forEach((name) => listen(map, name, () => {
         remember();
         clearTimeout(reportTimer);
-        reportTimer = setTimeout(report, 250);
+        reportTimer = setTimeout(report, 700);
         clearTimeout(groupTimer);
-        groupTimer = setTimeout(() => latest.current.regroup?.(), 200);
+        groupTimer = setTimeout(() => latest.current.regroup?.(), 400);
       }));
       listen(map, 'gmp-click', (event) => {
         event.preventDefault();

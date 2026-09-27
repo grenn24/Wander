@@ -8,7 +8,7 @@ import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
-  NEARBY_KINDS, decodePath,
+  NEARBY_KINDS, decodePath, thinPath,
 } from '@/lib/geo';
 import GoogleMap, {
   googleMapsAvailable, catColor, dayColor,
@@ -237,7 +237,9 @@ export default function MapView({
     const real = !!(way && !way.estimate && way.polyline);
     return {
       from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
-      path: real ? decodePath(way.polyline) : null, estimate: !real,
+      // Thinned: a drive across a city comes back with hundreds of points a
+      // few metres apart, and every one of them is carried in every frame.
+      path: real ? thinPath(decodePath(way.polyline), 15) : null, estimate: !real,
     };
   });
   const routeLines = useMemo(() => {
