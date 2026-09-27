@@ -174,12 +174,14 @@ export default function GlobeView() {
         readFavourites(supabase).then((favs) => ({ favs })).catch((error) => ({ error })),
       ]);
 
-      // A server that will not follow the join still gets its trips, then their stops.
+      // A server that will not follow the join still gets its trips, then their stops —
+      // and a database that has not been given cover_path yet fails the same way, so
+      // the second attempt asks for nothing it could be missing.
       let rows = trip.data;
       let a = (rows || []).flatMap((t) => t.activities || []);
       if (trip.error) {
         const plain = await readWithSessionRecovery(supabase, () =>
-          supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref, cover_path'));
+          supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref'));
         if (plain.error) throw plain.error;
         rows = plain.data;
         const ids = (rows || []).map((x) => x.id);
