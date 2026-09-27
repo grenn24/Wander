@@ -124,6 +124,8 @@ export default function GlobeView() {
   const arrived = useRef(false);
   const stageRef = useRef(null);
   const planRef = useRef(null);
+  // An open trip's sheet on a phone, pulled up to read the whole of its days.
+  const [planTall, setPlanTall] = useState(false);
   /*
    * How far the cards over the globe reach in from its top and foot, so it can
    * aim a place into what is left rather than behind them. On a phone an open
@@ -619,6 +621,10 @@ export default function GlobeView() {
     };
   })();
 
+  // Each trip opens at the sheet's own height, however the last one was left.
+  const planKey = plan ? plan.key : null;
+  useEffect(() => { setPlanTall(false); }, [planKey]);
+
   /*
    * The open stop's card, with its photograph: the one saved with it, or
    * Google's, once looked up. Held back while the lookup is under way, and
@@ -862,7 +868,13 @@ export default function GlobeView() {
         </aside>
 
         {plan ? (
-          <aside ref={planRef} className={s.plan} aria-label={`${plan.title}: its places`} key={plan.key}>
+          <aside ref={planRef} className={s.plan} data-tall={planTall ? '' : undefined}
+            aria-label={`${plan.title}: its places`} key={plan.key}>
+            <button type="button" className={s.planGrip} aria-expanded={planTall}
+              aria-label={planTall ? 'Show less of this trip' : 'Show more of this trip'}
+              onClick={() => setPlanTall((t) => !t)}>
+              <span />
+            </button>
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
               <X size={16} />
             </button>

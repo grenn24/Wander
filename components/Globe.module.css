@@ -298,12 +298,47 @@
    * over the very markers it lists — the globe aims the trip into what is
    * left above it instead (GlobeCanvas, insets).
    */
+  /*
+   * An open trip is a sheet across the foot of the screen, as the panel it
+   * replaces is, and it slides up from there. It used to take the top half,
+   * over the very markers it lists — the globe aims the trip into what is
+   * left above it instead (GlobeCanvas, insets).
+   *
+   * Its cover was a band as wide as the screen and its buttons a column, which
+   * left the days themselves a sliver at the bottom with nowhere to scroll. The
+   * cover is a thumbnail beside the title, the buttons share a row, and the
+   * days have everything below them and scroll. The grip pulls the sheet up
+   * over the globe to read a long trip, and lets it back down.
+   */
   .plan {
-    top: auto; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 52dvh;
+    top: auto; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 54dvh;
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto 1fr;
+    grid-template-areas: "grip grip" "img head" "list list";
     border-radius: 22px 22px 0 0; border-bottom: 0;
     padding-bottom: env(safe-area-inset-bottom);
     animation: sheetUp .3s var(--ease);
+    transition: max-height .28s var(--ease);
   }
+  .plan[data-tall] { max-height: 88dvh; }
+  .planGrip {
+    grid-area: grip; display: grid; place-items: center; width: 100%; height: 26px;
+    padding: 0; border: 0; background: transparent; cursor: pointer;
+  }
+  .planGrip span { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); }
+  .planGrip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 12px; }
+  .plan .planImg {
+    grid-area: img; width: 64px; height: 64px; aspect-ratio: auto;
+    margin: 2px 0 12px 14px; border-radius: 14px;
+  }
+  .plan .planHead { grid-area: head; padding: 0 14px 12px; border-bottom: 0; }
+  /* Without a cover there is nothing beside it, so the head has the width. */
+  .plan:not(:has(.planImg)) .planHead { grid-column: 1 / -1; }
+  .plan .planList { grid-area: list; min-height: 0; border-top: 1px solid var(--border); padding-top: 4px; }
+  .plan .detailTitle { padding-right: 38px; font-size: 21px; }
+  .plan .detailMeta { font-size: 12.5px; }
+  .plan .kind { font-size: 11px; }
+  /* Both of them on one line: the trip, and keeping it. */
+  .plan .acts > :first-child { flex: 1 1 auto; }
   @keyframes sheetUp { from { transform: translateY(100%); } }
   .planImg { aspect-ratio: 5 / 2; }
   .stage[data-route] .panel { display: none; }
