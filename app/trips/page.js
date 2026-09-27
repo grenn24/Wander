@@ -25,9 +25,7 @@ import {
 } from '@/lib/favourites';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
-import {
-  keepCovers, keepTripCount, mergeCovers, readCovers, readTripCount,
-} from '@/lib/tripCovers';
+import { keepTripCount, readTripCount } from '@/lib/tripMemory';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
 
@@ -48,13 +46,6 @@ export default function TripsHome() {
   const router = useRouter();
   const [trips, setTrips] = useState([]);
   const [view, setView] = useState('list'); // cards | list
-  /*
-   * Which photo heads each trip. Borrowed covers take a second read, so the
-   * ones this device saw last time stand in until it lands and the row can
-   * ask for its picture in the first paint (lib/tripCovers).
-   */
-  const [covers, setCovers] = useState({});
-  useEffect(() => { setCovers((now) => ({ ...readCovers(), ...now })); }, []);
   /*
    * How many trips there were last time this device looked, so the line under
    * the heading is there in the first paint rather than filling in when they
@@ -149,28 +140,9 @@ export default function TripsHome() {
 
       const tripIds = rows.map((t) => t.id);
       if (!tripIds.length) {
-        setCovers({});
         setMemberCounts({});
         setSharedBy({});
-        return;
       }
-
-      // Older trips may not have a cover_ref yet. Their first located stop gives
-      // the list a useful thumbnail without changing the trip itself.
-      const { data: photos } = await supabase.from('activities')
-        .select('trip_id, photo_ref, day, sort_order')
-        .in('trip_id', tripIds)
-        .not('photo_ref', 'is', null)
-        .order('day', { ascending: true })
-        .order('sort_order', { ascending: true });
-      const nextCovers = {};
-      if (mine !== loadToken.current) return;
-      (photos || []).forEach((a) => {
-        if (!nextCovers[a.trip_id] && a.photo_ref) nextCovers[a.trip_id] = a.photo_ref;
-      });
-      const covered = mergeCovers(readCovers(), nextCovers, tripIds);
-      setCovers(covered);
-      keepCovers(covered);
 
       /*
        * Whose trips these are, where the join above was refused.
@@ -271,7 +243,7 @@ export default function TripsHome() {
       timezone: t.timezone || null,
       budget: t.budget,
       notes: t.notes || '',
-      cover_ref: t.cover_ref || covers[t.id] || null,
+      cover_ref: t.cover_ref || null,
     }).select().single();
     if (error || !copy) { fail(error || new Error('Could not copy that trip.')); return; }
 
@@ -410,7 +382,7 @@ export default function TripsHome() {
                 const status = tripStatus(t);
                 const from = sharedBy[t.id];
                 const people = memberCounts[t.id] || 1;
-                const coverRef = t.cover_ref || covers[t.id] || null;
+                const coverRef = t.cover_ref || null;
                 const shared = from ? (
                   <span className="sharedpill" data-tip={`${from} owns this trip`}>
                     <UserRound size={11} aria-hidden="true" />
