@@ -17,6 +17,7 @@ import {
   readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
 } from '@/lib/favourites';
 import { useApp } from '@/components/AppProvider';
+import useSheetDrag from '@/components/useSheetDrag';
 import { coverURL } from '@/lib/tripCover';
 import { dayColor } from '@/components/GoogleMap';
 import { inkOn } from '@/components/mapPin';
@@ -124,6 +125,7 @@ export default function GlobeView() {
   const aimed = useRef(false);
   const arrived = useRef(false);
   const stageRef = useRef(null);
+  const panelRef = useRef(null);
   const planRef = useRef(null);
   /*
    * How much of the screen an open trip's sheet takes on a phone. Its days
@@ -132,6 +134,26 @@ export default function GlobeView() {
    */
   const PLAN_SIZES = ['name', 'days', 'tall'];
   const [planSize, setPlanSize] = useState('days');
+  // And pulled to any of them, which is what a grip looks like it is for.
+  const planDrag = useSheetDrag({
+    ref: planRef, sizes: PLAN_SIZES, size: planSize, onSize: setPlanSize,
+  });
+  /*
+   * The sheet of your own places pulls the same way. Its three sizes are kept
+   * as two pieces of state rather than one word, so they are put on and taken
+   * off the element by hand while it is being measured.
+   */
+  const PANEL_SIZES = ['shut', 'some', 'all'];
+  const panelDrag = useSheetDrag({
+    ref: panelRef,
+    sizes: PANEL_SIZES,
+    size: collapsed ? 'shut' : open ? 'all' : 'some',
+    apply: (el, name) => {
+      el.toggleAttribute('data-collapsed', name === 'shut');
+      el.toggleAttribute('data-open', name === 'all');
+    },
+    onSize: (name) => { fold(name === 'shut'); setOpen(name === 'all'); },
+  });
   /*
    * How far the cards over the globe reach in from its top and foot, so it can
    * aim a place into what is left rather than behind them. On a phone an open
@@ -772,11 +794,15 @@ export default function GlobeView() {
           <Earth size={18} />
         </button>
 
-        <aside className={s.panel} data-open={open ? '' : undefined} data-collapsed={collapsed ? '' : undefined}
+        <aside ref={panelRef} className={s.panel} data-open={open ? '' : undefined} data-collapsed={collapsed ? '' : undefined}
           aria-label="Your places">
           <button type="button" className={s.grip} aria-expanded={open && !collapsed}
             aria-label={open && !collapsed ? 'Show less' : 'Show all your places'}
-            onClick={() => { if (collapsed) { fold(false); setOpen(true); } else setOpen((o) => !o); }}>
+            {...panelDrag.handlers}
+            onClick={() => {
+              if (panelDrag.dragged()) return;
+              if (collapsed) { fold(false); setOpen(true); } else setOpen((o) => !o);
+            }}>
             <span />
           </button>
           <div className={s.top}>
@@ -904,7 +930,12 @@ export default function GlobeView() {
             <button type="button" className={s.planGrip} aria-expanded={planSize !== 'name'}
               aria-label={planSize === 'tall' ? 'Show the globe, and this trip by name'
                 : planSize === 'days' ? 'Show all of this trip' : "Show this trip's days"}
-              onClick={() => setPlanSize((now) => PLAN_SIZES[(PLAN_SIZES.indexOf(now) + 1) % PLAN_SIZES.length])}>
+              {...planDrag.handlers}
+              onClick={() => {
+                // A drag has already said what size it wanted.
+                if (planDrag.dragged()) return;
+                setPlanSize((now) => PLAN_SIZES[(PLAN_SIZES.indexOf(now) + 1) % PLAN_SIZES.length]);
+              }}>
               <span />
             </button>
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>

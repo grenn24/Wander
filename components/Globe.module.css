@@ -261,7 +261,7 @@
   .panel {
     top: auto; right: 0; bottom: 0; left: 0; width: auto; max-height: 46dvh;
     border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom);
-    transition: max-height .28s var(--ease);
+    transition: max-height .28s var(--ease), height .28s var(--ease);
   }
   .panel[data-open] { max-height: 84dvh; }
   /*
@@ -274,7 +274,7 @@
     transition: transform .3s var(--ease), visibility 0s linear .3s;
   }
   .panel {
-    transition: max-height .28s var(--ease), transform .3s var(--ease), visibility 0s linear 0s;
+    transition: max-height .28s var(--ease), height .28s var(--ease), transform .3s var(--ease), visibility 0s linear 0s;
   }
   .grip {
     display: grid; place-items: center; flex: none; width: 100%; height: 24px;
@@ -317,7 +317,7 @@
     border-radius: 22px 22px 0 0; border-bottom: 0;
     padding-bottom: env(safe-area-inset-bottom);
     animation: sheetUp .3s var(--ease);
-    transition: max-height .28s var(--ease);
+    transition: max-height .28s var(--ease), height .28s var(--ease);
   }
   /*
    * The sheet opened across half the phone, which left the map holding a
@@ -335,6 +335,17 @@
   }
   .planGrip span { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); }
   .planGrip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 12px; }
+
+  /*
+   * Being pulled. The finger sets the height, so nothing may animate towards
+   * one — including while the sizes are being measured off the sheet — and the
+   * days have to be there the whole way up, not appear at the top.
+   */
+  .grip, .planGrip { touch-action: none; }
+  .plan[data-dragging], .plan[data-measuring],
+  .panel[data-dragging], .panel[data-measuring] { transition: none; }
+  .plan[data-dragging] { overflow: hidden; }
+  .plan[data-dragging] .planList { display: block; }
   .plan .planImg {
     grid-area: img; width: 54px; height: 54px; aspect-ratio: auto;
     margin: 0 0 10px 14px; border-radius: 13px;
