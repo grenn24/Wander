@@ -96,28 +96,32 @@ export default function TripsHome() {
     setLoading(true);
     try {
       /*
-       * The trips, and who is on each of them, in one read.
+       * The trips, who is on each of them, and which are yours to keep, in one
+       * read.
        *
-       * Who a trip is shared with used to be a second read after the list was
-       * drawn, so "3 travellers" and "Shared by …" arrived in rows that were
-       * already on the screen. They come with the trips now. Should a server
-       * refuse the join — an older database, a policy that will not follow it
-       * — the plain read and the second call are still there behind it.
+       * All three used to be their own calls, and the last two landed after
+       * the list was drawn: "3 travellers", "Shared by …" and a heart filling
+       * in on a row the reader was already looking at. A trip's members and a
+       * reader's own favourites both hang off the trip, so the one read brings
+       * them. Should a server refuse the join — a database without the
+       * favourites table, a policy that will not follow it — the plain read
+       * and the separate calls are still there behind it.
        */
-      const withMembers = await readWithSessionRecovery(supabase, () => supabase.from('trips')
-        .select('*, trip_members(display_name, email, role)')
+      const together = await readWithSessionRecovery(supabase, () => supabase.from('trips')
+        .select('*, trip_members(display_name, email, role), favourites(id)')
         .order('start_date', { ascending: false }));
-      const joined = !withMembers.error;
-      const { data, error } = joined ? withMembers : await readWithSessionRecovery(supabase, () =>
+      const joined = !together.error;
+      const { data, error } = joined ? together : await readWithSessionRecovery(supabase, () =>
         supabase.from('trips').select('*').order('start_date', { ascending: false }));
       if (mine !== loadToken.current) return;
       if (error) throw error;
 
-      // The rows stay as they were: everything else in the app reads a trip, not its members.
+      // The rows stay as they were: everything else in the app reads a trip, not what hangs off it.
       const rows = [];
       const counts = {};
       const by = {};
-      (data || []).forEach(({ trip_members: onIt, ...trip }) => {
+      const kept = noFavourites();
+      (data || []).forEach(({ trip_members: onIt, favourites: keptByMe, ...trip }) => {
         rows.push(trip);
         if (!joined) return;
         const members = onIt || [];
@@ -126,18 +130,22 @@ export default function TripsHome() {
         if (owner && trip.owner_id !== (user && user.id)) {
           by[trip.id] = owner.display_name || (owner.email || '').split('@')[0] || 'someone else';
         }
+        // Only a reader's own favourites come back, so any row at all is theirs.
+        if ((keptByMe || []).length) kept.trips.add(trip.id);
       });
       setTrips(rows);
-      if (joined) { setMemberCounts(counts); setSharedBy(by); }
+      if (joined) { setMemberCounts(counts); setSharedBy(by); setFavs(kept); }
       // For the next visit's first paint (see knownCount above).
       keepTripCount(rows.length);
       setLoading(false);
 
-      readFavourites(supabase).then((f) => {
-        if (mine === loadToken.current) setFavs(f);
-      }).catch((e) => {
-        if (mine === loadToken.current && favouritesMissing(e)) setCanFavourite(false);
-      });
+      if (!joined) {
+        readFavourites(supabase).then((f) => {
+          if (mine === loadToken.current) setFavs(f);
+        }).catch((e) => {
+          if (mine === loadToken.current && favouritesMissing(e)) setCanFavourite(false);
+        });
+      }
 
       const tripIds = rows.map((t) => t.id);
       if (!tripIds.length) {
