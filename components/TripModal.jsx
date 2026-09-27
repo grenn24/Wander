@@ -5,6 +5,7 @@ import { CURRENCIES, dayRange } from '@/lib/util';
 import TimezoneField from '@/components/TimezoneField';
 import Select from '@/components/Select';
 import DateField from '@/components/DateField';
+import TripCover from '@/components/TripCover';
 import { useModalChrome } from '@/lib/useModal';
 
 const TAB_ICONS = { details: SlidersHorizontal, people: Users, offline: Download, calendar: CalendarDays };
@@ -19,6 +20,15 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
   const dirty = JSON.stringify(draft) !== pristine.current;
 
   const set = (patch) => onChange({ ...draft, ...patch });
+
+  /*
+   * The cover saves itself, so it must not leave the dialog looking unsaved:
+   * fold it into what the dialog considers untouched as well as into the draft.
+   */
+  const covered = (patch) => {
+    pristine.current = JSON.stringify({ ...JSON.parse(pristine.current), ...patch });
+    onChange({ ...draft, ...patch });
+  };
 
   const start = draft.start_date || '';
   const end = draft.end_date || '';
@@ -86,6 +96,7 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
               placeholder="Tokyo & Nagoya" onKeyDown={onEnter}
               onChange={(e) => set({ destination: e.target.value })} />
           </div>
+          {draft.id ? <TripCover trip={draft} onChange={covered} /> : null}
           <TimezoneField id="trip-timezone" value={draft.timezone} onChange={(timezone) => set({ timezone })} />
           <p className="tiny dim">Use the destination’s local time. Flights have their own departure and arrival zones.</p>
           <div className="row">

@@ -95,6 +95,9 @@ alter table public.activities add column if not exists photo_ref text;
 alter table public.activities add column if not exists subtype text;
 alter table public.activities add column if not exists details  jsonb not null default '{}'::jsonb;
 alter table public.trips      add column if not exists cover_ref text;
+-- A cover of the trip's own: the path of a picture in the trip-covers bucket
+-- (supabase/migrations/20260927090000_trip_covers.sql), uploaded or drawn for it.
+alter table public.trips      add column if not exists cover_path text;
 
 alter table public.trips add column if not exists timezone text;
 alter table public.trips add column if not exists budget_member_ids uuid[];

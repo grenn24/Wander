@@ -16,6 +16,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import useKept from '@/components/useKept';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
+import { COVER_BUCKET, coverPathFor, coverURL } from '@/lib/tripCover';
 import TravelArt from '@/components/TravelArt';
 import HomeNav from '@/components/HomeNav';
 import JourneyRail from '@/components/JourneyRail';
@@ -247,6 +248,17 @@ export default function TripsHome() {
     }).select().single();
     if (error || !copy) { fail(error || new Error('Could not copy that trip.')); return; }
 
+    /*
+     * A cover of its own is a file, and two trips must not share one: deleting
+     * one trip's cover would empty the other's. So the copy gets a copy of the
+     * file, and if that will not happen it simply starts without a cover.
+     */
+    if (t.cover_path) {
+      const path = coverPathFor(copy.id);
+      const { error: copyError } = await supabase.storage.from(COVER_BUCKET).copy(t.cover_path, path);
+      if (!copyError) await supabase.from('trips').update({ cover_path: path }).eq('id', copy.id);
+    }
+
     const { data: acts } = await supabase.from('activities')
       .select('day, start_time, end_time, title, category, location, cost, notes,'
         + ' place_id, photo_ref, sort_order, subtype, details')
@@ -264,6 +276,11 @@ export default function TripsHome() {
     if (!supabase) return;
     setConfirmKill(null);
     setMenuFor(null);
+    // Before the trip goes: whether its cover may be taken away is decided by
+    // membership of a trip that is about to stop existing.
+    if (t.cover_path) {
+      try { await supabase.storage.from(COVER_BUCKET).remove([t.cover_path]); } catch { /* left behind */ }
+    }
     const { error } = await supabase.from('trips').delete().eq('id', t.id);
     if (error) { fail(error); return; }
     await removeDownload(t.id).catch(() => {});
@@ -382,7 +399,7 @@ export default function TripsHome() {
                 const status = tripStatus(t);
                 const from = sharedBy[t.id];
                 const people = memberCounts[t.id] || 1;
-                const coverRef = t.cover_ref || null;
+                const cover = coverURL(t, 104);
                 const shared = from ? (
                   <span className="sharedpill" data-tip={`${from} owns this trip`}>
                     <UserRound size={11} aria-hidden="true" />
@@ -395,7 +412,7 @@ export default function TripsHome() {
                 if (view === 'list') {
                   return (
                     <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="triprow">
-                      <PlacePhoto photoRef={coverRef} category="other" icon={MapPin}
+                      <PlacePhoto src={cover} category="other" icon={MapPin}
                         size={52} rounded={16} alt="" />
                       <span className="triprow-main">
                         <span className="triprow-name">{t.name}</span>

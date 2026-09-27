@@ -17,6 +17,7 @@ import {
   readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
 } from '@/lib/favourites';
 import { useApp } from '@/components/AppProvider';
+import { coverURL } from '@/lib/tripCover';
 import { dayColor } from '@/components/GoogleMap';
 import { inkOn } from '@/components/mapPin';
 import { searchPlaces, placeDetails } from '@/lib/geo';
@@ -163,7 +164,7 @@ export default function GlobeView() {
        * trips now, and the other two go out beside them.
        */
       const withStops = () => supabase.from('trips')
-        .select('id, name, destination, start_date, end_date, cover_ref,'
+        .select('id, name, destination, start_date, end_date, cover_ref, cover_path,'
           + ' activities(id, trip_id, title, lat, lng, location, category, photo_ref, place_id, day, start_time, sort_order)')
         .not('activities.lat', 'is', null)
         .limit(2000, { referencedTable: 'activities' });
@@ -178,7 +179,7 @@ export default function GlobeView() {
       let a = (rows || []).flatMap((t) => t.activities || []);
       if (trip.error) {
         const plain = await readWithSessionRecovery(supabase, () =>
-          supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref'));
+          supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref, cover_path'));
         if (plain.error) throw plain.error;
         rows = plain.data;
         const ids = (rows || []).map((x) => x.id);
@@ -604,7 +605,7 @@ export default function GlobeView() {
         kind: KIND[point.kind],
         title: trip.name,
         meta: [fmtRange(trip.start_date, trip.end_date), count].filter(Boolean).join(' · '),
-        image: trip.cover_ref ? photoURL(trip.cover_ref, 680) : point.photo_ref ? photoURL(point.photo_ref, 680) : null,
+        image: coverURL(trip, 680) || (point.photo_ref ? photoURL(point.photo_ref, 680) : null),
         href: `/trips/${trip.id}/itinerary`,
         open: 'Open trip',
         target: { tripId: trip.id },

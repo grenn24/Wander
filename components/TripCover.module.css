@@ -1,0 +1,35 @@
+.wrap { display: grid; gap: 8px; }
+
+.shot {
+  position: relative;
+  aspect-ratio: 16 / 7;
+  max-height: 150px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+}
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.empty { border: 1px dashed var(--border-strong); background: var(--surface-0); }
+
+.none {
+  display: inline-flex; align-items: center; gap: 7px;
+  color: var(--text-3); font-size: .82rem;
+}
+
+.busy {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+  color: var(--text-2); font-size: .82rem;
+}
+.spin { animation: cover-spin 1s linear infinite; }
+@keyframes cover-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Its own button says it better; the input is only here to open the picker. */
+.file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.problem { color: var(--danger); margin: 0; }

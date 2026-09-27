@@ -28,6 +28,7 @@ const ActivityModal = dynamic(() => import('@/components/ActivityModal'));
 const TripModal = dynamic(() => import('@/components/TripModal'));
 import useKept from '@/components/useKept';
 import { todayISO } from '@/lib/util';
+import { COVER_BUCKET } from '@/lib/tripCover';
 import { placeDetails } from '@/lib/geo';
 
 export default function TripTabPage({ params }) {
@@ -139,6 +140,11 @@ export default function TripTabPage({ params }) {
 
   async function deleteTrip() {
     if (!supabase) return;
+    // The cover first: taking it away is allowed to a member of this trip, and
+    // in a moment there will be no trip to be a member of.
+    if (trip.cover_path) {
+      try { await supabase.storage.from(COVER_BUCKET).remove([trip.cover_path]); } catch { /* left behind */ }
+    }
     const { error } = await supabase.from('trips').delete().eq('id', trip.id);
     if (error) { fail(error); return; }
     await removeDownload(trip.id).catch(() => {});
