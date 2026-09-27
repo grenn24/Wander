@@ -153,37 +153,60 @@ export default function GlobeView() {
     setLoading(true);
     setLoadError('');
     try {
-      const { data: t, error: tErr } = await readWithSessionRecovery(supabase, () =>
-        supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref'));
-      if (tErr) throw tErr;
-      const ids = (t || []).map((x) => x.id);
-      let a = [];
-      if (ids.length) {
-        const { data, error } = await supabase.from('activities')
-          .select('id, trip_id, title, lat, lng, location, category, photo_ref, place_id, day, start_time, sort_order')
-          .in('trip_id', ids)
-          .not('lat', 'is', null)
-          .limit(5000);
-        if (error) throw error;
-        a = data || [];
+      /*
+       * Everything the globe is made of, asked for at once.
+       *
+       * It used to be four reads in a line: the trips, then their stops, then
+       * the places pinned by hand, then what is kept. Each waited on the one
+       * before it although only the stops depend on anything, and the globe
+       * stayed empty until the last of them landed. The stops come with their
+       * trips now, and the other two go out beside them.
+       */
+      const withStops = () => supabase.from('trips')
+        .select('id, name, destination, start_date, end_date, cover_ref,'
+          + ' activities(id, trip_id, title, lat, lng, location, category, photo_ref, place_id, day, start_time, sort_order)')
+        .not('activities.lat', 'is', null)
+        .limit(2000, { referencedTable: 'activities' });
+      const [trip, place, keep] = await Promise.all([
+        readWithSessionRecovery(supabase, withStops),
+        supabase.from('saved_places').select('*').order('created_at', { ascending: true }),
+        readFavourites(supabase).then((favs) => ({ favs })).catch((error) => ({ error })),
+      ]);
+
+      // A server that will not follow the join still gets its trips, then their stops.
+      let rows = trip.data;
+      let a = (rows || []).flatMap((t) => t.activities || []);
+      if (trip.error) {
+        const plain = await readWithSessionRecovery(supabase, () =>
+          supabase.from('trips').select('id, name, destination, start_date, end_date, cover_ref'));
+        if (plain.error) throw plain.error;
+        rows = plain.data;
+        const ids = (rows || []).map((x) => x.id);
+        a = [];
+        if (ids.length) {
+          const { data, error } = await supabase.from('activities')
+            .select('id, trip_id, title, lat, lng, location, category, photo_ref, place_id, day, start_time, sort_order')
+            .in('trip_id', ids)
+            .not('lat', 'is', null)
+            .limit(5000);
+          if (error) throw error;
+          a = data || [];
+        }
       }
-      const { data: rows, error: sErr } = await supabase.from('saved_places')
-        .select('*').order('created_at', { ascending: true });
-      if (sErr) {
-        if (!missingTable(sErr)) throw sErr;
+
+      if (place.error) {
+        if (!missingTable(place.error)) throw place.error;
         setNoTable(true);
       }
-      let f = noFavourites();
-      try {
-        f = await readFavourites(supabase);
-      } catch (e) {
-        if (!favouritesMissing(e)) throw e;
+      if (keep.error) {
+        if (!favouritesMissing(keep.error)) throw keep.error;
         setNoFavTable(true);
       }
-      setTrips(t || []);
+      // The trips themselves, without the stops hanging off them.
+      setTrips((rows || []).map(({ activities, ...t }) => t));
       setActs(a);
-      setSaved(rows || []);
-      setFavs(f);
+      setSaved(place.data || []);
+      setFavs(keep.favs || noFavourites());
     } catch (e) {
       setLoadError(humanError(e));
     } finally {
