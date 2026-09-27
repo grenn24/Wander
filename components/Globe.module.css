@@ -319,7 +319,10 @@
     animation: sheetUp .3s var(--ease);
     transition: max-height .28s var(--ease);
   }
-  .plan[data-tall] { max-height: 88dvh; }
+  .plan[data-size="tall"] { max-height: 88dvh; }
+  /* Down to its name, for when the globe is what is wanted. */
+  .plan[data-size="name"] { max-height: none; }
+  .plan[data-size="name"] .planList { display: none; }
   .planGrip {
     grid-area: grip; display: grid; place-items: center; width: 100%; height: 26px;
     padding: 0; border: 0; background: transparent; cursor: pointer;

@@ -124,8 +124,13 @@ export default function GlobeView() {
   const arrived = useRef(false);
   const stageRef = useRef(null);
   const planRef = useRef(null);
-  // An open trip's sheet on a phone, pulled up to read the whole of its days.
-  const [planTall, setPlanTall] = useState(false);
+  /*
+   * How much of the screen an open trip's sheet takes on a phone. Its days
+   * ('days'), all of them over the globe ('tall'), or its name alone with the
+   * globe behind it ('name'). The grip goes up a step, and round from the top.
+   */
+  const PLAN_SIZES = ['name', 'days', 'tall'];
+  const [planSize, setPlanSize] = useState('days');
   /*
    * How far the cards over the globe reach in from its top and foot, so it can
    * aim a place into what is left rather than behind them. On a phone an open
@@ -621,9 +626,9 @@ export default function GlobeView() {
     };
   })();
 
-  // Each trip opens at the sheet's own height, however the last one was left.
+  // Each trip opens showing its days, however the last one was left.
   const planKey = plan ? plan.key : null;
-  useEffect(() => { setPlanTall(false); }, [planKey]);
+  useEffect(() => { setPlanSize('days'); }, [planKey]);
 
   /*
    * The open stop's card, with its photograph: the one saved with it, or
@@ -868,11 +873,12 @@ export default function GlobeView() {
         </aside>
 
         {plan ? (
-          <aside ref={planRef} className={s.plan} data-tall={planTall ? '' : undefined}
+          <aside ref={planRef} className={s.plan} data-size={planSize}
             aria-label={`${plan.title}: its places`} key={plan.key}>
-            <button type="button" className={s.planGrip} aria-expanded={planTall}
-              aria-label={planTall ? 'Show less of this trip' : 'Show more of this trip'}
-              onClick={() => setPlanTall((t) => !t)}>
+            <button type="button" className={s.planGrip} aria-expanded={planSize !== 'name'}
+              aria-label={planSize === 'tall' ? 'Show the globe, and this trip by name'
+                : planSize === 'days' ? 'Show all of this trip' : "Show this trip's days"}
+              onClick={() => setPlanSize((now) => PLAN_SIZES[(PLAN_SIZES.indexOf(now) + 1) % PLAN_SIZES.length])}>
               <span />
             </button>
             <button type="button" className={s.detailX} aria-label="Close" onClick={() => select(null)}>
