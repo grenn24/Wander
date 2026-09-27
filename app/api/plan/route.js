@@ -24,7 +24,7 @@ export const maxDuration = 300;
 const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
 
 /*
- * Every field the app can actually keep about a journey, taken from the same
+ * Every field the app can actually keep about a guide, taken from the same
  * table the editor builds its form from.
  *
  * This is the fix for a whole class of complaint. The planner used to be given
@@ -120,7 +120,7 @@ const SCHEMA = {
                 requested: {
                   type: 'boolean',
                   description: 'True only when this exact activity was requested by the traveller, '
-                    + 'is an explicitly requested journey, or is an existing calendar commitment. '
+                    + 'is an explicitly requested guide, or is an existing calendar commitment. '
                     + 'False for suggested meals, nearby attractions, rest, check-ins, transfers, '
                     + 'and other filler that the traveller did not name.',
                 },
@@ -139,12 +139,12 @@ const SYSTEM = `You plan travel itineraries that a real traveller could actually
 Rules:
 - The traveller's constraints override every default below. Words such as
   "only", "exclusively", "nothing else", and "no other activities" are hard
-  limits. Include the named places and explicitly requested journeys only.
+  limits. Include the named places and explicitly requested guides only.
   Do not add meals, attractions, shopping, hotels, transfers, rest blocks, or
   other filler. Sparse and empty days are correct when the traveller asked for
   a short fixed list across a longer trip.
 - Set requested true only for an activity explicitly named in the request, an
-  explicitly requested journey, or an existing calendar commitment. Similar,
+  explicitly requested guide, or an existing calendar commitment. Similar,
   nearby, or normally necessary activities are not requested.
 - When there is no exclusive constraint, keep each day realistic: 3 to 5
   activities, geographically sensible, no zig-zagging across a city and back.
@@ -152,7 +152,7 @@ Rules:
   Asakusa, Tokyo", not "a nice temple". Leave it blank rather than invent one.
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
   (opening hours, transport, bookings) and leave others null.
-- For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line journeys. Never guess a missing booking time.
+- For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line guides. Never guess a missing booking time.
 - Costs are per person in the trip currency, as plain numbers. Use 0 when free,
   and give a real estimate rather than 0 for things that plainly cost money.
 - Fill in every field you have an answer for. An end time wherever the length
@@ -170,7 +170,7 @@ Rules:
   and say which kind it is in "subtype". A Grab, a taxi or an airport pick-up
   is "transfer" — it is not a flight. Leave it null if you genuinely cannot
   tell; a wrong one is worse than none, because it puts an airline and a gate
-  on a car journey.
+  on a car guide.
 - If the request names no dates, choose a sensible near-future start and say so
   in the summary.
 - Write the trip name, destination and summary first, then the days in order.
@@ -249,7 +249,7 @@ function corrector(events) {
   };
 }
 
-/** The filled-in details of a journey, and nothing else. */
+/** The filled-in details of a guide, and nothing else. */
 function cleanDetails(a) {
   if (cleanCategory(a.category) === 'lodging') return cleanLodging(a.details);
   if (cleanCategory(a.category) !== 'transport') return {};
@@ -275,7 +275,7 @@ function cleanActivity(a, fix) {
       && TRANSPORT_IDS.includes(it.subtype) ? it.subtype : null,
     end_time: cleanTime(it.end_time),
     booking_ref: String(it.booking_ref || '').trim().slice(0, 120),
-    /* Only what this kind of journey actually has, and only what was filled
+    /* Only what this kind of guide actually has, and only what was filled
        in — a jsonb full of nulls is a row that looks answered and is not. */
     details: cleanDetails(it),
     location: String(it.location || '').trim().slice(0, 300),
@@ -468,7 +468,7 @@ ${prompt}`,
   const scopeBlock = strictOnly ? `
 
 HARD EXCLUSIVE SCOPE:
-The traveller asked for only the activities or journeys they named. Do not fill
+The traveller asked for only the activities or guides they named. Do not fill
 unused time. Every activity not explicitly requested must have requested=false
 and will be removed before the traveller sees it.` : '';
 
@@ -520,7 +520,7 @@ and will be removed before the traveller sees it.` : '';
   // the saved trip cannot disagree about what something is called.
   const fix = corrector(mine && mine.events);
   const includeActivity = (activity) => !strictOnly || activity.requested === true;
-  const exclusiveSummary = 'Only the places and journeys you requested are included. '
+  const exclusiveSummary = 'Only the places and guides you requested are included. '
     + 'The remaining time is left open.';
 
   const encoder = new TextEncoder();

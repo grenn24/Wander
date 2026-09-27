@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { imageURL, sourceOf } from '@/lib/journeyFormat';
+import { imageURL, sourceOf } from '@/lib/guideFormat';
 import {
   X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut,
 } from 'lucide-react';

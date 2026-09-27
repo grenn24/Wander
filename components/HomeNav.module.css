@@ -17,7 +17,7 @@
 .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* A phone has room for three words or three icons, not both. Words, because
-   a globe icon and a book icon are guesses and "Journeys" is not. */
+   a globe icon and a book icon are guesses and "Guides" is not. */
 @media (max-width: 560px) {
   .item svg { display: none; }
   .item { padding: 0 10px; font-size: 13px; min-height: 30px; }

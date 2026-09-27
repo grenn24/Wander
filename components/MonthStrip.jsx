@@ -1,5 +1,5 @@
-import { MONTHS, monthFit } from '@/lib/journeyKit';
-import s from './Journeys.module.css';
+import { MONTHS, monthFit } from '@/lib/guideKit';
+import s from './Guides.module.css';
 
 function list(months) {
   const names = months.map((m) => MONTHS[m - 1]);
@@ -7,7 +7,7 @@ function list(months) {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
-/** The year as twelve bars: when a journey is at its best, good, or wrong. */
+/** The year as twelve bars: when a guide is at its best, good, or wrong. */
 export function seasonSentence(j) {
   const parts = [`Best in ${list(j.months.best)}`];
   if (j.months.good.length) parts.push(`good in ${list(j.months.good)}`);
@@ -15,12 +15,12 @@ export function seasonSentence(j) {
   return `${parts.join('; ')}.`;
 }
 
-export default function MonthStrip({ journey, highlight = 0, large = false }) {
+export default function MonthStrip({ guide, highlight = 0, large = false }) {
   return (
     <span className={`${s.months}${large ? ` ${s.monthsLg}` : ''}`} role="img"
-      aria-label={seasonSentence(journey)}>
+      aria-label={seasonSentence(guide)}>
       {MONTHS.map((m, i) => (
-        <span key={m} className={s.month} data-fit={monthFit(journey, i + 1)}
+        <span key={m} className={s.month} data-fit={monthFit(guide, i + 1)}
           data-on={highlight === i + 1 ? '' : undefined}>
           <i />
           {large ? <b>{m[0]}</b> : null}

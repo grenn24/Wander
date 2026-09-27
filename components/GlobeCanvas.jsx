@@ -92,7 +92,7 @@ function loadAreas(code) {
  *
  * Places are photographs (see globeMarker). Far out, the countries you have
  * been to and are going to are outlined and their areas filled, and their
- * towns' markers give way to them; closer in the markers come back. Journeys,
+ * towns' markers give way to them; closer in the markers come back. Guides,
  * favourite or not, stay markers throughout: somewhere in particular, not
  * somewhere you have been.
  *
@@ -351,7 +351,7 @@ export default function GlobeCanvas({
    * The globe draws markers in the order they were added, with no z-index to
    * say otherwise, so the chosen marker is kept last, on top of any neighbour
    * it overlaps. That has to hold whenever markers are added, not only when one
-   * is chosen: choose the Kyoto journey from space and fly in, and the town
+   * is chosen: choose the Kyoto guide from space and fly in, and the town
    * markers that come back on the way down — Higashiyama Ward among them, a few
    * kilometres off — were added after it and covered it, so the marker you
    * picked seemed to turn into another one.
@@ -568,7 +568,7 @@ export default function GlobeCanvas({
   }, [ready, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
-   * The chosen trip's or journey's route: a line from stop to stop, a new
+   * The chosen trip's or guide's route: a line from stop to stop, a new
    * colour for each day, and every stop numbered in order — the same colours
    * the trip's own map gives its days, walking round the hue circle, so the
    * route reads as progress. Drawn above the regions and under the
@@ -828,7 +828,7 @@ export default function GlobeCanvas({
       const now = distanceOf(map);
       /*
        * Moving to a place keeps you as close as you are, if that is closer —
-       * but only when the place is already in view. Choosing the Kyoto journey
+       * but only when the place is already in view. Choosing the Kyoto guide
        * while at street level in Tokyo, 400 km away, would otherwise land at
        * street level somewhere in the middle of it and show none of its route.
        */

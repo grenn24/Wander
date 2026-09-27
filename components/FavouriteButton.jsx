@@ -3,7 +3,7 @@ import { Heart } from 'lucide-react';
 import s from './FavouriteButton.module.css';
 
 /**
- * The heart that favourites a trip or a journey.
+ * The heart that favourites a trip or a guide.
  *
  * `compact` is the icon alone, for a card that is itself a link — it stops the
  * click there so favouriting a trip does not also open it. Otherwise it is a

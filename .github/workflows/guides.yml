@@ -1,0 +1,72 @@
+name: Guides
+
+# The guide service: writes new guides and keeps published ones current.
+# Runs weekly on its own, or by hand from the Actions tab with a command.
+#
+# Needs repository secrets: OPENAI_API_KEY, PLACES_API_KEY, SUPABASE_URL (the
+# production API URL) and SUPABASE_SERVICE_ROLE_KEY. UNSPLASH_ACCESS_KEY and
+# YOUTUBE_DATA_API_KEY add photographs and videos. Until the required ones
+# exist, runs skip instead of failing.
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      command:
+        description: What to do
+        type: choice
+        options: [status, weekly, add, discover, write, refresh, media, import-defaults]
+        default: status
+      brief:
+        description: For add, the guide to write
+        type: string
+        required: false
+      limit:
+        description: How many guides to write or refresh
+        type: string
+        default: '5'
+
+concurrency:
+  group: guides
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+      YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GUIDE_COMMAND: ${{ inputs.command || 'weekly' }}
+      GUIDE_BRIEF: ${{ inputs.brief }}
+      GUIDE_LIMIT: ${{ inputs.limit || '5' }}
+    steps:
+      - name: Check secrets
+        id: ready
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$PLACES_API_KEY" ] || [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice::Guide secrets are not set yet, so nothing ran."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.ready.outputs.ok == 'true'
+      - name: Run the guide service
+        if: steps.ready.outputs.ok == 'true'
+        run: npm run guides -- "$GUIDE_COMMAND"

@@ -2,7 +2,7 @@
  * The one map marker: a circle with a white ring, a number or a photograph in
  * it, and the colour of the day or the kind of place it marks.
  *
- * It is the journal's route map's pin (Journeys.module.css, .pin), made into
+ * It is the journal's route map's pin (Guides.module.css, .pin), made into
  * something every map can use — the trip map on flat and 3D ground, and the
  * globe — so a stop looks the same wherever it is shown, and responds the same
  * way: a pointer over it enlarges it with a halo in its own colour, the chosen

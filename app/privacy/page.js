@@ -37,7 +37,7 @@ export default function Privacy() {
         </li>
         <li>
           <b>Places on your globe.</b> Places you save as somewhere you have been or want to
-          go: the name, address and coordinates, and the journey it came from if it did. Only
+          go: the name, address and coordinates, and the guide it came from if it did. Only
           you can see them.
         </li>
         <li>
@@ -142,12 +142,12 @@ export default function Privacy() {
           for and the coordinates being shown.
         </li>
         <li>
-          <b>Unsplash</b> and <b>Wikimedia Commons</b> — serve the photographs in journeys.
+          <b>Unsplash</b> and <b>Wikimedia Commons</b> — serve the photographs in guides.
           Your browser requests each photograph from whichever of the two it came from when
-          a journey page shows it.
+          a guide page shows it.
         </li>
         <li>
-          <b>YouTube</b> — only when you press play on a journey&rsquo;s video. Until then only
+          <b>YouTube</b> — only when you press play on a guide&rsquo;s video. Until then only
           a still image is shown; pressing play loads YouTube&rsquo;s privacy-enhanced player,
           and YouTube then receives that request.
         </li>

@@ -178,7 +178,7 @@ paste as **one transaction**, so one failing statement rolls back the lot.
 
 `lib/ai.js` routes seven tasks across two model tiers and three effort levels.
 `plan` and `command` use `gpt-5.5`, named in the code; everything else uses
-`OPENAI_MODEL`. The journey service (`scripts/journeys`) uses `gpt-5.5` at high
+`OPENAI_MODEL`. The guide service (`scripts/guides`) uses `gpt-5.5` at high
 effort through the Responses API with web search.
 
 Every call is **single-shot structured output** — a strict JSON schema, one

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "dev:plain": "next dev",
-    "journeys": "node --env-file-if-exists=.env.local scripts/journeys/cli.mjs"
+    "guides": "node --env-file-if-exists=.env.local scripts/guides/cli.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

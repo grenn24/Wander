@@ -186,7 +186,7 @@
 }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
-/* An open trip's or journey's places, down the right, under the whole-globe button. */
+/* An open trip's or guide's places, down the right, under the whole-globe button. */
 .plan {
   position: absolute; z-index: 6; top: 70px; right: 14px; bottom: 14px; width: 360px; max-width: calc(100% - 28px);
   display: flex; flex-direction: column; overflow: hidden;

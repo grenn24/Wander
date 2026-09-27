@@ -55,13 +55,13 @@ function rememberPhotos(found) {
 }
 // What each kind is called on screen. Inside, a completed trip is still 'been'
 // and an upcoming one 'planned', the names saved places are stored under.
-const KIND = { been: 'Completed', planned: 'Upcoming', favourite: 'Favourite', idea: 'Journey idea', preview: 'New place' };
+const KIND = { been: 'Completed', planned: 'Upcoming', favourite: 'Favourite', idea: 'Guide idea', preview: 'New place' };
 const LAYER = { been: 'Completed', planned: 'Upcoming', favourite: 'Favourites' };
 // What puts a place under each count, shown when the count is pointed at.
 const KIND_TIP = {
   been: 'Trips that have finished, and places you marked as been',
   planned: 'Trips still to come or under way, and trips without dates yet',
-  favourite: 'Trips and journeys you’ve favourited',
+  favourite: 'Trips and guides you’ve favourited',
 };
 
 // The table arrives with a migration; a database that has not had it yet
@@ -77,9 +77,9 @@ const photoURL = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w
  *
  * Nothing here has to be entered by hand to be useful: every trip with located
  * stops puts its towns on the globe, finished trips as completed and the rest
- * as upcoming. Favourites are the trips and journeys you have hearted, kept
+ * as upcoming. Favourites are the trips and guides you have hearted, kept
  * together whatever their dates. Places saved as been cover what Wander never
- * saw, and journeys sit on the globe as ideas, which is what turns looking back
+ * saw, and guides sit on the globe as ideas, which is what turns looking back
  * into planning the next one.
  */
 export default function GlobeView() {
@@ -88,7 +88,7 @@ export default function GlobeView() {
   const [trips, setTrips] = useState([]);
   const [acts, setActs] = useState([]);
   const [saved, setSaved] = useState([]);
-  const [journeys, setJourneys] = useState([]);
+  const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [noTable, setNoTable] = useState(false);
@@ -108,8 +108,8 @@ export default function GlobeView() {
   const [busy, setBusy] = useState(false);
   // The 3D Earth takes a few seconds to arrive, and until it does the stage is empty space.
   const [drawn, setDrawn] = useState(false);
-  // Journeys' stops, fetched the first time each is chosen: slug -> { stops, sections }.
-  const [journeyStops, setJourneyStops] = useState({});
+  // Guides' stops, fetched the first time each is chosen: slug -> { stops, sections }.
+  const [guideStops, setGuideStops] = useState({});
   // On an open trip: the stop chosen, and the one under a pointer, on the globe or in the list.
   const [stopIndex, setStopIndex] = useState(null);
   const [hoverStop, setHoverStop] = useState(null);
@@ -222,9 +222,9 @@ export default function GlobeView() {
 
   useEffect(() => {
     let alive = true;
-    fetch('/api/journeys')
+    fetch('/api/guides')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setJourneys((d && d.journeys) || []); })
+      .then((d) => { if (alive) setGuides((d && d.guides) || []); })
       .catch(() => {});
     try {
       if (localStorage.getItem(IDEAS_KEY) === 'off') setLayers((l) => ({ ...l, idea: false }));
@@ -237,8 +237,8 @@ export default function GlobeView() {
   const bare = useMemo(() => [
     ...tripPoints(trips, acts, today, favs.trips),
     ...savedPoints(saved),
-    ...ideaPoints(journeys, favs.journeys),
-  ], [trips, acts, saved, journeys, today, favs]);
+    ...ideaPoints(guides, favs.guides),
+  ], [trips, acts, saved, guides, today, favs]);
 
   /*
    * Photographs for towns that have none. A trip planned without place
@@ -286,24 +286,24 @@ export default function GlobeView() {
 
   /*
    * The route of whatever is chosen: every stop of the trip a town belongs to,
-   * in the order the trip visits them, or every stop of a journey in the
+   * in the order the trip visits them, or every stop of a guide in the
    * order its journal does. Drawn on the globe so a trip can be seen unfolding
    * day by day rather than as a pin or two.
    */
   const routeFor = useCallback((tripId) => tripRoute(acts.filter((a) => a.trip_id === tripId)), [acts]);
-  const chosenJourney = point && point.journey && !point.savedId ? point.journey : null;
+  const chosenGuide = point && point.guide && !point.savedId ? point.guide : null;
   useEffect(() => {
-    if (!chosenJourney || journeyStops[chosenJourney]) return undefined;
+    if (!chosenGuide || guideStops[chosenGuide]) return undefined;
     let live = true;
     // `v` changes with what a stop carries, so a copy cached before it is not used.
-    fetch(`/api/journeys/${encodeURIComponent(chosenJourney)}/stops?v=2`)
+    fetch(`/api/guides/${encodeURIComponent(chosenGuide)}/stops?v=2`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (live && d) setJourneyStops((prev) => ({ ...prev, [chosenJourney]: { stops: d.stops || [], sections: d.sections || [] } }));
+        if (live && d) setGuideStops((prev) => ({ ...prev, [chosenGuide]: { stops: d.stops || [], sections: d.sections || [] } }));
       })
       .catch(() => {});
     return () => { live = false; };
-  }, [chosenJourney, journeyStops]);
+  }, [chosenGuide, guideStops]);
   const route = useMemo(() => {
     let stops = [];
     let key = '';
@@ -311,18 +311,18 @@ export default function GlobeView() {
     if (point && point.tripId) {
       key = `trip:${point.tripId}`;
       stops = routeFor(point.tripId);
-    } else if (chosenJourney && journeyStops[chosenJourney]) {
-      key = `journey:${chosenJourney}`;
-      ({ stops, sections } = journeyStops[chosenJourney]);
+    } else if (chosenGuide && guideStops[chosenGuide]) {
+      key = `guide:${chosenGuide}`;
+      ({ stops, sections } = guideStops[chosenGuide]);
     }
     return stops.length ? { key, stops, sections, legs: routeLegs(stops) } : null;
-  }, [point && point.tripId, chosenJourney, journeyStops, routeFor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [point && point.tripId, chosenGuide, guideStops, routeFor]); // eslint-disable-line react-hooks/exhaustive-deps
   const routeKey = route ? route.key : '';
   // A different trip starts with nothing chosen along it.
   useEffect(() => { setStopIndex(null); setHoverStop(null); }, [routeKey]);
   /*
    * A stop's photograph, looked up as it is opened, the way the journal's own
-   * place card does it: a journey keeps each place's Google ID and nothing
+   * place card does it: a guide keeps each place's Google ID and nothing
    * Google returns for it, and a trip's stop may have its ID but no photograph
    * saved. The flight in gives the lookup time to land; if it has not within a
    * moment, the card opens without it rather than keep you waiting.
@@ -366,7 +366,7 @@ export default function GlobeView() {
 
   /*
    * Choosing a place flies to it, but never further out than you already are.
-   * A journey is framed from 900 km, a region, and choosing the Kyoto journey
+   * A guide is framed from 900 km, a region, and choosing the Kyoto guide
    * while looking at a street in Kyoto used to pull you all the way back out.
    */
   function select(p) {
@@ -453,7 +453,7 @@ export default function GlobeView() {
       lng: row.lng,
       place_id: row.place_id || null,
       photo_ref: row.photo_ref || null,
-      journey: row.journey || null,
+      guide: row.guide || null,
     }).select().single();
     setBusy(false);
     if (error) {
@@ -486,7 +486,7 @@ export default function GlobeView() {
   }
 
   /*
-   * Heart a trip or a journey, or take the heart away. The globe changes at
+   * Heart a trip or a guide, or take the heart away. The globe changes at
    * once; if the database refuses, it changes back and says why.
    */
   async function favourite(target, on, name) {
@@ -507,21 +507,21 @@ export default function GlobeView() {
     }
   }
 
-  // Arriving from a journey's "Add to favourites" (or an older "Save to my globe" link).
+  // Arriving from a guide's "Add to favourites" (or an older "Save to my globe" link).
   useEffect(() => {
-    if (loading || arrived.current || !journeys.length) return;
+    if (loading || arrived.current || !guides.length) return;
     const params = new URLSearchParams(window.location.search);
     const slug = params.get('favourite') || params.get('want');
     if (!slug) return;
     arrived.current = true;
     window.history.replaceState(window.history.state, '', '/globe');
-    const j = journeys.find((x) => x.slug === slug);
+    const j = guides.find((x) => x.slug === slug);
     if (!j) return;
     aimed.current = true;
-    if (!favs.journeys.has(slug)) favourite({ journey: slug }, true, j.title);
+    if (!favs.guides.has(slug)) favourite({ guide: slug }, true, j.title);
     const [p] = ideaPoints([j], new Set([slug]));
     if (p) { setSelected(p.id); setPreview(null); setAim({ camera: focusCamera(p), key: Date.now() }); }
-  }, [loading, journeys]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, guides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const q = query.trim();
@@ -568,17 +568,17 @@ export default function GlobeView() {
 
   const own = counts.been + counts.planned + counts.favourite;
   const row = point && point.savedId ? saved.find((r) => r.id === point.savedId) : null;
-  const pointJourney = point && point.journey && !point.savedId ? journeys.find((j) => j.slug === point.journey) : null;
+  const pointGuide = point && point.guide && !point.savedId ? guides.find((j) => j.slug === point.guide) : null;
 
   /*
-   * The itinerary beside the globe for an open trip or journey: what it is, a
+   * The itinerary beside the globe for an open trip or guide: what it is, a
    * way into it, and its places day by day, numbered and coloured as they are
    * on the globe. Opening a trip from any of its towns opens the whole trip.
    */
   const plan = (() => {
     if (!point) return null;
     const trip = point.tripId ? trips.find((t) => t.id === point.tripId) : null;
-    if (!trip && !pointJourney) return null;
+    if (!trip && !pointGuide) return null;
     const stops = route ? route.stops : [];
     const total = Math.max(1, ...stops.map((st) => st.section + 1));
     const days = [];
@@ -626,16 +626,16 @@ export default function GlobeView() {
         }),
       };
     }
-    const j = pointJourney;
+    const j = pointGuide;
     return {
-      key: `journey:${j.slug}`,
+      key: `guide:${j.slug}`,
       kind: KIND[point.kind],
       title: j.title,
       meta: [point.label, `${j.days[0]}–${j.days[1]} days`, count].filter(Boolean).join(' · '),
       image: point.image,
-      href: `/journeys/${j.slug}`,
-      open: 'Read the journey',
-      target: { journey: j.slug },
+      href: `/guides/${j.slug}`,
+      open: 'Read the guide',
+      target: { guide: j.slug },
       days,
       sub: () => '',
       card: (stop, i) => {
@@ -644,8 +644,8 @@ export default function GlobeView() {
           key: `${j.slug}:${i}`,
           title: stop.name,
           meta: part ? [part.kicker, part.title].filter(Boolean).join(' · ') : '',
-          action: 'Read the journey',
-          onAction: () => router.push(`/journeys/${j.slug}`),
+          action: 'Read the guide',
+          onAction: () => router.push(`/guides/${j.slug}`),
           onClose: closeStop,
         };
       },
@@ -683,7 +683,7 @@ export default function GlobeView() {
   const plannedTrips = tripRows.filter((t) => t.kind === 'planned')
     .sort((a, b) => String(a.trip.start_date || '').localeCompare(String(b.trip.start_date || '')));
   const favouriteTrips = tripRows.filter((t) => t.favourite);
-  const favouriteJourneys = all.filter((p) => p.kind === 'favourite');
+  const favouriteGuides = all.filter((p) => p.kind === 'favourite');
   const beenTrips = tripRows.filter((t) => t.kind === 'been')
     .sort((a, b) => String(b.trip.start_date || '').localeCompare(String(a.trip.start_date || '')));
   const savedBeen = saved.filter((r) => r.kind === 'been');
@@ -715,7 +715,7 @@ export default function GlobeView() {
     );
   };
 
-  const journeyItem = (p) => (
+  const guideItem = (p) => (
     <li key={p.id}>
       <button type="button" className={s.item} aria-current={selected === p.id ? 'true' : undefined}
         onClick={() => select(p)}>
@@ -727,7 +727,7 @@ export default function GlobeView() {
         </span>
         <span className={s.itemText}>
           <span className={s.itemName}>{p.name}</span>
-          <span className={s.itemSub}>{['Journey', p.label].filter(Boolean).join(' · ')}</span>
+          <span className={s.itemSub}>{['Guide', p.label].filter(Boolean).join(' · ')}</span>
         </span>
       </button>
     </li>
@@ -808,7 +808,7 @@ export default function GlobeView() {
               </div>
               <button type="button" role="switch" aria-checked={layers.idea} className={s.ideas}
                 onClick={() => toggle('idea')}>
-                <span className={s.layerL}><i className={s.dot} data-kind="idea" /> Journey ideas</span>
+                <span className={s.layerL}><i className={s.dot} data-kind="idea" /> Guide ideas</span>
                 <span className={s.switch} aria-hidden="true" />
               </button>
               <div>
@@ -865,7 +865,7 @@ export default function GlobeView() {
             ) : !own ? (
               <div className={s.empty}>
                 <p className={s.emptyTitle}>Nothing on your globe yet</p>
-                <p>Your trips land here by themselves. Heart a trip or a journey to keep it in Favourites, or search to add places you’ve been.</p>
+                <p>Your trips land here by themselves. Heart a trip or a guide to keep it in Favourites, or search to add places you’ve been.</p>
               </div>
             ) : (
               <>
@@ -875,10 +875,10 @@ export default function GlobeView() {
                     <ul className={s.items}>{plannedTrips.map(tripItem)}</ul>
                   </section>
                 ) : null}
-                {layers.favourite && (favouriteTrips.length || favouriteJourneys.length) ? (
+                {layers.favourite && (favouriteTrips.length || favouriteGuides.length) ? (
                   <section className={s.group}>
                     <h2 className={s.groupTitle}><i className={s.dot} data-kind="favourite" /> Favourites</h2>
-                    <ul className={s.items}>{favouriteTrips.map(tripItem)}{favouriteJourneys.map(journeyItem)}</ul>
+                    <ul className={s.items}>{favouriteTrips.map(tripItem)}{favouriteGuides.map(guideItem)}</ul>
                   </section>
                 ) : null}
                 {layers.been && (beenTrips.length || savedBeen.length) ? (
@@ -890,7 +890,7 @@ export default function GlobeView() {
               </>
             )}
             {!loading && !loadError ? (
-              <Link href="/journeys" className={s.browse}>
+              <Link href="/guides" className={s.browse}>
                 <BookOpen size={15} aria-hidden="true" /> Find somewhere new
               </Link>
             ) : null}
@@ -976,12 +976,12 @@ export default function GlobeView() {
               ) : row ? (
                 <>
                   {row.label ? (
-                    <p className={s.detailMeta}>{row.journey ? `From the journey “${row.label}”` : row.label}</p>
+                    <p className={s.detailMeta}>{row.guide ? `From the guide “${row.label}”` : row.label}</p>
                   ) : null}
                   <div className={s.acts}>
-                    {row.journey ? (
-                      <Link className="btn primary" href={`/journeys/${row.journey}`}>
-                        <BookOpen size={15} /> Open the journey
+                    {row.guide ? (
+                      <Link className="btn primary" href={`/guides/${row.guide}`}>
+                        <BookOpen size={15} /> Open the guide
                       </Link>
                     ) : (
                       <Link className="btn primary"

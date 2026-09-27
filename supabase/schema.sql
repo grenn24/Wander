@@ -139,15 +139,15 @@ create table if not exists public.saved_places (
   lng        double precision not null check (lng between -180 and 180),
   place_id   text,
   photo_ref  text,
-  journey    text,
+  guide      text,
   created_at timestamptz not null default now()
 );
 create index if not exists saved_places_user_idx on public.saved_places (user_id, created_at);
--- One pin per place and per journey: saving twice moves it rather than doubling it.
+-- One pin per place and per guide: saving twice moves it rather than doubling it.
 create unique index if not exists saved_places_user_place_idx
   on public.saved_places (user_id, place_id) where place_id is not null;
-create unique index if not exists saved_places_user_journey_idx
-  on public.saved_places (user_id, journey) where journey is not null;
+create unique index if not exists saved_places_user_guide_idx
+  on public.saved_places (user_id, guide) where guide is not null;
 
 alter table public.saved_places enable row level security;
 grant select, insert, update, delete on public.saved_places to authenticated;
@@ -157,23 +157,23 @@ create policy saved_places_own on public.saved_places for all to authenticated
   with check (user_id = auth.uid());
 
 -- ------------------------------------------------------------ favourites ---
--- Favourites: trips and journeys someone wants to keep close. A trip they are
--- on, whatever its dates, or a journey by its slug. They belong to a person
+-- Favourites: trips and guides someone wants to keep close. A trip they are
+-- on, whatever its dates, or a guide by its slug. They belong to a person
 -- rather than a trip — favouriting a shared trip marks it for you, not for
 -- everyone on it — so only the person who made one can see it.
 create table if not exists public.favourites (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
   trip_id    uuid references public.trips(id) on delete cascade,
-  journey    text,
+  guide      text,
   created_at timestamptz not null default now(),
-  -- One thing per favourite: a trip or a journey, never both, never neither.
-  constraint favourites_one_thing check ((trip_id is null) <> (journey is null))
+  -- One thing per favourite: a trip or a guide, never both, never neither.
+  constraint favourites_one_thing check ((trip_id is null) <> (guide is null))
 );
 create unique index if not exists favourites_user_trip_idx
   on public.favourites (user_id, trip_id) where trip_id is not null;
-create unique index if not exists favourites_user_journey_idx
-  on public.favourites (user_id, journey) where journey is not null;
+create unique index if not exists favourites_user_guide_idx
+  on public.favourites (user_id, guide) where guide is not null;
 
 alter table public.favourites enable row level security;
 grant select, insert, delete on public.favourites to authenticated;
@@ -188,15 +188,15 @@ drop policy if exists favourites_insert_own on public.favourites;
 create policy favourites_insert_own on public.favourites for insert to authenticated
   with check (user_id = auth.uid() and (trip_id is null or public.is_trip_member(trip_id)));
 
--- -------------------------------------------------------------- journeys ---
--- Trips written as journals. One table is both the catalogue and the journey
+-- ---------------------------------------------------------------- guides ---
+-- Trips written as journals. One table is both the catalogue and the guide
 -- service's work queue: a row starts as a brief ('queued'), is written and
 -- reviewed ('working'), and ends 'published', 'draft' or 'rejected'.
 --
--- The one table `anon` can read, and only its published rows: journeys are
--- public pages. Nothing is writable except by the service role the journey
+-- The one table `anon` can read, and only its published rows: guides are
+-- public pages. Nothing is writable except by the service role the guide
 -- service runs with.
-create table if not exists public.journeys (
+create table if not exists public.guides (
   id           uuid primary key default gen_random_uuid(),
   slug         text unique check (slug is null or slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   status       text not null default 'queued'
@@ -214,15 +214,15 @@ create table if not exists public.journeys (
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
-create index if not exists journeys_status_idx on public.journeys (status, published_at);
+create index if not exists guides_status_idx on public.guides (status, published_at);
 
-alter table public.journeys enable row level security;
-grant select on public.journeys to anon, authenticated;
+alter table public.guides enable row level security;
+grant select on public.guides to anon, authenticated;
 -- Newer Supabase projects no longer grant new tables to the service role by
--- default, and the journey service writes with it.
-grant select, insert, update, delete on public.journeys to service_role;
-drop policy if exists journeys_read_published on public.journeys;
-create policy journeys_read_published on public.journeys for select to anon, authenticated
+-- default, and the guide service writes with it.
+grant select, insert, update, delete on public.guides to service_role;
+drop policy if exists guides_read_published on public.guides;
+create policy guides_read_published on public.guides for select to anon, authenticated
   using (status = 'published');
 
 create index if not exists activities_trip_day_idx on public.activities (trip_id, day);

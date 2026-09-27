@@ -50,7 +50,7 @@ function Planner() {
   });
 
   /*
-   * A long brief, when the page that sent us wrote one — a journey someone has
+   * A long brief, when the page that sent us wrote one — a guide someone has
    * made their own. The address holds only its title, which is what the
    * planning screen shows back; this is what the planner is actually given.
    */

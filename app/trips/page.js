@@ -19,7 +19,7 @@ import PlacePhoto from '@/components/PlacePhoto';
 import { COVER_BUCKET, coverPathFor, coverURL } from '@/lib/tripCover';
 import TravelArt from '@/components/TravelArt';
 import HomeNav from '@/components/HomeNav';
-import JourneyRail from '@/components/JourneyRail';
+import GuideRail from '@/components/GuideRail';
 import FavouriteButton from '@/components/FavouriteButton';
 import {
   readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
@@ -367,7 +367,7 @@ export default function TripsHome() {
 
           {/* Beside the moment of starting a trip, for when there is no
               sentence to type yet. */}
-          <JourneyRail />
+          <GuideRail />
 
           {loadError ? (
             <div className="empty empty-lg" role="alert">

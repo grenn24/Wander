@@ -66,22 +66,22 @@ test('trip pins: one per place, transport ignored, completed versus upcoming', (
   assert.deepEqual([counts.been, counts.planned, counts.favourite], [1, 1, 0]);
 });
 
-test('favourited journeys are favourites, the rest ideas; only places saved as been are pins', () => {
-  const journeys = ideaPoints([
+test('favourited guides are favourites, the rest ideas; only places saved as been are pins', () => {
+  const guides = ideaPoints([
     { slug: 'kyoto', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 } },
     { slug: 'iceland', title: 'I', place: 'Iceland', country: 'Iceland', center: { lat: 64, lng: -19 } },
   ], new Set(['kyoto']));
-  assert.deepEqual(journeys.map((p) => [p.journey, p.kind]), [['kyoto', 'favourite'], ['iceland', 'idea']]);
-  assert.equal(journeys[1].label, 'Iceland');
-  // The same id either way, so favouriting a journey does not lose it from the card it is open in.
-  assert.equal(ideaPoints([{ slug: 'kyoto', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 } }])[0].id, journeys[0].id);
+  assert.deepEqual(guides.map((p) => [p.guide, p.kind]), [['kyoto', 'favourite'], ['iceland', 'idea']]);
+  assert.equal(guides[1].label, 'Iceland');
+  // The same id either way, so favouriting a guide does not lose it from the card it is open in.
+  assert.equal(ideaPoints([{ slug: 'kyoto', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 } }])[0].id, guides[0].id);
   const pins = savedPoints([
     { id: 1, kind: 'want', name: 'Kyoto', lat: 35, lng: 135.7 },
     { id: 2, kind: 'been', name: 'Bad', lat: 91, lng: 0 },
     { id: 3, kind: 'been', name: 'Porto', lat: 41.15, lng: -8.61 },
   ]);
   assert.deepEqual(pins.map((p) => [p.name, p.kind]), [['Porto', 'been']]);
-  const counts = globeCounts([...journeys, ...pins]);
+  const counts = globeCounts([...guides, ...pins]);
   assert.deepEqual([counts.been, counts.planned, counts.favourite], [1, 0, 1]);
 });
 
@@ -125,17 +125,17 @@ test('a town with no photographs is looked up by its most photogenic stop', () =
   assert.equal(withPhoto.photo_query, null);
 });
 
-test('choosing a journey frames its own stops, not a region round its middle', () => {
+test('choosing a guide frames its own stops, not a region round its middle', () => {
   const kyotoNara = {
-    kind: 'idea', journey: 'kyoto-nara', lat: 34.93, lng: 135.79,
+    kind: 'idea', guide: 'kyoto-nara', lat: 34.93, lng: 135.79,
     spots: [{ lat: 35.0, lng: 135.77 }, { lat: 34.97, lng: 135.78 }, { lat: 34.69, lng: 135.84 }],
   };
   const cam = focusCamera(kyotoNara);
   // Kyoto to Nara is about 35 km: framed from near, where the old fixed view stood 900 km back.
   assert.ok(cam.range >= 60000 && cam.range < 200000, `range ${cam.range}`);
   assert.ok(cam.center.lat < 35.0 && cam.center.lat > 34.69);
-  assert.equal(focusCamera({ kind: 'idea', journey: 'iceland', lat: 64, lng: -19, spots: [] }).range, 900000);
-  // A favourite journey is framed the same way.
+  assert.equal(focusCamera({ kind: 'idea', guide: 'iceland', lat: 64, lng: -19, spots: [] }).range, 900000);
+  // A favourite guide is framed the same way.
   assert.equal(focusCamera({ ...kyotoNara, kind: 'favourite' }).range, cam.range);
   const [idea] = ideaPoints([{ slug: 'k', title: 'K', place: 'Kyoto', country: 'Japan', center: { lat: 35, lng: 135 }, spots: kyotoNara.spots }]);
   assert.equal(idea.spots.length, 3);
@@ -162,9 +162,9 @@ test('favourites turn on and off without touching the sets they came from', asyn
   const { withFavourite, noFavourites, favouritesMissing } = await import('../lib/favourites.js');
   const empty = noFavourites();
   const one = withFavourite(empty, { tripId: 't1' }, true);
-  const two = withFavourite(one, { journey: 'kyoto-nara' }, true);
+  const two = withFavourite(one, { guide: 'kyoto-nara' }, true);
   assert.equal(empty.trips.size, 0);
-  assert.deepEqual([...two.trips, ...two.journeys], ['t1', 'kyoto-nara']);
+  assert.deepEqual([...two.trips, ...two.guides], ['t1', 'kyoto-nara']);
   assert.deepEqual([...withFavourite(two, { tripId: 't1' }, false).trips], []);
   assert.equal(favouritesMissing({ code: '42P01', message: 'relation "public.favourites" does not exist' }), true);
   assert.equal(favouritesMissing({ code: '23505', message: 'duplicate key' }), false);

@@ -5,7 +5,7 @@ import s from './HomeNav.module.css';
 const ITEMS = [
   { id: 'trips', href: '/trips', label: 'Trips', icon: LayoutGrid },
   { id: 'globe', href: '/globe', label: 'Globe', icon: Earth },
-  { id: 'journeys', href: '/journeys', label: 'Journeys', icon: BookOpen },
+  { id: 'guides', href: '/guides', label: 'Guides', icon: BookOpen },
 ];
 
 /**

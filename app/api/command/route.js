@@ -12,7 +12,7 @@ import { calendarContext, explicitlyNeedsCalendar } from '@/lib/commandCalendar'
 import { requestTiming } from '@/lib/requestTiming';
 
 /*
- * The kinds of journey and the fields each one has, from the app's own table.
+ * The kinds of guide and the fields each one has, from the app's own table.
  *
  * Absent from this schema until now, which is why "change these to flights"
  * came back as four notes saying so: with no subtype field to set, appending a
@@ -77,7 +77,7 @@ const OP = {
     subtype: {
       type: ['string', 'null'],
       enum: [...TRANSPORT_IDS, null],
-      description: 'Transport only: which kind of journey it is. A taxi, a Grab or an '
+      description: 'Transport only: which kind of guide it is. A taxi, a Grab or an '
         + 'airport pick-up is "transfer". Null to leave it as it is.',
     },
     details: DETAILS,
@@ -276,12 +276,12 @@ Rules:
   flight number goes in details.code, the airports in details.from and
   details.to, the terminal in details.from_terminal, the gate in details.gate.
   Never write a note describing a change you could have made.
-- Except for the lodging fields described above, details only takes the keys that kind of journey has — a bus has no gate, a
+- Except for the lodging fields described above, details only takes the keys that kind of guide has — a bus has no gate, a
   flight has no pier. Leave the others null, and send details null when there
   is nothing to set.
 - Lengthening or shortening the trip is an update_trip on the dates. If that
   would leave activities outside the range, move them too.
-- Flight start_time and end_time are local to details.departure_timezone and details.arrival_timezone (IANA zones). Include details.arrival_date as YYYY-MM-DD, including date-line and overnight journeys. Preserve unspecified zones; never substitute the browser zone.
+- Flight start_time and end_time are local to details.departure_timezone and details.arrival_timezone (IANA zones). Include details.arrival_date as YYYY-MM-DD, including date-line and overnight guides. Preserve unspecified zones; never substitute the browser zone.
 - Times are 24-hour HH:MM. Costs are plain numbers in the trip currency.
 - "location" must be a real place name a map search would find, or null.
 - If the instruction is ambiguous in a way that changes which activities are
