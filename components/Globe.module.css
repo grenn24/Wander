@@ -311,7 +311,7 @@
    * over the globe to read a long trip, and lets it back down.
    */
   .plan {
-    top: auto; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 54dvh;
+    top: auto; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 40dvh;
     display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto 1fr;
     grid-template-areas: "grip grip" "img head" "list list";
     border-radius: 22px 22px 0 0; border-bottom: 0;
@@ -319,6 +319,12 @@
     animation: sheetUp .3s var(--ease);
     transition: max-height .28s var(--ease);
   }
+  /*
+   * The sheet opened across half the phone, which left the map holding a
+   * trip's pins with nowhere to look around them. It opens at two fifths now
+   * — what the trip is, and the start of its days — and the grip takes it the
+   * rest of the way when the list is what is wanted.
+   */
   .plan[data-size="tall"] { max-height: 88dvh; }
   /* Down to its name, for when the globe is what is wanted. */
   .plan[data-size="name"] { max-height: none; }
@@ -330,17 +336,20 @@
   .planGrip span { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); }
   .planGrip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 12px; }
   .plan .planImg {
-    grid-area: img; width: 64px; height: 64px; aspect-ratio: auto;
-    margin: 2px 0 12px 14px; border-radius: 14px;
+    grid-area: img; width: 54px; height: 54px; aspect-ratio: auto;
+    margin: 0 0 10px 14px; border-radius: 13px;
   }
-  .plan .planHead { grid-area: head; padding: 0 14px 12px; border-bottom: 0; }
+  .plan .planHead { grid-area: head; padding: 0 14px 10px; border-bottom: 0; }
   /* Without a cover there is nothing beside it, so the head has the width. */
   .plan:not(:has(.planImg)) .planHead { grid-column: 1 / -1; }
   .plan .planList { grid-area: list; min-height: 0; border-top: 1px solid var(--border); padding-top: 4px; }
-  .plan .detailTitle { padding-right: 38px; font-size: 21px; }
+  .plan .detailTitle { padding-right: 38px; font-size: 19.5px; }
   .plan .detailMeta { font-size: 12.5px; }
   .plan .kind { font-size: 11px; }
   /* Both of them on one line: the trip, and keeping it. */
+  .plan .acts { margin-top: 6px; }
+  /* Both buttons a touch shorter, so the row costs the list one line, not two. */
+  .plan .acts > * { height: 38px; }
   .plan .acts > :first-child { flex: 1 1 auto; }
   @keyframes sheetUp { from { transform: translateY(100%); } }
   .planImg { aspect-ratio: 5 / 2; }
