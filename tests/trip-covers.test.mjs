@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COVERS_KEEP_MS, keepCovers, mergeCovers, readCovers } from '../lib/tripCovers.js';
+import {
+  COVERS_KEEP_MS, keepCovers, keepTripCount, mergeCovers, readCovers, readTripCount,
+} from '../lib/tripCovers.js';
 
 test('a trip keeps the photo it had until a newer read says otherwise', () => {
   const kept = { a: 'places/A/photos/1', gone: 'places/G/photos/1' };
@@ -27,5 +29,21 @@ test('what is kept is forgotten after a month, as Google asks of its content', (
   keepCovers({ a: 'places/A/photos/1' }, 1000 * day);
   assert.deepEqual(readCovers(1000 * day + 29 * day), { a: 'places/A/photos/1' });
   assert.deepEqual(readCovers(1000 * day + COVERS_KEEP_MS + 1), {});
+  delete global.localStorage;
+});
+
+test('how many trips there were is remembered, and nonsense is not', () => {
+  const store = new Map();
+  global.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, v),
+  };
+  assert.equal(readTripCount(), null); // nothing known yet: the line waits
+  keepTripCount(3);
+  assert.equal(readTripCount(), 3);
+  keepTripCount(0);
+  assert.equal(readTripCount(), 0);
+  store.set('wander-trip-count-v1', 'lots');
+  assert.equal(readTripCount(), null);
   delete global.localStorage;
 });

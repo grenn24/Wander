@@ -25,7 +25,9 @@ import {
 } from '@/lib/favourites';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
-import { keepCovers, mergeCovers, readCovers } from '@/lib/tripCovers';
+import {
+  keepCovers, keepTripCount, mergeCovers, readCovers, readTripCount,
+} from '@/lib/tripCovers';
 
 const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past', undated: 'No dates' };
 
@@ -53,6 +55,13 @@ export default function TripsHome() {
    */
   const [covers, setCovers] = useState({});
   useEffect(() => { setCovers((now) => ({ ...readCovers(), ...now })); }, []);
+  /*
+   * How many trips there were last time this device looked, so the line under
+   * the heading is there in the first paint rather than filling in when they
+   * land. This page is only ever drawn after signing in, so there is no
+   * server-rendered count to disagree with.
+   */
+  const [knownCount] = useState(() => (typeof window === 'undefined' ? null : readTripCount()));
   const [memberCounts, setMemberCounts] = useState({});
   /*
    * The row menu: which trip it belongs to, and what it hangs off.
@@ -91,6 +100,8 @@ export default function TripsHome() {
       if (mine !== loadToken.current) return;
       if (error) throw error;
       setTrips(data || []);
+      // For the next visit's first paint (see knownCount above).
+      keepTripCount((data || []).length);
       setLoading(false);
 
       readFavourites(supabase).then((f) => {
@@ -291,11 +302,11 @@ export default function TripsHome() {
                 {/* A line of its own while the count is unknown, rather than a
                     blank that fills once the trips land: something arriving
                     under the heading after the page has settled is felt. */}
-                {loading ? (
+                {loading && knownCount === null ? (
                   <span className="skel" aria-hidden="true"
                     style={{ display: 'inline-block', width: 64, height: '0.85em', borderRadius: 6 }} />
-                ) : trips.length === 0 ? 'Nothing planned yet'
-                  : `${trips.length} trip${trips.length === 1 ? '' : 's'}`}
+                ) : (loading ? knownCount : trips.length) === 0 ? 'Nothing planned yet'
+                  : `${loading ? knownCount : trips.length} trip${(loading ? knownCount : trips.length) === 1 ? '' : 's'}`}
               </div>
             </div>
             <div className="page-head-acts">
@@ -304,7 +315,7 @@ export default function TripsHome() {
                   about — but drawn while they are still coming, so it is not a
                   control that appears in this row once the page has settled.
                   It sets a choice held on this device, so it works at once. */}
-              {loading || trips.length > 1 ? (
+              {(loading ? knownCount === null || knownCount > 1 : trips.length > 1) ? (
                 <div className="viewswap" role="group" aria-label="How to show your trips">
                   <button type="button" className="viewswap-b" aria-pressed={view === 'cards'}
                     data-tip="Cards" aria-label="Show trips as cards"
