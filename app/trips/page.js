@@ -288,19 +288,23 @@ export default function TripsHome() {
             <div>
               <h2>Your trips</h2>
               <div className="small muted trips-count">
-                {/* Nothing while loading: the skeleton cards below already say
-                    it, and saying it twice is once too many. The line keeps its
-                    height in CSS so the heading does not jump when it fills. */}
-                {loading ? null
-                  : trips.length === 0 ? 'Nothing planned yet'
-                    : `${trips.length} trip${trips.length === 1 ? '' : 's'}`}
+                {/* A line of its own while the count is unknown, rather than a
+                    blank that fills once the trips land: something arriving
+                    under the heading after the page has settled is felt. */}
+                {loading ? (
+                  <span className="skel" aria-hidden="true"
+                    style={{ display: 'inline-block', width: 64, height: '0.85em', borderRadius: 6 }} />
+                ) : trips.length === 0 ? 'Nothing planned yet'
+                  : `${trips.length} trip${trips.length === 1 ? '' : 's'}`}
               </div>
             </div>
             <div className="page-head-acts">
               <a className="btn" href="/offline.html">Downloaded trips</a>
               {/* Only worth offering once there is a list to have an opinion
-                  about. */}
-              {trips.length > 1 ? (
+                  about — but drawn while they are still coming, so it is not a
+                  control that appears in this row once the page has settled.
+                  It sets a choice held on this device, so it works at once. */}
+              {loading || trips.length > 1 ? (
                 <div className="viewswap" role="group" aria-label="How to show your trips">
                   <button type="button" className="viewswap-b" aria-pressed={view === 'cards'}
                     data-tip="Cards" aria-label="Show trips as cards"
