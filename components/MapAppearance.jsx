@@ -18,9 +18,17 @@ function readPreferences() {
   catch { return normalizeMapPreferences(null); }
 }
 
+/*
+ * Read at once rather than a tick later. Waiting meant the map and the button
+ * that sets its look arrived after the page around them had settled, which is
+ * seen as a control appearing from nowhere. Every map in the app is drawn
+ * after its trip has loaded, so there is no server-rendered map to disagree
+ * with; where there is no store to read, the defaults stand.
+ */
 export function useMapPreferences() {
-  const [preferences, setPreferences] = useState(() => normalizeMapPreferences(null));
-  const [ready, setReady] = useState(false);
+  const held = typeof window === 'undefined' ? null : readPreferences();
+  const [preferences, setPreferences] = useState(() => held || normalizeMapPreferences(null));
+  const [ready, setReady] = useState(!!held);
   useEffect(() => {
     const read = () => setPreferences(readPreferences());
     const changed = (event) => setPreferences(normalizeMapPreferences(event.detail));

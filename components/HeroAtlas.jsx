@@ -9,13 +9,11 @@ export default function HeroAtlas() {
   const ref = useRef(null);
   const [paused, setPaused] = useState(false);
   const [running, setRunning] = useState(false);
-  const [reduced, setReduced] = useState(true);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     let visible = false;
     const update = () => {
-      setReduced(media.matches);
       setRunning(visible && document.visibilityState !== 'hidden' && !media.matches);
     };
     const observer = new IntersectionObserver(([entry]) => {
@@ -57,11 +55,14 @@ export default function HeroAtlas() {
       </svg>
       <div className="hero-atlas-light" />
     </div>
-    {!reduced ? <button className="hero-atlas-toggle" type="button"
+    {/* Always drawn, so it is not a button that appears once the page has
+        settled; where less motion is asked for there is nothing to pause and
+        CSS puts it away (app/motion.css). */}
+    <button className="hero-atlas-toggle" type="button"
       aria-label={paused ? 'Play background animation' : 'Pause background animation'}
       data-tip={paused ? 'Play background animation' : 'Pause background animation'}
       onClick={() => setPaused((value) => !value)}>
       {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
-    </button> : null}
+    </button>
   </>;
 }

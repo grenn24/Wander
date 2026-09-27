@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Navigation } from 'lucide-react';
 import { tripNow } from '@/public/trip-time';
 export default function TodayButton({ trip, activities, onOpen }) {
-  const [date, setDate] = useState(null);
+  // Now, as the first paint is made: waiting a tick made the banner drop in
+  // after the trip around it. Never on the server, whose clock is not yours.
+  const [date, setDate] = useState(() => (typeof window === 'undefined' ? null : new Date()));
   useEffect(() => { setDate(new Date()); const t = setInterval(() => setDate(new Date()), 30000); return () => clearInterval(t); }, []);
   if (!trip || !date) return null;
   const state = tripNow(trip, activities, date);
