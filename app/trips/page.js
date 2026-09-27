@@ -95,13 +95,42 @@ export default function TripsHome() {
     setLoadError('');
     setLoading(true);
     try {
-      const { data, error } = await readWithSessionRecovery(supabase, () =>
+      /*
+       * The trips, and who is on each of them, in one read.
+       *
+       * Who a trip is shared with used to be a second read after the list was
+       * drawn, so "3 travellers" and "Shared by …" arrived in rows that were
+       * already on the screen. They come with the trips now. Should a server
+       * refuse the join — an older database, a policy that will not follow it
+       * — the plain read and the second call are still there behind it.
+       */
+      const withMembers = await readWithSessionRecovery(supabase, () => supabase.from('trips')
+        .select('*, trip_members(display_name, email, role)')
+        .order('start_date', { ascending: false }));
+      const joined = !withMembers.error;
+      const { data, error } = joined ? withMembers : await readWithSessionRecovery(supabase, () =>
         supabase.from('trips').select('*').order('start_date', { ascending: false }));
       if (mine !== loadToken.current) return;
       if (error) throw error;
-      setTrips(data || []);
+
+      // The rows stay as they were: everything else in the app reads a trip, not its members.
+      const rows = [];
+      const counts = {};
+      const by = {};
+      (data || []).forEach(({ trip_members: onIt, ...trip }) => {
+        rows.push(trip);
+        if (!joined) return;
+        const members = onIt || [];
+        if (members.length) counts[trip.id] = members.length;
+        const owner = members.find((m) => m.role === 'owner');
+        if (owner && trip.owner_id !== (user && user.id)) {
+          by[trip.id] = owner.display_name || (owner.email || '').split('@')[0] || 'someone else';
+        }
+      });
+      setTrips(rows);
+      if (joined) { setMemberCounts(counts); setSharedBy(by); }
       // For the next visit's first paint (see knownCount above).
-      keepTripCount((data || []).length);
+      keepTripCount(rows.length);
       setLoading(false);
 
       readFavourites(supabase).then((f) => {
@@ -110,7 +139,7 @@ export default function TripsHome() {
         if (mine === loadToken.current && favouritesMissing(e)) setCanFavourite(false);
       });
 
-      const tripIds = (data || []).map((t) => t.id);
+      const tripIds = rows.map((t) => t.id);
       if (!tripIds.length) {
         setCovers({});
         setMemberCounts({});
@@ -136,32 +165,32 @@ export default function TripsHome() {
       keepCovers(covered);
 
       /*
-       * Whose trips these are.
+       * Whose trips these are, where the join above was refused.
        *
        * A trip someone shared with you sits in this list looking exactly like
        * one you started, which matters most in the case where it matters most:
-       * the moment before you change something in somebody else's plan. Asked
-       * for only when there is something to ask about, and never for your own.
+       * the moment before you change something in somebody else's plan.
        */
+      if (joined) return;
       const theirs = new Set(
-        (data || []).filter((t) => t.owner_id !== (user && user.id)).map((t) => t.id),
+        rows.filter((t) => t.owner_id !== (user && user.id)).map((t) => t.id),
       );
       const { data: members } = await supabase.from('trip_members')
         .select('trip_id, display_name, email, role')
         .in('trip_id', tripIds);
-      const by = {};
+      const late = {};
       if (mine !== loadToken.current) return;
-      const counts = {};
+      const tally = {};
       (members || []).forEach((m) => {
-        counts[m.trip_id] = (counts[m.trip_id] || 0) + 1;
+        tally[m.trip_id] = (tally[m.trip_id] || 0) + 1;
         if (m.role === 'owner' && theirs.has(m.trip_id)) {
-          by[m.trip_id] = m.display_name
+          late[m.trip_id] = m.display_name
             || (m.email || '').split('@')[0]
             || 'someone else';
         }
       });
-      setSharedBy(by);
-      setMemberCounts(counts);
+      setSharedBy(late);
+      setMemberCounts(tally);
     } catch (error) {
       if (mine !== loadToken.current) return;
       failedLoad.current = true;
