@@ -148,9 +148,7 @@
    * then leave the screen on its own.
    */
   .stage :global(.mappanel-grab) { touch-action: none; }
-  .stage:global(.mapstage) :global(.mappanel.mappanel[data-measuring]),
-  .stage:global(.mapstage) :global(.mappanel.mappanel[data-dragging]),
-  .stage:global(.mapstage) :global(.mappanel.mappanel[data-settling]) {
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-dragged]) {
     animation: none;
   }
   .stage:global(.mapstage) :global(.mappanel.mappanel[data-measuring]),

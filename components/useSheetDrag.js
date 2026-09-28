@@ -61,6 +61,17 @@ export default function useSheetDrag({ ref, sizes, size, onSize, apply }) {
     if (el.offsetWidth < (el.offsetParent ? el.offsetParent.clientWidth : innerWidth) * 0.8) return;
     clearTimeout(settling.current);
 
+    /*
+     * A sheet that has been handled does not play its entrance again.
+     *
+     * The slide up from below the screen belongs to a sheet arriving. While
+     * one is being dragged it has to be off, or it would fight the hand — and
+     * a rule that turns an animation off and on again does not resume it, it
+     * starts it afresh, so the sheet would leap off the screen and slide back
+     * the moment the finger lifted. It stays off, from the first drag until
+     * this sheet is gone from the page, and the heights do the moving.
+     */
+    el.dataset.dragged = '';
     el.dataset.measuring = '';
     const heights = sizes.map((name) => { set(el, name); return el.getBoundingClientRect().height; });
     set(el, size);

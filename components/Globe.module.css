@@ -343,7 +343,9 @@
    */
   .grip, .planGrip { touch-action: none; }
   .plan[data-dragging], .plan[data-measuring],
-  .panel[data-dragging], .panel[data-measuring] { transition: none; animation: none; }
+  .panel[data-dragging], .panel[data-measuring] { transition: none; }
+  /* And once handled, it keeps its entrance to itself: see useSheetDrag.js. */
+  .plan[data-dragged], .panel[data-dragged] { animation: none; }
   .plan .planImg {
     grid-area: img; width: 54px; height: 54px; aspect-ratio: auto;
     margin: 0 0 10px 14px; border-radius: 13px;
