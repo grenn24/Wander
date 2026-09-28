@@ -12,6 +12,7 @@ import ActivityMap from '@/components/ActivityMap';
 import TimeField from '@/components/TimeField';
 import { googleMapsAvailable } from '@/components/GoogleMap';
 import { useModalChrome } from '@/lib/useModal';
+import useSheetDismiss from '@/components/useSheetDismiss';
 
 /**
  * Whether there is room to put the map beside the form.
@@ -92,6 +93,8 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
     onEscape: () => { if (mapExpanded) closeMap(); else attemptClose(); },
     onSubmit: () => { if (!mapExpanded && !confirm) save(); },
   });
+  // On a phone this is a sheet, and a sheet can be pushed away by its head.
+  const pull = useSheetDismiss({ ref: boxRef, onClose: attemptClose });
 
   /*
    * The dialog takes focus, not the first field in it.
@@ -213,7 +216,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
   return (
     <div className="backdrop" data-state={leaving ? 'exit' : undefined}
       onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
-      <div className={`modal${beside ? ' modal-wide' : ''}`} ref={boxRef} tabIndex={-1}
+      <div className={`modal${beside ? ' modal-wide' : ''}`} ref={boxRef} {...pull} tabIndex={-1}
         aria-hidden={mapExpanded ? 'true' : undefined}
         role="dialog" aria-modal="true" aria-label="Activity">
         <div className="modal-head">

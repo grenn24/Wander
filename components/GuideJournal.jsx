@@ -25,6 +25,7 @@ import { BRIEF_KEY } from '@/lib/planBrief';
 import { placeDetails, searchPlaces } from '@/lib/geo';
 import { addDays, fmtRange, todayISO, shortPlace } from '@/lib/util';
 import { useModalChrome } from '@/lib/useModal';
+import useSheetDismiss from '@/components/useSheetDismiss';
 import s from './Guides.module.css';
 
 const memoryKey = (slug) => `wander:guide:${slug}`;
@@ -676,12 +677,16 @@ function Sheet({ label = 'Make it yours', onClose, children }) {
   const [target, setTarget] = useState(null);
   const panel = useRef(null);
   useModalChrome({ onEscape: onClose });
+  // A sheet on a phone, a drawer down the side on a desk; only the first of
+  // those can be pushed away with a thumb, which the hook works out for itself.
+  const pull = useSheetDismiss({ ref: panel, onClose, handle: '[data-sheet-grip]' });
   useEffect(() => { setTarget(document.body); }, []);
   useEffect(() => { if (target && panel.current) panel.current.focus(); }, [target]);
   if (!target) return null;
   return createPortal(
     <div className={s.sheetBack} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={panel} className={s.sheet} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
+      <div ref={panel} {...pull} className={s.sheet} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
+        <span className={s.sheetGrip} data-sheet-grip aria-hidden="true" />
         {children}
       </div>
     </div>,

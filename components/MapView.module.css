@@ -139,6 +139,24 @@
     padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
     scroll-padding-bottom: calc(var(--tabbar-h, 0px) - var(--vv-bottom, 0px) + 12px);
   }
+
+  /*
+   * Being pulled by its bar. The hand sets the height, so nothing may animate
+   * towards one — not while the two heights are being measured off the sheet,
+   * not while it follows the finger, and not on the way to wherever it
+   * settles. The slide away in particular: a sheet taken down by hand must not
+   * then leave the screen on its own.
+   */
+  .stage :global(.mappanel-grab) { touch-action: none; }
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-measuring]),
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-dragging]),
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-settling]) {
+    animation: none;
+  }
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-measuring]),
+  .stage:global(.mapstage) :global(.mappanel.mappanel[data-dragging]) {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------- the stops */

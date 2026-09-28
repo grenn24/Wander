@@ -343,9 +343,7 @@
    */
   .grip, .planGrip { touch-action: none; }
   .plan[data-dragging], .plan[data-measuring],
-  .panel[data-dragging], .panel[data-measuring] { transition: none; }
-  .plan[data-dragging] { overflow: hidden; }
-  .plan[data-dragging] .planList { display: block; }
+  .panel[data-dragging], .panel[data-measuring] { transition: none; animation: none; }
   .plan .planImg {
     grid-area: img; width: 54px; height: 54px; aspect-ratio: auto;
     margin: 0 0 10px 14px; border-radius: 13px;

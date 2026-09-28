@@ -23,6 +23,7 @@ import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import useKept from '@/components/useKept';
+import useSheetDrag from '@/components/useSheetDrag';
 import m from './MapView.module.css';
 
 
@@ -49,9 +50,10 @@ export default function MapView({
    * How much of the phone screen the panel is taking.
    *
    * Collapsed it is a search box and four chips over the map; open it is a
-   * list. Two states rather than a draggable sheet, because the only two
-   * heights anyone wants are "let me see the map" and "let me read the list",
-   * and a gesture that lands anywhere in between is a gesture to get wrong.
+   * list. Two states and no third: the only heights anyone wants are "let me
+   * see the map" and "let me read the list". The bar can be pulled between
+   * them — it looks like a handle, so it is one — but the sheet always settles
+   * on one of the two, never wherever the hand happened to stop.
    */
   const [sheetOpen, setSheetOpen] = useState(false);
   /*
@@ -61,6 +63,20 @@ export default function MapView({
    * has gone (MapView.module.css).
    */
   const sheet = useKept(sheetOpen ? 'open' : null, 260);
+  const panelRef = useRef(null);
+  /*
+   * Open and shut are a class on the stage rather than anything on the sheet
+   * itself, so that is what the drag tries on while it measures the two.
+   */
+  const sheetDrag = useSheetDrag({
+    ref: panelRef,
+    sizes: ['shut', 'open'],
+    size: sheetOpen ? 'open' : 'shut',
+    apply: (el, name) => {
+      if (stageRef.current) stageRef.current.classList.toggle('is-open', name === 'open');
+    },
+    onSize: (name) => setSheetOpen(name === 'open'),
+  });
   const [panelView, setPanelView] = useState('explore');
   // The day being shown, on a phone: one button over the map, its days in a list.
   const [dayEl, setDayEl] = useState(null);
@@ -697,7 +713,7 @@ export default function MapView({
 
       {floatCard.value}
 
-      <aside className="mappanel" data-view={panelView} aria-label="Places and stops">
+      <aside ref={panelRef} className="mappanel" data-view={panelView} aria-label="Places and stops">
         <div className="mappanel-compact">
           <button type="button" className="map-explore-trigger" onClick={() => openPanel('explore')}>
             <Search size={18} aria-hidden="true" /><span>Explore nearby…</span>
@@ -714,7 +730,8 @@ export default function MapView({
           * Keep collapse discoverable without requiring a swipe gesture.
           */}
         <button className="mappanel-grab" type="button" aria-expanded={sheetOpen}
-          onClick={() => setSheetOpen((o) => !o)}>
+          {...sheetDrag.handlers}
+          onClick={() => { if (!sheetDrag.dragged()) setSheetOpen((o) => !o); }}>
           <span className="mappanel-bar" aria-hidden="true" />
           <span className="mappanel-grab-label">
             {sheetOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}

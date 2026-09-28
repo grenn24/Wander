@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { settleOn, stiffen } from '../lib/sheetSnap.js';
+import { letGo, settleOn, stiffen } from '../lib/sheetSnap.js';
 
 // The globe's trip sheet: its name alone, its days, or the whole screen.
 const SIZES = [145, 325, 715];
@@ -42,6 +42,22 @@ test('the ends hold rather than break', () => {
   // Beyond either end it still moves, at a third of the pace.
   assert.equal(stiffen(775, 145, 715), 735);
   assert.equal(stiffen(115, 145, 715), 135);
+});
+
+test('a dialog on a phone closes when it is pulled far enough, or quickly', () => {
+  const tall = { height: 700 };
+  // A nudge is not a dismissal; a good pull is.
+  assert.equal(letGo({ dy: 40, ...tall }), false);
+  assert.equal(letGo({ dy: 200, ...tall }), true);
+  // Short sheets go by their own height, tall ones by a sensible distance.
+  assert.equal(letGo({ dy: 60, height: 180 }), true);
+  assert.equal(letGo({ dy: 40, height: 180 }), false);
+  // A flick decides on its own, in either direction.
+  assert.equal(letGo({ dy: 20, down: 1.4, ...tall }), true);
+  assert.equal(letGo({ dy: 300, down: -1.4, ...tall }), false);
+  // Pulled upwards, where there is nothing to open.
+  assert.equal(letGo({ dy: -120, ...tall }), false);
+  assert.equal(letGo({ dy: 10, height: 0 }), false);
 });
 
 test('a sheet with no sizes to settle at does not throw', () => {

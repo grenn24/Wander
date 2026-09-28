@@ -43,6 +43,8 @@ export default function useSheetDrag({ ref, sizes, size, onSize, apply }) {
     settling.current = null;
     el.style.height = '';
     el.style.maxHeight = '';
+    el.style.overflow = '';
+    delete el.dataset.settling;
   }, []);
 
   const start = useCallback((event) => {
@@ -71,6 +73,14 @@ export default function useSheetDrag({ ref, sizes, size, onSize, apply }) {
     el.dataset.dragging = '';
     el.style.maxHeight = 'none';
     el.style.height = `${from}px`;
+    el.style.overflow = 'hidden';
+    /*
+     * Dressed as its largest size for the length of the drag, so what a sheet
+     * only shows when it is open — a list of days, the places under a map — is
+     * there to be uncovered as it rises, rather than appearing at the end. The
+     * height is the sheet's own by now, so nothing moves on account of this.
+     */
+    set(el, sizes[heights.indexOf(Math.max(...heights))]);
     // Only now: being dragged holds the transitions off from here.
     delete el.dataset.measuring;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* it will follow anyway */ }
@@ -109,10 +119,12 @@ export default function useSheetDrag({ ref, sizes, size, onSize, apply }) {
      * transitions back on, and the stylesheet takes it back afterwards.
      */
     delete el.dataset.dragging;
+    el.dataset.settling = '';
+    set(el, sizes[at]);
     el.style.height = `${Math.round(d.heights[at])}px`;
     settling.current = setTimeout(() => { if (!drag.current) release(el); }, SETTLING);
     if (sizes[at] !== size) onSize(sizes[at]);
-  }, [ref, sizes, size, onSize, release]);
+  }, [ref, sizes, size, onSize, release, set]);
 
   /*
    * True when the press that just ended was a drag, so the tap can stand down

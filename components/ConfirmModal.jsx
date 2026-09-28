@@ -1,19 +1,23 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useModalChrome } from '@/lib/useModal';
+import useSheetDismiss from '@/components/useSheetDismiss';
 
 export default function ConfirmModal({
   title, children, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onClose, leaving = false,
 }) {
   const confirm = useCallback(() => onConfirm(), [onConfirm]);
   useModalChrome({ onEscape: onClose, onSubmit: confirm });
+  const box = useRef(null);
+  // On a phone it is a sheet: pulling it down is the same as saying no.
+  const pull = useSheetDismiss({ ref: box, onClose });
 
   return (
     <div className="backdrop confirm-backdrop" data-state={leaving ? 'exit' : undefined}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal confirm-modal" role="alertdialog" aria-modal="true"
+      <div ref={box} {...pull} className="modal confirm-modal" role="alertdialog" aria-modal="true"
         aria-labelledby="confirm-title">
         <div className="modal-head">
           <h3 id="confirm-title">{title}</h3>

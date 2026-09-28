@@ -336,10 +336,19 @@
   background: var(--surface-1); color: var(--text-1); animation: up .24s var(--ease);
 }
 .sheet:focus { outline: none; }
+/* The bar that says the sheet can be pulled down, and is what pulls it. Only
+   where it is a sheet: down the side of a desk screen there is nothing to
+   pull it away from. */
+.sheetGrip { display: none; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes up { from { opacity: .6; transform: translateY(28px); } }
 
 @media (max-width: 960px) {
+  .sheetGrip {
+    display: block; position: sticky; top: 0; z-index: 2;
+    width: 40px; height: 5px; margin: -6px auto 10px;
+    border-radius: 3px; background: var(--border-strong); touch-action: none;
+  }
   .layout { grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 26px; }
   .read { max-width: none; }
   .aside { display: none; }

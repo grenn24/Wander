@@ -7,6 +7,7 @@ import Select from '@/components/Select';
 import DateField from '@/components/DateField';
 import TripCover from '@/components/TripCover';
 import { useModalChrome } from '@/lib/useModal';
+import useSheetDismiss from '@/components/useSheetDismiss';
 
 const TAB_ICONS = { details: SlidersHorizontal, people: Users, offline: Download, calendar: CalendarDays };
 
@@ -55,11 +56,13 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
   });
 
   const onEnter = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
+  // On a phone this dialog is a sheet, and a sheet can be pushed away.
+  const pull = useSheetDismiss({ ref: dialog, onClose: attemptClose });
 
   return (
     <div className="backdrop" data-state={leaving ? 'exit' : undefined}
       onMouseDown={(e) => { if (e.target === e.currentTarget) attemptClose(); }}>
-      <div ref={dialog} className={`modal${sections.length ? ' trip-edit-modal' : ''}`} role="dialog" aria-modal="true" aria-label={draft.id ? 'Edit trip' : 'New trip'}>
+      <div ref={dialog} {...pull} className={`modal${sections.length ? ' trip-edit-modal' : ''}`} role="dialog" aria-modal="true" aria-label={draft.id ? 'Edit trip' : 'New trip'}>
         <div className="modal-head">
           <h3>{draft.id ? 'Edit trip' : 'New trip'}</h3>
           <button className="btn ghost sm" onClick={attemptClose} aria-label="Close"><X size={15} /></button>
