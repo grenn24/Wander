@@ -92,3 +92,76 @@ test('running it again follows the stored session out, as sign-out removes it', 
   assert.equal(signedOut.attrs['data-account'], undefined);
   assert.equal(signedOut.style['--account-initials'], undefined);
 });
+
+/** The functions themselves, on a page whose globals are ours. */
+async function withPage(stored, run) {
+  const attrs = {};
+  const events = [];
+  const saved = { document: globalThis.document, window: globalThis.window, Event: globalThis.Event };
+  globalThis.document = { documentElement: {
+    setAttribute(n, v) { attrs[n] = v; }, removeAttribute(n) { delete attrs[n]; },
+    style: { setProperty() {}, removeProperty() {} },
+  } };
+  globalThis.window = {
+    localStorage: { getItem: () => stored },
+    dispatchEvent: (e) => events.push(e.type),
+  };
+  globalThis.Event = class { constructor(type) { this.type = type; } };
+  try { return await run({ attrs, events }); }
+  finally { Object.assign(globalThis, saved); }
+}
+
+test('a session that is being signed out is treated as gone, whatever storage still says', async () => {
+  const lib = await import('../lib/accountHint.js');
+  const stored = session({ email: 'a@b.c' }, { refresh_token: 'old-token' });
+  await withPage(stored, ({ attrs }) => {
+    assert.equal(lib.installAccountHint(KEY, 'old-token'), null);
+    assert.equal(attrs['data-account'], undefined);
+    // Any other token is somebody signing in afterwards, and counts.
+    assert.equal(lib.installAccountHint(KEY, 'some-other-token').name, 'a');
+    assert.equal(attrs['data-account'], 'in');
+    // And nothing marked means storage is believed, as it is in the inline script.
+    assert.equal(lib.installAccountHint(KEY, undefined).name, 'a');
+  });
+});
+
+// The mark is module state, so each test gets its own copy of the module.
+let copies = 0;
+const fresh = () => import(`../lib/accountHint.js?copy=${++copies}`);
+
+test('marking a sign-out remembers that session by its refresh token', async () => {
+  const lib = await fresh();
+  await withPage(session({ email: 'a@b.c' }, { refresh_token: 'token-1' }), () => {
+    assert.equal(lib.signingOutToken(), null);
+    lib.markSigningOut(URL_LOCAL);
+    assert.equal(lib.signingOutToken(), 'token-1');
+  });
+});
+
+test('a sign-in after a sign-out is a different session, and is believed', async () => {
+  const lib = await fresh();
+  await withPage(session({ email: 'a@b.c' }, { refresh_token: 'token-1' }), () => lib.markSigningOut(URL_LOCAL));
+  // Later, storage holds a new session. Nothing was reset, and nothing needs to be.
+  await withPage(session({ email: 'a@b.c' }, { refresh_token: 'token-2' }), ({ attrs }) => {
+    assert.equal(lib.installAccountHint(KEY, lib.signingOutToken()).name, 'a');
+    assert.equal(attrs['data-account'], 'in');
+  });
+  // While it is still the first one, it is gone.
+  await withPage(session({ email: 'a@b.c' }, { refresh_token: 'token-1' }), ({ attrs }) => {
+    assert.equal(lib.installAccountHint(KEY, lib.signingOutToken()), null);
+    assert.equal(attrs['data-account'], undefined);
+  });
+});
+
+test('marking a sign-out with nothing stored, or storage that cannot be read, is harmless', async () => {
+  for (const stored of [null, 'not json', '{}']) {
+    const lib = await fresh();
+    await withPage(stored, () => { lib.markSigningOut(URL_LOCAL); assert.equal(lib.signingOutToken(), null); });
+  }
+  // No window at all (the server): still no throw.
+  const lib = await fresh();
+  const window = globalThis.window;
+  delete globalThis.window;
+  try { assert.doesNotThrow(() => lib.markSigningOut(URL_LOCAL)); assert.equal(lib.signingOutToken(), null); }
+  finally { if (window) globalThis.window = window; }
+});

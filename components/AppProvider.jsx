@@ -13,6 +13,7 @@ import { clearDownloads, setDownloadOwner } from '@/public/offline-store';
 import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
 import { observeSession } from '@/lib/sessionRecovery';
+import { markSigningOut } from '@/lib/accountHint';
 
 const Ctx = createContext(null);
 
@@ -272,6 +273,9 @@ export default function AppProvider({ children }) {
      */
     try { await clearDownloads(); }
     catch { pushToast('Could not clear offline storage. Clear this site’s browser data to remove any downloads.'); }
+    // The session stays in storage until the server has answered, and the
+    // landing page reads storage: tell it this one is already gone.
+    markSigningOut();
     router.replace('/');
     await supabase.auth.signOut();
   }, [supabase, router, pushToast]);

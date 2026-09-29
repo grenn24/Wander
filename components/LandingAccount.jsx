@@ -2,10 +2,14 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import Link from 'next/link';
 import { LayoutGrid } from 'lucide-react';
-import { authStorageKey, installAccountHint } from '@/lib/accountHint';
+import { authStorageKey, installAccountHint, signingOutToken } from '@/lib/accountHint';
 
 // Inlined at build time, so it must be spelled out in full.
 const STORAGE_KEY = authStorageKey(process.env.NEXT_PUBLIC_SUPABASE_URL || '');
+
+// What storage says, except for a session that has just been signed out of and
+// is only waiting for the server to say so (lib/accountHint.js).
+const read = () => installAccountHint(STORAGE_KEY, signingOutToken());
 
 /**
  * The landing page's account control.
@@ -34,7 +38,7 @@ export default function LandingAccount() {
   // document, so say it here, before the route's first paint.
   useLayoutEffect(() => {
     if (!STORAGE_KEY) return;
-    const account = installAccountHint(STORAGE_KEY);
+    const account = read();
     setName(account ? account.name : '');
   }, []);
 
@@ -44,7 +48,7 @@ export default function LandingAccount() {
     let stop = () => {};
     const follow = () => {
       if (!alive) return;
-      const account = installAccountHint(STORAGE_KEY);
+      const account = read();
       setName(account ? account.name : '');
     };
 

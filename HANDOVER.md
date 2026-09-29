@@ -270,6 +270,12 @@ Match the surrounding code — it is consistent and deliberate.
   `data-account="in"` from the stored session before the first paint, and
   `components/LandingAccount.jsx` follows storage afterwards. Both versions are
   in the HTML; CSS picks one. Covered by `tests/account-hint.test.mjs`.
+  Signing out is the one time storage is behind: `AppProvider.signOut` goes to
+  the landing page first and the session stays in storage until the server has
+  answered, so it calls `markSigningOut()` and the landing treats that session
+  (by its refresh token) as gone at once. Without it the landing showed "Your
+  trips" for as long as the logout request took. The SDK drops the local
+  session even when that request fails, so nothing has to undo the mark.
 - The hero's day (`HeroSheet.jsx`) is drawn complete by the server, then moves
   only while on screen and in a visible tab, and can be paused. Every scene has
   four stops and every stop is one line, so the card never changes height — if
