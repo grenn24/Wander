@@ -43,13 +43,8 @@ export default function PromoVideo() {
     };
   }, []);
   return (
-    <div className="lp-tour" id="tour">
-      <div className="lp-tour-player">
-        <div className="lp-tour-copy">
-          <span className="lp-tour-duration">18-second tour</span>
-          <h3>See Wander in action</h3>
-          <p id={`${id}-description`}>Describe a trip, explore its map and follow your stops.</p>
-        </div>
+    <figure className="lp-tour" id="tour">
+      <div className="lp-phone">
         <video ref={videoRef} src="/promo/wander-promo.mp4" poster="/promo/wander-promo-poster.jpg"
           controls playsInline muted preload="none"
           onEnded={(event) => event.currentTarget.load()}
@@ -58,6 +53,10 @@ export default function PromoVideo() {
           <a href="/promo/wander-promo.mp4">Download the Wander tour</a>
         </video>
       </div>
-    </div>
+      <figcaption id={`${id}-description`}>
+        <strong>See it in 18 seconds</strong>
+        Describe a trip, explore its map and follow your stops.
+      </figcaption>
+    </figure>
   );
 }

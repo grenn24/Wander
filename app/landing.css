@@ -1,0 +1,414 @@
+/*
+ * The landing page, in one place.
+ *
+ * These rules used to be spread through globals.css across several redesign
+ * passes, each overriding the last, which is how a nav spacer came to be
+ * styled inside .topbar and nowhere else. Everything for this page is here, and
+ * it is only loaded with it (app/page.js).
+ *
+ * The idea is a travel journal, not a product page: paper, the ink of a route,
+ * and the timetable a plan is made of. So routes and pins appear only where they
+ * say something — the map in the day being planned, the steps that lead from one
+ * to the next — and the feature list is a timetable, not a wall of cards. The
+ * one thing that moves is the day being planned in the hero; everything around
+ * it is still, and nothing on the page is hidden until a script has run.
+ *
+ * Colour, type and the atlas artwork are the app's own, so the page and the
+ * product behind it look like the same place.
+ */
+
+.lp {
+  --lp-max: 1120px;
+  --lp-gutter: clamp(20px, 4.4vw, 44px);
+  --lp-gap: clamp(76px, 9.5vw, 132px);
+  --lp-serif: var(--font-serif), Georgia, "Times New Roman", serif;
+  display: flex; flex-direction: column; min-height: 100dvh;
+}
+.lp-wrap { width: min(100% - 2 * var(--lp-gutter), var(--lp-max)); margin-inline: auto; }
+
+/* The anchors are in the nav, and the nav is sticky. */
+html:has(.lp) { scroll-padding-top: 72px; }
+@media (prefers-reduced-motion: no-preference) { html:has(.lp) { scroll-behavior: smooth; } }
+
+.lp a:not(.btn):focus-visible, .lp button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px;
+}
+
+.lp-skip {
+  position: absolute; z-index: 60; left: 12px; top: -64px;
+  padding: 10px 16px; border-radius: 12px; text-decoration: none; font-weight: 600;
+  background: var(--text-1); color: var(--surface-1);
+}
+.lp-skip:focus { top: 12px; }
+
+/* ------------------------------------------------------------------- nav -- */
+.lp-nav { position: sticky; top: 0; z-index: 30; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+.lp-nav-in { display: flex; align-items: center; gap: clamp(16px, 3.4vw, 36px); min-height: 64px; }
+.lp-links { display: flex; align-items: center; gap: clamp(16px, 2.6vw, 30px); }
+.lp-link { color: var(--text-2); font-size: 15px; font-weight: 550; text-decoration: none; }
+.lp-link:hover { color: var(--text-1); }
+@media (max-width: 700px) { .lp-link-wide { display: none; } }
+/* The wordmark stays wherever the account beside it leaves room, which is most
+   phones; globals.css drops it below 560px for the bars inside the app. */
+@media (min-width: 400px) and (max-width: 560px) { .lp-nav .brand-word { display: inline; } }
+
+/*
+ * The account control: both versions are in the HTML and this picks one. The
+ * attribute is set before the page paints (lib/accountHint.js), so there is no
+ * moment when the wrong one — or neither — is showing.
+ */
+.lp-account { display: flex; align-items: center; margin-left: auto; }
+.lp-account-in { display: none; align-items: center; gap: 8px; }
+html[data-account="in"] .lp-account-out { display: none; }
+html[data-account="in"] .lp-account-in { display: flex; }
+.lp-avatar {
+  display: grid; place-items: center; flex: none; width: 34px; height: 34px;
+  border-radius: 50%; border: 1px solid transparent; text-decoration: none;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 12px; font-weight: 700; letter-spacing: .02em; line-height: 1;
+}
+.lp-avatar::before { content: var(--account-initials, ""); }
+.lp-avatar:hover { border-color: var(--accent); }
+
+/* ------------------------------------------------------------------ hero -- */
+.lp-stage {
+  position: relative; isolation: isolate; overflow: hidden;
+  --atlas-filter: none; --atlas-opacity: .72;
+}
+:root[data-theme="dark"] .lp-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-opacity: .34; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lp-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-opacity: .34; }
+}
+.lp-atlas {
+  position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent);
+  mask-image: linear-gradient(to bottom, #000 68%, transparent);
+}
+.lp-atlas-paper {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  filter: var(--atlas-filter); opacity: var(--atlas-opacity);
+}
+.lp-atlas-routes { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--accent); opacity: .55; }
+.lp-atlas-routes path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-dasharray: 3 8; }
+.lp-atlas-routes circle { fill: var(--surface-0); stroke: currentColor; stroke-width: 2; }
+@media (max-width: 700px) {
+  .lp-atlas-paper { object-position: right center; opacity: calc(var(--atlas-opacity) * .55); }
+  .lp-atlas-routes { opacity: .3; }
+}
+
+.lp-hero {
+  width: min(100% - 2 * var(--lp-gutter), var(--lp-max)); margin-inline: auto;
+  padding-block: clamp(36px, 6.5vw, 84px) clamp(52px, 7.5vw, 96px);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center; gap: clamp(36px, 5vw, 72px);
+}
+@media (max-width: 899px) { .lp-hero { grid-template-columns: minmax(0, 1fr); } }
+
+/* Condensed enough that the sentence can be set large and still fit its column;
+   the second half steps in, as a leg of a journey does. */
+.lp-h1 {
+  margin: 0 0 clamp(16px, 2vw, 22px);
+  font-family: var(--lp-serif); font-weight: 400;
+  font-size: clamp(56px, 7.4vw, 96px); line-height: .96; letter-spacing: -.022em;
+}
+.lp-h1 span { display: block; padding-left: .62em; }
+.lp-lede {
+  margin: 0 0 clamp(22px, 3vw, 30px); max-width: 44ch;
+  color: var(--text-2); font-size: clamp(17px, 1.5vw, 19px); line-height: 1.6; text-wrap: pretty;
+}
+
+/* The prompt is the way in, so it is the largest control on the page. Sizes are
+   set through the variables PlanPrompt's own layout is built on, so the rotating
+   suggestion and the icon stay lined up with the text. */
+.lp .planbox { margin: 0; }
+.lp .planbox-field {
+  --row: 48px; --pad-l: 20px; --pad-r: 12px; --pad-t: 12px;
+  border-radius: 24px; border-color: var(--border-strong); background: var(--surface-1);
+  box-shadow: var(--lift);
+}
+.lp .planbox-field:focus-within { box-shadow: var(--lift), 0 0 0 4px var(--accent-soft); }
+.lp .planbox-input { font-size: 17px; line-height: 24px; padding-block: calc((var(--row) - 24px) / 2); }
+/* Line-height, not flex, centres it: text-overflow needs a block to work on. */
+.lp .planbox-ghost { display: block; font-size: 17px; line-height: var(--row); }
+.lp .planbox-go, .lp .planbox-clip { border-radius: 16px; }
+.lp .planbox-samples { gap: 8px; margin-top: 14px; }
+.lp .samplechip {
+  padding: 8px 14px; font-size: 14px; background: transparent; border-color: var(--border-strong);
+}
+.lp .samplechip:hover { transform: none; color: var(--text-1); background: var(--surface-1); border-color: var(--text-3); }
+.lp .samplechip.shuffle { width: 36px; padding: 0; }
+@media (max-width: 639px) {
+  /* One row to swipe, not three to read. */
+  .lp .planbox-samples {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    margin-inline: calc(var(--lp-gutter) * -1); padding-inline: var(--lp-gutter);
+  }
+  .lp .planbox-samples::-webkit-scrollbar { display: none; }
+  .lp .samplechip { flex: none; white-space: nowrap; }
+}
+
+.lp-blank { margin: 20px 0 0; color: var(--text-2); font-size: 15.5px; }
+.lp-blank a {
+  color: var(--text-1); font-weight: 600; text-decoration: underline;
+  text-decoration-color: var(--border-strong); text-decoration-thickness: 1.5px; text-underline-offset: 3px;
+}
+.lp-blank a:hover { text-decoration-color: var(--accent); }
+.lp-fine { margin: 6px 0 0; color: var(--text-3); font-size: 14px; }
+
+/* ------------------------------------------------- the day, being planned -- */
+.lp-hero-visual { min-width: 0; width: 100%; max-width: 540px; justify-self: end; }
+@media (max-width: 899px) { .lp-hero-visual { justify-self: start; max-width: 640px; } }
+
+.lp-sheet {
+  overflow: hidden; border: 1px solid var(--border-strong); border-radius: 22px;
+  background: var(--surface-1); box-shadow: var(--lift-lg);
+}
+.lp-sheet-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 16px 18px 14px;
+}
+.lp-sheet-place {
+  font-family: var(--lp-serif); font-size: 28px; line-height: 1.05; letter-spacing: -.005em;
+  animation: lp-fade .45s var(--ease) both;
+}
+.lp-sheet-day { flex: none; color: var(--text-2); font-size: 13.5px; font-weight: 550; }
+
+.lp-sheet-map { display: block; width: 100%; height: 128px; background: var(--surface-2); border-block: 1px solid var(--border); }
+/* Wide enough to show the whole map, it keeps the map's own proportions; on a
+   narrow card it keeps its height and loses the edges instead of the pins. */
+@media (min-width: 560px) { .lp-sheet-map { height: auto; aspect-ratio: 480 / 128; } }
+/* Paper, as the atlas behind it: sand land, sage parks, a pale river, and roads
+   lighter than the ground they cross. */
+.lp-map-park { fill: color-mix(in srgb, var(--cat-3) 30%, var(--surface-2)); }
+.lp-map-water { fill: var(--surface-1); stroke: var(--border-strong); stroke-width: 1; }
+.lp-map-road { fill: none; stroke: var(--surface-1); stroke-width: 5; stroke-linecap: round; }
+.lp-map-street { fill: none; stroke: var(--border); stroke-width: 1.5; }
+/* Drawn by offsetting a dash the length of the path. The gap is longer than the
+   dash: with one the same length, a round cap is left at the end of a leg that
+   has not been drawn yet. */
+.lp-map-leg {
+  fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round;
+  stroke-dasharray: 1 2; stroke-dashoffset: 1; transition: stroke-dashoffset .55s var(--ease);
+}
+.lp-map-leg[data-on="true"] { stroke-dashoffset: 0; }
+.lp-map-pin {
+  transform-box: fill-box; transform-origin: center; transform: scale(.2); opacity: 0;
+  transition: transform .4s var(--spring), opacity .2s var(--ease);
+}
+.lp-map-pin[data-on="true"] { transform: none; opacity: 1; }
+.lp-map-pin circle { fill: var(--accent); stroke: var(--surface-1); stroke-width: 2.5; }
+.lp-map-pin text {
+  fill: var(--surface-1); font: 700 11px var(--font-mono), monospace;
+  text-anchor: middle; dominant-baseline: central;
+}
+
+/* Stops hold their place whether or not they are showing, so the card keeps one
+   height, and they fade and lift so leaving looks like the opposite of arriving. */
+.lp-sheet-stops { padding-block: 4px; }
+.lp-stop {
+  display: grid; grid-template-columns: 62px 24px minmax(0, 1fr) auto; align-items: center;
+  column-gap: 12px; min-height: 60px; padding: 8px 18px;
+  transition: opacity .4s var(--ease), transform .4s var(--ease);
+}
+.lp-stop + .lp-stop { border-top: 1px solid var(--border); }
+.lp-stop[data-state="out"] { opacity: 0; transform: translateY(8px); }
+.lp-stop-time { color: var(--text-2); font: 500 12.5px var(--font-mono), monospace; letter-spacing: -.02em; white-space: nowrap; }
+.lp-stop-n {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: var(--surface-1); font: 700 11.5px/1 var(--font-mono), monospace;
+}
+.lp-stop-main { min-width: 0; }
+/* One line each, so no scene can make the card taller than another and move the page. */
+.lp-stop-name, .lp-stop-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-stop-name { font-size: 15.5px; font-weight: 600; line-height: 1.3; }
+.lp-stop-meta { color: var(--text-3); font-size: 13px; line-height: 1.35; }
+@media (max-width: 479px) {
+  .lp-stop { grid-template-columns: 60px 22px minmax(0, 1fr) auto; column-gap: 10px; padding-inline: 14px; }
+  .lp-stop-time { font-size: 12px; }
+  .lp-stop-name { font-size: 15px; }
+  .lp-stop-n { width: 22px; height: 22px; font-size: 11px; }
+  .lp-sheet-head, .lp-sheet-foot { padding-inline: 14px; }
+}
+.lp-stop-cost { color: var(--text-2); font: 500 13px var(--font-mono), monospace; letter-spacing: -.02em; }
+
+.lp-sheet-foot { display: grid; gap: 12px; padding: 12px 18px 16px; border-top: 1px solid var(--border); }
+.lp-ask {
+  display: flex; align-items: center; min-height: 42px; padding: 0 14px;
+  border: 1px dashed var(--border-strong); border-radius: 12px;
+  color: var(--text-3); font-size: 14.5px;
+  transition: color .3s var(--ease), border-color .3s var(--ease);
+}
+.lp-ask[data-typing="yes"] { color: var(--text-1); border-style: solid; border-color: var(--accent); }
+.lp-caret { width: 1.5px; height: 1.1em; margin-left: 2px; background: var(--accent); animation: lp-caret 1.05s steps(1) infinite; }
+.lp-total { display: flex; align-items: baseline; justify-content: space-between; }
+.lp-total span { color: var(--text-2); font-size: 14px; }
+.lp-total b { font: 600 17px var(--font-mono), monospace; letter-spacing: -.02em; }
+
+.lp-pause {
+  display: inline-flex; align-items: center; gap: 7px; margin: 14px 0 0 -10px; padding: 6px 10px;
+  border: 0; border-radius: 10px; background: none; cursor: pointer;
+  color: var(--text-3); font-size: 13.5px;
+}
+.lp-pause:hover { color: var(--text-1); background: var(--surface-2); }
+
+@keyframes lp-fade { from { opacity: 0; } }
+@keyframes lp-caret { 50% { opacity: 0; } }
+
+/* -------------------------------------------------------------- sections -- */
+.lp-section {
+  width: min(100% - 2 * var(--lp-gutter), var(--lp-max)); margin-inline: auto;
+  padding-top: var(--lp-gap);
+}
+.lp-head { max-width: 40rem; margin-bottom: clamp(28px, 4vw, 48px); }
+.lp-h2 {
+  margin: 0; font-family: var(--lp-serif); font-weight: 400;
+  font-size: clamp(38px, 5.2vw, 60px); line-height: 1.02; letter-spacing: -.018em; text-wrap: balance;
+}
+.lp-sub { margin: 12px 0 0; color: var(--text-2); font-size: clamp(17px, 1.5vw, 19px); line-height: 1.5; text-wrap: pretty; }
+.lp-body { margin: 18px 0 30px; max-width: 46ch; color: var(--text-2); font-size: 18px; line-height: 1.6; text-wrap: pretty; }
+
+/* How it works: the steps are a route, with the tour beside it. */
+.lp-how {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: center; gap: clamp(40px, 8vw, 120px);
+}
+.lp-how .lp-head { margin-bottom: clamp(32px, 4vw, 48px); }
+@media (max-width: 859px) { .lp-how { grid-template-columns: minmax(0, 1fr); } }
+.lp-route { list-style: none; margin: 0; padding: 0; }
+.lp-route > li {
+  position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 20px; padding-bottom: 40px;
+}
+.lp-route > li:last-child { padding-bottom: 0; }
+/* The road between one stop and the next. */
+.lp-route > li:not(:last-child)::before {
+  content: ""; position: absolute; left: 21px; top: 52px; bottom: 8px;
+  border-left: 2px dotted var(--border-strong);
+}
+.lp-pin {
+  position: relative; display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: 50%; border: 1.5px solid var(--accent); background: var(--surface-1);
+  color: var(--accent-ink); font: 600 15px/1 var(--font-mono), monospace;
+}
+.lp-route h3 { margin: 5px 0 8px; font-family: var(--lp-serif); font-size: 32px; font-weight: 400; line-height: 1.08; letter-spacing: -.005em; }
+.lp-route p { margin: 0; max-width: 40ch; color: var(--text-2); font-size: 17px; line-height: 1.55; }
+
+.lp-tour { margin: 0; justify-self: center; }
+.lp-phone {
+  padding: 10px; border-radius: 36px; background: #1d1a15;
+  box-shadow: 0 0 0 1px var(--border-strong), var(--lift-lg);
+}
+.lp-phone video { display: block; width: min(100%, 280px); aspect-ratio: 9 / 16; height: auto; border-radius: 27px; background: #000; }
+.lp-tour figcaption { max-width: 28ch; margin: 16px auto 0; text-align: center; color: var(--text-2); font-size: 14px; line-height: 1.5; }
+.lp-tour figcaption strong { display: block; color: var(--text-1); font-size: 15px; }
+
+/* Features: a timetable. Hairlines, a serif for the name, and the app's own
+   type for a sample of the thing itself. Nothing here is a link, so nothing
+   here reacts to a pointer. */
+.lp-index { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border-strong); }
+.lp-row {
+  /* The last column is one width in every row, or each row would divide up the
+     rest differently and the descriptions would not line up. */
+  display: grid; grid-template-columns: 28px minmax(0, 300px) minmax(0, 1fr) 176px;
+  align-items: center; column-gap: clamp(16px, 3vw, 40px);
+  padding-block: 24px; border-bottom: 1px solid var(--border);
+}
+.lp-row-ico { color: var(--accent); }
+.lp-row h3 { margin: 0; font-family: var(--lp-serif); font-size: 29px; font-weight: 400; line-height: 1.1; letter-spacing: -.005em; }
+.lp-row p { margin: 0; color: var(--text-2); font-size: 16.5px; line-height: 1.5; }
+.lp-row-eg {
+  justify-self: end; padding: 6px 11px; border: 1px dashed var(--border-strong); border-radius: 9px;
+  color: var(--text-2); font: 500 13px var(--font-mono), monospace; letter-spacing: -.02em; white-space: nowrap;
+}
+@media (max-width: 759px) {
+  .lp-row {
+    grid-template-columns: 28px minmax(0, 1fr); row-gap: 6px; padding-block: 20px;
+    grid-template-areas: "ico title" ". desc" ". eg";
+  }
+  .lp-row-ico { grid-area: ico; align-self: start; margin-top: 3px; }
+  .lp-row h3 { grid-area: title; font-size: 26px; }
+  .lp-row p { grid-area: desc; }
+  .lp-row-eg { grid-area: eg; justify-self: start; margin-top: 6px; }
+}
+
+/* Together. */
+.lp-together {
+  margin-top: var(--lp-gap); padding-block: clamp(56px, 8vw, 104px);
+  background: var(--surface-1); border-block: 1px solid var(--border);
+}
+.lp-together-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(36px, 6vw, 88px); }
+@media (max-width: 859px) { .lp-together-in { grid-template-columns: minmax(0, 1fr); } }
+.lp-points { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.lp-points li {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 14px;
+  padding-block: 16px; border-bottom: 1px solid var(--border);
+}
+.lp-points svg { margin-top: 2px; color: var(--accent); }
+.lp-points strong { display: block; font-size: 16px; font-weight: 650; }
+.lp-points span { display: block; margin-top: 2px; color: var(--text-2); font-size: 15px; line-height: 1.5; }
+
+.lp-live { overflow: hidden; border: 1px solid var(--border-strong); border-radius: 22px; background: var(--surface-0); box-shadow: var(--lift); }
+.lp-live-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.lp-live-place { font-family: var(--lp-serif); font-size: 26px; line-height: 1.05; }
+.lp-live-now { display: inline-flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 13.5px; }
+.lp-live-now::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+.lp-faces { display: flex; margin-left: auto; padding-left: 6px; }
+.lp-faces i {
+  display: grid; place-items: center; width: 32px; height: 32px; margin-left: -6px;
+  border-radius: 50%; border: 2px solid var(--surface-0); background: var(--c);
+  color: var(--surface-1); font: 700 11px/1 var(--font-sans), sans-serif; font-style: normal;
+}
+.lp-live-row {
+  position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center;
+  column-gap: 12px; min-height: 64px; padding: 10px 18px;
+}
+.lp-live-row + .lp-live-row { border-top: 1px solid var(--border); }
+.lp-live-time { color: var(--text-2); font: 500 12.5px var(--font-mono), monospace; letter-spacing: -.02em; white-space: nowrap; }
+.lp-live-name { display: block; font-size: 15.5px; font-weight: 600; line-height: 1.3; }
+.lp-live-meta { display: block; color: var(--text-3); font-size: 13px; line-height: 1.35; }
+.lp-live-cost { color: var(--text-2); font: 500 13px var(--font-mono), monospace; letter-spacing: -.02em; }
+/* Somebody is in this row: their colour around it, and their name on its edge. */
+.lp-live-editing { box-shadow: inset 0 0 0 2px var(--c); border-radius: 12px; margin: 6px 8px; padding-inline: 10px; }
+.lp-live-new { background: color-mix(in srgb, var(--c) 10%, transparent); }
+.lp-live-tag {
+  position: absolute; right: 14px; top: -12px; display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px 3px 8px; border-radius: 999px 999px 999px 3px;
+  background: var(--c); color: var(--surface-1); font-size: 12px; font-weight: 650; line-height: 1.4;
+}
+.lp-live-editing .lp-live-tag { right: 12px; top: -11px; }
+.lp-live-new .lp-live-tag { top: 8px; right: 14px; border-radius: 999px; }
+.lp-live-new .lp-live-cost { min-width: 0; }
+@media (max-width: 519px) {
+  .lp-live-now { display: none; }
+  /* On the edge of a narrow row a tag would sit over the name, so it moves under it. */
+  .lp-live-new .lp-live-tag { position: static; grid-column: 2 / -1; justify-self: start; margin-top: 6px; }
+  .lp-live-new { padding-block: 12px; }
+}
+
+/* The last word. */
+.lp-final { padding-block: var(--lp-gap) clamp(56px, 8vw, 96px); }
+.lp-final-in { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: center; gap: clamp(28px, 5vw, 72px); }
+@media (max-width: 859px) { .lp-final-in { grid-template-columns: minmax(0, 1fr); } }
+.lp-final-copy .lp-h2 { margin-bottom: clamp(22px, 3vw, 32px); }
+.lp-final-art { width: min(100%, 440px); margin: 0 auto; }
+@media (max-width: 859px) { .lp-final-art { width: min(70%, 300px); margin: 12px auto 0; } }
+
+.lp-footer { margin-top: auto; border-top: 1px solid var(--border); }
+.lp-footer-in {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px 28px;
+  padding-block: 26px 34px; color: var(--text-2); font-size: 14px;
+}
+.lp-footer-brand { display: inline-flex; align-items: center; gap: 10px; }
+.lp-footer-links { display: flex; gap: 22px; margin-left: auto; }
+.lp-footer a { color: var(--text-2); text-decoration: none; }
+.lp-footer a:hover { color: var(--text-1); text-decoration: underline; }
+@media (max-width: 639px) { .lp-footer-links { margin-left: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Nothing moves, so there is nothing to pause. */
+  .lp-pause { display: none; }
+  .lp-stop, .lp-map-leg, .lp-map-pin, .lp-ask { transition: none; }
+  .lp-sheet-place, .lp-caret { animation: none; }
+}
+
+@media print { .lp { display: none !important; } }

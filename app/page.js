@@ -1,19 +1,19 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import PlanPrompt from '@/components/PlanPrompt';
 import HeroAtlas from '@/components/HeroAtlas';
-import Reveal from '@/components/Reveal';
-import LiveMock from '@/components/LiveMock';
-import FeatureGrid from '@/components/FeatureGrid';
+import HeroSheet from '@/components/HeroSheet';
+import TogetherSheet from '@/components/TogetherSheet';
 import LandingAccount from '@/components/LandingAccount';
 import BrandMark from '@/components/BrandMark';
 import TravelArt from '@/components/TravelArt';
 import PromoVideo from '@/components/PromoVideo';
 import GuideRail from '@/components/GuideRail';
+import { accountHintScript } from '@/lib/accountHint';
 import {
   CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
-  ArrowRight, Check, Printer, Share2, Zap, ShieldCheck,
+  Zap, ShieldCheck, Printer,
 } from 'lucide-react';
+import './landing.css';
 
 export const metadata = {
   title: 'Wander — plan trips together, day by day',
@@ -22,155 +22,183 @@ export const metadata = {
     + 'Share one link and plan together live.',
 };
 
+/*
+ * Nothing on this page waits for a script to be seen.
+ *
+ * The copy is in the HTML and readable at once; the only thing that moves on
+ * its own is the day being planned in the hero, and that is drawn finished
+ * before it starts (components/HeroSheet.jsx). Blocks used to be sent hidden and
+ * revealed as they scrolled into view, which meant a slow phone showed a nav bar
+ * and nothing else until the bundle had run. Legacy share links at /?join=<code>
+ * are redirected in next.config.mjs, which is also what lets this page be
+ * generated once instead of on every visit.
+ */
+
+// `eg` is a taste of the real thing, in the type the app uses for it.
 const FEATURES = [
-  { icon: CalendarDays, title: 'A day for every date', body: 'Type "9am Senso-ji" and it files itself.' },
-  { icon: MapPin, title: 'Everything on a map', body: 'The whole trip, or one day at a time.' },
-  { icon: Wallet, title: 'Costs as you go', body: 'Price a stop and the budget builds itself.' },
-  { icon: Backpack, title: 'Packing, shared', body: 'One list everyone ticks off.' },
-  { icon: NotebookPen, title: 'Notes and refs', body: 'Confirmations beside the plan, not in a chat.' },
-  { icon: Printer, title: 'Ready without signal', body: 'Download your trip or print a copy.' },
+  { icon: CalendarDays, title: 'A day for every date', body: 'Type “9am Senso-ji” and it files itself.', eg: 'Day 3, 9:00 am' },
+  { icon: MapPin, title: 'Everything on a map', body: 'The whole trip, or one day at a time.', eg: '5 stops, 4.2 km' },
+  { icon: Wallet, title: 'Costs as you go', body: 'Price a stop and the budget builds itself.', eg: '¥8,100 so far' },
+  { icon: Backpack, title: 'Packing, shared', body: 'One list everyone ticks off.', eg: '14 of 22 packed' },
+  { icon: NotebookPen, title: 'Notes and refs', body: 'Confirmations beside the plan, not in a chat.', eg: 'Booking ref K7M2QX' },
+  { icon: Printer, title: 'Ready without signal', body: 'Download your trip or print a copy.', eg: 'Saved for offline' },
 ];
 
 const STEPS = [
-  { n: '1', title: 'Describe it', body: 'A sentence is enough.' },
-  { n: '2', title: 'Adjust it', body: 'Every day arrives filled in and editable.' },
-  { n: '3', title: 'Send the link', body: 'They sign in and can edit with you.' },
+  { title: 'Describe it', body: 'A sentence is enough, or a photo of a guidebook page you tore out.' },
+  { title: 'Adjust it', body: 'Every day arrives filled in. Move stops, add costs, or ask for changes in your own words.' },
+  { title: 'Send the link', body: 'They sign in and edit the same trip with you, live.' },
 ];
 
-export default async function Landing({ searchParams }) {
-  // Share links used to live at /?join=<code>; keep those working.
-  const sp = await searchParams;
-  const legacy = sp && sp.join;
-  if (legacy) redirect(`/join/${Array.isArray(legacy) ? legacy[0] : legacy}`);
+export default function Landing() {
+  const hint = accountHintScript(process.env.NEXT_PUBLIC_SUPABASE_URL || '');
 
   return (
-    <div className="lp">
+    <div className="lp" id="top">
+      {/* Says whether this browser is signed in while the page is still being
+          parsed, so the account control is right in the first frame. */}
+      {hint ? <script dangerouslySetInnerHTML={{ __html: hint }} /> : null}
+      <a className="lp-skip" href="#lp-main">Skip to content</a>
+
       <header className="lp-nav">
-        <div className="lp-nav-in">
-          <span className="brand-link" style={{ pointerEvents: 'none' }}>
+        <div className="lp-wrap lp-nav-in">
+          <span className="brand-link">
             <BrandMark />
             <span className="brand-word">Wander</span>
           </span>
-          <div className="grow" />
-          <Link className="lp-navlink" href="/guides">Guides</Link>
-          <a className="lp-navlink" href="#features">Features</a>
-          <a className="lp-navlink" href="#how">How it works</a>
+          <nav className="lp-links" aria-label="On this page">
+            <a className="lp-link lp-link-wide" href="#how">How it works</a>
+            <a className="lp-link lp-link-wide" href="#features">Features</a>
+            <Link className="lp-link" href="/guides">Guides</Link>
+          </nav>
           <LandingAccount />
         </div>
       </header>
 
-      <main>
-        <div className="lp-hero-stage">
+      <main id="lp-main">
+        <div className="lp-stage">
           <HeroAtlas />
-          <section className="lp-hero">
+          <section className="lp-hero" aria-labelledby="lp-title">
             <div className="lp-hero-copy">
-              <Reveal as="span" className="lp-eyebrow" delay={40}>
-                <Zap size={13} /> Free. Yours. Shareable.
-              </Reveal>
-              <Reveal as="h1" delay={110}>Describe the trip. Get the plan.</Reveal>
-              <Reveal as="p" className="lp-lede" delay={180}>
+              <h1 className="lp-h1" id="lp-title">
+                Describe the trip. <span>Get the plan.</span>
+              </h1>
+              <p className="lp-lede">
                 Say where you are going. Wander lays out every day, maps it, and totals the cost.
-              </Reveal>
-              <Reveal delay={250}><PlanPrompt autoFocus={false} rotate /></Reveal>
-              <Reveal className="lp-cta" delay={320}>
-                <Link className="btn lg" href="/trips">
-                  Start blank <ArrowRight size={17} />
-                </Link>
-              </Reveal>
-              <Reveal as="ul" className="lp-ticks" delay={390}>
-                <li><Check size={15} /> Free and open source</li>
-                <li><Check size={15} /> Bookings and notes together</li>
-                <li><Check size={15} /> Download for offline access</li>
-              </Reveal>
+              </p>
+              <PlanPrompt autoFocus={false} rotate />
+              <p className="lp-blank">
+                Or <Link href="/trips">start from a blank trip</Link>.
+              </p>
+              <p className="lp-fine">Free and open source. Download any trip to use it offline.</p>
             </div>
-
-            <Reveal className="lp-hero-visual" from="right" delay={220} aria-hidden="true">
-              <LiveMock />
-            </Reveal>
+            <HeroSheet />
           </section>
         </div>
 
-        <section className="lp-section" id="features">
-          <Reveal className="lp-section-head">
-            <h2>Everything the trip needs</h2>
-            <p>In one place, not five apps.</p>
-          </Reveal>
-          <FeatureGrid>
-            {FEATURES.map((f, i) => (
-              <Reveal as="article" className="lp-card" key={f.title} delay={i * 55}>
-                <span className="lp-card-ico" aria-hidden="true"><f.icon size={19} /></span>
-                <h3>{f.title}</h3>
-                <p>{f.body}</p>
-              </Reveal>
-            ))}
-          </FeatureGrid>
-        </section>
-
-        <section className="lp-section" id="guides">
-          <Reveal className="lp-section-head">
-            <h2>Not sure where yet?</h2>
-            <p>Borrow a guide and make it yours.</p>
-          </Reveal>
-          <GuideRail title="" />
-        </section>
-
-        <section className="lp-section lp-band">
-          <div className="lp-split">
-            <Reveal>
-              <span className="lp-eyebrow"><Share2 size={13} /> Built for planning together</span>
-              <h2>One link. Everyone editing the same trip.</h2>
-              <p className="lp-body">
-                Send the link, they sign in, and you are both editing the same trip.
-              </p>
-            </Reveal>
-            <ul className="lp-points">
-              <Reveal as="li" delay={60}>
-                <Users size={17} />
-                <div><strong>Live presence</strong><span>See who else is here.</span></div>
-              </Reveal>
-              <Reveal as="li" delay={130}>
-                <Zap size={17} />
-                <div><strong>Instant edits</strong><span>Changes land as they happen.</span></div>
-              </Reveal>
-              <Reveal as="li" delay={200}>
-                <ShieldCheck size={17} />
-                <div><strong>Your plans stay together</strong><span>Bookings, notes and addresses shared with your travel companions.</span></div>
-              </Reveal>
-            </ul>
+        <section className="lp-section" id="how" aria-labelledby="lp-how-title">
+          <div className="lp-how">
+            <div>
+              <div className="lp-head">
+                <h2 className="lp-h2" id="lp-how-title">How it works</h2>
+                <p className="lp-sub">From a sentence to a shared trip.</p>
+              </div>
+              <ol className="lp-route" role="list">
+                {STEPS.map((step, i) => (
+                  <li key={step.title}>
+                    <span className="lp-pin" aria-hidden="true">{i + 1}</span>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <PromoVideo />
           </div>
         </section>
 
-        <section className="lp-section" id="how">
-          <Reveal className="lp-section-head">
-            <h2>Three steps</h2>
-          </Reveal>
-          <ol className="lp-steps">
-            {STEPS.map((step, i) => (
-              <Reveal as="li" key={step.n} delay={i * 90}>
-                <span className="lp-step-n">{step.n}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </Reveal>
+        <section className="lp-section" id="features" aria-labelledby="lp-features-title">
+          <div className="lp-head">
+            <h2 className="lp-h2" id="lp-features-title">Everything the trip needs</h2>
+            <p className="lp-sub">In one place, not five apps.</p>
+          </div>
+          <ul className="lp-index" role="list">
+            {FEATURES.map((f) => (
+              <li className="lp-row" key={f.title}>
+                <f.icon className="lp-row-ico" size={22} strokeWidth={1.6} aria-hidden="true" />
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
+                <span className="lp-row-eg">{f.eg}</span>
+              </li>
             ))}
-          </ol>
-          <PromoVideo />
+          </ul>
         </section>
-        <section className="lp-final">
-          <TravelArt kind="journey" className="travel-art-landing" />
-          <Reveal as="h2">Where are you going?</Reveal>
-          <Reveal className="lp-final-box" delay={90}><PlanPrompt rotate /></Reveal>
+
+        <section className="lp-section" id="guides" aria-labelledby="lp-guides-title">
+          <div className="lp-head">
+            <h2 className="lp-h2" id="lp-guides-title">Not sure where yet?</h2>
+            <p className="lp-sub">Borrow a guide and make it yours.</p>
+          </div>
+          <GuideRail title="" />
+        </section>
+
+        <section className="lp-together" aria-labelledby="lp-together-title">
+          <div className="lp-wrap lp-together-in">
+            <div>
+              <h2 className="lp-h2" id="lp-together-title">One link. Everyone editing the same trip.</h2>
+              <p className="lp-body">
+                Send the link, they sign in, and you are both editing the same trip.
+              </p>
+              <ul className="lp-points" role="list">
+                <li>
+                  <Users size={20} strokeWidth={1.6} aria-hidden="true" />
+                  <div><strong>Live presence</strong><span>See who else is here.</span></div>
+                </li>
+                <li>
+                  <Zap size={20} strokeWidth={1.6} aria-hidden="true" />
+                  <div><strong>Instant edits</strong><span>Changes land as they happen.</span></div>
+                </li>
+                <li>
+                  <ShieldCheck size={20} strokeWidth={1.6} aria-hidden="true" />
+                  <div>
+                    <strong>Your plans stay together</strong>
+                    <span>Bookings, notes and addresses shared with your travel companions.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <TogetherSheet />
+          </div>
+        </section>
+
+        <section className="lp-final" aria-labelledby="lp-final-title">
+          <div className="lp-wrap lp-final-in">
+            <div className="lp-final-copy">
+              <h2 className="lp-h2" id="lp-final-title">Where are you going?</h2>
+              <PlanPrompt rotate />
+            </div>
+            <TravelArt kind="journey" className="lp-final-art" />
+          </div>
         </section>
       </main>
 
-      <footer className="lp-foot">
-        <BrandMark className="brand-mark-small" />
-        <span>Wander — travel itinerary planner</span>
-        <div className="grow" />
-        <span className="dim">Maps and places by Google</span>
-        <Link className="dim" href="/privacy">Privacy</Link>
-        <Link className="dim" href="/terms">Terms</Link>
+      <footer className="lp-footer">
+        <div className="lp-wrap lp-footer-in">
+          <span className="lp-footer-brand">
+            <BrandMark className="brand-mark-small" />
+            <span>Wander</span>
+            <span className="dim">travel itinerary planner</span>
+          </span>
+          <nav className="lp-footer-links" aria-label="More">
+            <Link href="/guides">Guides</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+          </nav>
+          <span className="dim">Maps and places by Google</span>
+        </div>
       </footer>
     </div>
   );
 }
-

@@ -35,8 +35,6 @@
 .map-appearance[data-state="exit"] > .map-appearance-close { animation: motion-drop-out .14s var(--ease) forwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Nothing to pause when nothing moves. */
-  .hero-atlas-toggle { display: none; }
   .backdrop, .backdrop > .modal, .gminfo,
   .map-appearance > .map-appearance-options, .map-appearance > .map-appearance-close { animation: none; }
   .backdrop[data-state="exit"] { opacity: 0; }

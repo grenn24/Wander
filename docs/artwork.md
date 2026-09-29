@@ -27,11 +27,12 @@ Higgsfield MCP / GPT Image 2 on 12 September 2026, job
 `e9ebc4c0-4205-469e-a397-ebede768b5e3`. The source PNG was resized and compressed
 with Sharp (WebP quality 80). No runtime generation or subscription is needed.
 
-`HeroAtlas.jsx` places it only behind the homepage hero, with separately drawn
-CSS/SVG routes and a slow light wash. Both animations pause off-screen, in hidden
-tabs and through the pause button; reduced-motion visitors get a still drawing.
-Dark mode uses inversion/blending; mobile uses a quieter crop from the right.
-Keep it decorative, non-interactive and hidden from assistive technology/print.
+`HeroAtlas.jsx` places it only behind the homepage hero, with one separately
+drawn dotted route along the edge. It is still: the day being planned beside it
+(`HeroSheet.jsx`) is the one thing on the page that moves, and that has its own
+pause control. Dark mode uses inversion; mobile uses a quieter crop from the
+right. Keep it decorative, non-interactive and hidden from assistive
+technology/print. It is a server component and needs no script.
 
 Final generation prompt:
 

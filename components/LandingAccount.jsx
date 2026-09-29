@@ -1,57 +1,89 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import Link from 'next/link';
 import { LayoutGrid } from 'lucide-react';
-import { getClient } from '@/lib/supabase';
-import { initials } from '@/lib/util';
+import { authStorageKey, installAccountHint } from '@/lib/accountHint';
+
+// Inlined at build time, so it must be spelled out in full.
+const STORAGE_KEY = authStorageKey(process.env.NEXT_PUBLIC_SUPABASE_URL || '');
 
 /**
  * The landing page's account control.
  *
+ * Both versions are in the HTML the server sends, and CSS shows one of them
+ * (app/landing.css) according to `data-account` on <html>. That attribute is
+ * set by an inline script while the page is still being parsed
+ * (lib/accountHint.js), so the right control is there in the first frame rather
+ * than arriving after the page around it.
+ *
  * It reads the session directly rather than through AppProvider, because that
  * provider is the sign-in gate: wrapping the landing page in it would show a
- * sign-in form to the very visitors the page exists to convince. This asks the
- * same question without acting on the answer.
+ * sign-in form to the very visitors the page exists to convince.
  *
- * Signed-in visitors get separate, direct links to their trips and profile.
+ * What is stored is what counts. The SDK is asked afterwards — that is what
+ * makes it refresh a stale token or throw out one the server has refused — but
+ * its answer is never taken as "signed out" by itself: when it cannot reach the
+ * server it says "no session" too, and a visitor with a flaky connection would
+ * have lost their controls. A session the server rejects is removed from
+ * storage, and re-reading storage is what notices.
  */
 export default function LandingAccount() {
-  const [name, setName] = useState(null); // null = still asking
+  const [name, setName] = useState(''); // only for the profile link's spoken name
 
-  useEffect(() => {
-    const client = getClient();
-    if (!client) { setName(''); return undefined; }
-    let alive = true;
-
-    const take = (session) => {
-      if (!alive) return;
-      const u = session && session.user;
-      if (!u) { setName(''); return; }
-      const meta = u.user_metadata || {};
-      setName(meta.display_name || meta.full_name || meta.name
-        || (u.email || '').split('@')[0] || 'Traveller');
-    };
-
-    client.auth.getSession().then(({ data }) => take(data.session)).catch(() => take(null));
-    const { data } = client.auth.onAuthStateChange((_e, s) => take(s));
-    return () => { alive = false; data.subscription.unsubscribe(); };
+  // Arriving from another page inside the app runs no inline script for this
+  // document, so say it here, before the route's first paint.
+  useLayoutEffect(() => {
+    if (!STORAGE_KEY) return;
+    const account = installAccountHint(STORAGE_KEY);
+    setName(account ? account.name : '');
   }, []);
 
-  // Nothing at all until the answer is known, rather than a button that
-  // changes its mind a moment after the page settles.
-  if (name === null) return <span className="lp-account-hold" aria-hidden="true" />;
+  useEffect(() => {
+    if (!STORAGE_KEY) return undefined;
+    let alive = true;
+    let stop = () => {};
+    const follow = () => {
+      if (!alive) return;
+      const account = installAccountHint(STORAGE_KEY);
+      setName(account ? account.name : '');
+    };
 
-  if (!name) return <Link className="btn primary sm" href="/trips">Open Wander</Link>;
+    // Another tab signing out, or this one coming back from the back/forward
+    // cache with whatever it knew when it left.
+    const onStorage = (e) => { if (!e.key || e.key === STORAGE_KEY) follow(); };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('pageshow', follow);
+
+    // The SDK is not needed to draw anything, so it stays off the path to the
+    // first interaction and is fetched once the page is up.
+    import('@/lib/supabase').then(({ getClient }) => {
+      const client = getClient();
+      if (!client || !alive) return;
+      client.auth.getSession().then(follow, follow);
+      // Nothing here calls back into the SDK, so it is safe to run inside its lock.
+      const { data } = client.auth.onAuthStateChange(follow);
+      stop = () => data.subscription.unsubscribe();
+    }).catch(() => { /* the hint stands */ });
+
+    return () => {
+      alive = false;
+      stop();
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('pageshow', follow);
+    };
+  }, []);
 
   return (
-    <div className="lp-account-links">
-      <Link className="btn primary sm" href="/trips">
-        <LayoutGrid size={15} aria-hidden="true" /> Your trips
-      </Link>
-      <Link href="/account" className="btn ghost sm who" aria-label={`Your profile — ${name}`}>
-        <span className="who-mark" aria-hidden="true">{initials(name)}</span>
-        <span className="who-full">{name}</span>
-      </Link>
+    <div className="lp-account">
+      <Link className="btn primary sm lp-account-out" href="/trips">Open Wander</Link>
+      <div className="lp-account-in">
+        <Link className="btn primary sm" href="/trips">
+          <LayoutGrid size={15} aria-hidden="true" /> Your trips
+        </Link>
+        <Link className="lp-avatar" href="/account"
+          aria-label={name ? `Your profile, ${name}` : 'Your profile'}
+          data-tip={name || 'Your profile'} />
+      </div>
     </div>
   );
 }

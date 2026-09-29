@@ -118,6 +118,22 @@ stupid" reports turned out to be one of them.
    `maps3d` renderer. See `docs/3d-maps.md` for scope, billing and validation.
    It does not change Traveller navigation or activity-editor maps.
 
+9. **Things that arrive after the page.** The server cannot see the session
+   (Supabase keeps it in localStorage) or the reader's clock, so anything drawn
+   from them shows up only once the bundle has run: a control from nowhere, a
+   card that drops in, a bar that jumps. Read what the server sends against what
+   the page ends up with. Draw both states and pick one with CSS, or decide
+   before the first paint with a tiny inline script — the landing page's
+   account control does both (`lib/accountHint.js`, `data-account` on
+   `<html>`). Never send content hidden for a script to reveal: `opacity: 0`
+   from the server meant a slow phone showed a bare nav bar and nothing else.
+   And never read the SDK's `session: null` as "signed out". With an expired
+   token and a refresh that fails it says exactly that (`getSession` with an
+   `error`, `INITIAL_SESSION` with null), which is how a signed-in visitor once
+   got "Open Wander" 26 seconds after the page loaded. Storage is the truth:
+   the SDK removes a session the server rejects and leaves one it could not
+   reach.
+
 ---
 
 ## 4. What you cannot verify, and why
@@ -130,6 +146,14 @@ stupid" reports turned out to be one of them.
 - **Workarounds that do work:** call the API routes directly with `fetch` from
   the browser console; render real markup against the real stylesheet to check
   CSS; query the local database directly.
+- **The desktop app's Browser pane can be hidden**, and then screenshots and
+  clicks time out. A scratch Chrome DevTools driver works instead — Node 22 has
+  a global `WebSocket`: launch `C:/Program Files/Google/Chrome/Application/chrome.exe`
+  with `--headless=new --remote-debugging-port=…`, emulate with `Emulation.*`
+  (device, colour scheme, reduced motion, CPU and network throttling), inject a
+  probe before the page's own scripts with `Page.addScriptToEvaluateOnNewDocument`,
+  and seed a signed-in session into localStorage the same way. Blocking
+  `/_next/static/*` shows the frame a visitor gets before hydration.
 - **Local Supabase runs in Docker**: `docker exec supabase_db_wander-planner
   psql -U postgres -d postgres -c "..."`. The local database has test data,
   including a demo trip `01b42f44-8000-4b6b-81b0-78bfe48bb37b` ("Hakone &
@@ -232,6 +256,29 @@ to copy.
 
 Match the surrounding code — it is consistent and deliberate.
 
+### The landing page (29 September 2026)
+
+- All of its styles are in `app/landing.css`, prefixed `lp-`. `globals.css` keeps
+  only what is shared: the prompt box, the brand mark, and the frame the legal
+  pages use (`.lp-top`, `.lp-foot`). The idea is a travel journal — routes and
+  pins only where they say something, features as a timetable, one thing that
+  moves. Do not turn the feature list back into a grid of identical cards.
+- It is generated once (`○ Static` in the build), so it must not read
+  `searchParams` or cookies. Old share links at `/?join=<code>` are redirected
+  in `next.config.mjs`.
+- The signed-in control is decided by `lib/accountHint.js`: an inline script sets
+  `data-account="in"` from the stored session before the first paint, and
+  `components/LandingAccount.jsx` follows storage afterwards. Both versions are
+  in the HTML; CSS picks one. Covered by `tests/account-hint.test.mjs`.
+- The hero's day (`HeroSheet.jsx`) is drawn complete by the server, then moves
+  only while on screen and in a visible tab, and can be paused. Every scene has
+  four stops and every stop is one line, so the card never changes height — if
+  you add a scene, watch the height of `.lp-sheet` through a full cycle. Under
+  `prefers-reduced-motion` it stays still and the pause control is hidden.
+- `public/promo/wander-promo.mp4` and its poster were recorded before this
+  redesign, so the tour's first scene shows the previous landing page.
+  Re-record when convenient.
+
 ### Destination times, splits and offline access (5 September 2026)
 
 - Before deploying, apply `supabase/migrations/20260905090000_trip_timezone_budget_split.sql`
@@ -311,8 +358,8 @@ Match the surrounding code — it is consistent and deliberate.
 - The search form supplies a single rounded tint; its input stays transparent
   so a square form background cannot show around the input's rounded corners.
 - `TravelArt.jsx` supplies small, self-hosted illustrations for the homepage's
-  final prompt and empty trips/packing/map-stop states only. Preserve the working hero
-  preview and keep populated planner views free of decorative images. The
+  final prompt and empty trips/packing/map-stop states only. Preserve the hero's
+  live day (`HeroSheet.jsx`) and keep populated planner views free of decorative images. The
   theme-aware CSS blends their white backgrounds into the page. Assets and
   prompts are documented in `docs/artwork.md`; no Higgsfield runtime access is
   needed. Keep explicit dimensions, lazy loading, empty alt text and print hiding.

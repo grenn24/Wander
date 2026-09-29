@@ -125,10 +125,6 @@ h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -.014em; }
 
 /* The serif is for things read slowly: a headline, a trip name, a day. Rows in
    a dense list are scanned, not read, so they stay in the sans. */
-.lp-hero h1,
-.lp-section-head h2,
-.lp-split h2,
-.lp-final h2,
 .page-head h2,
 .tripcard-name,
 .planhead h2,
@@ -141,9 +137,6 @@ h1,h2,h3,h4 { margin: 0; font-weight: 650; letter-spacing: -.014em; }
 
 /* A display serif at 400 reads lighter than a bold sans, so the sizes step up
    to keep the same presence on the page. */
-.lp-hero h1 { font-size: clamp(40px, 6.4vw, 68px); }
-.lp-section-head h2, .lp-split h2 { font-size: clamp(27px, 3.9vw, 38px); }
-.lp-final h2 { font-size: clamp(31px, 4.8vw, 46px); }
 .page-head h2 { font-size: 25px; }
 .tripcard-name { font-size: 19px; }
 
@@ -892,174 +885,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .empty-ico { color: var(--text-3); margin-bottom: 10px; }
 .empty-title { font-size: 16px; font-weight: 650; color: var(--text-1); margin: 0 0 4px; }
 
-/* ============================================================= landing --- */
-.lp { min-height: 100dvh; display: flex; flex-direction: column; }
-
-.lp-nav {
-  position: sticky; top: 0; z-index: 30; background: var(--surface-0);
-  border-bottom: 1px solid var(--border);
-}
-.lp-nav-in {
-  max-width: 1080px; margin: 0 auto; padding: 12px 22px;
-  display: flex; align-items: center; gap: 18px;
-}
-.lp-navlink { color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 550; }
-.lp-navlink:hover { color: var(--text-1); }
-.lp-account-links { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
-@media (max-width: 700px) { .lp-navlink { display: none; } }
-
-.lp-hero {
-  max-width: 1080px; margin: 0 auto; padding: 60px 22px 40px; width: 100%;
-  display: grid; gap: 44px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-}
-@media (max-width: 900px) { .lp-hero { grid-template-columns: 1fr; padding-top: 40px; } }
-
-.lp-eyebrow {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650;
-  color: var(--accent-ink); background: var(--accent-soft); border-radius: 999px;
-  padding: 4px 11px; margin-bottom: 16px;
-}
-.lp-hero h1 {
-  font-size: clamp(32px, 5.2vw, 52px); line-height: 1.06; letter-spacing: -.028em;
-  margin-bottom: 16px;
-}
-.lp-lede { font-size: 16.5px; line-height: 1.6; color: var(--text-2); margin: 0 0 24px; max-width: 46ch; }
-.lp-cta { display: flex; gap: 10px; flex-wrap: wrap; }
-.lp-ticks {
-  list-style: none; margin: 24px 0 0; padding: 0; display: flex; flex-wrap: wrap;
-  gap: 8px 20px; font-size: 13.5px; color: var(--text-2);
-}
-.lp-ticks li { display: flex; align-items: center; gap: 7px; }
-.lp-ticks svg { color: var(--good); flex: none; }
-
-/* hero mock */
-.lp-hero-stage {
-  position: relative; isolation: isolate; overflow: hidden; background: var(--surface-0);
-  --atlas-filter: none; --atlas-blend: multiply; --atlas-opacity: .65;
-}
-.lp-hero-stage .lp-hero { position: relative; z-index: 1; padding-bottom: 70px; }
-.hero-atlas { position: absolute; inset: 0; pointer-events: none; overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
-.hero-atlas-paper, .hero-atlas-routes { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.hero-atlas-paper { filter: var(--atlas-filter); mix-blend-mode: var(--atlas-blend); opacity: var(--atlas-opacity); }
-.hero-atlas-routes { color: var(--accent); opacity: .5; }
-.hero-atlas-route path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.hero-atlas-route .atlas-trail { stroke-dasharray: 3 8; opacity: .25; }
-.hero-atlas-route .atlas-ink { stroke-dasharray: 100; animation: atlas-draw 24s ease-in-out infinite; }
-.hero-atlas-route circle { fill: var(--surface-0); stroke: currentColor; stroke-width: 2; }
-.hero-atlas-route.route-later .atlas-ink { animation-delay: -8s; }
-.hero-atlas-light { position: absolute; inset: -25%; opacity: .2;
-  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--cat-3) 28%, transparent), transparent 60%);
-  animation: atlas-light 28s ease-in-out infinite alternate; }
-.hero-atlas .atlas-ink, .hero-atlas-light { animation-play-state: paused; }
-.hero-atlas[data-running="true"] .atlas-ink, .hero-atlas[data-running="true"] .hero-atlas-light { animation-play-state: running; }
-.hero-atlas-toggle { position: absolute; z-index: 2; bottom: 22px; right: max(22px, calc((100% - 1036px) / 2));
-  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
-  background: var(--surface-1); color: var(--text-2); cursor: pointer; }
-.hero-atlas-toggle:hover { color: var(--accent-ink); border-color: var(--accent); }
-.hero-atlas-toggle:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; }
-:root[data-theme="dark"] .lp-hero-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-blend: screen; --atlas-opacity: .38; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .lp-hero-stage { --atlas-filter: invert(1) hue-rotate(180deg); --atlas-blend: screen; --atlas-opacity: .38; }
-}
-@keyframes atlas-draw {
-  0%, 8% { stroke-dashoffset: 100; opacity: 0; }
-  12% { opacity: .9; }
-  62%, 82% { stroke-dashoffset: 0; opacity: .9; }
-  96%, 100% { stroke-dashoffset: 0; opacity: 0; }
-}
-@keyframes atlas-light { from { transform: translate3d(-12%, -5%, 0); } to { transform: translate3d(12%, 5%, 0); } }
-@media (max-width: 700px) {
-  .hero-atlas-paper { object-position: right center; opacity: calc(var(--atlas-opacity) * .5); }
-  .hero-atlas-routes { opacity: .28; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-atlas .atlas-ink { animation: none; stroke-dashoffset: 0; opacity: .6; }
-  .hero-atlas-light { animation: none; transform: none; }
-  .hero-atlas-toggle { display: none; }
-}
-@media print { .hero-atlas, .hero-atlas-toggle { display: none; } }
-
-.lp-hero-visual { min-width: 0; }
-.mock {
-  border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden;
-  background: var(--surface-1); box-shadow: var(--shadow); transform: rotate(-.6deg);
-}
-.mock-bar {
-  display: flex; align-items: center; gap: 6px; padding: 10px 13px;
-  border-bottom: 1px solid var(--border); background: var(--surface-2);
-}
-.mock-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); }
-.mock-title { margin-left: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
-.mock-body { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-.mock-dayhead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 2px; }
-.mock-daydate { font-weight: 650; font-size: 14px; }
-.mock-act {
-  display: flex; align-items: center; gap: 11px; padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1);
-}
-.mock-time { width: 54px; flex: none; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.mock-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.mock-name { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 14px; }
-.mock-meta { font-size: 12px; color: var(--text-3); }
-.mock-cost { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.mock-add {
-  border: 1px dashed var(--border-strong); border-radius: 10px; padding: 9px 12px;
-  font-size: 12.5px; color: var(--text-3);
-}
-
-/* sections */
-.lp-section { max-width: 1080px; margin: 0 auto; padding: 64px 22px; width: 100%; }
-.lp-section-head { max-width: 60ch; margin-bottom: 30px; }
-.lp-section-head h2 { font-size: clamp(23px, 3.2vw, 31px); letter-spacing: -.022em; margin-bottom: 8px; }
-.lp-section-head p { color: var(--text-2); margin: 0; font-size: 15.5px; }
-.lp-body { color: var(--text-2); font-size: 15.5px; line-height: 1.62; margin: 0 0 14px; max-width: 52ch; }
-
-.lp-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(272px, 1fr)); }
-.lp-card {
-  padding: 20px; border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface-1);
-}
-.lp-card-ico {
-  display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px;
-  background: var(--accent-soft); color: var(--accent-ink); margin-bottom: 12px;
-}
-.lp-card h3 { font-size: 16px; margin-bottom: 6px; }
-.lp-card p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.55; }
-
-.lp-band { background: var(--surface-1); border-block: 1px solid var(--border); max-width: none; }
-.lp-split {
-  max-width: 1080px; margin: 0 auto; display: grid; gap: 40px;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center;
-}
-@media (max-width: 860px) { .lp-split { grid-template-columns: 1fr; } }
-.lp-split h2 { font-size: clamp(23px, 3.2vw, 31px); letter-spacing: -.022em; margin-bottom: 12px; }
-.lp-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.lp-points li {
-  display: flex; gap: 13px; align-items: flex-start; padding: 15px 16px;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-0);
-}
-.lp-points svg { color: var(--accent); flex: none; margin-top: 2px; }
-.lp-points strong { display: block; font-size: 14.5px; }
-.lp-points span { font-size: 13.5px; color: var(--text-2); }
-
-.lp-steps {
-  list-style: none; margin: 0; padding: 0; display: grid; gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); counter-reset: step;
-}
-.lp-steps li { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); }
-.lp-step-n {
-  display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
-  background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; margin-bottom: 12px;
-}
-.lp-steps h3 { font-size: 16px; margin-bottom: 6px; }
-.lp-steps p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.55; }
-
-.lp-final { text-align: center; padding: 76px 22px 84px; border-top: 1px solid var(--border); }
-.lp-final h2 { font-size: clamp(26px, 4vw, 38px); letter-spacing: -.025em; margin-bottom: 10px; }
-.lp-final p { color: var(--text-2); margin: 0 0 22px; font-size: 16px; }
-
 /* --------------------------------------------------------------- legal --- */
 /* A column of prose, which nothing else in this app is: the itinerary is rows
    and the modals are forms, so this is the one place that wants a measure. */
@@ -1088,6 +913,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   max-width: 1080px; margin: 0 auto; padding: 16px 22px; width: 100%;
 }
 
+/* .grow is only styled inside .topbar and .day-head, so out here the spacer
+   collapsed and the button and the links sat against the brand. */
+.lp-top .grow, .lp-foot .grow { flex: 1; min-width: 0; }
 .lp-foot {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   max-width: 1080px; margin: 0 auto; padding: 22px; width: 100%;
@@ -1097,11 +925,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 @media (prefers-reduced-motion: reduce) {
   .tripcard, .tripcard-go { transition: none; }
   .tripcard:hover { transform: none; }
-  .mock { transform: none; }
-}
-
-@media print {
-  .lp, .lp-nav { display: none !important; }
 }
 
 /* ================================================================== map --- */
@@ -1209,7 +1032,7 @@ body::before {
 }
 
 /* The surface the app's chrome shares. */
-.topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .lp-nav {
+.topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast {
   background: var(--glass);
 }
 
@@ -1299,7 +1122,7 @@ body::before {
 
 
 /* ------------------------------------------------------------- surfaces --- */
-.act, .stop, .pack-item, .person, .nearby, .tripcard, .lp-card, .lp-steps li, .lp-points li {
+.act, .stop, .pack-item, .person, .nearby, .tripcard {
   background: var(--surface-1);
   border-color: var(--glass-line);
   box-shadow: inset 0 1px 0 var(--glass-edge);
@@ -1379,50 +1202,15 @@ body::before {
 /* --------------------------------------------------------------- map ------ */
 .mk { border-color: color-mix(in srgb, #fff 70%, transparent); }
 
-/* -------------------------------------------------------------- landing --- */
-.lp-nav {
-  border-bottom: 1px solid var(--glass-line);
-  box-shadow: inset 0 1px 0 var(--glass-edge);
-}
-.lp-eyebrow {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  box-shadow: inset 0 1px 0 var(--glass-edge);
-}
-.lp-hero h1 {
-  background: linear-gradient(170deg, var(--text-1), color-mix(in srgb, var(--text-1) 62%, var(--accent)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.lp-card-ico {
-  background: linear-gradient(160deg,
-    color-mix(in srgb, var(--accent) 24%, transparent),
-    color-mix(in srgb, var(--cat-3) 20%, transparent));
-  box-shadow: inset 0 1px 0 var(--glass-edge);
-}
-.lp-card { transition: transform .18s var(--spring), box-shadow .18s var(--ease); }
-.lp-card:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift); }
-.lp-step-n {
-  background-image: linear-gradient(160deg, var(--accent), var(--cat-3));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 5px 14px -6px color-mix(in srgb, var(--accent) 80%, transparent);
-}
-.lp-band { background: var(--surface-1); }
-.mock {
-  background: var(--glass-strong);
-  border-color: var(--glass-line);
-  border-radius: 18px;
-  box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg);
-}
-.mock-bar { background: transparent; border-color: var(--glass-line); }
 .gate-card { box-shadow: inset 0 1px 0 var(--glass-edge), var(--lift-lg); }
 
 /* ------------------------------------------------------ opt-out + print --- */
 /* Some people find translucency hard to read; give them flat surfaces. */
 @media (prefers-reduced-transparency: reduce) {
   body::before { display: none; }
-  .topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .lp-nav, .card,
-  .act, .stop, .pack-item, .person, .nearby, .tripcard, .lp-card, .lp-steps li,
-  .lp-points li, .geo-list, .day-head, .mock, .input, .select, .textarea, .quickadd-in {
+  .topbar, .rail, .tabbar, .modal, .act-menu, .mapside, .toast, .card,
+  .act, .stop, .pack-item, .person, .nearby, .tripcard,
+  .geo-list, .day-head, .input, .select, .textarea, .quickadd-in {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: var(--surface-1);
@@ -1432,13 +1220,12 @@ body::before {
     -webkit-backdrop-filter: none; backdrop-filter: none;
     background: var(--surface-1);
   }
-  .lp-hero h1 { color: var(--text-1); background: none; -webkit-text-fill-color: currentColor; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
-  .act, .stop, .tripcard, .daychip, .btn, .lp-card, .rail a, .rail button { transition: none; }
-  .act:hover, .stop:hover, .tripcard:hover, .daychip:hover, .lp-card:hover,
+  .act, .stop, .tripcard, .daychip, .btn, .rail a, .rail button { transition: none; }
+  .act:hover, .stop:hover, .tripcard:hover, .daychip:hover,
   .rail a:hover, .rail button:hover, .btn:active { transform: none; }
 }
 
@@ -1490,13 +1277,15 @@ body::before {
 .planbox-field {
   --row: 38px;
   --pad-l: 15px;
+  --pad-r: 13px;
+  --pad-t: 13px;
   --gap: 10px;
   position: relative;
   /* Top, not bottom — the icon belongs to the line the sentence starts on.
      The button is the one thing that belongs at the foot, so it is the one
      thing that says so. */
   display: flex; align-items: flex-start; gap: var(--gap);
-  padding: 13px 13px 13px var(--pad-l);
+  padding: var(--pad-t) var(--pad-r) var(--pad-t) var(--pad-l);
   border-radius: 18px;
   background: var(--glass-strong);
   border: 1px solid var(--glass-line);
@@ -1583,8 +1372,8 @@ body::before {
 }
 
 .planbox.compact .planbox-field {
-  --row: 34px; --pad-l: 13px;
-  padding: 10px 10px 10px var(--pad-l); border-radius: 15px;
+  --row: 34px; --pad-l: 13px; --pad-r: 10px; --pad-t: 10px;
+  border-radius: 15px;
 }
 .planbox.compact .planbox-input { font-size: 14.5px; }
 .planbox.compact .planbox-go { border-radius: 11px; }
@@ -1607,7 +1396,6 @@ body::before {
 .samplechip.shuffle { display: inline-grid; place-items: center; width: 32px; padding: 0; }
 
 .trips-plan { margin-bottom: 20px; }
-.lp-final-box { max-width: 620px; margin: 0 auto; text-align: left; }
 
 /* ------------------------------------------------------- planning screen -- */
 .planwrap { max-width: 560px; }
@@ -2340,103 +2128,27 @@ body:has(.lp)::before { display: none; }
 }
 @media print { .cmd-pill { display: none !important; } }
 
-/* ==================================================== motion on arrival --- */
-
-/*
- * Scroll reveal. One-way by design (see Reveal.jsx): blocks settle when they
- * arrive and stay settled, because content that re-animates every time you
- * scroll back past it is a page that will not sit still.
- *
- * Only opacity and transform move, so each of these is a compositor job and
- * costs nothing on the main thread while the page is scrolling.
- */
-.reveal {
-  transition: opacity .58s var(--ease), transform .58s var(--ease);
-  will-change: opacity, transform;
-}
-.reveal[data-state="out"] { opacity: 0; }
-.reveal[data-state="in"] { opacity: 1; transform: none; }
-.reveal-up[data-state="out"] { transform: translateY(18px); }
-.reveal-right[data-state="out"] { transform: translateY(18px) translateX(22px) scale(.985); }
-
-/* Once it has arrived, stop claiming a layer for it. */
-.reveal[data-state="in"] { will-change: auto; }
-
-/* -------------------------------------------------- the hero's live day -- */
-
-/* Rows hold their space whether or not they are showing, so the card keeps one
-   height and the page never reflows under it — and it gives every row an exit
-   as well as an entrance. */
-.mock-act {
-  transition: opacity .42s var(--ease), transform .42s var(--ease);
-}
-.mock-act[data-state="out"] { opacity: 0; transform: translateY(9px) scale(.99); }
-.mock-act[data-state="in"] { opacity: 1; transform: none; }
-
-.mock-title { transition: opacity .3s var(--ease); }
-
-.mock-add { position: relative; transition: color .3s var(--ease), border-color .3s var(--ease); }
-.mock-add[data-typing="yes"] {
-  color: var(--text-1);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-}
-.mock-hint { opacity: .75; }
-
-/* The caret only blinks while something is being typed into the line. */
-.mock-caret {
-  display: inline-block; width: 1.5px; height: 1em; margin-left: 2px;
-  vertical-align: -.15em; background: var(--accent);
-  animation: caret 1.05s steps(1) infinite;
-}
-@keyframes caret { 50% { opacity: 0; } }
-
 /* ------------------------------------------------- prompt box, rotating -- */
 .planbox-ghost {
   /* Sits exactly where the real text does: the field's own padding, the icon's
      width and the gap after it, all read from the field rather than guessed.
      Stretched top to bottom and centred by flex instead of a transform, so the
-     entrance animation has a transform of its own to use. */
+     entrance animation has a transform of its own to use. Its right edge stops
+     where the buttons begin: the field's padding, two buttons and their gaps. */
   position: absolute; left: calc(var(--pad-l) + 17px + var(--gap));
-  top: 13px; height: var(--row);
+  top: var(--pad-t); height: var(--row);
   display: flex; align-items: center;
   pointer-events: none; color: var(--text-3); font-size: 15px;
-  max-width: calc(100% - 110px); overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: calc(100% - var(--pad-l) - 17px - var(--gap) - var(--pad-r) - 2 * var(--row) - 2 * var(--gap));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   animation: ghostin .5s var(--ease);
 }
-.planbox.compact .planbox-ghost { top: 10px; font-size: 14.5px; }
+.planbox.compact .planbox-ghost { font-size: 14.5px; }
 @keyframes ghostin {
   from { opacity: 0; transform: translateY(6px); }
 }
-
-/* ------------------------------------------------------ card spotlight --- */
-
-/* A soft light that follows the pointer across the feature cards. The card
-   paints it through a pseudo-element so nothing about the card's own layout
-   or text is touched by the effect. */
-.lp-card { position: relative; overflow: hidden; }
-.lp-card::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(
-    260px circle at var(--mx, 50%) var(--my, 0%),
-    color-mix(in srgb, var(--accent) 16%, transparent),
-    transparent 68%
-  );
-  opacity: 0; transition: opacity .3s var(--ease);
-}
-.lp-card:hover::after { opacity: 1; }
-
 @media (prefers-reduced-motion: reduce) {
-  .reveal { transition: none; }
-  .reveal[data-state="out"] { opacity: 1; transform: none; }
-  .mock-act { transition: none; }
-  .mock-caret { animation: none; }
   .planbox-ghost { animation: none; }
-  .lp-card::after { display: none; }
-}
-
-@media (hover: none) {
-  .lp-card::after { display: none; }
 }
 
 /* ================================================================ loader -- */
@@ -2586,7 +2298,7 @@ body:has(.lp)::before { display: none; }
 /* With the tap flash gone, every tappable surface owes the finger an answer.
    Buttons already had one; these are the row-shaped things that did not. */
 .act:active, .stop:active, .nearby:active, .tripcard:active,
-.pack-item:active, .daychip:active, .lp-card:active {
+.pack-item:active, .daychip:active {
   transform: scale(.99);
 }
 .rail a:active, .tabbar a:active, .act-menu a:active, .act-menu button:active,
@@ -2597,7 +2309,7 @@ body:has(.lp)::before { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .act:active, .stop:active, .nearby:active, .tripcard:active,
-  .pack-item:active, .daychip:active, .lp-card:active { transform: none; }
+  .pack-item:active, .daychip:active { transform: none; }
 }
 
 /* ------------------------------------------------- location autocomplete -- */
@@ -2673,10 +2385,6 @@ body:has(.lp)::before { display: none; }
   font: inherit; font-size: 13px; color: var(--accent-ink);
 }
 .linkbtn:hover { text-decoration: underline; }
-
-/* Holds the nav's shape while the session is still being read, so the bar does
-   not jump when the answer arrives. */
-.lp-account-hold { display: inline-block; width: 104px; height: 32px; }
 
 /* ========================================================= trip settings -- */
 
@@ -3720,20 +3428,20 @@ body::before {
   animation: none;
 }
 
-.topbar, .rail, .tabbar, .lp-nav { background: var(--surface-1); }
+.topbar, .rail, .tabbar { background: var(--surface-1); }
 .modal, .act-menu, .toast, .cmd, .ck, .sel-list, .tf-list, .geo-list {
   background: var(--glass-strong);
 }
-.topbar, .rail, .tabbar, .lp-nav, .modal, .act-menu, .toast, .cmd, .ck,
-.sel-list, .tf-list, .geo-list, .card, .tripcard, .lp-card, .lp-steps li,
-.lp-points li, .pack-item, .person, .nearby, .mock, .day-head, .planbox-field,
+.topbar, .rail, .tabbar, .modal, .act-menu, .toast, .cmd, .ck,
+.sel-list, .tf-list, .geo-list, .card, .tripcard,
+.pack-item, .person, .nearby, .day-head, .planbox-field,
 .sharedpill, .tag, .statuspill, .daychip, .today-badge, .rv-locate {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
-.card, .tripcard, .lp-card, .lp-steps li, .lp-points li, .pack-item,
-.person, .nearby, .mock {
+.card, .tripcard, .pack-item,
+.person, .nearby {
   background: var(--surface-1);
   border-color: var(--border);
   box-shadow: none;
@@ -4025,24 +3733,6 @@ body::before {
 /* Landing motion remains, but only as a brief response to the user. */
 .aurora-blob, .aurora-sheen { animation: none !important; transform: none !important; }
 .aurora-blob { opacity: .18; filter: blur(90px); }
-.lp-hero h1 { color: var(--text-1); background: none; }
-.lp-eyebrow { background: var(--accent-soft); box-shadow: none; }
-.lp-card, .lp-steps li, .lp-points li { border-radius: 22px; }
-.lp-card::after { display: none; }
-.lp-card:hover { transform: translateY(-1px); box-shadow: var(--lift); }
-.lp-card-ico { background: var(--accent-soft); box-shadow: none; }
-.lp-step-n { background: var(--accent-soft); color: var(--accent-ink); background-image: none; box-shadow: none; }
-.lp-tour { margin-top: 22px; scroll-margin-top: 80px; }
-.lp-tour-player { display: grid; grid-template-columns: 1fr minmax(0, 320px); align-items: center; gap: 32px; padding: 28px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface-1); }
-.lp-tour-duration { color: var(--accent-ink); font-size: 12px; font-weight: 600; }
-.lp-tour-copy h3 { margin: 12px 0; }
-.lp-tour-player p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.7; max-width: 30ch; }
-.lp-tour-player video { display: block; width: min(100%, 360px, 39.375dvh); height: auto; aspect-ratio: 9 / 16; margin: 0 auto; border-radius: 14px; background: var(--surface-0); }
-@media (max-width: 600px) {
-  .lp-tour-player { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
-  .lp-tour-player p { max-width: none; }
-}
-.lp-band { background: var(--surface-1); }
 .planbox-field {
   border-radius: 22px;
   background: var(--surface-1);
@@ -4051,7 +3741,6 @@ body::before {
   backdrop-filter: none;
 }
 .planbox-field:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
-.reveal { transition-duration: .38s; }
 
 @media (prefers-reduced-motion: reduce) {
   body::before, .aurora-blob, .aurora-sheen { animation: none !important; }
@@ -4186,7 +3875,7 @@ body::before {
     --chrome-edge: color-mix(in srgb, var(--surface-1) 80%, white);
     --chrome-shadow: inset 0 1px 0 var(--chrome-edge), 0 4px 16px -12px rgb(0 0 0 / .22);
   }
-  :is(.topbar, .rail, .lp-nav, .daystrip) {
+  :is(.topbar, .rail, .daystrip) {
     background: var(--surface-1);
     border-color: var(--border);
     box-shadow: var(--chrome-shadow);
@@ -4215,7 +3904,7 @@ body::before {
   .act { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
   @media (prefers-reduced-transparency: reduce) {
-    :is(.topbar, .rail, .lp-nav, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list), .daystrip.is-stuck,
+    :is(.topbar, .rail, .daystrip, .modal, .act-menu, .toast, .cmd, .sel-list, .tf-list, .geo-list), .daystrip.is-stuck,
     .daystrip .daychip:not(.active):not([aria-current="true"]) {
       background: var(--surface-1);
       -webkit-backdrop-filter: none;
@@ -4321,7 +4010,6 @@ body::before {
   mix-blend-mode: var(--art-blend); filter: var(--art-filter); opacity: var(--art-opacity);
   pointer-events: none; user-select: none;
 }
-.travel-art-landing { width: 260px; margin-bottom: 12px; }
 .map-stops-empty { padding: 8px 12px 16px; text-align: center; }
 /* Glass creates an isolated backdrop; make the paper transparent before
    compositing so the drawing cannot bring a rectangular surface with it. */
@@ -4330,6 +4018,5 @@ body::before {
 .map-stops-empty .small { max-width: 30ch; margin: 0 auto; }
 @media (max-width: 640px) {
   .travel-art { width: 150px; }
-  .travel-art-landing { width: 210px; }
 }
 @media print { .travel-art { display: none; } }
