@@ -15,6 +15,7 @@
  * given room around it for its badge, its halo and the way it grows under a
  * pointer.
  */
+import { poseCss } from '@/lib/globe';
 import { createPin } from './mapPin';
 
 const KIND = { been: '#b85a3c', planned: '#b8862f', favourite: '#c4506a', idea: '#5f5a55', preview: '#2b2724' };
@@ -35,27 +36,32 @@ function roomFor(face, size) {
 }
 
 /*
- * Lays a marker on the globe, or stands it up again. The globe keeps a marker
- * facing the screen; squashed by a matrix() from lib/globe (squashMatrix), the
- * room round it — centred on the place, as the marker is — looks like a disc
- * lying on the ground the camera sees at a slant. It is given those matrix
- * numbers to lie, or null to stand. Nothing here is animated: it is set on
- * every frame the camera moves, and a transition would lag behind it.
+ * Draws a marker as the camera sees it (lib/globe, poseOn): laid on the globe
+ * or stood up again, at the size the globe leaves it, and as faded as the edge
+ * of the globe makes it. The globe keeps a marker facing the screen; squashed
+ * by a matrix(), the room round it — centred on the place, as the marker is —
+ * looks like a disc lying on the ground the camera sees at a slant, and scaled
+ * and faded it is smaller and dimmer as a whole. It is given a pose each time
+ * the camera moves. Nothing here is animated: a transition would lag behind
+ * the camera, which is what sets all three.
  */
 function laying(room) {
-  let now = '';
-  return (matrix) => {
-    const next = matrix ? `matrix(${matrix.map((v) => +v.toFixed(3)).join(', ')}, 0, 0)` : '';
-    if (next === now) return;
-    now = next;
-    room.style.transform = next;
+  const now = { transform: '', opacity: '', pointerEvents: '' };
+  return (pose) => {
+    const next = poseCss(pose);
+    Object.keys(now).forEach((name) => {
+      if (next[name] === now[name]) return;
+      now[name] = next[name];
+      room.style[name] = next[name];
+    });
   };
 }
 
 /**
  * A place's marker. `lift` for Google's flat map, which stands markers above
  * their point. Returns the element, `select`, `wake` to load its photograph,
- * and `lay` to lay it on the globe (the flat map keeps its markers standing).
+ * and `lay` to draw it as a pose (lib/globe, poseOn) on the globe (the flat
+ * map keeps its markers as they are).
  */
 export function createMarker(point, { lift = false } = {}) {
   const kind = KIND[point.kind] ? point.kind : 'been';

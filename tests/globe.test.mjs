@@ -5,6 +5,7 @@ import {
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
   groundOffset, nextGroundAltitude, groundNear, offsetCamera,
   groundAt, viewOf, slantOf, lieOn, laidAt, squashMatrix,
+  globeSpan, markerScale, fadeAt, poseOn, poseCss,
 } from '../lib/globe.js';
 
 test('a group camera frames a whole trip, a single pin gets the close view', () => {
@@ -395,4 +396,131 @@ test('the squash matrix shrinks what runs along the lean and leaves what runs ac
   const m = squashMatrix({ squash: 0.25, dx: 0.6, dy: 0.8 });
   near(apply(m, [0.6, 0.8]), [0.15, 0.2]);
   near(apply(m, [-0.8, 0.6]), [-0.8, 0.6]);
+});
+
+/*
+ * Markers against the size of the globe. The whole-globe view above, in its
+ * 708 px box, is the reference: there the globe is 0.9 of the box across.
+ */
+test('the globe is most of the box across from the widest view, and a smaller disc the further the camera backs off', () => {
+  const wide = viewOf(SEEN[0].camera, { side: 708 });
+  assert.ok(Math.abs(wide.span / 708 - 0.9) < 0.02, `${wide.span}`);
+  // Twice the box is twice the globe; a wider field of view is a smaller one.
+  assert.ok(Math.abs(viewOf(SEEN[0].camera, { side: 1416 }).span / wide.span - 2) < 1e-9);
+  assert.ok(viewOf(SEEN[0].camera, { side: 708, fov: 60 }).span < wide.span);
+  let last = Infinity;
+  [17e6, 25e6, 40e6, 63e6].forEach((range) => {
+    const span = viewOf(overhead(0, 0, { range }), { side: 708 }).span;
+    assert.ok(span < last);
+    last = span;
+  });
+  // Close to the ground it is dozens of screens across, and with no box to measure there is nothing to say.
+  assert.ok(viewOf(overhead(0, 0, { range: 20000 }), { side: 708 }).span > 30 * 708);
+  assert.equal(globeSpan(6371008.8, 708), Infinity);
+  assert.equal(globeSpan(17e6, 0), 0);
+  assert.equal(globeSpan(0, 708), 0);
+});
+
+test('a pin keeps its own size until it would be more than a tenth of the globe, then shrinks with it, but only so far', () => {
+  assert.equal(markerScale(800), 1);
+  assert.equal(markerScale(400), 1);
+  assert.equal(markerScale(Infinity), 1);
+  assert.equal(markerScale(300), 0.75);
+  assert.equal(markerScale(200), 0.5);
+  // The ordinary 40 px pin is then a tenth of the globe's width, however small the globe.
+  [350, 300, 250, 200, 150].forEach((span) => assert.ok(Math.abs((40 * markerScale(span)) / span - 0.1) < 1e-9));
+  assert.equal(markerScale(60), 0.35);
+  assert.equal(markerScale(1), 0.35);
+  // No measurement, no change.
+  assert.equal(markerScale(0), 1);
+  assert.equal(markerScale(NaN), 1);
+  assert.equal(viewOf(SEEN[0].camera).scale, 1);
+  assert.equal(viewOf(SEEN[0].camera, { side: 0 }).scale, 1);
+});
+
+test('a pin on a phone with the globe pinched out is no bigger against it than on the widest view', () => {
+  // A 412 px wide phone, the globe held out where it is a small disc, as in the report.
+  const out = viewOf(overhead(0, 100, { range: 31500000 }), { side: 412 });
+  assert.ok(out.span > 200 && out.span < 245, `${out.span}`);
+  // It used to be 40 px on a globe of that width: nearly a fifth of it.
+  assert.ok(40 / out.span > 0.15);
+  assert.ok((40 * out.scale) / out.span <= 0.1 + 1e-9);
+  assert.ok(out.scale > 0.4 && out.scale < 0.7);
+  // The whole way out, as far as the map lets the camera go, it is a marble, and the pin as small as it gets.
+  const marble = viewOf({ center: { lat: 0, lng: 100, altitude: 63170000 }, range: 0, tilt: 0, heading: 0, roll: 0 }, { side: 412 });
+  assert.ok(marble.span < out.span);
+  assert.equal(marble.scale, 0.35);
+  // The wide view of a desktop's box is untouched, and so is one closer in.
+  assert.equal(viewOf(overhead(0, 0), { side: 900 }).scale, 1);
+  assert.equal(viewOf(overhead(0, 0, { range: 2000000, tilt: 30 }), { side: 412 }).scale, 1);
+});
+
+test('a laid pin fades out as the ground under it turns edge-on, and is gone before the globe hides it', () => {
+  assert.equal(fadeAt(1), 1);
+  assert.equal(fadeAt(0.45), 1);
+  assert.equal(fadeAt(0.12), 0);
+  assert.equal(fadeAt(0), 0);
+  assert.equal(fadeAt(-0.5), 0);
+  let last = -1;
+  for (let facing = -0.2; facing <= 1.01; facing += 0.02) {
+    assert.ok(fadeAt(facing) >= last);
+    last = fadeAt(facing);
+  }
+  const far = viewOf(overhead(0, 0));
+  // Facing the camera or half way to the edge: all there. Round towards the edge: going. At the rim: gone.
+  assert.equal(lieOn(far, groundAt(0, 0)), null);
+  assert.ok(lieOn(far, groundAt(0, 45)).fade > 0.99);
+  const going = lieOn(far, groundAt(0, 60)).fade;
+  assert.ok(going > 0.2 && going < 0.8, `${going}`);
+  assert.ok(lieOn(far, groundAt(0, 73.7)).fade < 0.001);
+  // Nearer the edge, less of it; a pin the far side of the globe is not there at all.
+  assert.ok(lieOn(far, groundAt(0, 65)).fade < going);
+  assert.equal(lieOn(far, groundAt(0, 78)).fade, 0);
+});
+
+test('the fade follows the ground, at the strength the pins are laid with', () => {
+  // Fade and squash are one measure, facing, and both come in and out with the camera's height.
+  [900000, 2500000, 4500000, 17000000].forEach((range) => {
+    const view = viewOf(overhead(0, 0, { range }));
+    [10, 25, 40, 55, 65].forEach((lng) => {
+      const spot = groundAt(0, lng);
+      const { facing } = slantOf(view, spot);
+      const lie = lieOn(view, spot);
+      const fade = lie ? lie.fade : 1;
+      assert.ok(Math.abs(fade - (1 - view.laid * (1 - fadeAt(facing)))) < 1e-12, `${range} ${lng}`);
+    });
+  });
+  // From close up the map's pins stand, at full strength, wherever they are: even the far side of a hill.
+  const near = viewOf({ center: { lat: 35, lng: 135, altitude: 0 }, range: 45000, tilt: 60, heading: 0, roll: 0 });
+  assert.equal(lieOn(near, groundAt(35.4, 135.3)), null);
+  assert.deepEqual(poseOn(near, groundAt(35.4, 135.3)), { matrix: null, scale: 1, opacity: 1 });
+});
+
+test('a marker is posed with its lie, its size and its fade at once', () => {
+  const far = viewOf(overhead(0, 0), { side: 900 });
+  assert.deepEqual(poseOn(far, groundAt(0, 0)), { matrix: null, scale: 1, opacity: 1 });
+  const edge = poseOn(far, groundAt(0, 60));
+  assert.equal(edge.matrix.length, 4);
+  assert.ok(edge.opacity > 0.2 && edge.opacity < 0.8);
+  // Small on screen, a pin is scaled even in the middle of the globe, where it is not laid.
+  const small = viewOf({ center: { lat: 0, lng: 0, altitude: 63170000 }, range: 0, tilt: 0, heading: 0, roll: 0 }, { side: 412 });
+  const middle = poseOn(small, groundAt(0, 0));
+  assert.equal(middle.matrix, null);
+  assert.equal(middle.opacity, 1);
+  assert.equal(middle.scale, small.scale);
+  assert.ok(middle.scale < 0.6);
+  assert.deepEqual(poseOn(null, groundAt(0, 0)), { matrix: null, scale: 1, opacity: 1 });
+});
+
+test('a pose becomes styles, with what needs none left to the element', () => {
+  assert.deepEqual(poseCss({ matrix: null, scale: 1, opacity: 1 }), { transform: '', opacity: '', pointerEvents: '' });
+  assert.equal(poseCss({ matrix: null, scale: 0.5, opacity: 1 }).transform, 'scale(0.5)');
+  // Squashed and scaled is one matrix, so the size and the lie do not fight over the transform.
+  assert.equal(poseCss({ matrix: [1, 0, 0, 0.5], scale: 0.5, opacity: 1 }).transform, 'matrix(0.5, 0, 0, 0.25, 0, 0)');
+  assert.equal(poseCss({ matrix: [1, 0, 0, 0.5], scale: 1, opacity: 1 }).transform, 'matrix(1, 0, 0, 0.5, 0, 0)');
+  assert.equal(poseCss({ matrix: null, scale: 1, opacity: 0.5 }).opacity, '0.5');
+  // Barely there, it cannot be pointed at: hovering where it was would show its name.
+  assert.equal(poseCss({ matrix: null, scale: 1, opacity: 0.5 }).pointerEvents, '');
+  assert.equal(poseCss({ matrix: null, scale: 1, opacity: 0.2 }).pointerEvents, 'none');
+  assert.equal(poseCss({ matrix: null, scale: 1, opacity: 0 }).opacity, '0');
 });
