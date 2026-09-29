@@ -29,6 +29,11 @@
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
 .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/*
+ * The style is Draw's alone, so it sits under the buttons rather than above the
+ * picture. The room above keeps its label with its field, not with the buttons.
+ */
+.look { display: grid; gap: 5px; margin-top: 6px; }
 /* Its own button says it better; the input is only here to open the picker. */
 .file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 

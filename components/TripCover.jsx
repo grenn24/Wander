@@ -4,7 +4,11 @@ import { ImageUp, Sparkles, Trash2, Image as ImageIcon, LoaderCircle } from 'luc
 import { useApp } from '@/components/AppProvider';
 import { COVER_BUCKET, coverPathFor, coverURL } from '@/lib/tripCover';
 import { coverProblem, prepareCover } from '@/lib/coverImage';
+import { COVER_STYLE_LONGEST, DEFAULT_COVER_STYLE } from '@/lib/coverPrompt';
 import s from './TripCover.module.css';
+
+// What the field would draw with if left empty, worded as a value.
+const DEFAULT_LOOK = DEFAULT_COVER_STYLE.charAt(0).toUpperCase() + DEFAULT_COVER_STYLE.slice(1);
 
 /*
  * The picture at the head of a trip, changed from the trip's own settings.
@@ -16,11 +20,16 @@ import s from './TripCover.module.css';
  *
  * Only one picture belongs to a trip at a time, so pointing it at a new one
  * also takes the old file away — nothing else can be looking at it.
+ *
+ * The style typed for a drawn cover belongs to drawing alone and is not saved
+ * with the trip. It stays in the field between draws, so another try can be
+ * another take on the same look.
  */
 export default function TripCover({ trip, onChange }) {
   const { supabase, pushToast, fail } = useApp();
   const [busy, setBusy] = useState('');
   const [problem, setProblem] = useState('');
+  const [style, setStyle] = useState('');
   const file = useRef(null);
   const url = coverURL(trip, 720);
   const working = !!busy;
@@ -76,7 +85,7 @@ export default function TripCover({ trip, onChange }) {
       const res = await fetch('/api/trips/cover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tripId: trip.id }),
+        body: JSON.stringify({ tripId: trip.id, style }),
       });
       const answer = await res.json().catch(() => null);
       if (!res.ok || !answer || !answer.cover_path) {
@@ -127,9 +136,24 @@ export default function TripCover({ trip, onChange }) {
           <input ref={file} type="file" accept="image/jpeg,image/png,image/webp"
             className={s.file} tabIndex={-1} aria-hidden="true" onChange={chosen} />
         </div>
+        <div className={s.look}>
+          <label className="small muted" htmlFor="trip-cover-style">Style for drawn covers (optional)</label>
+          <input id="trip-cover-style" className="input" value={style} maxLength={COVER_STYLE_LONGEST}
+            placeholder={DEFAULT_LOOK} autoComplete="off" enterKeyHint="go"
+            onChange={(event) => setStyle(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter draws. Not while an input method is still choosing a word
+              // (its Enter confirms the word), and not with Cmd/Ctrl, which is
+              // the dialog's Save.
+              if (event.key !== 'Enter' || event.metaKey || event.ctrlKey) return;
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+              event.preventDefault();
+              draw();
+            }} />
+        </div>
         {problem ? <p className={`tiny ${s.problem}`}>{problem}</p> : (
           <p className="tiny dim">
-            Your own picture, or one drawn from the trip’s name and where it goes. Saved as you go.
+            Your own picture, or one drawn from the trip’s name, where it goes and the style you give it. Saved as you go.
           </p>
         )}
       </div>

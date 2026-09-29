@@ -1,5 +1,6 @@
 import { asUser } from '@/lib/supabaseServer';
 import { COVER_BUCKET, coverPathFor } from '@/lib/tripCover';
+import { coverPrompt } from '@/lib/coverPrompt';
 
 export const runtime = 'nodejs';
 // Drawing a picture takes longer than a database read.
@@ -14,7 +15,8 @@ const say = (message, status) => Response.json({ error: message }, { status });
  * A cover drawn for a trip.
  *
  * The picture is made from the trip's name and where it goes, and nothing
- * else: no stop, no note, no one on it.
+ * else: no stop, no note, no one on it. The one thing they may add is the
+ * style, which replaces the look and nothing more (see lib/coverPrompt.js).
  *
  * Everything but the drawing is done as whoever asked — their own token, their
  * own row level security — so the trip, the file and the row it points at are
@@ -45,12 +47,7 @@ export async function POST(req) {
   // which is the point.
   if (!trip) return say('That trip is not yours.', 404);
 
-  const place = (trip.destination || '').trim();
-  const prompt = 'A travel poster for a trip, in flat illustration: warm, printed colours, '
-    + 'simple shapes, no lettering of any kind and no people in the foreground. '
-    + `The trip is called "${(trip.name || 'A trip').slice(0, 80)}"`
-    + `${place ? `, and it goes to ${place.slice(0, 80)}` : ''}. `
-    + 'Draw the place, not the words.';
+  const prompt = coverPrompt({ name: trip.name, destination: trip.destination, style: body.style });
 
   let made;
   try {
@@ -73,6 +70,11 @@ export async function POST(req) {
       const detail = (answer && answer.error && answer.error.message) || '';
       if (upstream.status === 401) return say('OpenAI rejected the API key.', 502);
       if (upstream.status === 429) return say('OpenAI is busy. Try again in a moment.', 429);
+      // Words the person typed can be turned down, and OpenAI's own message
+      // for that tells them to write to OpenAI, which they cannot act on.
+      if (answer && answer.error && answer.error.code === 'moderation_blocked') {
+        return say('That request was turned down. Try describing the style another way.', 422);
+      }
       return say(detail || 'That picture could not be drawn.', 502);
     }
     made = answer && answer.data && answer.data[0] && answer.data[0].b64_json;
