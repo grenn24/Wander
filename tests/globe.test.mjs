@@ -4,6 +4,7 @@ import {
   km, centroid, cluster, townOf, tripPoints, savedPoints, ideaPoints, photoQueryOf,
   overviewCamera, focusCamera, groupCamera, flightMillis, globeCounts,
   groundOffset, nextGroundAltitude, groundNear, offsetCamera,
+  groundAt, viewOf, slantOf, lieOn, laidAt, squashMatrix,
 } from '../lib/globe.js';
 
 test('a group camera frames a whole trip, a single pin gets the close view', () => {
@@ -247,4 +248,151 @@ test('a card across the foot of a phone moves the aim, not the place behind it',
   // Nothing covering it, nothing to move; and never so much of it that no globe is left.
   assert.deepEqual(offsetCamera(camera, null, 800), camera);
   assert.deepEqual(offsetCamera(camera, { bottom: 760 }, 800), camera);
+});
+
+/*
+ * Laying markers on the globe (lib/globe). The camera is rebuilt from what the
+ * map reports, so the first test holds it to where Google's own map put its
+ * own markers: numbers read off the live 3D map, in its 1024 × 708 box.
+ */
+const SEEN = [
+  {
+    // The whole-globe view: straight down, the centre a little below sea level.
+    camera: { center: { lat: 35.71667456618547, lng: 139.79627693661763, altitude: -7480.395292193254 }, range: 17007478.746507168, tilt: 0, heading: 0, roll: 0 },
+    markers: [
+      [42.95, 141.18, 519.409, 301.169], [37.575, 127.003, 438.673, 335.652], [18.25, 107.05, 308.611, 437.951],
+      [-8.42, 115.43, 360.483, 593.434], [23.9, 120.87, 390.08, 426.331], [68.156, 13.931, 409.54, 54.6787],
+    ],
+  },
+  {
+    // Tilted, turned and rolled all at once.
+    camera: { center: { lat: 10, lng: 110, altitude: 0 }, range: 15000000, tilt: 45, heading: 300, roll: -30 },
+    markers: [
+      [42.95, 141.18, 724.586, 590.885], [37.575, 127.003, 697.963, 503.642], [18.25, 107.05, 568.547, 348.015],
+      [-8.42, 115.43, 360.675, 388.013], [-41.74, 147.8, 83.6473, 656.34], [23.9, 120.87, 621.518, 445.693],
+    ],
+  },
+];
+
+test('the camera is rebuilt where Google puts its own markers, tilted, turned and rolled', () => {
+  const W = 1024;
+  const H = 708;
+  const f = (H / 2) / Math.tan((35 / 2) * (Math.PI / 180));
+  SEEN.forEach(({ camera, markers }) => {
+    const view = viewOf(camera);
+    markers.forEach(([lat, lng, x, y]) => {
+      const to = groundAt(lat, lng).at.map((v, i) => v - view.eye[i]);
+      const along = (axis) => to[0] * axis[0] + to[1] * axis[1] + to[2] * axis[2];
+      const at = [W / 2 + (f * along(view.right)) / along(view.look), H / 2 - (f * along(view.up)) / along(view.look)];
+      assert.ok(Math.abs(at[0] - x) < 2.5 && Math.abs(at[1] - y) < 2.5, `${lat},${lng}: ${at.map(Math.round)} vs ${x},${y}`);
+    });
+  });
+});
+
+const overhead = (lat, lng, more = {}) => ({ center: { lat, lng, altitude: 0 }, range: 17000000, tilt: 0, heading: 0, roll: 0, ...more });
+
+test('the camera looks at its centre from its range, from behind it when tilted, or is the centre held in the air', () => {
+  const camera = { center: { lat: 35, lng: 139, altitude: 40 }, range: 3000, tilt: 60, heading: 0, roll: 0 };
+  const centre = groundAt(35, 139, 40);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const from = (view) => centre.at.map((v, i) => v - view.eye[i]);
+  const view = viewOf(camera);
+  assert.ok(Math.abs(Math.hypot(...from(view)) - 3000) < 1e-6);
+  assert.ok(dot(from(view), view.look) > 3000 - 1e-6);
+  // Facing north it stands south of the centre; turned round, north of it.
+  assert.ok(dot(from(view), centre.north) > 0);
+  assert.ok(dot(from(viewOf({ ...camera, heading: 180 })), centre.north) < 0);
+  // A point in the air (no range, the height in the centre) is the same camera as the ground seen from that far.
+  const ground = viewOf(overhead(10, 20));
+  const air = viewOf({ center: { lat: 10, lng: 20, altitude: 17000000 }, range: 0, tilt: 0, heading: 0, roll: 0 });
+  assert.ok(Math.hypot(...ground.eye.map((v, i) => v - air.eye[i])) < 1e-3);
+  assert.ok(Math.abs(air.height - 17000000) < 30000);
+  assert.equal(viewOf(null), null);
+  assert.equal(viewOf({ center: { lat: NaN, lng: 0 } }), null);
+});
+
+test('the ground under a camera looking down faces it, and the edge of the globe is edge-on', () => {
+  const view = viewOf(overhead(0, 0));
+  assert.ok(Math.abs(slantOf(view, groundAt(0, 0)).facing - 1) < 1e-9);
+  // The horizon from 17,000 km up is 74° round; just inside it the ground is turned all but edge-on.
+  const rim = slantOf(view, groundAt(0, 73.7));
+  assert.ok(rim.facing > 0 && rim.facing < 0.05);
+  assert.ok(slantOf(view, groundAt(0, 78)).facing < 0);
+  // Halfway to it: leaning away, but plainly seen.
+  const half = slantOf(view, groundAt(0, 45)).facing;
+  assert.ok(half > 0.3 && half < 0.8);
+  // Behind the camera is no place to be laid.
+  assert.equal(slantOf(view, groundAt(0, 0, 3 * 17000000)), null);
+});
+
+test('a pin is squashed the way the ground leans on the screen: outwards from the middle of the globe', () => {
+  const view = viewOf(overhead(0, 0));
+  const east = slantOf(view, groundAt(0, 50));
+  assert.ok(east.dx > 0.99 && Math.abs(east.dy) < 0.01);
+  const north = slantOf(view, groundAt(50, 0));
+  assert.ok(north.dy < -0.99 && Math.abs(north.dx) < 0.01);
+  const southWest = slantOf(view, groundAt(-40, -40));
+  assert.ok(southWest.dx < 0 && southWest.dy > 0);
+  assert.ok(Math.abs(Math.hypot(southWest.dx, southWest.dy) - 1) < 1e-9);
+});
+
+test('turning the camera turns the lean and leaves how flat the ground lies alone', () => {
+  const spot = groundAt(0, 50);
+  const straight = slantOf(viewOf(overhead(0, 0)), spot);
+  // Facing east, the spot is up the screen.
+  const east = slantOf(viewOf(overhead(0, 0, { heading: 90 })), spot);
+  assert.ok(Math.abs(east.facing - straight.facing) < 1e-9);
+  assert.ok(east.dy < -0.99 && Math.abs(east.dx) < 0.01);
+  // Rolled a quarter turn, it is up or down instead of across.
+  const rolled = slantOf(viewOf(overhead(0, 0, { roll: 90 })), spot);
+  assert.ok(Math.abs(rolled.facing - straight.facing) < 1e-9);
+  assert.ok(Math.abs(rolled.dx) < 0.01 && Math.abs(rolled.dy) > 0.99);
+  // Tilted, the ground under the middle of the view lies at a slant even though it is not near an edge.
+  const tilted = slantOf(viewOf(overhead(0, 0, { tilt: 60, range: 2000000 })), groundAt(0, 0));
+  assert.ok(Math.abs(tilted.facing - 0.5) < 0.02);
+  assert.ok(Math.abs(tilted.dx) < 0.01 && Math.abs(tilted.dy) > 0.99);
+});
+
+test('pins lie flat from far out and stand up close in, smoothly between', () => {
+  assert.equal(laidAt(17000000), 1);
+  assert.equal(laidAt(4000000), 1);
+  assert.equal(laidAt(500000), 0);
+  assert.equal(laidAt(1000000), 0);
+  assert.equal(laidAt(2500000), 0.5);
+  let last = -1;
+  for (let h = 900000; h <= 4200000; h += 100000) {
+    assert.ok(laidAt(h) >= last);
+    last = laidAt(h);
+  }
+});
+
+test('a laid pin is as thin as the ground under it, never a sliver, and stands where the camera is close', () => {
+  const far = viewOf(overhead(0, 0));
+  // Facing the camera it needs no laying at all.
+  assert.equal(lieOn(far, groundAt(0, 0)), null);
+  const half = lieOn(far, groundAt(0, 45));
+  assert.ok(half.squash > 0.3 && half.squash < 0.8);
+  assert.ok(half.dx > 0.99);
+  // By the rim it is as thin as a pin is allowed to be.
+  const rim = lieOn(far, groundAt(0, 73.7));
+  assert.ok(Math.abs(rim.squash - 0.3) < 1e-9);
+  // From 900 km the map's pins stand, tilted or not, wherever they are.
+  const near = viewOf({ center: { lat: 35, lng: 135, altitude: 0 }, range: 900000, tilt: 20, heading: 0, roll: 0 });
+  assert.equal(lieOn(near, groundAt(35.2, 135.3)), null);
+  assert.equal(lieOn(null, groundAt(0, 0)), null);
+  // Half way in between, half laid.
+  const between = lieOn(viewOf(overhead(0, 0, { range: 2500000 })), groundAt(0, 25));
+  const full = lieOn(viewOf(overhead(0, 0, { range: 4500000 })), groundAt(0, 25));
+  assert.ok(between.squash > full.squash);
+});
+
+test('the squash matrix shrinks what runs along the lean and leaves what runs across it', () => {
+  const apply = ([a, b, c, d], [x, y]) => [a * x + c * y, b * x + d * y];
+  const near = (got, want) => got.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 1e-9, `${got} vs ${want}`));
+  near(squashMatrix({ squash: 0.5, dx: 1, dy: 0 }), [0.5, 0, 0, 1]);
+  near(squashMatrix({ squash: 0.5, dx: 0, dy: 1 }), [1, 0, 0, 0.5]);
+  near(squashMatrix({ squash: 1, dx: 0.6, dy: 0.8 }), [1, 0, 0, 1]);
+  const m = squashMatrix({ squash: 0.25, dx: 0.6, dy: 0.8 });
+  near(apply(m, [0.6, 0.8]), [0.15, 0.2]);
+  near(apply(m, [-0.8, 0.6]), [-0.8, 0.6]);
 });

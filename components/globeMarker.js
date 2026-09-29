@@ -34,9 +34,28 @@ function roomFor(face, size) {
   return room;
 }
 
+/*
+ * Lays a marker on the globe, or stands it up again. The globe keeps a marker
+ * facing the screen; squashed by a matrix() from lib/globe (squashMatrix), the
+ * room round it — centred on the place, as the marker is — looks like a disc
+ * lying on the ground the camera sees at a slant. It is given those matrix
+ * numbers to lie, or null to stand. Nothing here is animated: it is set on
+ * every frame the camera moves, and a transition would lag behind it.
+ */
+function laying(room) {
+  let now = '';
+  return (matrix) => {
+    const next = matrix ? `matrix(${matrix.map((v) => +v.toFixed(3)).join(', ')}, 0, 0)` : '';
+    if (next === now) return;
+    now = next;
+    room.style.transform = next;
+  };
+}
+
 /**
  * A place's marker. `lift` for Google's flat map, which stands markers above
- * their point. Returns the element, `select`, and `wake` to load its photograph.
+ * their point. Returns the element, `select`, `wake` to load its photograph,
+ * and `lay` to lay it on the globe (the flat map keeps its markers standing).
  */
 export function createMarker(point, { lift = false } = {}) {
   const kind = KIND[point.kind] ? point.kind : 'been';
@@ -51,15 +70,18 @@ export function createMarker(point, { lift = false } = {}) {
     name: point.name,
     lift,
   });
+  const el = lift ? face.el : roomFor(face, size);
   return {
-    el: lift ? face.el : roomFor(face, size),
+    el,
     wake: face.wake,
     select: (on) => face.set({ active: on }),
+    lay: lift ? () => {} : laying(el),
   };
 }
 
 /** A stop on the chosen route: its number, in its day's colour. */
 export function createStop(stop, colour, { lift = false, onHover = null } = {}) {
   const face = createPin({ label: stop.n, colour, size: 26, name: `${stop.n}. ${stop.name}`, lift, onHover });
-  return { el: lift ? face.el : roomFor(face, 26), set: face.set };
+  const el = lift ? face.el : roomFor(face, 26);
+  return { el, set: face.set, lay: lift ? () => {} : laying(el) };
 }

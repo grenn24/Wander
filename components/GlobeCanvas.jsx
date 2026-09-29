@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
 import {
   flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear, offsetCamera,
+  groundAt, viewOf, lieOn, squashMatrix,
 } from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
@@ -110,10 +111,10 @@ export default function GlobeCanvas({
   const map3d = useRef(null);
   const map2d = useRef(null);
   const lib = useRef(null);
-  const pins = useRef(new Map()); // key -> { id, kind, marker, face, shown?, remove }
+  const pins = useRef(new Map()); // key -> { id, kind, marker, face, spot, shown?, remove }
   const shapes = useRef(new Map()); // regionKey -> { id, rgb, kind, elements, attached, remove }
   const routeDrawn = useRef([]); // the chosen trip's line and stops, to take away again
-  const stopMarks = useRef([]); // [{ marker, face }] for the chosen route's stops, in order
+  const stopMarks = useRef([]); // [{ marker, face, spot }] for the chosen route's stops, in order
   const callout = useRef(null); // takes the open stop's card off the map again
   // Ground heights the 3D map has reported where its view met the ground: [{ lat, lng, alt }].
   const ground = useRef([]);
@@ -178,6 +179,7 @@ export default function GlobeCanvas({
     let dead = false;
     let map = null;
     let frame = 0;
+    let watching = 0;
     const offs = [];
     const listen = (target, name, fn, options) => {
       target.addEventListener(name, fn, options);
@@ -272,12 +274,32 @@ export default function GlobeCanvas({
       const appeared = setTimeout(drawn, 6000);
       offs.push(() => clearTimeout(appeared));
       map3d.current = map;
+      /*
+       * Markers lie on the globe as the camera sees them (lib/globe, laying),
+       * so they are laid again whenever the camera has moved. The map's change
+       * events say so, but how often they come depends on how the camera is
+       * moved, and a pin left at the angle it had while the globe turns is
+       * wrong at once. So the camera is read once a frame and compared with the
+       * last one, which costs next to nothing while it is still.
+       */
+      const seen = [];
+      const watch = () => {
+        watching = requestAnimationFrame(watch);
+        const c = map.center;
+        if (!c) return;
+        const now = [c.lat, c.lng, c.altitude, map.range, map.tilt, map.heading, map.roll];
+        if (now.every((v, i) => v === seen[i])) return;
+        seen.splice(0, seen.length, ...now);
+        layPins();
+      };
+      watching = requestAnimationFrame(watch);
       setReady(true);
     }).catch(fallback);
     return () => {
       dead = true;
       clearTimeout(timer);
       if (frame) cancelAnimationFrame(frame);
+      if (watching) cancelAnimationFrame(watching);
       offs.forEach((off) => off());
       if (map) map.remove(); // takes its markers and regions with it
       pins.current.clear();
@@ -366,6 +388,24 @@ export default function GlobeCanvas({
   }
 
   /*
+   * Every marker on the globe, laid on it for the camera as it is now: a full
+   * circle where the ground faces you, squashed towards the edge of the globe.
+   * Up close they stand facing the screen as before (lib/globe, laying). The
+   * flat map keeps its markers standing and never gets here.
+   */
+  function layPins() {
+    const map = map3d.current;
+    const view = map && viewOf(map);
+    if (!view) return;
+    const lay = (entry) => {
+      const flat = lieOn(view, entry.spot);
+      entry.face.lay(flat && squashMatrix(flat));
+    };
+    pins.current.forEach((entry) => { if (entry.shown) lay(entry); });
+    stopMarks.current.forEach(lay);
+  }
+
+  /*
    * Which pins are on the globe. Far out, a town in a filled-in country is
    * the country; the pin comes back as the fill fades. The selected place
    * always keeps its pin. Pins are only added and removed as the camera
@@ -389,7 +429,8 @@ export default function GlobeCanvas({
       if (want && !entry.shown) { entry.face.wake(); map.append(entry.marker); entry.shown = true; added = true; }
       if (!want && entry.shown) { entry.marker.remove(); entry.shown = false; }
     });
-    if (added) raiseSelected();
+    // A pin that arrives while the camera is still is laid now, not at its next move.
+    if (added) { raiseSelected(); layPins(); }
   }
 
   function add3D(L, p) {
@@ -413,7 +454,7 @@ export default function GlobeCanvas({
       // pointer's click lets go of it; from the keyboard the outline stays.
       if (performance.now() - pressedAt.current < 800) setTimeout(() => marker.blur(), 0);
     });
-    const entry = { id: p.id, kind: p.kind, marker, face, shown: false };
+    const entry = { id: p.id, kind: p.kind, marker, face, spot: groundAt(p.lat, p.lng), shown: false };
     entry.remove = () => { marker.remove(); entry.shown = false; };
     return entry;
   }
@@ -621,11 +662,12 @@ export default function GlobeCanvas({
           if (performance.now() - pressedAt.current < 800) setTimeout(() => marker.blur(), 0);
         });
         map.append(marker);
-        stopMarks.current.push({ marker, face });
+        stopMarks.current.push({ marker, face, spot: groundAt(stop.lat, stop.lng) });
         routeDrawn.current.push(() => marker.remove());
       });
       // Stops were added after the photographs; the chosen one goes back on top.
       raiseSelected();
+      layPins();
     } else if (mode === '2d' && map2d.current) {
       const map = map2d.current;
       route.legs.forEach((leg) => {
