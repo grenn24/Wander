@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { load3D, loadMaps, googleMapsAvailable, readScheme, dayColor } from '@/components/GoogleMap';
 import {
   flightMillis, km, GROUNDED_RANGE, groundOffset, nextGroundAltitude, groundNear, offsetCamera,
-  groundAt, viewOf, lieOn, squashMatrix,
+  groundAt, viewOf, poseOn, MAP_FOV,
 } from '@/lib/globe';
 import {
   prepareCountries, prepareAreas, areaFilesFor, regionsFor, regionStrength, areaStrength,
@@ -118,6 +118,8 @@ export default function GlobeCanvas({
   const callout = useRef(null); // takes the open stop's card off the map again
   // Ground heights the 3D map has reported where its view met the ground: [{ lat, lng, alt }].
   const ground = useRef([]);
+  // The 3D map's box: its shorter side and field of view, which with the camera say how wide the globe is on screen (lib/globe, globeSpan).
+  const mapBox = useRef({ side: 0, fov: MAP_FOV });
   const flight = useRef(0); // counts camera flights, so a late check for an old one does nothing
   const touchedAt = useRef(0); // when the globe was last dragged, pinched or scrolled
   const correcting = useRef(false); // a correction onto the ground is flying right now
@@ -275,19 +277,29 @@ export default function GlobeCanvas({
       offs.push(() => clearTimeout(appeared));
       map3d.current = map;
       /*
-       * Markers lie on the globe as the camera sees them (lib/globe, laying),
-       * so they are laid again whenever the camera has moved. The map's change
-       * events say so, but how often they come depends on how the camera is
-       * moved, and a pin left at the angle it had while the globe turns is
-       * wrong at once. So the camera is read once a frame and compared with the
-       * last one, which costs next to nothing while it is still.
+       * Markers lie on the globe as the camera sees them, at the size and
+       * strength it leaves them (lib/globe, laying), so they are laid again
+       * whenever the camera has moved. The map's change events say so, but how
+       * often they come depends on how the camera is moved, and a pin left at
+       * the angle it had while the globe turns is wrong at once. So the camera
+       * is read once a frame and compared with the last one, which costs next
+       * to nothing while it is still. The size of the box is part of it: the
+       * same camera makes a smaller globe in a smaller box.
        */
+      const box = host.current;
+      const shorter = () => Math.min(box.clientWidth, box.clientHeight);
+      mapBox.current = { side: shorter(), fov: Number(map.getAttribute('fov')) || MAP_FOV };
+      if (typeof ResizeObserver === 'function') {
+        const resized = new ResizeObserver(() => { mapBox.current.side = shorter(); });
+        resized.observe(box);
+        offs.push(() => resized.disconnect());
+      }
       const seen = [];
       const watch = () => {
         watching = requestAnimationFrame(watch);
         const c = map.center;
         if (!c) return;
-        const now = [c.lat, c.lng, c.altitude, map.range, map.tilt, map.heading, map.roll];
+        const now = [c.lat, c.lng, c.altitude, map.range, map.tilt, map.heading, map.roll, mapBox.current.side];
         if (now.every((v, i) => v === seen[i])) return;
         seen.splice(0, seen.length, ...now);
         layPins();
@@ -388,19 +400,18 @@ export default function GlobeCanvas({
   }
 
   /*
-   * Every marker on the globe, laid on it for the camera as it is now: a full
-   * circle where the ground faces you, squashed towards the edge of the globe.
-   * Up close they stand facing the screen as before (lib/globe, laying). The
-   * flat map keeps its markers standing and never gets here.
+   * Every marker on the globe, drawn for the camera as it is now: laid on it, a
+   * full circle where the ground faces you and squashed and fading towards the
+   * edge of the globe, and smaller than usual once the globe is a small disc.
+   * Up close they stand facing the screen at their own size as before
+   * (lib/globe, laying). The flat map keeps its markers standing and never
+   * gets here.
    */
   function layPins() {
     const map = map3d.current;
-    const view = map && viewOf(map);
+    const view = map && viewOf(map, mapBox.current);
     if (!view) return;
-    const lay = (entry) => {
-      const flat = lieOn(view, entry.spot);
-      entry.face.lay(flat && squashMatrix(flat));
-    };
+    const lay = (entry) => entry.face.lay(poseOn(view, entry.spot));
     pins.current.forEach((entry) => { if (entry.shown) lay(entry); });
     stopMarks.current.forEach(lay);
   }
