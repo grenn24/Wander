@@ -798,11 +798,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   transition: border-color .12s;
 }
 .tripcard:hover { border-color: var(--accent); }
-.tripcard:hover .tripcard-go { color: var(--accent); }
 .tripcard-top { display: flex; align-items: center; gap: 6px; }
-/* Whose trip this is, said beside what state it is in — the actions and the
-   arrow keep the far edge, so the pills sit together rather than at opposite
-   ends. */
+/* Whose trip this is, said beside what state it is in — the actions keep the
+   far edge, so the pills sit together rather than at opposite ends. */
 .tripcard-top .tripcard-more { margin-left: auto; }
 /* Always there, as a quiet outline, like the heart beside it. It used to wait
    for the pointer, and a menu nobody can see is not a way to edit a trip; and
@@ -851,7 +849,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   transition: background .13s var(--ease);
 }
 .triprow:hover { background: var(--surface-1); }
-.triprow:hover .tripcard-go { color: var(--text-1); }
 .triprow .statuspill { flex: none; }
 .triprow-name {
   font-weight: 600; font-size: 15px; min-width: 0;
@@ -862,18 +859,15 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   font-size: 13px; color: var(--text-2); white-space: nowrap;
 }
 .triprow-meta span { display: inline-flex; align-items: center; gap: 5px; }
-.triprow .tripcard-go { flex: none; }
 
 /* Narrow enough and a row is a card again: the meta drops under the name
    rather than being squeezed off the end of the line. */
 @media (max-width: 720px) {
   .triprow { flex-wrap: wrap; row-gap: 6px; padding: 12px 4px; }
-  /* The name and the way in share the top line; the labels and the dates
-     settle underneath, rather than the arrow being stranded on a line of its
-     own or the pills landing in a different place on every row. The empty
+  /* The name keeps the top line; the labels and the dates settle underneath,
+     rather than the pills landing in a different place on every row. The empty
      pseudo-element is the line break: flex has no other way to insist on one. */
   .triprow-name { flex: 1 1 auto; order: -2; }
-  .triprow .tripcard-go { order: -1; margin-left: auto; }
   .triprow::after { content: ''; order: -1; flex: 1 0 100%; height: 0; }
   .triprow-meta { margin-left: 0; gap: 10px; flex-wrap: wrap; white-space: normal; }
 }
@@ -885,7 +879,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sharedpill svg { flex: none; color: var(--text-3); }
-.tripcard-go { color: var(--text-3); transition: color .12s; }
 .tripcard-name { font-size: 16.5px; line-height: 1.3; }
 .tripcard-meta {
   display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2);
@@ -945,7 +938,7 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tripcard, .tripcard-go { transition: none; }
+  .tripcard { transition: none; }
   .tripcard:hover { transform: none; }
 }
 
@@ -3558,7 +3551,7 @@ body::before {
 }
 
 /* Trips are recognition-first: image and name lead, supporting facts sit in
-   one cluster below, and state plus navigation stay together at the edge. */
+   one cluster below, and state plus actions stay together at the edge. */
 .main-plain .wrap { max-width: 1080px; }
 .triplist { border-color: var(--border); }
 .triprow {
@@ -3619,7 +3612,6 @@ body::before {
   .triprow-meta { margin: 0; gap: 4px 10px; }
   .triprow-end { gap: 2px; }
   .triprow .statuspill { display: none; }
-  .triprow .tripcard-go { order: initial; margin-left: 0; }
 }
 
 /* A continuous itinerary. Times form the left column; the thin route line is

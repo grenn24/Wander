@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Plus, CalendarDays, MapPin, Wallet, ArrowRight, UserRound, LayoutGrid, Rows3,
+  Plus, CalendarDays, MapPin, Wallet, UserRound, LayoutGrid, Rows3,
   MoreHorizontal, Pencil, Copy, Trash2, Users,
 } from 'lucide-react';
 import Popover from '@/components/Popover';
@@ -444,7 +444,6 @@ export default function TripsHome() {
                           }}>
                           <MoreHorizontal size={16} />
                         </button>
-                        <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                       </span>
                     </Link>
                   );
@@ -472,7 +471,6 @@ export default function TripsHome() {
                         <FavouriteButton compact on={favs.trips.has(t.id)} name={t.name}
                           onToggle={(on) => favourite(t, on)} />
                       ) : null}
-                      <ArrowRight size={16} className="tripcard-go" aria-hidden="true" />
                     </div>
                     <h3 className="tripcard-name">{t.name}</h3>
                     <div className="tripcard-meta">
