@@ -81,7 +81,7 @@
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
   .stage :global(.map-stops-trigger) {
-    gap: 6px; padding: 0 13px; font-size: 14px !important; font-weight: 650;
+    gap: 6px; padding: 0 13px; font-size: var(--fs-sm) !important; font-weight: 650;
     font-variant-numeric: tabular-nums;
   }
   .stage :global(.map-stops-trigger svg:last-child) { color: var(--text-3); }
@@ -98,7 +98,7 @@
     display: inline-flex; align-items: center; gap: 7px; height: 44px; max-width: calc(100% - 210px);
     padding: 0 13px; border: 1px solid var(--border); border-radius: 999px;
     background: var(--surface-1); color: var(--text-1); box-shadow: var(--lift);
-    font: inherit; font-size: 14px; font-weight: 650; cursor: pointer;
+    font: inherit; font-size: var(--fs-sm); font-weight: 650; cursor: pointer;
   }
   .dayPick > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dayPick > svg { flex: none; color: var(--text-3); }
@@ -160,8 +160,8 @@
 /* ------------------------------------------------------------- the stops */
 .days { display: grid; gap: 14px; }
 .dayTitle { display: grid; gap: 2px; padding: 4px 8px; }
-.dayName { margin: 0; color: var(--text-1); font-size: 16px; font-weight: 650; line-height: 1.3; }
-.daySub { color: var(--text-3); font-size: 13.5px; }
+.dayName { margin: 0; color: var(--text-1); font-size: var(--fs-md); font-weight: 650; line-height: 1.3; }
+.daySub { color: var(--text-3); font-size: var(--fs-sm); }
 
 .stops { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
 .stop {
@@ -176,12 +176,12 @@
 .num {
   flex: none; display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box;
   border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
-  font: 700 11.5px/1 var(--font-mono), ui-monospace, monospace;
+  font: 700 var(--fs-xs)/1 var(--font-mono), ui-monospace, monospace;
 }
 .text { flex: 1; display: grid; gap: 1px; min-width: 0; }
 .name, .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.name { font-size: 14.5px; font-weight: 600; }
-.sub { color: var(--text-3); font-size: 12.5px; }
+.name { font-size: var(--fs-sm); font-weight: 600; }
+.sub { color: var(--text-3); font-size: var(--fs-xs); }
 .stop > .edit.edit {
   flex: none; width: 30px; min-width: 30px; min-height: 30px; padding: 0;
   border-color: transparent; background: transparent; color: var(--text-3);
@@ -201,7 +201,7 @@
 /* The way to the next stop, hung on a dotted line from one number to the next. */
 .leg {
   position: relative; display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px 4px 45px; color: var(--text-2); font-size: 12px;
+  padding: 4px 8px 4px 45px; color: var(--text-2); font-size: var(--fs-xs);
 }
 .leg::before {
   content: ''; position: absolute; left: 20px; top: 0; bottom: 0;
@@ -214,28 +214,28 @@
 .legFar > svg { color: var(--accent-ink); }
 .leg :global(.map-leg-detail) { gap: 0 8px; }
 .leg :global(.map-leg-detail > span) { color: var(--text-3); }
-.note { margin: 10px 8px 0; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+.note { margin: 10px 8px 0; color: var(--text-3); font-size: var(--fs-xs); line-height: 1.5; }
 
 /* ------------------------------------------------ picking stops for a route */
 .titleEnd { display: inline-flex; align-items: center; gap: 8px; }
-.pickToggle.pickToggle { min-height: 28px; padding: 3px 11px; font-size: 12.5px; }
+.pickToggle.pickToggle { min-height: 28px; padding: 3px 11px; font-size: var(--fs-xs); }
 .pickToggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.pickHint { margin: 8px 8px 2px; color: var(--text-3); font-size: 12.5px; line-height: 1.45; }
+.pickHint { margin: 8px 8px 2px; color: var(--text-3); font-size: var(--fs-xs); line-height: 1.45; }
 .pickRoute {
   margin: 10px 0 4px; padding: 10px 10px 4px; border: 1px solid var(--border); border-radius: 14px;
   background: var(--surface-0);
 }
 .pickHead {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 0 0 6px; font-size: 13.5px; font-weight: 650; color: var(--text-1);
+  padding: 0 0 6px; font-size: var(--fs-sm); font-weight: 650; color: var(--text-1);
 }
 .pickHop { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
-.pickPair { flex: none; display: inline-flex; align-items: center; gap: 4px; padding-top: 1px; color: var(--text-3); font-size: 11px; }
+.pickPair { flex: none; display: inline-flex; align-items: center; gap: 4px; padding-top: 1px; color: var(--text-3); font-size: var(--fs-xs); }
 .pickPair i {
   display: grid; place-items: center; width: 20px; height: 20px; box-sizing: border-box; border: 1.5px solid #fff;
-  border-radius: 50%; font: 700 10px/1 var(--font-mono), ui-monospace, monospace; font-style: normal;
+  border-radius: 50%; font: 700 var(--fs-xs)/1 var(--font-mono), ui-monospace, monospace; font-style: normal;
 }
-.pickLeg { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 12px; }
+.pickLeg { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: var(--fs-xs); }
 .pickLeg > svg { flex: none; margin-top: 2px; color: var(--text-3); }
 /*
  * On a wide screen, its own card beside the panel: the same surface, border
@@ -263,11 +263,11 @@
 .dayMenu button {
   display: flex; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 0 10px;
   border: 0; border-radius: 11px; background: transparent; color: var(--text-1);
-  font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; text-align: left; cursor: pointer;
 }
 .dayMenu button:hover { background: var(--surface-2); }
 .dayMenu button[aria-current="true"] { background: var(--accent-soft); color: var(--accent-ink); }
-.dayMenu button > span { margin-left: auto; color: var(--text-3); font-size: 12px; font-weight: 500; }
+.dayMenu button > span { margin-left: auto; color: var(--text-3); font-size: var(--fs-xs); font-weight: 500; }
 
 .stop[data-picked] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
 .check {

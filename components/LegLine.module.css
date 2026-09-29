@@ -4,7 +4,7 @@
 .way {
   display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--surface-1);
-  color: var(--text-2); font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .way > svg { flex: none; color: var(--text-3); }
@@ -12,12 +12,12 @@
 .way[data-on] { border-color: var(--border-strong); background: var(--surface-2); color: var(--text-1); }
 .way[data-on] > svg { color: var(--text-1); }
 /* As buttons: each way can be chosen for its hop. */
-button.way { font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; line-height: 1.5; }
+button.way { font: inherit; font-size: var(--fs-xs); font-weight: 600; cursor: pointer; line-height: 1.5; }
 button.way:hover { border-color: var(--border-strong); color: var(--text-1); }
 button.way:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Chosen for this hop, over the map's setting: the accent marks it as yours. */
 .way[data-chosen] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .tight {
   display: inline-flex; align-items: center; gap: 5px; flex-basis: 100%;
-  color: var(--accent-ink); font-size: 11.5px; font-weight: 600;
+  color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 600;
 }

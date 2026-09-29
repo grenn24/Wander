@@ -131,7 +131,7 @@ export default function Budget({ trip, days, activities, members = [], onSplitCh
       {view === 'chart' ? (
         <>
           <div className="card" style={{ marginTop: 14 }}>
-            <h3 style={{ fontSize: 15, marginBottom: 12 }}>Spend by type</h3>
+            <h3 style={{ marginBottom: 12 }}>Spend by type</h3>
             {byCat.length === 0 ? (
               <p className="muted small" style={{ margin: 0 }}>No costs entered yet.</p>
             ) : (
@@ -154,7 +154,7 @@ export default function Budget({ trip, days, activities, members = [], onSplitCh
           </div>
 
           <div className="card" style={{ marginTop: 14 }}>
-            <h3 style={{ fontSize: 15, marginBottom: 12 }}>Spend by day</h3>
+            <h3 style={{ marginBottom: 12 }}>Spend by day</h3>
             <div className="bars">
               {byDay.map((r) => (
                 <div className="bar-row" key={r.id}>

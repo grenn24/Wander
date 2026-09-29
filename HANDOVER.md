@@ -256,6 +256,33 @@ to copy.
 
 Match the surrounding code — it is consistent and deliberate.
 
+### Type scale (29 September 2026)
+
+- Font sizes in the trip pages come from six tokens on `:root` in
+  `globals.css`: `--fs-xs` 12, `--fs-sm` 14, `--fs-md` 16, `--fs-lg` 18,
+  `--fs-xl` 24 and `--fs-2xl` 28. Write `font-size: var(--fs-sm)`, never a
+  number. The pages had drifted to two dozen sizes (11.5, 13.5, 14.5 …) and the
+  itinerary carried a larger set of its own under `.itin`, so the same class
+  was a different size on each tab. `.itin` now holds layout only.
+- Nothing that is read goes below 12px. By role: `xs` badges, uppercase labels,
+  table headers, pin and avatar numbers; `sm` meta lines, hints, chips, form
+  labels, small buttons; `md` body text, times and every field (16px also
+  keeps iOS from zooming into inputs); `lg` item titles and card and dialog
+  headings; `xl` day headings and the numbers a page is built around; `2xl`
+  page titles. Unstyled `h3`, `h4` and `<small>` take a step from `globals.css`
+  instead of the browser's 18.72px and 10px.
+- To make the app read larger or smaller, change the six values, not the
+  rules. Left alone on purpose: the wordmark, print (`pt`), the fluid Today
+  headline, the planning desk's notes (the person sizes those), and the
+  landing, guides, globe, sign-in, legal and trips-list styles, which keep
+  their own type. Shared atoms (`.small`, `.label`, `.btn.sm`, `.page-head h2`)
+  are on the scale everywhere, so those pages moved with them by a pixel or two.
+- Checking it: in the browser, walk every text node and read its computed
+  size — a trip tab should show only 12, 14, 16, 18, 24 and 28, plus the
+  wordmark's 21 and 23 and, on the map, Google's own 10px attribution.
+  `MapView.module.css` and `PlanningDesk.module.css` have sizes of their own;
+  they use the same tokens.
+
 ### The landing page (29 September 2026)
 
 - All of its styles are in `app/landing.css`, prefixed `lp-`. `globals.css` keeps

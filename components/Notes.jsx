@@ -53,7 +53,7 @@ export default function Notes({ trip, activities, onSave }) {
 
       {refs.length ? (
         <div className="card" style={{ marginTop: 16 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>Booking references</h3>
+          <h3 style={{ marginBottom: 10 }}>Booking references</h3>
           <table className="data">
             <thead><tr><th>Item</th><th>Day</th><th>Reference</th></tr></thead>
             <tbody>
