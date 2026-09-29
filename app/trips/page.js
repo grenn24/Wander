@@ -336,7 +336,6 @@ export default function TripsHome() {
               </div>
             </div>
             <div className="page-head-acts">
-              <a className="btn" href="/offline.html">Downloaded trips</a>
               {/* Only worth offering once there is a list to have an opinion
                   about — but drawn while they are still coming, so it is not a
                   control that appears in this row once the page has settled.

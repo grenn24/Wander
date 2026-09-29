@@ -48,7 +48,8 @@ export default function Privacy() {
           booking references, notes and packing list are saved in this browser on your device.
           Anyone who can use that browser can read them without signing in again. They are
           snapshots: later changes and access removals cannot reach a device while it is offline.
-          Remove a copy from Downloaded trips or sign out of Wander to clear this browser’s downloads.
+          Remove a copy in the trip’s Offline settings or sign out of Wander to clear this
+          browser’s downloads.
         </li>
       </ul>
 

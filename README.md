@@ -25,9 +25,9 @@ does not guess zones for existing trips. The full schema also contains both.
 - Trip settings → Download for offline: explicitly save a read-only snapshot
   in IndexedDB. A service worker caches the independent `/offline.html` reader
   and its assets, so it can start without Next, Supabase or a login connection.
-  Failed full-page navigations open that reader. The offline banner and Your
-  trips → Downloaded trips also link to it. Update or remove a saved copy from
-  trip settings. Signing out clears this browser’s downloads.
+  Failed full-page navigations open that reader. The offline banner links to
+  it, as does Open saved trip in trip settings. Update or remove a saved copy
+  from trip settings. Signing out clears this browser’s downloads.
 
 Downloads include booking references and notes: use a personal device. They
 are not encrypted separately from browser storage, do not update automatically,
