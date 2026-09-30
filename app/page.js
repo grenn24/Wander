@@ -9,6 +9,7 @@ import TravelArt from '@/components/TravelArt';
 import PromoVideo from '@/components/PromoVideo';
 import GuideRail from '@/components/GuideRail';
 import { accountHintScript } from '@/lib/accountHint';
+import { authForwardScript } from '@/lib/authReturn';
 import {
   CalendarDays, MapPin, Wallet, Backpack, NotebookPen, Users,
   Zap, ShieldCheck, Printer,
@@ -55,6 +56,11 @@ export default function Landing() {
 
   return (
     <div className="lp" id="top">
+      {/* Somebody who arrives here straight out of a sign-in — a confirmation
+          email, or a return Supabase would not send anywhere else — goes on to
+          their trips (lib/authReturn.js). Before the account hint: there is no
+          point drawing a page that is being left. */}
+      <script dangerouslySetInnerHTML={{ __html: authForwardScript() }} />
       {/* Says whether this browser is signed in while the page is still being
           parsed, so the account control is right in the first frame. */}
       {hint ? <script dangerouslySetInnerHTML={{ __html: hint }} /> : null}

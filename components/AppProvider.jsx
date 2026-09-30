@@ -14,8 +14,12 @@ import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
 import { observeSession } from '@/lib/sessionRecovery';
 import { markSigningOut } from '@/lib/accountHint';
+import { returnPath } from '@/lib/authReturn';
 
 const Ctx = createContext(null);
+
+/** Where Google, or a confirmation email, should send this person back to. */
+const comeBackTo = () => `${window.location.origin}${returnPath(window.location.pathname, window.location.search)}`;
 
 export function useApp() {
   const ctx = useContext(Ctx);
@@ -179,9 +183,15 @@ export default function AppProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      // Carried through sign-up so the first trip is already filed under a
-      // person rather than an address.
-      options: { data: { display_name: (name || '').trim().slice(0, 40) } },
+      options: {
+        // Carried through sign-up so the first trip is already filed under a
+        // person rather than an address.
+        data: { display_name: (name || '').trim().slice(0, 40) },
+        // Where the confirmation link lands. Left out, it goes to the Site URL,
+        // which is the landing page, and a person who has just confirmed their
+        // address is looking at a hero and not at their trips.
+        emailRedirectTo: comeBackTo(),
+      },
     });
     if (error) throw error;
     // With confirmations on, there is no session yet and the inbox is the next
@@ -190,12 +200,11 @@ export default function AppProvider({ children }) {
   }, [supabase]);
 
   const signInWithGoogle = useCallback(async () => {
-    const back = `${window.location.pathname}${window.location.search}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       // Comes back to the page they were trying to reach, which for a shared
       // link is the trip itself.
-      options: { redirectTo: `${window.location.origin}${back}` },
+      options: { redirectTo: comeBackTo() },
     });
     if (error) throw error;
   }, [supabase]);
@@ -213,9 +222,8 @@ export default function AppProvider({ children }) {
    * and no way to renew it.
    */
   const connectCalendar = useCallback(async () => {
-    const back = `${window.location.pathname}${window.location.search}`;
     const options = {
-      redirectTo: `${window.location.origin}${back}`,
+      redirectTo: comeBackTo(),
       scopes: 'https://www.googleapis.com/auth/calendar.readonly'
         + ' https://www.googleapis.com/auth/calendar.events',
       queryParams: { access_type: 'offline', prompt: 'consent' },
