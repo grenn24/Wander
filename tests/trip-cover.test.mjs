@@ -60,3 +60,10 @@ test('the image viewer is given the cover as a file or as a Google reference', (
   assert.equal(coverPhoto({}, HOST), null);
   assert.equal(coverPhoto(null, HOST), null);
 });
+
+test('a borrowed photograph is asked for wide enough for the trip page unless told otherwise', () => {
+  assert.equal(
+    heroCoverURL({ cover_ref: 'places/ChIJ/photos/AV' }, '', undefined, HOST),
+    '/api/places/photo?ref=places%2FChIJ%2Fphotos%2FAV&w=1920',
+  );
+});

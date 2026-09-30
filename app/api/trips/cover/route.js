@@ -1,6 +1,7 @@
 import { asUser } from '@/lib/supabaseServer';
 import { COVER_BUCKET, coverPathFor } from '@/lib/tripCover';
 import { coverPrompt } from '@/lib/coverPrompt';
+import { coverDrawing } from '@/lib/coverDraw';
 
 export const runtime = 'nodejs';
 // Drawing a picture takes longer than a database read, and the best quality
@@ -51,21 +52,27 @@ export async function POST(req) {
 
   const prompt = coverPrompt({ name: trip.name, destination: trip.destination, style: body.style });
 
+  // Wide, as it is drawn across the head of the trip page, and as large as the
+  // model draws: it is the picture of the trip, shown wide and opened full
+  // size, not a thumbnail. That costs more and takes longer than a small draw,
+  // so a redraw is worth a deliberate click.
+  const drawing = coverDrawing({
+    model: process.env.OPENAI_IMAGE_MODEL, size: process.env.OPENAI_IMAGE_SIZE,
+  });
+
   let made;
   try {
     const upstream = await fetch(IMAGES, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: JSON.stringify({
-        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
+        ...drawing,
         prompt,
-        // Wide, as it is drawn across the head of the trip page. The best
-        // quality there is: it is the picture of the trip, shown wide and
-        // opened full size, not a thumbnail. It costs several times a cheaper
-        // draw and takes longer, so a redraw is worth a deliberate click.
-        size: '1536x1024',
-        quality: 'high',
         output_format: 'webp',
+        // Near-lossless, and a good deal smaller than the default. The bucket
+        // refuses a file over 6 MiB, and a large picture at full compression
+        // can be near that — a draw paid for and then not kept.
+        output_compression: 90,
         n: 1,
       }),
     });

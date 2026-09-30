@@ -10,7 +10,7 @@ const runtime = (width, height) => ({
 
 test('a photograph from a phone is redrawn to a width a cover is shown at', async () => {
   const { blob, extension, type } = await prepareCover(file('image/jpeg', 8 * 1024 * 1024), runtime(4032, 3024));
-  assert.deepEqual(blob.drawn, [COVER_WIDEST, 1200]);
+  assert.deepEqual(blob.drawn, [COVER_WIDEST, COVER_WIDEST * 3 / 4]);
   assert.equal(extension, 'webp');
   assert.equal(type, 'image/webp');
 });
