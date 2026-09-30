@@ -34,6 +34,9 @@
  * picture. The room above keeps its label with its field, not with the buttons.
  */
 .look { display: grid; gap: 5px; margin-top: 6px; }
+/* The style can now run to a few sentences. Let the field grow to show most of
+   them before it scrolls, rather than at the app's usual five lines. */
+.look textarea { max-height: 216px; }
 /* Its own button says it better; the input is only here to open the picker. */
 .file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
