@@ -1,0 +1,70 @@
+.hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(196px, 30vw, 272px);
+  border-radius: 22px;
+  overflow: hidden;
+  /* What the name sits on until the picture arrives. Warm and dark, so the
+     light text is legible from the first frame. */
+  background: linear-gradient(140deg, #3b3027 0%, #1d1813 100%);
+  box-shadow: var(--lift);
+}
+
+.pic {
+  position: absolute; inset: 0; z-index: -2;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  /* Above the middle: horizons and skylines sit there, and the foot of the
+     picture is what the name covers anyway. */
+  object-position: 50% 40%;
+  opacity: 0;
+  transition: opacity .45s ease;
+}
+.in { opacity: 1; }
+
+/* The scrim: heavier under the words, clear at the top so the picture still
+   shows as a picture. It does not depend on the theme or on the photograph. */
+.hero::before {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(to top,
+    rgb(14 11 8 / .86) 0%,
+    rgb(14 11 8 / .62) 42%,
+    rgb(14 11 8 / .2) 74%,
+    rgb(14 11 8 / 0) 100%);
+  pointer-events: none;
+}
+/* A hairline where the picture meets the page, for the light themes' pale
+   photographs and the dark theme's dark ones alike. */
+.hero::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-1) 12%, transparent);
+  pointer-events: none;
+}
+
+.text {
+  min-width: 0; width: 100%;
+  padding: 44px 24px 20px;
+  color: #fff;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .4);
+}
+.text h2 { color: #fff; text-wrap: balance; overflow-wrap: anywhere; }
+.text :global(.trip-facts) {
+  margin-top: 6px;
+  color: rgb(255 255 255 / .9);
+}
+.text :global(.trip-facts) span + span::before { color: rgb(255 255 255 / .65); opacity: 1; }
+
+@media (max-width: 640px) {
+  .hero { min-height: 212px; border-radius: 20px; }
+  .text { padding: 40px 16px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pic { transition: none; }
+}
+@media print { .hero { display: none; } }

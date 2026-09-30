@@ -1894,6 +1894,11 @@ body:has(.lp)::before { display: none; }
 
 /* ======================================================= itinerary read -- */
 
+/* With a cover the heading is a picture across the page, so the actions drop
+   beneath it — and stay on the right, where they stood beside the name. */
+.page-head.has-cover { flex-direction: column; align-items: stretch; gap: 12px; }
+.page-head.has-cover .chiprow { justify-content: flex-end; }
+
 /* Trip facts read as a row of separated values rather than one long sentence. */
 .trip-facts { display: flex; flex-wrap: wrap; gap: 4px 0; }
 .trip-facts span + span::before {

@@ -11,7 +11,9 @@ import useSheetDismiss from '@/components/useSheetDismiss';
 
 const TAB_ICONS = { details: SlidersHorizontal, people: Users, offline: Download, calendar: CalendarDays };
 
-export default function TripModal({ draft, onChange, onSave, onClose, sections = [], initialSection = 'details', leaving = false }) {
+export default function TripModal({
+  draft, onChange, onSave, onClose, onCover, sections = [], initialSection = 'details', leaving = false,
+}) {
   const [active, setActive] = useState(initialSection);
   const id = useId();
   const dialog = useRef(null);
@@ -25,10 +27,13 @@ export default function TripModal({ draft, onChange, onSave, onClose, sections =
   /*
    * The cover saves itself, so it must not leave the dialog looking unsaved:
    * fold it into what the dialog considers untouched as well as into the draft.
+   * Whoever opened the dialog may want to hear of it too — the trip page shows
+   * the cover behind this dialog, and Cancel does not take it back.
    */
   const covered = (patch) => {
     pristine.current = JSON.stringify({ ...JSON.parse(pristine.current), ...patch });
     onChange({ ...draft, ...patch });
+    if (onCover) onCover(patch);
   };
 
   const start = draft.start_date || '';

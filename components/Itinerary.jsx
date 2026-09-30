@@ -26,6 +26,8 @@ import LegLine from '@/components/LegLine';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
+import TripHero from '@/components/TripHero';
+import { heroCoverURL } from '@/lib/tripCover';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -101,6 +103,9 @@ export default function Itinerary({
   const [stripStuck, setStripStuck] = useState(false);
   const [suggestFor, setSuggestFor] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState('');
+  // A cover that would not load, so the heading falls back to plain type.
+  const [brokenCover, setBrokenCover] = useState('');
+  const cover = heroCoverURL(trip, brokenCover);
   const jumpedFor = useRef(null);
   // Which focus request has already been carried out, so the same one is not
   // served twice while the address still names it.
@@ -350,19 +355,27 @@ export default function Itinerary({
   const total = activities.reduce((s, a) => s + Number(a.cost || 0), 0);
   const planned = days.filter((d) => (byDay[d] || []).length).length;
 
+  // With a cover the name is laid over the foot of it; without one it stands on
+  // the page as it always has.
+  const heading = (
+    <div style={{ minWidth: 0 }}>
+      <h2>{trip.name}</h2>
+      <div className="small muted trip-facts">
+        {trip.destination ? <span>{trip.destination}</span> : null}
+        <span>{days.length} days</span>
+        <span>{planned} planned</span>
+        <span>{activities.length} activities</span>
+        {total > 0 ? <span>{money(total, trip.currency)}</span> : null}
+      </div>
+    </div>
+  );
+
   return (
     <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
-      <div className="page-head spread">
-        <div style={{ minWidth: 0 }}>
-          <h2>{trip.name}</h2>
-          <div className="small muted trip-facts">
-            {trip.destination ? <span>{trip.destination}</span> : null}
-            <span>{days.length} days</span>
-            <span>{planned} planned</span>
-            <span>{activities.length} activities</span>
-            {total > 0 ? <span>{money(total, trip.currency)}</span> : null}
-          </div>
-        </div>
+      <div className={`page-head spread${cover ? ' has-cover' : ''}`}>
+        {cover
+          ? <TripHero url={cover} onBroken={() => setBrokenCover(cover)}>{heading}</TripHero>
+          : heading}
         <div className="chiprow">
           <PlanningDesk tripId={trip.id} containerRef={itineraryRef} days={days} activeDay={activeDay} />
           {todayIndex >= 0 ? (

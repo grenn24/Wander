@@ -44,7 +44,7 @@ export default function TripTabPage({ params }) {
     focusReq, clearFocus, intent, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
     setActivityCoords, addActivities, addPackingItems,
-    addPacking, updatePacking, deletePacking, saveNotes, removeMember, updateTrip,
+    addPacking, updatePacking, deletePacking, saveNotes, removeMember, updateTrip, setTrip,
   } = useTrip();
 
   const [editing, setEditing] = useState(null);
@@ -221,6 +221,10 @@ export default function TripTabPage({ params }) {
 
       {tripShown.value ? (
         <TripModal draft={tripShown.value} leaving={tripShown.leaving} onChange={setTripDraft} onSave={saveTrip}
+          // The cover is already saved when it changes, so the page behind the
+          // dialog takes it at once — not on Save, and not on a reload. Cancel
+          // must not leave the header pointing at a file that has been replaced.
+          onCover={(patch) => setTrip((prev) => (prev ? { ...prev, ...patch } : prev))}
           onClose={closeTripEditor} initialSection={tripSection}
           sections={[
             { id: 'people', label: 'Travellers', content: <People compact members={members} online={online}

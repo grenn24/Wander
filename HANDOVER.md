@@ -66,6 +66,14 @@ same dialog over the itinerary and return there on close. New-trip forms and
 quick edits from the trip list still use the basic TripModal fields. Draft
 details survive tab changes; sharing/offline/calendar actions use saved data.
 
+A trip's cover (`trip.cover_path` / `cover_ref`, resolved by `coverURL` in
+`lib/tripCover.js`) is drawn across the head of the itinerary by
+`components/TripHero.jsx`, with the trip name laid over a dark scrim so any
+uploaded photo stays readable. No cover, or one that fails to load
+(`heroCoverURL`), falls back to the plain heading. The Edit trip dialog saves
+covers as you go, so it reports them through `onCover` and the page takes them
+at once; do not wait for Save or the realtime refresh.
+
 Mobile session recovery lives in `lib/sessionRecovery.js`. AppProvider restores
 on visibility, pageshow, focus and reconnect without remounting ready editors.
 Trip reads check the session first and replay once after a rejected JWT; never
