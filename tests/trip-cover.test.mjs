@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coverFileURL, coverPathFor, coverURL, heroCoverURL } from '../lib/tripCover.js';
+import { coverFileURL, coverPathFor, coverPhoto, coverURL, heroCoverURL } from '../lib/tripCover.js';
 
 const HOST = 'https://db.example.supabase.co';
 const TRIP = '11111111-2222-3333-4444-555555555555';
@@ -46,4 +46,17 @@ test('the trip page draws its cover wide, and drops one that would not load', ()
     `${HOST}/storage/v1/object/public/trip-covers/${TRIP}/other.webp`,
   );
   assert.equal(heroCoverURL({}, '', 1200, HOST), null);
+});
+
+test('the image viewer is given the cover as a file or as a Google reference', () => {
+  const url = `${HOST}/storage/v1/object/public/trip-covers/${TRIP}/abc123.webp`;
+  // Its own picture first, exactly as coverURL prefers it.
+  assert.deepEqual(coverPhoto({ cover_path: `${TRIP}/abc123.webp`, cover_ref: 'places/ChIJ/photos/AV' }, HOST), { url });
+  // A borrowed photograph is a reference: the viewer asks for the size it wants.
+  assert.deepEqual(coverPhoto({ cover_ref: 'places/ChIJ/photos/AV' }, HOST), { ref: 'places/ChIJ/photos/AV' });
+  // Nothing that is not ours or Google's is ever handed to it.
+  assert.equal(coverPhoto({ cover_path: '../../etc/passwd' }, HOST), null);
+  assert.equal(coverPhoto({ cover_ref: 'https://example.com/evil.png' }, HOST), null);
+  assert.equal(coverPhoto({}, HOST), null);
+  assert.equal(coverPhoto(null, HOST), null);
 });

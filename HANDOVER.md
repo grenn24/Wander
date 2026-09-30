@@ -69,8 +69,10 @@ details survive tab changes; sharing/offline/calendar actions use saved data.
 A trip's cover (`trip.cover_path` / `cover_ref`, resolved by `coverURL` in
 `lib/tripCover.js`) is drawn across the head of the itinerary by
 `components/TripHero.jsx`, with the trip name laid over a dark scrim so any
-uploaded photo stays readable. No cover, or one that fails to load
-(`heroCoverURL`), falls back to the plain heading. The Edit trip dialog saves
+uploaded photo stays readable. The whole frame opens the cover in the shared
+`Lightbox` (`coverPhoto` in `lib/tripCover.js` shapes it for the viewer). No
+cover, or one that fails to load (`heroCoverURL`), falls back to the plain
+heading. The Edit trip dialog saves
 covers as you go, so it reports them through `onCover` and the page takes them
 at once; do not wait for Save or the realtime refresh.
 

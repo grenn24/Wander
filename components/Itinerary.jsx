@@ -27,7 +27,7 @@ import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
-import { heroCoverURL } from '@/lib/tripCover';
+import { coverPhoto, heroCoverURL } from '@/lib/tripCover';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -374,7 +374,8 @@ export default function Itinerary({
     <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
       <div className={`page-head spread${cover ? ' has-cover' : ''}`}>
         {cover
-          ? <TripHero url={cover} onBroken={() => setBrokenCover(cover)}>{heading}</TripHero>
+          ? <TripHero url={cover} photo={coverPhoto(trip)} label={trip.name}
+              onBroken={() => setBrokenCover(cover)}>{heading}</TripHero>
           : heading}
         <div className="chiprow">
           <PlanningDesk tripId={trip.id} containerRef={itineraryRef} days={days} activeDay={activeDay} />
