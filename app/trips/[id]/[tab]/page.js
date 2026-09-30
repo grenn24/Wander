@@ -17,16 +17,17 @@ import { removeDownload } from '@/public/offline-store';
  * paid for on a screen nobody has asked for yet. Each is fetched when it is
  * opened; they are rendered on the server as before.
  */
-const MapView = dynamic(() => import('@/components/MapView'));
-const Budget = dynamic(() => import('@/components/Budget'));
-const Packing = dynamic(() => import('@/components/Packing'));
-const Notes = dynamic(() => import('@/components/Notes'));
-const People = dynamic(() => import('@/components/People'));
-const CalendarLink = dynamic(() => import('@/components/CalendarLink'));
-const OfflineDownload = dynamic(() => import('@/components/OfflineDownload'));
-const ActivityModal = dynamic(() => import('@/components/ActivityModal'));
-const TripModal = dynamic(() => import('@/components/TripModal'));
+const MapView = dynamic(() => retryImport(() => import('@/components/MapView')));
+const Budget = dynamic(() => retryImport(() => import('@/components/Budget')));
+const Packing = dynamic(() => retryImport(() => import('@/components/Packing')));
+const Notes = dynamic(() => retryImport(() => import('@/components/Notes')));
+const People = dynamic(() => retryImport(() => import('@/components/People')));
+const CalendarLink = dynamic(() => retryImport(() => import('@/components/CalendarLink')));
+const OfflineDownload = dynamic(() => retryImport(() => import('@/components/OfflineDownload')));
+const ActivityModal = dynamic(() => retryImport(() => import('@/components/ActivityModal')));
+const TripModal = dynamic(() => retryImport(() => import('@/components/TripModal')));
 import useKept from '@/components/useKept';
+import { retryImport } from '@/lib/chunkRetry';
 import { todayISO } from '@/lib/util';
 import { COVER_BUCKET } from '@/lib/tripCover';
 import { placeDetails } from '@/lib/geo';

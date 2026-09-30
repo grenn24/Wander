@@ -12,6 +12,7 @@ import { createPin, createCluster } from '@/components/mapPin';
 import { clusterUnits } from '@/lib/mapClusters';
 import { centreBeside, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
 import { createMapsLoader } from '@/lib/googleMapsLoader';
+import { retryImport } from '@/lib/chunkRetry';
 import loadStyles from './GoogleMap.module.css';
 
 /*
@@ -35,7 +36,7 @@ const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
 // Advanced markers refuse to render without a Map ID. Google's demo id works
 // out of the box; set NEXT_PUBLIC_MAPS_MAP_ID for a styled one.
 const MAP_ID = process.env.NEXT_PUBLIC_MAPS_MAP_ID || 'DEMO_MAP_ID';
-const PhotorealisticMap = dynamic(() => import('./PhotorealisticMap'), { ssr: false });
+const PhotorealisticMap = dynamic(() => retryImport(() => import('./PhotorealisticMap')), { ssr: false });
 
 export async function load3D() {
   await loadMaps();

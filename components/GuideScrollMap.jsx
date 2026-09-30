@@ -4,13 +4,14 @@ import dynamic from 'next/dynamic';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { plainText } from '@/lib/guideFormat';
 import { useModalChrome } from '@/lib/useModal';
+import { retryImport } from '@/lib/chunkRetry';
 import s from './Guides.module.css';
 
 const KEY = process.env.NEXT_PUBLIC_MAPS_JAVASCRIPT_API_KEY || '';
 export const mapsReady = !!KEY && !KEY.startsWith('REPLACE_WITH');
 
 // Fetched only on a screen wide enough to show it: a phone never downloads it.
-const GuideMap = dynamic(() => import('./GuideMap'), { ssr: false });
+const GuideMap = dynamic(() => retryImport(() => import('./GuideMap')), { ssr: false });
 
 /* How far down the screen the reader's eye is taken to be. */
 const READ_LINE = 0.42;

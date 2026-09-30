@@ -23,6 +23,7 @@ import { dayColor } from '@/components/GoogleMap';
 import { inkOn } from '@/components/mapPin';
 import { searchPlaces, placeDetails } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
+import { retryImport } from '@/lib/chunkRetry';
 import {
   tripPoints, savedPoints, ideaPoints, overviewCamera, focusCamera, groupCamera, globeCounts,
   tripRoute, routeLegs, stopsNear,
@@ -30,7 +31,7 @@ import {
 import { fmtRange, fmtDay, fmtTime, humanError, todayISO, shortPlace } from '@/lib/util';
 import s from './Globe.module.css';
 
-const GlobeCanvas = dynamic(() => import('./GlobeCanvas'), {
+const GlobeCanvas = dynamic(() => retryImport(() => import('./GlobeCanvas')), {
   ssr: false,
   loading: () => <div className={s.hold} />,
 });
