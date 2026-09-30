@@ -39,3 +39,13 @@ test('the model name is trimmed, and every draw asks for the best quality', () =
   assert.equal(drawing.model, 'gpt-image-2');
   assert.equal(drawing.quality, 'high');
 });
+
+test('quality can be stepped down without a deploy, and a value that is not a quality is ignored', () => {
+  for (const quality of ['low', 'medium', 'high', 'auto']) {
+    assert.equal(coverDrawing({ model: 'gpt-image-2', quality }).quality, quality);
+  }
+  assert.equal(coverDrawing({ quality: ' Medium ' }).quality, 'medium');
+  for (const quality of ['', 'best', 'hd', undefined, null, 5]) {
+    assert.equal(coverDrawing({ quality }).quality, 'high', String(quality));
+  }
+});

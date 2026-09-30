@@ -4,10 +4,16 @@ import { coverPrompt } from '@/lib/coverPrompt';
 import { coverDrawing } from '@/lib/coverDraw';
 
 export const runtime = 'nodejs';
-// Drawing a picture takes longer than a database read, and the best quality
-// takes the longest. If draws start timing out, raise this to what the
-// project's Vercel plan allows.
-export const maxDuration = 60;
+// Drawing a picture takes longer than a database read, and a large one at the
+// best quality takes the longest — well past a minute, which is what this was
+// first set to. If the project's plan will not allow this much, the deployment
+// is refused at build time and this is the number to bring down.
+export const maxDuration = 300;
+
+// Stop waiting a little before the platform would stop us, so a slow drawing
+// is answered with a reason instead of a bare 504 — and with room left to keep
+// a picture that arrives at the last moment.
+const DRAW_BUDGET_MS = (maxDuration - 20) * 1000;
 
 const IMAGES = 'https://api.openai.com/v1/images/generations';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,7 +63,9 @@ export async function POST(req) {
   // size, not a thumbnail. That costs more and takes longer than a small draw,
   // so a redraw is worth a deliberate click.
   const drawing = coverDrawing({
-    model: process.env.OPENAI_IMAGE_MODEL, size: process.env.OPENAI_IMAGE_SIZE,
+    model: process.env.OPENAI_IMAGE_MODEL,
+    size: process.env.OPENAI_IMAGE_SIZE,
+    quality: process.env.OPENAI_IMAGE_QUALITY,
   });
 
   let made;
@@ -65,6 +73,7 @@ export async function POST(req) {
     const upstream = await fetch(IMAGES, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      signal: AbortSignal.timeout(DRAW_BUDGET_MS),
       body: JSON.stringify({
         ...drawing,
         prompt,
@@ -89,7 +98,12 @@ export async function POST(req) {
       return say(detail || 'That picture could not be drawn.', 502);
     }
     made = answer && answer.data && answer.data[0] && answer.data[0].b64_json;
-  } catch {
+  } catch (error) {
+    if (error && error.name === 'TimeoutError') {
+      // What was asked for, in the log, is what the owner needs to change.
+      console.warn('[cover] drawing timed out', drawing);
+      return say('That took too long to draw. Try again in a moment.', 504);
+    }
     return say('Could not reach OpenAI.', 502);
   }
   if (!made) return say('That picture could not be drawn.', 502);
