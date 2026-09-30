@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Sun, Moon, SunMoon, ChevronDown, LogOut, House, UserRound,
+  Sun, Moon, SunMoon, ChevronDown, LogOut, House, UserRound, LayoutGrid,
 } from 'lucide-react';
 import { useApp, useTheme } from '@/components/AppProvider';
 import BrandMark from '@/components/BrandMark';
@@ -103,6 +103,13 @@ export default function TopBar({ children, online = [], menu = [], tools = null 
           })}
 
           {menu.length ? <div className="menu-rule" /> : null}
+
+          {/* The trip list, from wherever you are: the section tabs only
+              show on the list pages, and inside a trip the brand mark is
+              the only other way back. */}
+          <Link href="/trips" role="menuitem" onClick={() => setOpen(false)}>
+            <LayoutGrid size={15} /> My trips
+          </Link>
 
           {/* Things about the person rather than the trip: the calendar
               connection today, and whatever else turns out to belong to an
