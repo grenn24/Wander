@@ -3,7 +3,9 @@ import { COVER_BUCKET, coverPathFor } from '@/lib/tripCover';
 import { coverPrompt } from '@/lib/coverPrompt';
 
 export const runtime = 'nodejs';
-// Drawing a picture takes longer than a database read.
+// Drawing a picture takes longer than a database read, and the best quality
+// takes the longest. If draws start timing out, raise this to what the
+// project's Vercel plan allows.
 export const maxDuration = 60;
 
 const IMAGES = 'https://api.openai.com/v1/images/generations';
@@ -57,10 +59,12 @@ export async function POST(req) {
       body: JSON.stringify({
         model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
         prompt,
-        // Wide, as it is drawn across the head of a card, and cheap: it is
-        // shown at a few hundred pixels and is asked for again on a whim.
+        // Wide, as it is drawn across the head of the trip page. The best
+        // quality there is: it is the picture of the trip, shown wide and
+        // opened full size, not a thumbnail. It costs several times a cheaper
+        // draw and takes longer, so a redraw is worth a deliberate click.
         size: '1536x1024',
-        quality: 'low',
+        quality: 'high',
         output_format: 'webp',
         n: 1,
       }),
