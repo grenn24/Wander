@@ -1955,11 +1955,15 @@ body:has(.lp)::before { display: none; }
     justify-content: center; padding-top: 0;
   }
 }
-.act-t { font-size: var(--fs-md); font-weight: 600; color: var(--text-1); }
+/* Times and titles sit one step below the scale's usual body and heading sizes:
+   the mono face runs wide and the rows are already tall, so at 16 and 18px the
+   itinerary read as shouting. The end time drops with the start so the pair
+   still reads as a range. */
+.act-t { font-size: var(--fs-sm); font-weight: 600; color: var(--text-1); }
 .act-t.dim { font-weight: 400; color: var(--text-3); }
-.act-t2 { font-size: var(--fs-sm); color: var(--text-3); }
+.act-t2 { font-size: var(--fs-xs); color: var(--text-3); }
 
-.act-title { font-weight: 600; font-size: var(--fs-lg); line-height: 1.35; }
+.act-title { font-weight: 600; font-size: var(--fs-md); line-height: 1.35; }
 .act-meta {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 3px; font-size: var(--fs-sm); color: var(--text-3);
