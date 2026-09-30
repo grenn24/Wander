@@ -47,7 +47,7 @@ export async function POST(req) {
   if (!UUID.test(tripId)) return say('Expected a trip.', 400);
 
   const { data: trip, error: tripError } = await db.from('trips')
-    .select('id, name, destination, cover_path').eq('id', tripId).maybeSingle();
+    .select('id, name, destination').eq('id', tripId).maybeSingle();
   if (tripError) {
     const stale = /jwt|token/i.test(tripError.message || '');
     return say(stale ? 'Sign in again to change this trip.' : 'Could not read that trip.', stale ? 401 : 502);
@@ -120,8 +120,8 @@ export async function POST(req) {
     await db.storage.from(COVER_BUCKET).remove([path]);
     return say('The picture was drawn but the trip could not be pointed at it.', 502);
   }
-  // The one it had is nobody's now.
-  if (trip.cover_path) await db.storage.from(COVER_BUCKET).remove([trip.cover_path]);
+  // The cover it had is left in the bucket on purpose: a redraw moves the
+  // trip's pointer and keeps what came before.
 
   return Response.json({ cover_path: path });
 }

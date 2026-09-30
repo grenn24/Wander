@@ -74,7 +74,12 @@ uploaded photo stays readable. The whole frame opens the cover in the shared
 cover, or one that fails to load (`heroCoverURL`), falls back to the plain
 heading. The Edit trip dialog saves
 covers as you go, so it reports them through `onCover` and the page takes them
-at once; do not wait for Save or the realtime refresh.
+at once; do not wait for Save or the realtime refresh. Replacing a cover
+(upload or redraw) deliberately leaves the old file in the `trip-covers` bucket
+— the owner wants every cover a trip has had to stay visible there — so only the
+trip's `cover_path` moves. Files are deleted only by the Remove button and when
+a trip is deleted, and the latter removes just the current cover, so older ones
+stay behind.
 
 Mobile session recovery lives in `lib/sessionRecovery.js`. AppProvider restores
 on visibility, pageshow, focus and reconnect without remounting ready editors.

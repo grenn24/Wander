@@ -18,8 +18,10 @@ const DEFAULT_LOOK = DEFAULT_COVER_STYLE.charAt(0).toUpperCase() + DEFAULT_COVER
  * sensible for Cancel to undo. The dialog is told about the change anyway, so
  * the trip it holds and the one in the database stay the same trip.
  *
- * Only one picture belongs to a trip at a time, so pointing it at a new one
- * also takes the old file away — nothing else can be looking at it.
+ * Only one picture is the trip's at a time, but a picture it used to have is
+ * not thrown away: uploading or drawing another only moves the trip's pointer,
+ * so every cover it has had stays in the bucket. Only Remove deletes a file,
+ * because that is someone asking for the picture to go.
  *
  * The style typed for a drawn cover belongs to drawing alone and is not saved
  * with the trip. It stays in the field between draws, so another try can be
@@ -40,7 +42,7 @@ export default function TripCover({ trip, onChange }) {
     fail(error);
   }
 
-  /** Point the trip at a new cover, then let go of the one it had. */
+  /** Point the trip at a cover, or at none. A file is removed only if `letGo` names it. */
   async function keep(patch, letGo) {
     const { error } = await supabase.from('trips')
       .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', trip.id);
@@ -65,7 +67,8 @@ export default function TripCover({ trip, onChange }) {
       const { error } = await supabase.storage.from(COVER_BUCKET)
         .upload(path, blob, { contentType: type, upsert: false });
       if (error) throw error;
-      await keep({ cover_path: path, cover_ref: null }, trip.cover_path);
+      // The cover it had stays in the bucket; the trip just stops pointing at it.
+      await keep({ cover_path: path, cover_ref: null });
       pushToast('Cover updated.');
     } catch (error) { trouble(error); } finally { setBusy(''); }
   }
