@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import BrandMark from '@/components/BrandMark';
@@ -54,6 +54,20 @@ export default function AuthScreen() {
   const [err, setErr] = useState('');
   const [said, setSaid] = useState('');
 
+  /*
+   * Coming back from Google with the Back button.
+   *
+   * Leaving for Google freezes this page in the back/forward cache with `busy`
+   * still standing, and Back restores it exactly so: every button dimmed and a
+   * spinner that nothing will ever stop, since no request is in flight. A
+   * restored page is `persisted`; a fresh load starts with busy false anyway.
+   */
+  useEffect(() => {
+    const restored = (e) => { if (e.persisted) setBusy(false); };
+    window.addEventListener('pageshow', restored);
+    return () => window.removeEventListener('pageshow', restored);
+  }, []);
+
   const path = typeof window !== 'undefined' ? window.location.pathname : '';
   const errand = ERRANDS.find((e) => e.at(path)) || null;
 
@@ -105,7 +119,9 @@ export default function AuthScreen() {
       setErr(fault(e));
       setBusy(false);
     }
-    // On success the browser leaves for Google, so busy is left standing.
+    // On success the browser leaves for Google, so busy is left standing until
+    // it comes back: a fresh load resets it, the pageshow effect above covers
+    // Back.
   }
 
   return (
