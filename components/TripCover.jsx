@@ -4,11 +4,8 @@ import { ImageUp, Sparkles, Trash2, Image as ImageIcon, LoaderCircle } from 'luc
 import { useApp } from '@/components/AppProvider';
 import { COVER_BUCKET, coverPathFor, coverURL } from '@/lib/tripCover';
 import { coverProblem, prepareCover } from '@/lib/coverImage';
-import { COVER_STYLE_LONGEST, DEFAULT_COVER_STYLE } from '@/lib/coverPrompt';
+import CoverStyle from '@/components/CoverStyle';
 import s from './TripCover.module.css';
-
-// What the field would draw with if left empty, worded as a value.
-const DEFAULT_LOOK = DEFAULT_COVER_STYLE.charAt(0).toUpperCase() + DEFAULT_COVER_STYLE.slice(1);
 
 /*
  * The picture at the head of a trip, changed from the trip's own settings.
@@ -141,18 +138,7 @@ export default function TripCover({ trip, onChange }) {
         </div>
         <div className={s.look}>
           <label className="small muted" htmlFor="trip-cover-style">Style for drawn covers (optional)</label>
-          <input id="trip-cover-style" className="input" value={style} maxLength={COVER_STYLE_LONGEST}
-            placeholder={DEFAULT_LOOK} autoComplete="off" enterKeyHint="go"
-            onChange={(event) => setStyle(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter draws. Not while an input method is still choosing a word
-              // (its Enter confirms the word), and not with Cmd/Ctrl, which is
-              // the dialog's Save.
-              if (event.key !== 'Enter' || event.metaKey || event.ctrlKey) return;
-              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-              event.preventDefault();
-              draw();
-            }} />
+          <CoverStyle id="trip-cover-style" value={style} onChange={setStyle} onDraw={draw} />
         </div>
         {problem ? <p className={`tiny ${s.problem}`}>{problem}</p> : (
           <p className="tiny dim">
