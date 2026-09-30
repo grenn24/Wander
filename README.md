@@ -60,6 +60,8 @@ guest sessions, and Realtime drives the live collaboration.
 ```
 OPENAI_API_KEY   = sk-...
 OPENAI_MODEL     = gpt-5-mini      # optional
+OPENAI_IMAGE_MODEL = gpt-image-2   # optional; drawn trip covers, default gpt-image-1
+OPENAI_IMAGE_SIZE  = 2304x1536     # optional; WIDTHxHEIGHT, default follows the model
 ```
 
 Note the missing `NEXT_PUBLIC_` prefix: unlike the Supabase anon key, this is a
@@ -78,6 +80,13 @@ production, so keeping it in code means it is versioned and cannot drift.
 
 `OPENAI_MODEL` stays an environment variable, because which models an account
 can actually use genuinely does vary.
+
+Trip covers are drawn at the best quality, at the largest size the image model
+allows (`lib/coverDraw.js`): 1536x1024 for `gpt-image-1`, which turns anything
+larger down, and 2304x1536 for its successors. That costs more per draw and
+takes longer, and the route is capped at 60 seconds (`maxDuration` in
+`app/api/trips/cover/route.js`) — raise it to what the Vercel plan allows if
+draws time out.
 
 The sharper lever turned out to be reasoning effort rather than model choice.
 Reasoning tokens are worth paying for on a whole itinerary and mostly wasted
