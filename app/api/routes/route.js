@@ -15,6 +15,7 @@ const FRESH = { 'Cache-Control': 'private, max-age=120' };
  * One route between two points, for one way of travelling.
  *
  *   now     transit leaving now rather than a typical journey (directions on the day)
+ *   prefer  a saved route's line ids, put first when they run (trains in Japan)
  *   google  false where the caller knows Google has no such route there
  *           (transit in Japan), so it is not asked for nothing
  */
@@ -26,7 +27,10 @@ export async function POST(req) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
 
-  const { from, to, mode, now, google } = body || {};
+  const { from, to, mode, now, google, prefer } = body || {};
+  // A saved route: its line ids, a handful of short strings.
+  const saved = Array.isArray(prefer) && prefer.length <= 8 && prefer.every((id) => typeof id === 'string' && id.length <= 120)
+    ? prefer : null;
   if (!ok(from) || !ok(to)) {
     return Response.json({ error: 'Need two points.' }, { status: 400 });
   }
@@ -41,7 +45,7 @@ export async function POST(req) {
    */
   if (mode === 'TRANSIT') {
     try {
-      const own = await japanTransit({ from: a, to: b, now: !!now });
+      const own = await japanTransit({ from: a, to: b, now: !!now, prefer: saved });
       if (own) return Response.json(own, { headers: FRESH });
     } catch (e) {
       console.error('[routes] Japan transit failed:', e);

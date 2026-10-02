@@ -34,6 +34,13 @@ test('Tokyo: Tokyo Station to Shinjuku Gyoen has other ways than the fastest', (
   assert.equal(journeys.length, options.length);
   options.forEach(wellFormed);
   assert.ok(options[0].tags.includes('fastest'));
+  const lineOf = (name) => options.flatMap((o) => o.legs).find((l) => l.kind === 'ride' && l.line.name === name);
+  assert.equal(lineOf('Marunouchi Line').line.code, 'M');
+  assert.equal(lineOf('Marunouchi Line').line.colour, '#F62E36');
+  assert.equal(lineOf('Marunouchi Line').line.operator.name, 'Tokyo Metro');
+  assert.equal(lineOf('JR Chuo Rapid Line').line.code, 'JC');
+  assert.equal(lineOf('JR Chuo Rapid Line').line.shape, 'square');
+  assert.equal(lineOf('JR Chuo Rapid Line').line.operator.name, 'JR East');
   options.forEach((o, i) => { if (i) assert.ok(o.seconds >= options[i - 1].seconds); });
   const rides = options[0].legs.filter((l) => l.kind === 'ride');
   assert.ok(rides[0].every > 0 && rides[0].every < 15, `every ${rides[0].every} min`);
@@ -66,6 +73,10 @@ test('Japan: Osaka Station to Dōtonbori, estimated, has other ways too', () => 
   assert.ok(ride.every > 0, 'how often, from the trains a day');
   assert.equal(ride.leaves, null, 'no timetable, no times');
   assert.equal(ride.line.operator.name, 'Osaka Metro');
+  const midosuji = options.flatMap((o) => o.legs).find((l) => l.kind === 'ride' && l.line.name === 'Midōsuji Line');
+  assert.equal(midosuji.line.code, 'M');
+  assert.equal(midosuji.line.colour, '#E5171F');
+  assert.equal(midosuji.line.shape, 'round');
 
   const second = options[1];
   const saved = modelOptions(model, { lat: 34.7025, lng: 135.4959 }, { lat: 34.6687, lng: 135.5013 }, { prefer: second.id.split('>') });
