@@ -22,8 +22,9 @@ import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
-import { activityDistance } from '@/lib/geo';
+import { activityDistance, fmtKm } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
+import TrainSheet from '@/components/TrainSheet';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { travelNote } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
@@ -81,12 +82,30 @@ export default function Itinerary({
           // The same pair of stops the trip map keeps a chosen way under.
           hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          fromTitle: prev.title, toTitle: a.title, day: a.day,
         });
       });
     });
     return out;
   }, [activities]);
   const travel = useLegs(hops, mapPrefs.routes, choices);
+  // The train options for one hop, opened from its train chip over the page.
+  const [trainHop, setTrainHop] = useState(null);
+  const trainSheet = (() => {
+    if (!trainHop) return null;
+    const h = hops.find((x) => x.key === trainHop);
+    const leg = h && travel.byKey[trainHop];
+    const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
+    if (!h || !way) return null;
+    return (
+      <TrainSheet onClose={() => setTrainHop(null)}
+        options={way.trains} mode="plan"
+        title={`${h.fromTitle} → ${h.toTitle}`}
+        sub={`${h.day ? `${fmtDay(h.day)} · ` : ''}≈ ${fmtKm(h.km)}`}
+        note={way.source === 'model' ? 'Estimated from how often trains run' : 'Usual weekday trip around 10am'}
+        to={h.toTitle} preferMissing={!!way.preferMissing} />
+    );
+  })();
   const params = useSearchParams();
   const pathname = usePathname();
   // Two ways in: the search bar asks through the trip, and a link from outside
@@ -374,6 +393,7 @@ export default function Itinerary({
 
   return (
     <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
+      {trainSheet}
       {/* No usable cover: a slim bar to ask for one. With one, the pill on the hero does it. */}
       {!cover && onEditCover ? <TripCoverAdd changing={!!coverURL(trip)} onClick={onEditCover} /> : null}
       <div className={`page-head spread${cover ? ' has-cover' : ''}`}>
@@ -464,7 +484,8 @@ export default function Itinerary({
                             data-tip={travel.on ? undefined : 'Straight-line distance. Actual routes may take longer.'}>
                             <LegLine km={distance} gap={gapMins}
                               leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null}
-                              onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)} />
+                              onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)}
+                              onTrains={() => setTrainHop(`${prev._entryId || prev.id}>${a._entryId || a.id}`)} />
                           </div>
                         ) : null}
                         {gapMins != null ? <span className="itinerary-gap-time">

@@ -19,6 +19,7 @@ import Popover from '@/components/Popover';
 import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
+import TrainOptions from '@/components/TrainOptions';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { travelNote } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
@@ -192,6 +193,7 @@ export default function MapView({
         out.push({
           key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          fromTitle: prev.title, toTitle: a.title,
         });
       }
       prev = a;
@@ -200,6 +202,46 @@ export default function MapView({
   }, [stops]);
   const hopOf = useMemo(() => Object.fromEntries(hops.map((h) => [h.key, h.hop])), [hops]);
   const travel = useLegs(hops, mapPrefs.routes, choices);
+
+  /*
+   * The train options for one hop, opened from its train chip: they take the
+   * stop list's place, and the map draws the option opened. Which option each
+   * hop shows is kept while the page is open.
+   */
+  const [trainHop, setTrainHop] = useState(null);
+  const [shownTrain, setShownTrain] = useState({});
+  const trainsOf = (key, legsFound) => {
+    const leg = legsFound && legsFound.byKey[key];
+    const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
+    return way || null;
+  };
+  const trainPanel = () => {
+    const h = hops.find((x) => x.key === trainHop);
+    const way = h && trainsOf(trainHop, travel);
+    if (!h || !way) {
+      return (
+        <div className={m.trainsGone}>
+          <button type="button" className="btn sm" onClick={() => setTrainHop(null)}>Your stops</button>
+          <p className="small muted">These train options are no longer on the map.</p>
+        </div>
+      );
+    }
+    const dayIndex = days.indexOf(h.day);
+    return (
+      <TrainOptions key={trainHop}
+        options={way.trains}
+        mode="plan"
+        title={`${h.fromTitle} → ${h.toTitle}`}
+        sub={[dayIndex >= 0 ? `Day ${dayIndex + 1}` : null, h.day ? fmtDay(h.day) : null, `≈ ${fmtKm(h.km)}`]
+          .filter(Boolean).join(' · ')}
+        note={way.source === 'model' ? 'Estimated from how often trains run' : 'Usual weekday trip around 10am'}
+        to={h.toTitle}
+        shownId={shownTrain[trainHop] || way.trains[0].id}
+        onShow={(id) => setShownTrain((v) => ({ ...v, [trainHop]: id }))}
+        preferMissing={!!way.preferMissing}
+        onBack={() => setTrainHop(null)} />
+    );
+  };
 
   /*
    * Picking stops to see the way between them.
@@ -768,6 +810,7 @@ export default function MapView({
             </div>
           ) : null}
 
+        {trainHop ? null : (
         <div className="mappanel-head map-explore">
           <form className="mapfind" onSubmit={(e) => { runSearch(e); reveal(); }}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
@@ -806,7 +849,9 @@ export default function MapView({
             ) : null}
           </div>
         </div>
+        )}
 
+        {trainHop ? <div className="mappanel-body">{trainPanel()}</div> : (
         <div className="mappanel-body">
           <div className="map-explore map-explore-results">
           {!mapsReady ? (
@@ -905,7 +950,8 @@ export default function MapView({
                             {leg != null ? (
                               <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
                                 <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null}
-                                  onChoose={(mode) => choose(hopOf[a.id], mode)} />
+                                  onChoose={(mode) => choose(hopOf[a.id], mode)}
+                                  onTrains={() => setTrainHop(a.id)} />
                               </div>
                             ) : null}
                             <div id={`stop-${a.id}`} className={m.stop}
@@ -963,6 +1009,7 @@ export default function MapView({
 
           </div>
         </div>
+        )}
         </div>
       </aside>
 

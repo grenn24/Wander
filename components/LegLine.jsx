@@ -1,6 +1,8 @@
 'use client';
-import { Footprints, TrainFront, Car, TriangleAlert } from 'lucide-react';
+import { Footprints, TrainFront, Car, TriangleAlert, Pin } from 'lucide-react';
 import TravelEstimate from '@/components/TravelEstimate';
+import { LineBadge } from '@/components/TrainBits';
+import { linesOf } from '@/lib/trainView';
 import { fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
 import { TRAVEL_LABEL, whyEstimate } from '@/lib/travel';
@@ -29,8 +31,11 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  *   leg       this hop from useLegs, or nothing while Routes are off
  *   gap       minutes between the two activities, where known
  *   onChoose  called with the way chosen for this hop, or null to follow the setting
+ *   onTrains  called when a train with other ways to compare is clicked: in
+ *             Japan the train chip shows its lines' badges and fare, and opens
+ *             the train options rather than choosing the way
  */
-export default function LegLine({ km, leg, gap = null, onChoose = null }) {
+export default function LegLine({ km, leg, gap = null, onChoose = null, onTrains = null }) {
   if (!leg || !leg.options || (!leg.options.length && !leg.drawn)) return <TravelEstimate km={km} />;
   const known = leg.options.filter((o) => Number.isFinite(o.minutes));
   const quickest = known.length ? Math.min(...known.map((o) => o.minutes)) : null;
@@ -61,6 +66,23 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
             'data-estimate': o.estimate ? '' : undefined,
             'data-waiting': o.waiting ? '' : undefined,
           };
+          const trains = o.mode === 'TRANSIT' && o.trains && onTrains ? o.trains : null;
+          if (trains) {
+            const first = trains[0];
+            const lines = linesOf(first);
+            const saved = first.tags && first.tags.includes('saved');
+            const tip = `${lines.map((l) => l.name.replace(/ Line$/, '')).join(' → ')}${o.estimate ? ' · estimated' : ''}. Click for other routes`;
+            return (
+              <button key={o.mode} type="button" {...shared} data-trains="" data-tip={tip}
+                aria-label={`${said}. ${lines.map((l) => l.name).join(', ')}. Show other routes`}
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); onTrains(); }}>
+                {lines.slice(0, 3).map((l) => <LineBadge key={l.id} line={l} size="sm" />)}
+                {saved ? <Pin size={11} className={s.pin} aria-hidden="true" /> : null}
+                {time}
+                {first.fare ? <span className={s.fare}>· ¥{first.fare.total.toLocaleString('en-US')}</span> : null}
+              </button>
+            );
+          }
           if (!onChoose) {
             return (
               <span key={o.mode} {...shared} data-tip={why || undefined} aria-label={said}>

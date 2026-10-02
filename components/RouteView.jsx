@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
+import TrainOptions from '@/components/TrainOptions';
 import { fmtDuration, fmtTime } from '@/lib/util';
 
 /**
@@ -165,13 +166,19 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
 
   const leg = legs[mode];
   const nowhere = where !== 'asking' && !from;
+  // Trains in Japan, leaving now: the ways to compare, and which the map draws.
+  const trains = mode === 'TRANSIT' && leg && leg.found && Array.isArray(leg.options) && leg.options.length
+    ? leg.options : null;
+  const [shownTrain, setShownTrain] = useState(null);
+  const shown = trains ? (trains.find((o) => o.id === shownTrain) || trains[0]) : null;
   const dest = useMemo(() => [{
     id: 'to', lat: to.lat, lng: to.lng, day: 'to', title, category: 'sightseeing',
   }], [to.lat, to.lng, title]);
-  const path = useMemo(
-    () => (leg && leg.polyline ? decodePath(leg.polyline) : null),
-    [leg],
-  );
+  const path = useMemo(() => {
+    // The train shown: each of its legs' lines, end to end.
+    if (shown) return shown.legs.flatMap((l) => (l.polyline ? decodePath(l.polyline) : []));
+    return leg && leg.polyline ? decodePath(leg.polyline) : null;
+  }, [leg, shown]);
 
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lng}`
     + `&travelmode=${mode.toLowerCase()}`;
@@ -245,6 +252,14 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
         </button>
       </div>
 
+      {trains ? (
+        <div className="rv-trains">
+          <TrainOptions options={trains} mode="now" to={title}
+            note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
+            shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
+        </div>
+      ) : null}
+
       <footer className="rv-foot">
         {where === 'asking' && !from ? (
           <p className="rv-note"><LocateFixed size={14} /> Finding where you are</p>
@@ -254,7 +269,7 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
           <p className="rv-note"><Loader2 size={14} className="spin" /> Working out the route</p>
         ) : err ? (
           <p className="rv-note">{err}</p>
-        ) : leg && !leg.found ? (
+        ) : trains ? null : leg && !leg.found ? (
           <p className="rv-note">{leg.source === 'timetable'
             ? 'No more trains from here today.'
             : `No ${WAYS.find((w) => w.id === mode).label.toLowerCase()} route between here and there.`}</p>

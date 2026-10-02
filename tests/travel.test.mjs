@@ -119,3 +119,15 @@ test('the note under the hops says where the times came from', () => {
     + "~ marks an estimate: trains elsewhere in Japan are worked out from how often they run; "
     + "Google can't route that way in South Korea.");
 });
+
+test('trains in Japan bring the other ways along', () => {
+  const options = [{ id: 'Ginza Line', seconds: 1740, legs: [] }, { id: 'Toei Asakusa Line', seconds: 1900, legs: [] }];
+  const tokyo = travelOptions(8.6, JAPAN, {
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'timetable', seconds: 1740, polyline: 't', lines: [{ name: 'Ginza Line' }], options },
+  });
+  assert.equal(tokyo.find((o) => o.mode === 'TRANSIT').trains, options);
+  const missing = travelOptions(8.6, JAPAN, {
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'model', seconds: 1740, polyline: 'm', lines: [], options, preferMissing: true },
+  });
+  assert.equal(missing.find((o) => o.mode === 'TRANSIT').preferMissing, true);
+});

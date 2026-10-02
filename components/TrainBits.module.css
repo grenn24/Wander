@@ -1,0 +1,69 @@
+/* A line's badge: white inside, a ring of the line's colour, dark letters, as on the station signs. */
+.badgeWrap { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.badge {
+  box-sizing: border-box; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 3px;
+  border: 3px solid var(--ring); border-radius: 50%;
+  background: #fff; color: #141413;
+  font-size: 10px; font-weight: 700; letter-spacing: .01em; line-height: 1;
+}
+.badge[data-shape="square"] { border-radius: 6px; min-width: 28px; }
+.badge[data-size="sm"] { min-width: 20px; height: 20px; border-width: 2.5px; font-size: 9px; }
+.badge[data-size="sm"][data-shape="square"] { min-width: 24px; border-radius: 5px; }
+.badge[data-size="lg"] { min-width: 28px; height: 28px; font-size: 11px; }
+.badge[data-size="lg"][data-shape="square"] { min-width: 32px; }
+.badgeName { font-weight: 600; color: var(--text-1); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A line with no letters: a bar of its colour, then its name. */
+.bar { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.barSwatch { flex: none; width: 4px; height: 18px; border-radius: 2px; background: var(--ring); }
+.bar[data-size="sm"] .barSwatch { height: 14px; }
+.barName { font-size: var(--fs-xs); font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* An operator's mark: its initials, white on its colour. */
+.operator {
+  box-sizing: border-box; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 16px; min-width: 20px; padding: 0 3px; border-radius: 4px;
+  background: var(--op); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .02em; line-height: 1;
+}
+
+.ic { flex: none; color: var(--text-3); }
+.walk { flex: none; color: var(--text-3); }
+
+/* An exit, in the yellow of the signs. */
+.exit {
+  flex: none; display: inline-flex; align-items: center;
+  padding: 1px 6px; border-radius: 4px;
+  background: #f2c230; color: #141413;
+  font-size: var(--fs-xs); font-weight: 700; line-height: 1.4; white-space: nowrap;
+}
+
+.platform {
+  flex: none; display: inline-flex; align-items: center;
+  padding: 0 6px; border-radius: 4px; border: 1px solid var(--border-strong);
+  color: var(--text-1); font-size: var(--fs-xs); font-weight: 600; line-height: 1.5; white-space: nowrap;
+}
+
+.tag {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px 2px 6px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2);
+  font-size: var(--fs-xs); font-weight: 600; line-height: 1.4; white-space: nowrap;
+}
+.tag[data-saved] { padding: 3px 6px; background: var(--accent); color: var(--surface-0); }
+
+/* The three-line tooltip. */
+.tip {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 12px; border-radius: 10px;
+  background: var(--glass-strong, var(--surface-1)); border: 1px solid var(--border-strong);
+  box-shadow: var(--lift-lg);
+  color: var(--text-1); text-align: left; pointer-events: none;
+}
+.tipHead { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
+.tipTitle { margin-left: 2px; }
+.tipBody { font-size: var(--fs-sm); color: var(--text-2); font-weight: 400; }
+.tipMeta { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); font-weight: 400; }

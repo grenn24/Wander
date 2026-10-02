@@ -23,3 +23,7 @@ button.way:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px
   display: inline-flex; align-items: center; gap: 5px; flex-basis: 100%;
   color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 600;
 }
+/* A train with other ways to compare: its lines' badges, its time and fare; it opens the train options. */
+.way[data-trains] { gap: 3px; padding-left: 3px; }
+.pin { color: var(--accent); }
+.fare { color: var(--text-2); font-weight: 500; }
