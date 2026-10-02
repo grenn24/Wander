@@ -45,8 +45,12 @@ Clicking the chip opens the train options.
   - grey detail: the operator mark, stops and frequency.
 - **An opened card:** a divider, then the steps.
   - **Walks:** the last one starts with the exit badge (`Exit 2`).
+  - **The destination** ends the steps with a map-marker icon in the stop's
+    pin colour, not the walking line's dots.
   - **Trains:** the line badge; the boarding station with a platform chip;
-    the line, then the operator mark and name; direction · stops · minutes;
+    the line, then the operator mark and name; the train's type where it
+    has one, then direction · stops · minutes (`Rapid toward Takao · 3 stops ·
+    8 min`);
     how often the trains run and, where there is a timetable, the next one
     (`Every 5 min · next 10:07am`); the station you get off at.
   - **The stop count opens:** tapping `3 stops` lists the stations passed in
@@ -82,6 +86,9 @@ Clicking the chip opens the train options.
 - **Leave at:** a single time picker, with no Now button. It shows the
   current time until you change it. The picker is our own component, not the
   browser's, and is 12-hour.
+- **Train types:** where a line runs more than one type (Local, Rapid,
+  Special Rapid), each row shows its type. A train that doesn't stop where you
+  get off is left out.
 - **The list:** the next five trains you can still catch. Each shows when it
   leaves, `in N min` (only while the picker still shows the current time) and
   when you arrive at the destination. Tapping one selects it, and the first is
@@ -134,7 +141,7 @@ four.
 - `legs`, each walk, wait or ride, with:
   - `minutes` and a polyline per leg, so each line is drawn in its own colour;
   - `line`: `{ id, name, code, colour, shape, operator }`;
-  - `from`, `to`, `toward` and `every` (trains per hour, as minutes);
+  - `from`, `to`, `toward`, `type` and `every` (trains per hour, as minutes);
   - `stops`: the stations passed in between, each with its time where there is
     a timetable;
   - `next`: the next departure, where there is a timetable;
@@ -193,6 +200,14 @@ A build step reads OpenStreetMap through Overpass and writes
   `Platform 1 or 2`.
 
 Anything not mapped is not shown. The Terms page credits OpenStreetMap.
+
+### Train types
+
+The Tokyo timetable already gives every train its type (Local, Rapid, Chuo
+Special Rapid…), and the planner passes it along with each train. The open
+regional feeds keep a type where the feed has one, added when
+`open-rail.json` is built. Elsewhere in Japan the estimate has no individual
+trains, so no type.
 
 ### Line codes and colours
 
