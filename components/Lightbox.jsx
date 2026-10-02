@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { imageURL, sourceOf } from '@/lib/guideFormat';
+import { imageURL, sourceOf, QUALITY } from '@/lib/guideFormat';
 import {
   X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut, Check,
 } from 'lucide-react';
@@ -33,8 +33,14 @@ const THUMB = 420;
 /** Whatever identifies this picture: a Google reference, a library link, or a data URL. */
 const idOf = (p) => (p && (p.ref || p.url || p.raw)) || '';
 
-/** A library photograph at a width, in whichever way its library asks for one. */
-const sized = (photo, w) => imageURL(photo, w, 85);
+/**
+ * A library photograph at a width, in whichever way its library asks for one.
+ * The strip's small copies stay at the page's quality; anything bigger is what
+ * the viewer is for, so it is the best there is. The picture on screen and the
+ * one fetched ahead for its neighbour both come through here at the same
+ * width, which is what keeps them the same cached file.
+ */
+const sized = (photo, w) => imageURL(photo, w, w > THUMB ? QUALITY.best : QUALITY.page);
 
 /**
  * How big the full copy needs to be, snapped to a few sizes.

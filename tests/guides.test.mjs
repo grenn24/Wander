@@ -6,7 +6,7 @@ import {
 } from '../lib/guides.js';
 import {
   fromV1, validateDoc, normaliseDoc, tokenize, plainText, summaryOf, cleanText,
-  imageURL, srcSet, modelFields, WRITER_SCHEMA, videoSpot,
+  imageURL, srcSet, QUALITY, modelFields, WRITER_SCHEMA, videoSpot,
 } from '../lib/guideFormat.js';
 
 const docs = GUIDES.map(fromV1);
@@ -158,10 +158,20 @@ test('the brief says when, who and how fast, and keeps and drops places', () => 
 
 test('Unsplash links resize without exceeding the original', () => {
   const m = { raw: 'https://images.unsplash.com/photo-1?ixid=abc', width: 3000 };
-  assert.equal(imageURL(m, 1200), 'https://images.unsplash.com/photo-1?ixid=abc&w=1200&q=80&auto=format&fit=max');
+  assert.equal(imageURL(m, 1200), 'https://images.unsplash.com/photo-1?ixid=abc&w=1200&q=85&auto=format&fit=max');
   assert.match(imageURL(m, 5000), /w=3000/);
   assert.equal(srcSet(m, [1000, 2000, 4000]).split(', ').length, 2);
   assert.equal(imageURL(null, 100), '');
+});
+
+test('Unsplash links ask for the quality they are given, and every width of a set agrees', () => {
+  const m = { raw: 'https://images.unsplash.com/photo-1?ixid=abc', width: 5000 };
+  assert.match(imageURL(m, 1600, QUALITY.best), /&q=95&/);
+  assert.match(imageURL(m, 1600), /&q=85&/);
+  const set = srcSet(m, [960, 1600, 2400], QUALITY.best).split(', ');
+  assert.equal(set.length, 3);
+  assert.ok(set.every((c) => c.includes('&q=95&')));
+  assert.ok(srcSet(m, [960, 1600]).split(', ').every((c) => c.includes('&q=85&')));
 });
 
 test('the writer schema is strict all the way down, and round-trips', () => {

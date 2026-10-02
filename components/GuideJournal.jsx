@@ -18,7 +18,7 @@ import {
   MONTHS, WHO, PACES, SAFETY_LEVELS, monthFit, daysLabel, costLabel, placeLine,
   suggestedMonth, composeBrief, briefTitle, clampDays,
 } from '@/lib/guideKit';
-import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet, sourceOf } from '@/lib/guideFormat';
+import { tokenize, paragraphs, plainText, videoSpot, imageURL, srcSet, sourceOf, QUALITY } from '@/lib/guideFormat';
 import { sectionsOf, routeOf } from '@/lib/guideMap';
 import GuideScrollMap, { mapsReady } from '@/components/GuideScrollMap';
 import { BRIEF_KEY } from '@/lib/planBrief';
@@ -344,7 +344,7 @@ export default function GuideJournal({ guide: doc, hero = null }) {
       <header className={s.hero} style={cover && cover.color ? { backgroundColor: cover.color } : undefined}>
         {cover ? (
           <img className={s.heroImg} alt={cover.alt || ''} fetchPriority="high"
-            src={imageURL(cover, 1600)} srcSet={srcSet(cover, [960, 1600, 2400, 3200])}
+            src={imageURL(cover, 1600, QUALITY.best)} srcSet={srcSet(cover, [960, 1600, 2400, 3200], QUALITY.best)}
             sizes="(max-width: 1280px) 100vw, 1240px" />
         ) : hero ? (
           <img className={s.heroImg} alt="" src={`/api/places/photo?ref=${encodeURIComponent(hero.ref)}&w=2400`} />
