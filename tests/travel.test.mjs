@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  canRoute, canAsk, gapCountry, whyEstimate, realRoute, estimateMinutes, suggestMode, travelOptions,
+  canRoute, canAsk, gapCountry, whyEstimate, realRoute, estimateMinutes, suggestMode, travelOptions, lineNames,
   drawnMode, travelNote,
 } from '../lib/travel.js';
 
@@ -71,6 +71,8 @@ test('the options for a hop: real where Google has them, estimates where it cann
   });
   assert.deepEqual(tokyo.map((o) => [o.mode, o.minutes, o.estimate, o.source]),
     [['WALK', 107, false, 'google'], ['TRANSIT', 29, false, 'timetable'], ['DRIVE', 27, false, 'google']]);
+  // The train says which line it is; a walk or a drive rides none.
+  assert.deepEqual(tokyo.map((o) => o.lines), [[], ['Ginza Line'], []]);
   // Still asking the timetable: waiting, not yet an estimate.
   assert.equal(travelOptions(8.6, JAPAN, { WALK: walk, DRIVE: drive })[1].waiting, true);
   // Osaka: the railway model's estimate, with its line still there to draw.
@@ -79,7 +81,7 @@ test('the options for a hop: real where Google has them, estimates where it cann
     TRANSIT: { mode: 'TRANSIT', found: true, source: 'model', seconds: 2280, polyline: 'm', lines: [{ name: '御堂筋線' }] },
     DRIVE: drive,
   });
-  assert.deepEqual(osaka[1], { mode: 'TRANSIT', minutes: 38, estimate: true, polyline: 'm', source: 'model' });
+  assert.deepEqual(osaka[1], { mode: 'TRANSIT', minutes: 38, estimate: true, polyline: 'm', source: 'model', lines: ['御堂筋線'] });
   // No train beats walking: the walk, as an estimate, with nothing to draw but a straight line.
   const walkOnly = travelOptions(1.3, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: true, source: 'walk', seconds: 1080, lines: [] }, DRIVE: drive });
   assert.deepEqual(walkOnly[1], { mode: 'TRANSIT', minutes: 18, estimate: true, polyline: '', source: 'walk' });
@@ -97,6 +99,16 @@ test('the options for a hop: real where Google has them, estimates where it cann
     WALK: { mode: 'WALK', found: false }, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: { mode: 'DRIVE', found: false },
   });
   assert.deepEqual(island, []);
+});
+
+test('the lines a route rides, each once even where the train runs on as the same line', () => {
+  assert.deepEqual(lineNames({ lines: [
+    { name: 'JR Chuo Rapid Line' }, { name: 'Marunouchi Line' }, { name: 'Marunouchi Line', through: true },
+  ] }), ['JR Chuo Rapid Line', 'Marunouchi Line']);
+  assert.deepEqual(lineNames({ lines: [{ name: 'Hanzomon Line' }, { name: 'Den-en-toshi Line', through: true }] }),
+    ['Hanzomon Line', 'Den-en-toshi Line']);
+  assert.deepEqual(lineNames(null), []);
+  assert.deepEqual(lineNames({ found: true }), []);
 });
 
 test('the note under the hops says where the times came from', () => {

@@ -44,12 +44,14 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
+          // Which train it is, not where the time came from: the ~ already says when it is a guess.
+          const lines = (o.lines || []).join(' → ');
           const reason = o.estimate && !o.source ? whyEstimate(leg.country, o.mode) : '';
           const why = o.waiting ? 'Working it out'
             : o.source === 'walk' ? 'Walking is quicker'
-              : o.source === 'model' ? 'Estimate, from train frequency'
+              : o.source === 'model' ? (lines ? `${lines} · estimated` : 'Estimated from train frequency')
                 : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
-                  : o.source === 'timetable' ? 'From the timetable' : 'From Google';
+                  : lines;
           const chosen = o.mode === leg.chosen;
           const said = `${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`;
           const shared = {
@@ -61,14 +63,14 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
           };
           if (!onChoose) {
             return (
-              <span key={o.mode} {...shared} data-tip={why} aria-label={said}>
+              <span key={o.mode} {...shared} data-tip={why || undefined} aria-label={said}>
                 <Icon size={12} aria-hidden="true" />{time}
               </span>
             );
           }
           return (
             <button key={o.mode} type="button" {...shared} aria-pressed={o.mode === leg.drawn}
-              data-tip={chosen ? `${why} · chosen, click to undo` : why}
+              data-tip={chosen ? (why ? `${why} · chosen, click to undo` : 'Chosen, click to undo') : (why || undefined)}
               aria-label={chosen ? `${said}, chosen for this hop` : `${said}. Show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
               onClick={(event) => {
                 event.preventDefault();
