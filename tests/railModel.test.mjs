@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MODEL_FORMAT, PACE, buildModel, modelJourney, modelRoute, expressName, waitFor,
+  MODEL_FORMAT, PACE, buildModel, modelJourney, modelRoute, expressName, waitFor, modelLegs,
 } from '../lib/railModel.js';
 import { walkFor } from '../lib/timetable.js';
 import { decodePath } from '../lib/geo.js';
@@ -212,4 +212,40 @@ test('a train that loses to walking is not offered: the walk is', async () => {
   assert.equal(onFoot(kiyomizu, gion, quick), quick);
   assert.equal(onFoot(kiyomizu, gion, null), null);
   assert.deepEqual(onFoot(kiyomizu, gion, { found: false }), { found: false });
+});
+
+/*
+ * Other ways than the quickest, and a journey read back as legs: walks,
+ * waits and rides, whose minutes add up to the journey's.
+ */
+test('Japan: a journey can leave lines out or avoid changing, and reads back as legs', () => {
+  // Osaka Station to Dōtonbori: the Midōsuji Line, or the Yotsubashi, or the loop line and a walk.
+  const umeda = { lat: 34.7025, lng: 135.4959 };
+  const dotonbori = { lat: 34.6687, lng: 135.5013 };
+  const fastest = modelJourney(model, umeda, dotonbori);
+  const legs = modelLegs(model, fastest);
+  const total = legs.reduce((s, l) => s + l.minutes, 0);
+  assert.ok(Math.abs(total - fastest.minutes) <= 1, `${total} against ${fastest.minutes}`);
+  assert.equal(legs[0].kind, 'walk');
+  assert.equal(legs[legs.length - 1].kind, 'walk');
+  const rides = (ls) => ls.filter((l) => l.kind === 'ride');
+  assert.ok(rides(legs).length > 0);
+  rides(legs).forEach((r) => {
+    assert.ok(Number.isInteger(r.lineIndex));
+    assert.ok(r.stops.length >= 2, 'a ride passes at least two stations');
+    assert.equal(r.stops[0], r.from);
+    assert.equal(r.stops[r.stops.length - 1], r.to);
+  });
+
+  const used = new Set(rides(legs).map((r) => r.lineIndex));
+  const other = modelJourney(model, umeda, dotonbori, { avoid: used });
+  assert.ok(other, 'there is another way');
+  rides(modelLegs(model, other)).forEach((r) => assert.ok(!used.has(r.lineIndex)));
+
+  const changes = (j) => rides(modelLegs(model, j)).filter((r) => !r.through).length - 1;
+  const calm = modelJourney(model, umeda, dotonbori, { change: 30 });
+  assert.ok(changes(calm) <= changes(fastest));
+  // The cost of changing steers the search; it is not time anyone spends.
+  const calmTotal = modelLegs(model, calm).reduce((s, l) => s + l.minutes, 0);
+  assert.ok(Math.abs(calmTotal - calm.minutes) <= 1, `${calmTotal} against ${calm.minutes}`);
 });
