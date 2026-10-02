@@ -39,44 +39,67 @@ changing reader assets; its script is served with `Cache-Control: no-store`.
 Implementation references: [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers)
 and [Google Calendar event times](https://developers.google.com/workspace/calendar/api/v3/reference/events).
 
-## Train times in Tokyo
+## Train times in Japan
 
 Google's Routes API has no transit in Japan (the Google Maps app does; the API
-does not), so trains in greater Tokyo are planned by the app itself from the
-operators' published timetables. Every urban railway is covered: JR East,
-Tokyo Metro, Toei, the private railways, the monorails, the Yurikamome and the
-trams, out to Nikko, Hakone, Kamakura, Kawaguchiko and both airports. The
-Shinkansen and the rest of Japan are not covered; there, train times stay
-`~` estimates, as before. No key or setting is needed.
+does not), so the app answers trains in Japan itself, from open data, at no
+cost and with no key:
 
-- **Where it shows.** With Routes on, a hop in Tokyo gets a real train time and
-  its line on the map; the tooltip says it is from the timetable. Directions
-  in Traveller mode give the next train from now, with each train's departure
-  ("Ginza Line 21:32"). Planning times are typical: the median of departures
-  every ten minutes from 10:00 on a weekday, waiting included.
-- **How.** `scripts/transit/build-tokyo.mjs` packs the timetables of
-  [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT; the operators'
-  data, gathered through the Public Transportation Open Data Center) into
-  `data/transit/tokyo-rail.json`, 2.5 MB. `lib/timetable.js` plans over it with
-  a connection scan, including trains that run through from one operator's
-  line onto another's. `/api/routes` answers Tokyo transit from it, loading it
-  only on the first such request, and asks Google for everything else.
-- **Left out on purpose.** Trains that need a surcharge ticket (Narita
-  Express, Romancecar, Skyliner, liners): a plan should not assume a reserved
-  seat. Public holidays run the weekend timetable in Japan but are treated as
-  weekdays here. Lines are drawn station to station, not along the track.
-- **Keeping it current.** Timetables change every March and a little through
-  the year. Rebuild and commit the file:
+- **Greater Tokyo: real timetables.** Every urban railway (JR East, Tokyo
+  Metro, Toei, the private railways, monorails, trams), out to Nikko, Hakone,
+  Kamakura, Kawaguchiko and both airports. Planning times are typical: the
+  median of departures every ten minutes from 10:00 on a weekday, waiting
+  included. Directions in Traveller mode give the next train from now, with
+  each train's departure ("Ginza Line 21:32"). Source:
+  [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT), which gathers
+  the operators' data from the Public Transportation Open Data Center.
+- **The rest of Japan: an estimate over the real network.** No operator
+  outside Tokyo publishes its timetable openly, so every other line in the
+  country (about 9,000 stations on 590 lines, JR to trams) is modelled: the
+  real route over real track, time on board from distance, the kind of line
+  and how many trains stop at each station, and the wait from how often trains
+  run. Shown with `~` and drawn along the track. Its speeds are fitted
+  against Tokyo's timetables, where both exist: 80% of journeys come within
+  ±13% (`scripts/transit/calibrate.mjs`). Source: the
+  [全国鉄道運行本数データ](https://gtfs-gis.jp/railway_honsu/) of the University of
+  Tokyo and the Japan Bus Information Association (CC BY 4.0 / ODbL).
+- **Shinkansen.** That dataset counts only trains needing no extra ticket, so
+  the eight Shinkansen lines come from `scripts/transit/shinkansen.mjs`, a
+  small table of published journey times and service frequencies. Tokyo to
+  Kyoto comes out at 2h22 door to door.
+- **Left out.** Surcharge trains other than the Shinkansen (Narita Express,
+  Romancecar, limited expresses such as the Hida or Thunderbird), ferries,
+  buses, and public holidays (treated as weekdays). Station and line names
+  outside greater Tokyo are Japanese until a source of English names is added.
 
-  ```
-  git clone --depth 1 --filter=blob:none --sparse https://github.com/nagix/mini-tokyo-3d.git
-  git -C mini-tokyo-3d sparse-checkout set data
-  node scripts/transit/build-tokyo.mjs mini-tokyo-3d
-  npm test
-  ```
+How it fits together: `/api/routes` sends transit in Japan to
+`lib/japanTransit.js`, which tries Tokyo's timetable (`lib/tokyoTransit.js` and
+`lib/timetable.js`, a connection scan), then the nationwide model
+(`lib/railModel.js`, Dijkstra's). Each answers in Google's shape with
+`source: 'timetable'` or `'model'`, and loads its data
+(`data/transit/tokyo-rail.json`, 2.5 MB; `japan-rail.json`, 0.9 MB) on its
+first request. Everything else goes to Google as before.
 
-  `data/transit/LICENSE` carries mini-tokyo-3d's MIT notice and must stay
-  beside the data.
+**Keeping it current.** Timetables change every March. Rebuild, refit, test,
+commit:
+
+```
+git clone --depth 1 --filter=blob:none --sparse https://github.com/nagix/mini-tokyo-3d.git
+git -C mini-tokyo-3d sparse-checkout set data
+node scripts/transit/build-tokyo.mjs mini-tokyo-3d
+
+mkdir honsu && cd honsu
+curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_kukan.geojson
+curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_eki.geojson
+cd .. && node scripts/transit/build-japan.mjs honsu mini-tokyo-3d
+
+node scripts/transit/calibrate.mjs     # copy what it prints into PACE in lib/railModel.js
+npm test
+```
+
+Check `scripts/transit/shinkansen.mjs` against the new Shinkansen timetable
+too. `data/transit/LICENSE` and `LICENSE-japan` carry the sources' terms and
+must stay beside the data; the Terms page credits both.
 
 ## Configuration
 
@@ -253,8 +276,9 @@ rows.
   `/api/places/*` so `PLACES_API_KEY` never leaves the server.
 - **OpenAI** plans trips, suggests activities and builds packing lists, through
   `/api/plan`, `/api/suggest` and `/api/packing`.
-- **Tokyo train timetables** are bundled in `data/transit/` (from
-  mini-tokyo-3d, MIT) and planned on the server; nothing is called at runtime.
+- **Japanese train data** is bundled in `data/transit/` (Tokyo timetables
+  from mini-tokyo-3d, MIT; the nationwide network from gtfs-gis.jp, CC BY 4.0 /
+  ODbL) and planned on the server; nothing is called at runtime.
 
 Without the Google keys the map is replaced by a panel naming what to set, and
 stops are not located. Without the OpenAI key the planning features return a

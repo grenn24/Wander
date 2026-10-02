@@ -90,16 +90,18 @@ loads, or a persistent rejection can loop. Network errors must not sign users
 out or clear offline downloads. Keep auth consumers outside the SDK callback
 lock. Regression coverage is in `tests/session-recovery.test.mjs`.
 
-Transit in greater Tokyo does not come from Google, whose Routes API has none
-in Japan. `/api/routes` answers it from bundled timetables
-(`data/transit/tokyo-rail.json`, planned by `lib/timetable.js`, loaded by
-`lib/tokyoTransit.js`) and falls through to Google everywhere else. In
-`lib/travel.js`, `canRoute` still means "Google can"; `canAsk` adds the gaps
-the app fills itself, and the client sends `google: false` for those so an
-Osaka hop does not cost a Google call. Answers carry `source: 'timetable'`,
-which the tooltips and footnotes read. Rebuild the data when timetables change
-(README, "Train times in Tokyo"); `tests/timetable.test.mjs` checks real
-journeys against it.
+Transit in Japan does not come from Google, whose Routes API has none there.
+`/api/routes` sends it to `lib/japanTransit.js`: greater Tokyo from bundled
+timetables (`lib/timetable.js`, `lib/tokyoTransit.js`), the rest of the
+country from a model of every line (`lib/railModel.js`), and Google for
+everything else. In `lib/travel.js`, `canRoute` still means "Google can";
+`canAsk` adds the gaps the app fills itself, and the client sends
+`google: false` for those so they never cost a Google call. Answers carry
+`source: 'timetable'` or `'model'`; a model answer is an estimate (`~`) whose
+line is still drawn, and the tooltips and footnotes read the source. The
+model's speeds (`PACE`) are fitted to Tokyo's timetables by
+`scripts/transit/calibrate.mjs`, and `tests/railModel.test.mjs` fails if they
+drift apart. Rebuilding is in the README, "Train times in Japan".
 
 These are the recurring bug classes in this codebase. Most "the model is being
 stupid" reports turned out to be one of them.

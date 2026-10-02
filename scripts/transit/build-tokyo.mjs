@@ -23,6 +23,7 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { FORMAT, packTiming, packTrain } from '../../lib/timetable.js';
+import { lineName, vehicle } from './names.mjs';
 
 const repo = process.argv[2];
 if (!repo || !existsSync(join(repo, 'data', 'railways.json'))) {
@@ -58,32 +59,6 @@ const SURCHARGE = new Set([
  * stands for both, being the thinner of the two.
  */
 const DAYS = { Weekday: 'weekday', SaturdayHoliday: 'weekend', Holiday: 'weekend' };
-
-/*
- * Lines are named as people in Tokyo name them, and as Google Maps does there:
- * the JR lines as JR, the subway lines plain, and the private railways with
- * the company first — "Shinjuku Line" alone is both Toei's and Seibu's.
- */
-const COMPANY = {
-  'JR-East': 'JR', 'JR-Central': 'JR', Toei: 'Toei', YokohamaMunicipal: 'Yokohama Subway',
-  Keio: 'Keio', Keikyu: 'Keikyu', Keisei: 'Keisei', Tobu: 'Tobu', Seibu: 'Seibu',
-  Odakyu: 'Odakyu', Tokyu: 'Tokyu', Sotetsu: 'Sotetsu', TokyoMonorail: 'Tokyo Monorail',
-  KantoRailway: 'Kanto Railway', IzuHakone: 'Izuhakone',
-};
-const plain = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-function lineName(railway) {
-  const title = railway.title.en;
-  const company = COMPANY[railway.id.split('.')[0]];
-  return company && !plain(title).includes(plain(company)) ? `${company} ${title}` : title;
-}
-
-// What Google calls the vehicle, for the same field on its own routes.
-function vehicle(id) {
-  if (/^(TokyoMetro|YokohamaMunicipal)\./.test(id) || /^Toei\.(Asakusa|Mita|Shinjuku|Oedo)$/.test(id)) return 'SUBWAY';
-  if (/Monorail/.test(id)) return 'MONORAIL';
-  if (/^(Toei\.Arakawa|Tokyu\.Setagaya|UtsunomiyaLightRail\.)/.test(id)) return 'TRAM';
-  return 'RAIL';
-}
 
 // "Toei.Oedo.1234.Weekday" or, for a train in parts, "JR-East.Chuo.3132M.Weekday.1".
 function calendarOf(id) {

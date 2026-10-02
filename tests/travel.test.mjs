@@ -29,7 +29,7 @@ test('Japan\'s trains are asked of the app\'s own timetable; Korea\'s walks are 
   assert.equal(canAsk(KOREA, 'WALK'), false);
   assert.equal(canAsk(CHINA, 'TRANSIT'), false);
   assert.equal(canAsk(SINGAPORE, 'TRANSIT'), true);
-  assert.equal(whyEstimate(JAPAN, 'TRANSIT'), 'train timetables cover greater Tokyo only');
+  assert.equal(whyEstimate(JAPAN, 'TRANSIT'), 'no station within walking distance');
   assert.equal(whyEstimate(KOREA, 'DRIVE'), 'Google has no drive routes in South Korea');
   assert.equal(whyEstimate(CHINA, 'TRANSIT'), 'Google has no transit routes in China');
   assert.equal(whyEstimate(SINGAPORE, 'TRANSIT'), '');
@@ -73,9 +73,16 @@ test('the options for a hop: real where Google has them, estimates where it cann
     [['WALK', 107, false, 'google'], ['TRANSIT', 29, false, 'timetable'], ['DRIVE', 27, false, 'google']]);
   // Still asking the timetable: waiting, not yet an estimate.
   assert.equal(travelOptions(8.6, JAPAN, { WALK: walk, DRIVE: drive })[1].waiting, true);
-  // Osaka: beyond the timetable, so the train is an estimate again.
-  const osaka = travelOptions(8.6, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: drive });
-  assert.deepEqual(osaka.map((o) => [o.mode, o.minutes, o.estimate]),
+  // Osaka: the railway model's estimate, with its line still there to draw.
+  const osaka = travelOptions(8.6, JAPAN, {
+    WALK: walk,
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'model', seconds: 2280, polyline: 'm', lines: [{ name: '御堂筋線' }] },
+    DRIVE: drive,
+  });
+  assert.deepEqual(osaka[1], { mode: 'TRANSIT', minutes: 38, estimate: true, polyline: 'm', source: 'model' });
+  // Nowhere near a station: the straight-line estimate, as before.
+  const remote = travelOptions(8.6, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: drive });
+  assert.deepEqual(remote.map((o) => [o.mode, o.minutes, o.estimate]),
     [['WALK', 107, false], ['TRANSIT', estimateMinutes(8.6, 'TRANSIT'), true], ['DRIVE', 27, false]]);
   // Seoul: transit only; the rest estimated.
   const seoul = travelOptions(8, KOREA, { TRANSIT: { mode: 'TRANSIT', found: true, seconds: 1968, lines: [{ name: '2' }] } });
@@ -91,8 +98,9 @@ test('the options for a hop: real where Google has them, estimates where it cann
 
 test('the note under the hops says where the times came from', () => {
   assert.equal(travelNote({ gaps: [], timetable: false }),
-    "Distances are straight-line. Travel times are Google's; ~ marks an estimate.");
-  assert.equal(travelNote({ gaps: ['Japan'], timetable: true }),
-    "Distances are straight-line. Travel times are Google's, and trains in greater Tokyo are from the operators' timetables; "
-    + "~ marks an estimate, where Google can't route that way in Japan.");
+    "Distances are straight-line. Travel times are Google's. ~ marks an estimate.");
+  assert.equal(travelNote({ gaps: ['South Korea'], timetable: true, modelled: true }),
+    "Distances are straight-line. Travel times are Google's, and trains in greater Tokyo are from the operators' timetables. "
+    + "~ marks an estimate: trains elsewhere in Japan are worked out from how often they run; "
+    + "Google can't route that way in South Korea.");
 });

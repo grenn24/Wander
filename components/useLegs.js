@@ -126,11 +126,12 @@ export function useLegChoices(tripId) {
  * setting  the map's Routes setting: 'off', 'auto', or one way for every hop
  * choices  ways chosen for particular hops, from useLegChoices, over the setting
  *
- * Returns { on, byKey, gaps, timetable }: for each hop its options (see
- * travelOptions), the way the map draws and whether it was chosen for that
- * hop; the names of countries on the trip where some time is an estimate
- * because Google leaves that way out, for saying why; and whether any time
- * came from a train timetable rather than Google, for saying so.
+ * Returns { on, byKey, gaps, timetable, modelled }: for each hop its options
+ * (see travelOptions), the way the map draws and whether it was chosen for
+ * that hop; the names of countries on the trip where some time is an
+ * estimate because nothing could route that way, for saying why; and whether
+ * any time came from a train timetable or the railway model rather than
+ * Google, for saying so.
  */
 export default function useLegs(hops, setting, choices = NONE) {
   const on = !!setting && setting !== 'off';
@@ -185,6 +186,7 @@ export default function useLegs(hops, setting, choices = NONE) {
     const byKey = {};
     const gaps = new Set();
     let timetable = false;
+    let modelled = false;
     hops.forEach((h) => {
       if (!on) { byKey[h.key] = { km: h.km, options: [], drawn: null, country: null }; return; }
       const country = countryOf(h.from);
@@ -196,8 +198,9 @@ export default function useLegs(hops, setting, choices = NONE) {
       });
       const options = countries ? travelOptions(h.km, country, got)
         : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true }));
-      if (name && options.some((o) => o.estimate)) gaps.add(name);
+      if (name && options.some((o) => o.estimate && o.source !== 'model')) gaps.add(name);
       if (options.some((o) => o.source === 'timetable')) timetable = true;
+      if (options.some((o) => o.source === 'model')) modelled = true;
       const chosen = (h.hop && choices[h.hop]) || null;
       byKey[h.key] = {
         km: h.km,
@@ -208,7 +211,7 @@ export default function useLegs(hops, setting, choices = NONE) {
         drawn: chosen || drawnMode(setting, h.km, country),
       };
     });
-    return { on, byKey, gaps: [...gaps], timetable };
+    return { on, byKey, gaps: [...gaps], timetable, modelled };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, setting, countries, answers, signature, choices]);
 }

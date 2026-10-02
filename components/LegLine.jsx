@@ -15,10 +15,10 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  * distance and a rule of thumb. With them on, the straight-line distance
  * stays — it is the one number that is never a guess — and beside it each way
  * of getting there and how long it takes: 🚶 18m · 🚆 9m · 🚗 6m. A time with ~
- * is an estimate, where neither Google nor the app's timetables can route
- * that way (trains in Japan outside greater Tokyo); the way the map is
- * drawing is picked out; and where the time between two activities is
- * shorter than the quickest way between them, it says so.
+ * is an estimate: a train in Japan outside greater Tokyo, worked out over the
+ * real lines from how often trains run, or a way nothing can route at all;
+ * the way the map is drawing is picked out; and where the time between two
+ * activities is shorter than the quickest way between them, it says so.
  *
  * Each way is also a button: the map's Routes setting decides how every hop
  * is drawn, and a click on one way draws this hop that way instead — the train
@@ -44,7 +44,8 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
-          const reason = o.estimate ? whyEstimate(leg.country, o.mode) : '';
+          const reason = o.source === 'model' ? 'worked out from how often trains run on these lines'
+            : o.estimate ? whyEstimate(leg.country, o.mode) : '';
           const why = o.waiting ? 'Working it out'
             : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
               : o.source === 'timetable' ? `${TRAVEL_LABEL[o.mode]}, from the train timetable`

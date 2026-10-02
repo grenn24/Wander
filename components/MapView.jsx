@@ -251,7 +251,8 @@ export default function MapView({
   const linesFor = (list, legsFound) => list.map((h) => {
     const leg = legsFound.byKey[h.key];
     const way = leg && leg.options.find((o) => o.mode === leg.drawn);
-    const real = !!(way && !way.estimate && way.polyline);
+    // A modelled train time is an estimate, but its line follows the real track, so it is drawn.
+    const real = !!(way && way.polyline && (!way.estimate || way.source === 'model'));
     return {
       from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
       // Thinned: a drive across a city comes back with hundreds of points a

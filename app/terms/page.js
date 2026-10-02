@@ -68,6 +68,17 @@ export default function Terms() {
         </a>. Place photographs and reviews belong to the people who made them and are shown
         with attribution.
       </p>
+      <p>
+        Train times in Japan come from open data. Greater Tokyo&rsquo;s timetables are the
+        operators&rsquo;, through the Public Transportation Open Data Center, as gathered by{' '}
+        <a href="https://github.com/nagix/mini-tokyo-3d" target="_blank" rel="noreferrer">mini-tokyo-3d</a>{' '}
+        (MIT licence). Elsewhere in Japan, times are estimated from the{' '}
+        <a href="https://gtfs-gis.jp/railway_honsu/" target="_blank" rel="noreferrer">
+          全国鉄道運行本数データ
+        </a>{' '}
+        of the University of Tokyo and the Japan Bus Information Association, under CC BY 4.0
+        and the ODbL; the database Wander derives from it is offered under the ODbL too.
+      </p>
 
       <h2>No warranty</h2>
       <p>

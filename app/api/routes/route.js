@@ -1,5 +1,5 @@
 import { computeRoute, routesKey, routesNotConfigured, routesFailure } from '@/lib/routes';
-import { tokyoTransit } from '@/lib/tokyoTransit';
+import { japanTransit } from '@/lib/japanTransit';
 
 export const runtime = 'nodejs';
 
@@ -34,16 +34,17 @@ export async function POST(req) {
   const b = { lat: Number(to.lat), lng: Number(to.lng) };
 
   /*
-   * Trains in greater Tokyo come from the operators' timetables, which need
-   * no key and cost nothing; everywhere else, and if the timetable fails,
-   * Google answers as before.
+   * Trains in Japan, which Google's API does not have: greater Tokyo from the
+   * operators' timetables, the rest of the country estimated over its whole
+   * railway network (lib/japanTransit). Neither needs a key or costs anything.
+   * Everywhere else, and if they fail, Google answers as before.
    */
   if (mode === 'TRANSIT') {
     try {
-      const own = await tokyoTransit({ from: a, to: b, now: !!now });
+      const own = await japanTransit({ from: a, to: b, now: !!now });
       if (own) return Response.json(own, { headers: FRESH });
     } catch (e) {
-      console.error('[routes] timetable failed:', e);
+      console.error('[routes] Japan transit failed:', e);
     }
     if (google === false) return Response.json({ mode: 'TRANSIT', found: false }, { headers: FRESH });
   }
