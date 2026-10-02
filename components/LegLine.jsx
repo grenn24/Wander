@@ -3,7 +3,7 @@ import { Footprints, TrainFront, Car, TriangleAlert } from 'lucide-react';
 import TravelEstimate from '@/components/TravelEstimate';
 import { fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
-import { TRAVEL_LABEL } from '@/lib/travel';
+import { TRAVEL_LABEL, whyEstimate } from '@/lib/travel';
 import s from './LegLine.module.css';
 
 const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
@@ -15,9 +15,10 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  * distance and a rule of thumb. With them on, the straight-line distance
  * stays — it is the one number that is never a guess — and beside it each way
  * of getting there and how long it takes: 🚶 18m · 🚆 9m · 🚗 6m. A time with ~
- * is an estimate, where Google cannot route that way (trains in Japan); the
- * way the map is drawing is picked out; and where the time between two
- * activities is shorter than the quickest way between them, it says so.
+ * is an estimate, where neither Google nor the app's timetables can route
+ * that way (trains in Japan outside greater Tokyo); the way the map is
+ * drawing is picked out; and where the time between two activities is
+ * shorter than the quickest way between them, it says so.
  *
  * Each way is also a button: the map's Routes setting decides how every hop
  * is drawn, and a click on one way draws this hop that way instead — the train
@@ -43,9 +44,11 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
-          const why = o.waiting ? 'Asking Google'
-            : o.estimate ? `Estimate${leg.gap ? `: Google has no ${o.mode === 'TRANSIT' ? 'transit' : TRAVEL_LABEL[o.mode].toLowerCase()} routes in ${leg.gap}` : ''}`
-              : `${TRAVEL_LABEL[o.mode]}, by Google`;
+          const reason = o.estimate ? whyEstimate(leg.country, o.mode) : '';
+          const why = o.waiting ? 'Working it out'
+            : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
+              : o.source === 'timetable' ? `${TRAVEL_LABEL[o.mode]}, from the train timetable`
+                : `${TRAVEL_LABEL[o.mode]}, by Google`;
           const chosen = o.mode === leg.chosen;
           const said = `${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`;
           const shared = {

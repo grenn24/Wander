@@ -25,6 +25,7 @@ import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
 import { activityDistance } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
 import useLegs, { useLegChoices } from '@/components/useLegs';
+import { travelNote } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
@@ -535,7 +536,7 @@ export default function Itinerary({
             {list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
               <p className="itinerary-distance-note">
                 {travel.on
-                  ? 'Distances are straight-line. Travel times are Google\'s; ~ marks an estimate where Google can\'t route that way.'
+                  ? travelNote(travel)
                   : 'Straight-line distances. Walking times are estimates; actual routes may take longer.'}
               </p>
             ) : null}

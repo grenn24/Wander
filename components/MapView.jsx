@@ -20,6 +20,7 @@ import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
 import useLegs, { useLegChoices } from '@/components/useLegs';
+import { travelNote } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import useKept from '@/components/useKept';
@@ -946,8 +947,7 @@ export default function MapView({
               {Object.keys(legs).length ? (
                 <p className={m.note}>
                   {travel.on
-                    ? `Distances are straight-line. Travel times are Google's; ~ marks an estimate${travel.gaps.length
-                      ? `, where Google can't route that way in ${travel.gaps.join(' or ')}` : ''}.`
+                    ? travelNote(travel)
                     : 'Straight-line distances. Walking times are estimates; actual routes may take longer. Turn on Routes in Map appearance for real travel times.'}
                 </p>
               ) : null}

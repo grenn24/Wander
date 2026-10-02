@@ -39,6 +39,45 @@ changing reader assets; its script is served with `Cache-Control: no-store`.
 Implementation references: [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers)
 and [Google Calendar event times](https://developers.google.com/workspace/calendar/api/v3/reference/events).
 
+## Train times in Tokyo
+
+Google's Routes API has no transit in Japan (the Google Maps app does; the API
+does not), so trains in greater Tokyo are planned by the app itself from the
+operators' published timetables. Every urban railway is covered: JR East,
+Tokyo Metro, Toei, the private railways, the monorails, the Yurikamome and the
+trams, out to Nikko, Hakone, Kamakura, Kawaguchiko and both airports. The
+Shinkansen and the rest of Japan are not covered; there, train times stay
+`~` estimates, as before. No key or setting is needed.
+
+- **Where it shows.** With Routes on, a hop in Tokyo gets a real train time and
+  its line on the map; the tooltip says it is from the timetable. Directions
+  in Traveller mode give the next train from now, with each train's departure
+  ("Ginza Line 21:32"). Planning times are typical: the median of departures
+  every ten minutes from 10:00 on a weekday, waiting included.
+- **How.** `scripts/transit/build-tokyo.mjs` packs the timetables of
+  [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT; the operators'
+  data, gathered through the Public Transportation Open Data Center) into
+  `data/transit/tokyo-rail.json`, 2.5 MB. `lib/timetable.js` plans over it with
+  a connection scan, including trains that run through from one operator's
+  line onto another's. `/api/routes` answers Tokyo transit from it, loading it
+  only on the first such request, and asks Google for everything else.
+- **Left out on purpose.** Trains that need a surcharge ticket (Narita
+  Express, Romancecar, Skyliner, liners): a plan should not assume a reserved
+  seat. Public holidays run the weekend timetable in Japan but are treated as
+  weekdays here. Lines are drawn station to station, not along the track.
+- **Keeping it current.** Timetables change every March and a little through
+  the year. Rebuild and commit the file:
+
+  ```
+  git clone --depth 1 --filter=blob:none --sparse https://github.com/nagix/mini-tokyo-3d.git
+  git -C mini-tokyo-3d sparse-checkout set data
+  node scripts/transit/build-tokyo.mjs mini-tokyo-3d
+  npm test
+  ```
+
+  `data/transit/LICENSE` carries mini-tokyo-3d's MIT notice and must stay
+  beside the data.
+
 ## Configuration
 
 The app reads its Supabase connection from two environment variables. There is
@@ -214,6 +253,8 @@ rows.
   `/api/places/*` so `PLACES_API_KEY` never leaves the server.
 - **OpenAI** plans trips, suggests activities and builds packing lists, through
   `/api/plan`, `/api/suggest` and `/api/packing`.
+- **Tokyo train timetables** are bundled in `data/transit/` (from
+  mini-tokyo-3d, MIT) and planned on the server; nothing is called at runtime.
 
 Without the Google keys the map is replaced by a panel naming what to set, and
 stops are not located. Without the OpenAI key the planning features return a

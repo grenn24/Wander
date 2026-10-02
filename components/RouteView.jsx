@@ -147,11 +147,16 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   const from = mine || (where !== 'asking' && fallback ? fallback : null);
   const guessed = !mine && !!from;
 
+  /*
+   * Transit is asked for from now: in greater Tokyo the answer comes from the
+   * timetable, and the train to catch is the next one, not a typical one.
+   * Google ignores it, answering from now anyway.
+   */
   useEffect(() => {
     if (!from || legs[mode]) return undefined;
     let alive = true;
     setBusy(true); setErr('');
-    routeBetween(from, to, mode)
+    routeBetween(from, to, mode, { now: mode === 'TRANSIT' })
       .then((r) => { if (alive) setLegs((v) => ({ ...v, [mode]: r })); })
       .catch(() => { if (alive) setErr('Could not work out a route just now.'); })
       .finally(() => { if (alive) setBusy(false); });
@@ -250,8 +255,9 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
         ) : err ? (
           <p className="rv-note">{err}</p>
         ) : leg && !leg.found ? (
-          <p className="rv-note">No {WAYS.find((w) => w.id === mode).label.toLowerCase()} route
-            {' '}between here and there.</p>
+          <p className="rv-note">{leg.source === 'timetable'
+            ? 'No more trains from here today.'
+            : `No ${WAYS.find((w) => w.id === mode).label.toLowerCase()} route between here and there.`}</p>
         ) : leg ? (
           <p className="rv-said">
             <b>{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
@@ -261,9 +267,17 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
             {guessed ? (
               <span className="rv-from">from {fallbackName || 'where you were'}</span>
             ) : null}
+            {/* From a timetable, each train says when it leaves, and a train
+                that runs on as another line says to stay on it. */}
             {leg.lines.length ? (
               <span className="rv-lines">
-                {leg.lines.map((l) => <span className="rv-line" key={l.name + l.from}>{l.name}</span>)}
+                {leg.lines.map((l) => (
+                  <span className="rv-line" key={l.name + l.from}
+                    data-tip={l.departs ? (l.through ? `Same train, on from ${l.from}` : `From ${l.from} at ${l.departs}`) : undefined}>
+                    {l.name}
+                    {l.departs && !l.through ? <span className="mono"> {l.departs}</span> : null}
+                  </span>
+                ))}
               </span>
             ) : null}
           </p>
