@@ -81,13 +81,16 @@ test('Commons is only asked for widths it will render', () => {
   assert.equal(commonsWidth(100), 500);
   assert.equal(commonsWidth(1000), 1280);
   assert.equal(commonsWidth(1920), 1920);
-  assert.equal(commonsWidth(3000), 1920);
+  assert.equal(commonsWidth(3000), 3840);
+  assert.equal(commonsWidth(9000), 3840);
   // Wikimedia will not enlarge a picture, so a small original stops sooner.
   assert.equal(commonsWidth(1920, 1700), 1280);
+  assert.equal(commonsWidth(3840, 3000), 1920);
   const m = shape(file());
   assert.equal(imageURL(m, 640), 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Sv.jpg/960px-Sv.jpg');
+  assert.equal(imageURL(m, 6400), 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Sv.jpg/3840px-Sv.jpg');
   // A long list of widths collapses to the few sizes actually served.
-  assert.equal(srcSet(m, [640, 960, 1400, 2000, 2800]).split(',').length, 2);
+  assert.equal(srcSet(m, [640, 960, 1400, 2000, 2800]).split(',').length, 3);
   assert.equal(sourceOf(m).name, 'Wikimedia Commons');
   assert.equal(sourceOf({ provider: 'unsplash' }).name, 'Unsplash');
 });

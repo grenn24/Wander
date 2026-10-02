@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { imageURL, sourceOf, QUALITY } from '@/lib/guideFormat';
+import { imageURL, sourceOf, zoomWidth, QUALITY, ZOOM_WIDTH } from '@/lib/guideFormat';
 import {
   X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut, Check,
 } from 'lucide-react';
@@ -68,6 +68,9 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose, st
   const [mounted, setMounted] = useState(false);
   const stripRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
+  // The photo that has been zoomed past its pixels, and whether its bigger copy has arrived.
+  const [sharpFor, setSharpFor] = useState('');
+  const [sharpOn, setSharpOn] = useState(false);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const imgRef = useRef(null);
   const frameRef = useRef(null);
@@ -96,7 +99,28 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose, st
     if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'center' });
   }, [index, mounted, photos.length]);
   // A new photo starts where the last one did, not wherever you had dragged to.
-  useEffect(() => { setLoaded(false); setView({ scale: 1, x: 0, y: 0 }); }, [index]);
+  useEffect(() => {
+    setLoaded(false); setSharpFor(''); setSharpOn(false);
+    setView({ scale: 1, x: 0, y: 0 });
+  }, [index]);
+
+  /*
+   * Zoom is a CSS transform, so it only enlarges the pixels the copy already
+   * has: a photograph fetched at 3200 across, shown 1100 points wide and zoomed
+   * to 325%, is stretched well past its own detail and goes soft. Once the zoom
+   * needs more pixels than the copy on show holds, fetch the larger one — only
+   * then, because it can be several times the size, and most photographs are
+   * never zoomed. The copy on show stays underneath until the larger one has
+   * arrived, so nothing blinks.
+   */
+  useEffect(() => {
+    const el = imgRef.current;
+    const here = photos[index];
+    if (!el || !loaded || !here || !here.raw || sharpFor === idOf(here)) return;
+    const shown = Math.min(el.offsetWidth, el.offsetHeight * (el.naturalWidth / (el.naturalHeight || 1)));
+    const need = shown * view.scale * (window.devicePixelRatio || 1);
+    if (zoomWidth(here, need, el.naturalWidth)) setSharpFor(idOf(here));
+  }, [view.scale, loaded, index, photos, sharpFor]);
 
   /*
    * Keep the picture over its own footprint.
@@ -327,6 +351,12 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose, st
             src={src(shot, wide)} alt={alt} draggable={false}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
             onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} />
+          {shot.raw && sharpFor === idOf(shot) ? (
+            <img className={`lb-full${sharpOn ? ' is-on' : ''}`} key={`z-${idOf(shot)}`}
+              src={sized(shot, ZOOM_WIDTH)} alt="" aria-hidden="true" draggable={false}
+              style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+              onLoad={() => setSharpOn(true)} />
+          ) : null}
         </div>
         {/*
           * A place photograph on Google belongs to whoever went and stood

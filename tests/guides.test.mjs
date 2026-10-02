@@ -6,7 +6,7 @@ import {
 } from '../lib/guides.js';
 import {
   fromV1, validateDoc, normaliseDoc, tokenize, plainText, summaryOf, cleanText,
-  imageURL, srcSet, QUALITY, modelFields, WRITER_SCHEMA, videoSpot,
+  imageURL, srcSet, QUALITY, ZOOM_WIDTH, zoomWidth, modelFields, WRITER_SCHEMA, videoSpot,
 } from '../lib/guideFormat.js';
 
 const docs = GUIDES.map(fromV1);
@@ -172,6 +172,23 @@ test('Unsplash links ask for the quality they are given, and every width of a se
   assert.equal(set.length, 3);
   assert.ok(set.every((c) => c.includes('&q=95&')));
   assert.ok(srcSet(m, [960, 1600]).split(', ').every((c) => c.includes('&q=85&')));
+});
+
+test('a zoomed photograph asks for a bigger copy only when it is being stretched, and only if one exists', () => {
+  const big = { raw: 'https://images.unsplash.com/photo-1?ixid=abc', width: 4500 };
+  // 3200 pixels on show, 3000 needed: enough. 3600 needed: stretched, so fetch the original.
+  assert.equal(zoomWidth(big, 3000, 3200), 0);
+  assert.equal(zoomWidth(big, 3600, 3200), 4500);
+  // A few pixels' shortfall is not worth another download.
+  assert.equal(zoomWidth(big, 3300, 3200), 0);
+  // Never wider than the cap, however large the original.
+  assert.equal(zoomWidth({ ...big, width: 8400 }, 9000, 3200), ZOOM_WIDTH);
+  // Nothing wider to fetch: the copy on show already is the original.
+  assert.equal(zoomWidth({ ...big, width: 3200 }, 9000, 3200), 0);
+  assert.equal(zoomWidth(null, 9000, 3200), 0);
+  assert.equal(zoomWidth({ width: 4500 }, 9000, 3200), 0);
+  // And what it asks for is the original, at the best quality, never past it.
+  assert.match(imageURL(big, ZOOM_WIDTH, QUALITY.best), /&w=4500&q=95&/);
 });
 
 test('the writer schema is strict all the way down, and round-trips', () => {
