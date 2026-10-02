@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2 } from 'lucide-react';
-import Lightbox from '@/components/Lightbox';
+import { Maximize2, Pencil } from 'lucide-react';
+import TripCoverViewer from '@/components/TripCoverViewer';
 import s from './TripHero.module.css';
 
 /*
@@ -28,11 +28,21 @@ import s from './TripHero.module.css';
  * heading (see heroCoverURL) rather than keep an empty box. Failure and load
  * both belong to one address, so a new cover starts afresh.
  */
-export default function TripHero({ url, photo, label, onBroken, children }) {
-  return <Hero key={url} url={url} photo={photo} label={label} onBroken={onBroken}>{children}</Hero>;
+export default function TripHero({ url, photo, trip, label, onBroken, onChange, children }) {
+  return (
+    <Hero key={url} url={url} photo={photo} trip={trip} label={label} onBroken={onBroken} onChange={onChange}>
+      {children}
+    </Hero>
+  );
 }
 
-function Hero({ url, photo, label, onBroken, children }) {
+/*
+ * Two targets on one frame: the picture opens full size — with the trip's other
+ * covers a step away, see TripCoverViewer — and the pill on its corner opens the
+ * cover's settings (`onChange`). The pill is a second button beside the first,
+ * never inside it, and is always drawn: a phone has no hover to reveal it.
+ */
+function Hero({ url, photo, trip, label, onBroken, onChange, children }) {
   const [loaded, setLoaded] = useState(false);
   const [viewing, setViewing] = useState(false);
   const img = useRef(null);
@@ -66,13 +76,15 @@ function Hero({ url, photo, label, onBroken, children }) {
             <span className={s.mark} aria-hidden="true"><Maximize2 size={15} /></span>
           </>
         ) : null}
+        {onChange ? (
+          <button type="button" className={s.change} onClick={onChange}>
+            <Pencil size={13} aria-hidden="true" /> Change cover
+          </button>
+        ) : null}
         <div className={s.text}>{children}</div>
       </div>
 
-      {viewing && photo ? (
-        <Lightbox photos={[photo]} index={0} alt={label ? `Cover photo for ${label}` : 'Cover photo'}
-          onIndex={() => {}} onClose={close} />
-      ) : null}
+      {viewing && photo && trip ? <TripCoverViewer trip={trip} onClose={close} /> : null}
     </>
   );
 }

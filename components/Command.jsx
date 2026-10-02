@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, MapPin,
+  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, MapPin, Image as ImageIcon,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { focusCommandField, holdCommandPage } from '@/lib/commandFocus';
@@ -72,6 +72,7 @@ const ACTIONS = {
   activity: { icon: Plus, label: 'New activity' },
   packing: { icon: Backpack, label: 'New packing item' },
   trip: { icon: Settings, label: 'Trip details' },
+  cover: { icon: ImageIcon, label: 'Change trip cover' },
   print: { icon: Printer, label: 'Print or save as PDF' },
 };
 
@@ -354,6 +355,7 @@ function CommandBar({ onClose }) {
         { id: 'new-act', kind: 'start', arg: 'activity' },
         { id: 'new-pack', kind: 'start', arg: 'packing' },
         { id: 'trip', kind: 'start', arg: 'trip' },
+        { id: 'cover', kind: 'start', arg: 'cover' },
         { id: 'print', kind: 'print' },
       ];
     }

@@ -1,5 +1,7 @@
 import { asUser } from '@/lib/supabaseServer';
-import { COVER_BUCKET, coverPathFor } from '@/lib/tripCover';
+import {
+  COVER_BUCKET, COVER_LIBRARY_FULL, COVER_LIBRARY_MAX, coverEntries, coverPathFor, coversFrom,
+} from '@/lib/tripCover';
 import { coverPrompt } from '@/lib/coverPrompt';
 import { coverDrawing } from '@/lib/coverDraw';
 
@@ -21,7 +23,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const say = (message, status) => Response.json({ error: message }, { status });
 
 /*
- * A cover drawn for a trip.
+ * A cover drawn for a trip, added to the covers it keeps and put on the trip.
  *
  * The picture is made from the trip's name and where it goes, and nothing
  * else: no stop, no note, no one on it. The one thing they may add is the
@@ -47,7 +49,7 @@ export async function POST(req) {
   if (!UUID.test(tripId)) return say('Expected a trip.', 400);
 
   const { data: trip, error: tripError } = await db.from('trips')
-    .select('id, name, destination').eq('id', tripId).maybeSingle();
+    .select('id, name, destination, cover_path').eq('id', tripId).maybeSingle();
   if (tripError) {
     const stale = /jwt|token/i.test(tripError.message || '');
     return say(stale ? 'Sign in again to change this trip.' : 'Could not read that trip.', stale ? 401 : 502);
@@ -55,6 +57,12 @@ export async function POST(req) {
   // Someone else's trip and a trip that never existed look alike from here,
   // which is the point.
   if (!trip) return say('That trip is not yours.', 404);
+
+  // Before paying for a picture there is no room to keep.
+  let kept;
+  try { kept = coversFrom(tripId, await coverEntries(db, tripId), trip.cover_path).length; }
+  catch { return say('Could not read this trip’s covers.', 502); }
+  if (kept >= COVER_LIBRARY_MAX) return say(COVER_LIBRARY_FULL, 409);
 
   const prompt = coverPrompt({ name: trip.name, destination: trip.destination, style: body.style });
 
@@ -108,7 +116,7 @@ export async function POST(req) {
   }
   if (!made) return say('That picture could not be drawn.', 502);
 
-  const path = coverPathFor(tripId);
+  const path = coverPathFor(tripId, 'webp', 'drawn');
   const { error: putError } = await db.storage.from(COVER_BUCKET)
     .upload(path, Buffer.from(made, 'base64'), { contentType: 'image/webp', upsert: false });
   if (putError) return say('The picture was drawn but could not be kept.', 502);
@@ -121,7 +129,7 @@ export async function POST(req) {
     return say('The picture was drawn but the trip could not be pointed at it.', 502);
   }
   // The cover it had is left in the bucket on purpose: a redraw moves the
-  // trip's pointer and keeps what came before.
-
+  // trip's pointer and keeps what came before. Only a member deleting a cover
+  // takes it away.
   return Response.json({ cover_path: path });
 }

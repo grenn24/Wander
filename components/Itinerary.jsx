@@ -10,6 +10,7 @@ import PlacePhoto from '@/components/PlacePhoto';
 import Select from '@/components/Select';
 import Popover from '@/components/Popover';
 import ConfirmModal from '@/components/ConfirmModal';
+import TripCoverAdd from '@/components/TripCoverAdd';
 import useKept from '@/components/useKept';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
@@ -27,7 +28,7 @@ import useLegs, { useLegChoices } from '@/components/useLegs';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
-import { coverPhoto, heroCoverURL } from '@/lib/tripCover';
+import { coverPhoto, coverURL, heroCoverURL } from '@/lib/tripCover';
 
 /** Structural stops anchor a day; everything else sits between them. */
 /*
@@ -43,7 +44,7 @@ const ANCHORS = new Set(['lodging']);
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
-  onEditTrip, onPrint, onAddMany, focus, onFocused,
+  onEditTrip, onEditCover, onPrint, onAddMany, focus, onFocused,
   // Which row is waiting on its place before the editor can open. A click that
   // does nothing visible for half a second reads as a click that missed.
   opening = '',
@@ -372,10 +373,12 @@ export default function Itinerary({
 
   return (
     <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
+      {/* No usable cover: a slim bar to ask for one. With one, the pill on the hero does it. */}
+      {!cover && onEditCover ? <TripCoverAdd changing={!!coverURL(trip)} onClick={onEditCover} /> : null}
       <div className={`page-head spread${cover ? ' has-cover' : ''}`}>
         {cover
-          ? <TripHero url={cover} photo={coverPhoto(trip)} label={trip.name}
-              onBroken={() => setBrokenCover(cover)}>{heading}</TripHero>
+          ? <TripHero url={cover} photo={coverPhoto(trip)} trip={trip} label={trip.name}
+              onBroken={() => setBrokenCover(cover)} onChange={onEditCover}>{heading}</TripHero>
           : heading}
         <div className="chiprow">
           <PlanningDesk tripId={trip.id} containerRef={itineraryRef} days={days} activeDay={activeDay} />

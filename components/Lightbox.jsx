@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { imageURL, sourceOf } from '@/lib/guideFormat';
 import {
-  X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut,
+  X, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut, Check,
 } from 'lucide-react';
+import s from './Lightbox.module.css';
 
 /**
  * A photo, full size, over everything else — and closer, if you want it.
@@ -50,8 +51,16 @@ function fullWidth() {
   return want <= 800 ? 800 : want <= 1200 ? 1200 : want <= 1600 ? 1600 : want <= 2400 ? 2400 : 3200;
 }
 
-export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) {
+/*
+ * What a photo may carry beyond where to find it, all optional:
+ *   caption — text that stands in for the plain "2 of 9";
+ *   badge   — a short label set apart in front of it ("Default cover");
+ * and `strip` on the viewer lays every photo out as thumbnails to jump between.
+ * A photo with none of these, and a viewer without `strip`, is drawn exactly as it always was.
+ */
+export default function Lightbox({ photos, index, alt = '', onIndex, onClose, strip = false }) {
   const [mounted, setMounted] = useState(false);
+  const stripRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const imgRef = useRef(null);
@@ -75,6 +84,11 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   const shot = photos[index] || {};
 
   useEffect(() => { setMounted(true); }, []);
+  // Keep the thumbnail for this photo in view, wherever the strip has been scrolled to.
+  useEffect(() => {
+    const current = stripRef.current && stripRef.current.querySelector('[aria-current="true"]');
+    if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [index, mounted, photos.length]);
   // A new photo starts where the last one did, not wherever you had dragged to.
   useEffect(() => { setLoaded(false); setView({ scale: 1, x: 0, y: 0 }); }, [index]);
 
@@ -259,7 +273,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
   };
 
   return createPortal((
-    <div className={`lightbox${zoomed ? ' is-zoomed' : ''}`}
+    <div className={`lightbox${zoomed ? ' is-zoomed' : ''}${strip && many ? ` ${s.withStrip}` : ''}`}
       role="dialog" aria-modal="true" aria-label={alt || 'Photo'}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onClick={(e) => { if (e.target === e.currentTarget && !moved.current) onClose(); }}>
@@ -314,9 +328,10 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
           * these pictures have — so it takes the line, and the how-to-zoom
           * hint steps aside for it.
           */}
-        <figcaption className="lb-count">
-          {many ? `${index + 1} of ${photos.length}` : ''}
-          {many && shot.author ? ' · ' : ''}
+        <figcaption className={`lb-count${shot.caption || shot.badge ? ` ${s.rich}` : ''}`}>
+          {shot.badge ? <><span className={s.badge}>{shot.badge}</span>{' '}</> : null}
+          {shot.caption || (many ? `${index + 1} of ${photos.length}` : '')}
+          {(many || shot.caption) && shot.author ? ' · ' : ''}
           {shot.author ? (
             <>
               Photo by
@@ -334,7 +349,7 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
               ) : null}
             </>
           ) : (
-            <>{many ? ' · ' : ''}{zoomed ? 'Drag to move' : 'Double-click to zoom'}</>
+            <span className={s.hint}>{many || shot.caption ? ' · ' : ''}{zoomed ? 'Drag to move' : 'Double-click to zoom'}</span>
           )}
         </figcaption>
       </figure>
@@ -342,6 +357,20 @@ export default function Lightbox({ photos, index, alt = '', onIndex, onClose }) 
       {many ? (
         <button className="lb-step lb-next" type="button" data-tip="Next  →" aria-label="Next photo"
           onClick={() => step(1)}><ChevronRight size={22} /></button>
+      ) : null}
+
+      {strip && many ? (
+        <div className={s.strip} ref={stripRef} role="group" aria-label="All photos">
+          {photos.map((p, i) => (
+            <button key={idOf(p) || i} type="button" className={s.thumb}
+              aria-current={i === index} aria-label={p.caption || `Photo ${i + 1} of ${photos.length}`}
+              data-tip={p.badge ? `${p.badge}` : undefined}
+              onClick={() => onIndex(i)}>
+              <img src={src(p, 160)} alt="" loading="lazy" draggable={false} />
+              {p.badge ? <span className={s.mark} aria-hidden="true"><Check size={10} strokeWidth={3.5} /></span> : null}
+            </button>
+          ))}
+        </div>
       ) : null}
     </div>
   ), document.body);

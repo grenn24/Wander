@@ -26,10 +26,11 @@ const CalendarLink = dynamic(() => retryImport(() => import('@/components/Calend
 const OfflineDownload = dynamic(() => retryImport(() => import('@/components/OfflineDownload')));
 const ActivityModal = dynamic(() => retryImport(() => import('@/components/ActivityModal')));
 const TripModal = dynamic(() => retryImport(() => import('@/components/TripModal')));
+const TripCoverDialog = dynamic(() => retryImport(() => import('@/components/TripCoverDialog')));
 import useKept from '@/components/useKept';
 import { retryImport } from '@/lib/chunkRetry';
 import { todayISO } from '@/lib/util';
-import { COVER_BUCKET } from '@/lib/tripCover';
+import { removeAllCovers } from '@/lib/tripCover';
 import { placeDetails } from '@/lib/geo';
 
 export default function TripTabPage({ params }) {
@@ -55,6 +56,9 @@ export default function TripTabPage({ params }) {
   // Dialogs stay on screen long enough to play their way out.
   const editingShown = useKept(editing);
   const tripShown = useKept(tripDraft || (tab === 'settings' ? trip : null));
+  // The cover on its own, opened from the itinerary's header or the command bar.
+  const [coverOpen, setCoverOpen] = useState(false);
+  const coverShown = useKept(coverOpen || null);
 
   /*
    * Open the editor with the place already in hand.
@@ -104,6 +108,9 @@ export default function TripTabPage({ params }) {
       setTripSection(intent.seed?.section || 'details');
       setTripDraft({ ...trip });
       clearIntent();
+    } else if (intent.kind === 'cover' && trip) {
+      setCoverOpen(true);
+      clearIntent();
     }
   }, [intent, days, trip, clearIntent]);
 
@@ -141,11 +148,9 @@ export default function TripTabPage({ params }) {
 
   async function deleteTrip() {
     if (!supabase) return;
-    // The cover first: taking it away is allowed to a member of this trip, and
+    // The covers first: taking them away is allowed to a member of this trip, and
     // in a moment there will be no trip to be a member of.
-    if (trip.cover_path) {
-      try { await supabase.storage.from(COVER_BUCKET).remove([trip.cover_path]); } catch { /* left behind */ }
-    }
+    try { await removeAllCovers(supabase, trip.id, trip.cover_path); } catch { /* left behind */ }
     const { error } = await supabase.from('trips').delete().eq('id', trip.id);
     if (error) { fail(error); return; }
     await removeDownload(trip.id).catch(() => {});
@@ -183,7 +188,8 @@ export default function TripTabPage({ params }) {
           onAddMany={addActivities}
           focus={focusReq}
           onFocused={clearFocus}
-          onEditTrip={() => setTripDraft({ ...trip })} />
+          onEditTrip={() => setTripDraft({ ...trip })}
+          onEditCover={() => setCoverOpen(true)} />
       ) : null}
 
       {tab === 'map' ? (
@@ -218,6 +224,12 @@ export default function TripTabPage({ params }) {
           onSave={(d) => { saveActivity(d); setEditing(null); }}
           onDelete={(d) => { deleteActivity(d); setEditing(null); }}
           onClose={() => setEditing(null)} />
+      ) : null}
+
+      {coverShown.value ? (
+        <TripCoverDialog trip={trip} leaving={coverShown.leaving}
+          onChange={(patch) => setTrip((prev) => (prev ? { ...prev, ...patch } : prev))}
+          onClose={() => setCoverOpen(false)} />
       ) : null}
 
       {tripShown.value ? (
