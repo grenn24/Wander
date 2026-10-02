@@ -220,3 +220,45 @@ test('Open feeds: trams too, named in English, and no surcharge trains', () => {
   assert.ok(names.filter((n) => /[ぁ-んァ-ン一-龥]/.test(n)).length <= names.length * 0.05, 'English names');
   assert.ok(data.lines.every(([name]) => !/特急|Nanki/.test(name)));
 });
+
+/*
+ * Other ways than the fastest: the same journey with a line left out, on
+ * named lines only, or with each change made costly.
+ */
+test('Tokyo: a journey can leave lines out, keep to some, or avoid changing', () => {
+  const data = JSON.parse(readFileSync(new URL('../data/transit/tokyo-rail.json', import.meta.url), 'utf8'));
+  const net = buildNetwork(data, 'weekday');
+  const station = { lat: 35.6812, lng: 139.7671 };
+  const gyoen = { lat: 35.6852, lng: 139.7101 };
+  const rides = (j) => j.legs.filter((l) => l.kind === 'ride');
+  const lineOf = (name) => net.lines.findIndex((l) => l[0] === name);
+
+  const fastest = earliestJourney(net, station, gyoen, 600);
+  const used = new Set(rides(fastest).map((r) => r.lineIndex));
+  assert.ok(used.size > 0);
+  rides(fastest).forEach((r) => {
+    assert.equal(net.lines[r.lineIndex][0], r.line);
+    assert.ok(r.toward, 'a ride says which way it goes');
+    assert.equal(r.times.length, r.stops.length, 'a time for each stop');
+    r.times.forEach((t, i) => { if (i) assert.ok(t >= r.times[i - 1]); });
+    assert.equal(r.times[0], r.leaves);
+    assert.equal(r.times[r.times.length - 1], r.arrives);
+  });
+
+  const other = earliestJourney(net, station, gyoen, 600, { avoid: used });
+  assert.ok(other, 'there is another way');
+  rides(other).forEach((r) => assert.ok(!used.has(r.lineIndex), `${r.line} was left out`));
+
+  const marunouchi = lineOf('Marunouchi Line');
+  const only = earliestJourney(net, station, gyoen, 600, { only: new Set([marunouchi]) });
+  assert.ok(only);
+  rides(only).forEach((r) => assert.equal(r.lineIndex, marunouchi));
+
+  const changes = (j) => rides(j).filter((r) => !r.through).length - 1;
+  const calm = earliestJourney(net, station, gyoen, 600, { change: 30 });
+  assert.ok(changes(calm) <= changes(fastest));
+
+  // A typical journey takes the same choices.
+  const typical = typicalJourney(net, station, gyoen, undefined, { avoid: used });
+  rides(typical).forEach((r) => assert.ok(!used.has(r.lineIndex)));
+});
