@@ -193,7 +193,7 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
               <w.icon size={14} aria-hidden="true" />
               {w.label}
               {got && got.found ? (
-                <b className="rv-when mono">{got.source === 'model' ? '~' : ''}{fmtDuration(Math.round(got.seconds / 60))}</b>
+                <b className="rv-when mono">{got.source === 'model' || got.source === 'walk' ? '~' : ''}{fmtDuration(Math.round(got.seconds / 60))}</b>
               ) : null}
             </button>
           );
@@ -260,11 +260,13 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
             : `No ${WAYS.find((w) => w.id === mode).label.toLowerCase()} route between here and there.`}</p>
         ) : leg ? (
           <p className="rv-said">
-            <b>{leg.source === 'model' ? 'About ' : ''}{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
+            <b>{leg.source === 'model' || leg.source === 'walk' ? 'About ' : ''}{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
             <span className="dim"> · {fmtKm(leg.metres / 1000)}</span>
             {/* No timetable here: the lines are right, the minutes are worked out. */}
             {leg.source === 'model' ? (
               <span className="rv-from" data-tip="No timetable here, so the time is worked out from how often trains run on these lines">estimated</span>
+            ) : leg.source === 'walk' ? (
+              <span className="rv-from">quicker on foot</span>
             ) : null}
             {/* Said out loud, because a time measured from the wrong place is
                 worth having and not worth mistaking for the right one. */}

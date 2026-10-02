@@ -80,6 +80,9 @@ test('the options for a hop: real where Google has them, estimates where it cann
     DRIVE: drive,
   });
   assert.deepEqual(osaka[1], { mode: 'TRANSIT', minutes: 38, estimate: true, polyline: 'm', source: 'model' });
+  // No train beats walking: the walk, as an estimate, with nothing to draw but a straight line.
+  const walkOnly = travelOptions(1.3, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: true, source: 'walk', seconds: 1080, lines: [] }, DRIVE: drive });
+  assert.deepEqual(walkOnly[1], { mode: 'TRANSIT', minutes: 18, estimate: true, polyline: '', source: 'walk' });
   // Nowhere near a station: the straight-line estimate, as before.
   const remote = travelOptions(8.6, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: drive });
   assert.deepEqual(remote.map((o) => [o.mode, o.minutes, o.estimate]),
@@ -100,7 +103,7 @@ test('the note under the hops says where the times came from', () => {
   assert.equal(travelNote({ gaps: [], timetable: false }),
     "Distances are straight-line. Travel times are Google's. ~ marks an estimate.");
   assert.equal(travelNote({ gaps: ['South Korea'], timetable: true, modelled: true }),
-    "Distances are straight-line. Travel times are Google's, and trains in greater Tokyo are from the operators' timetables. "
+    "Distances are straight-line. Travel times are Google's, and trains in Japan are from the operators' timetables where they publish them. "
     + "~ marks an estimate: trains elsewhere in Japan are worked out from how often they run; "
     + "Google can't route that way in South Korea.");
 });

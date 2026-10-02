@@ -198,7 +198,8 @@ export default function useLegs(hops, setting, choices = NONE) {
       });
       const options = countries ? travelOptions(h.km, country, got)
         : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true }));
-      if (name && options.some((o) => o.estimate && o.source !== 'model')) gaps.add(name);
+      // A gap is an estimate nothing could route; the model's and the walk's say their own why.
+      if (name && options.some((o) => o.estimate && !o.source)) gaps.add(name);
       if (options.some((o) => o.source === 'timetable')) timetable = true;
       if (options.some((o) => o.source === 'model')) modelled = true;
       const chosen = (h.hop && choices[h.hop]) || null;

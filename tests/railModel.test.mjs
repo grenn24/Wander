@@ -196,3 +196,20 @@ test('Fukuoka: the model, fitted in Tokyo, agrees with a real timetable elsewher
     assert.ok(gap <= 8, `${a} to ${b}: model ${estimate.minutes.toFixed(0)} vs timetable ${real.arrives - real.leaves}`);
   }
 });
+
+test('a train that loses to walking is not offered: the walk is', async () => {
+  const { onFoot } = await import('../lib/japanTransit.js');
+  // Kiyomizu-dera to Gion, 1.3 km: a 42-minute train journey against a walk of about 21.
+  const kiyomizu = { lat: 34.9949, lng: 135.7850 };
+  const gion = { lat: 35.0037, lng: 135.7756 };
+  const slow = { mode: 'TRANSIT', found: true, source: 'model', seconds: 42 * 60, lines: [{ name: 'Keihan Main Line' }] };
+  const walk = onFoot(kiyomizu, gion, slow);
+  assert.equal(walk.source, 'walk');
+  assert.deepEqual(walk.lines, []);
+  assert.ok(walk.seconds < slow.seconds && walk.seconds > 10 * 60, String(walk.seconds));
+  // A train that saves time stands, and so does no train at all.
+  const quick = { ...slow, seconds: 8 * 60 };
+  assert.equal(onFoot(kiyomizu, gion, quick), quick);
+  assert.equal(onFoot(kiyomizu, gion, null), null);
+  assert.deepEqual(onFoot(kiyomizu, gion, { found: false }), { found: false });
+});

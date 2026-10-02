@@ -45,7 +45,8 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
           const reason = o.source === 'model' ? 'worked out from how often trains run on these lines'
-            : o.estimate ? whyEstimate(leg.country, o.mode) : '';
+            : o.source === 'walk' ? 'quicker on foot, no train here saves time'
+              : o.estimate ? whyEstimate(leg.country, o.mode) : '';
           const why = o.waiting ? 'Working it out'
             : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
               : o.source === 'timetable' ? `${TRAVEL_LABEL[o.mode]}, from the train timetable`
