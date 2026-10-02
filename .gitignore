@@ -2,3 +2,10 @@ node_modules
 .next
 .env
 .env*.local
+
+# Kept on this machine only: tools and sources that are not part of the app.
+.local/
+# Scratch space and generated output. Nothing in here is ever committed.
+tmp/
+output/
+.codex-remote-attachments/

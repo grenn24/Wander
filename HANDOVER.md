@@ -174,6 +174,17 @@ stupid" reports turned out to be one of them.
   including a demo trip `01b42f44-8000-4b6b-81b0-78bfe48bb37b` ("Hakone &
   Kyoto"). Clean up temporary rows; reusable fixtures must stay under a
   dedicated tester account.
+- **Where the machine-local things live** (none of it is committed; `tmp/` is gone and is
+  gitignored, so do not keep anything you need there):
+  - `.env.e2e.local` — the local test account's login (see section above).
+  - `.local/bin/supabase.exe` — the Supabase CLI (v2.115.0). It is not on PATH or in
+    `node_modules`, so run it by path from the repo root: `./.local/bin/supabase.exe status`.
+  - `.local/art-sources/` — lossless PNG originals of `public/artwork/*.webp`.
+  - `tools/dev-clean-env.mjs` — `next dev` with the stale Windows `OPENAI_API_KEY` removed
+    for that one process.
+  - `scripts/e2e/seed-travel-tester.mjs` — one-shot fixture seeder for the test trip.
+  - `output/group-XX-seminar-src/` — build scripts and notes for the CS3216 seminar deck
+    (the finished decks are beside it in `output/`). Not part of Wander.
 
 ---
 
@@ -358,9 +369,10 @@ Match the surrounding code — it is consistent and deliberate.
   Mixing the E: alias with the resolved path produced duplicate absolute paths
   in Next's manifest lookup, despite a successful build.
 - A reusable fictional trip is retained under Travel E2E Tester:
-  `0fd0ae3f-91a8-4d6f-8a90-eea84cebd85a`. Local-only fixture login details are in
-  untracked `tmp/travel-e2e.json`. It was seeded through ordinary local sign-up,
-  with no admin or production credentials.
+  `0fd0ae3f-91a8-4d6f-8a90-eea84cebd85a`. The account's login is in the gitignored
+  `.env.e2e.local` (`E2E_EMAIL`, `E2E_PASSWORD`, `E2E_TRIP_ID`; `.env.e2e.example` shows
+  the shape). It was seeded through ordinary local sign-up, with no admin or production
+  credentials, and works only against the local stack.
 
 - Comments explain **why**, not what, and often name the bug that caused the
   line to exist. Keep that; it is why the codebase is debuggable.
