@@ -53,41 +53,48 @@ cost and with no key:
   each train's departure ("Ginza Line 21:32"). Source:
   [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT), which gathers
   the operators' data from the Public Transportation Open Data Center.
-- **Other cities with open timetables.** Fukuoka's subway, from its open GTFS
-  feed (CC BY 4.0, via
-  [GTFS-FukuokaCitySubway](https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway)).
-  Any open GTFS feed packs the same way (`scripts/transit/build-gtfs.mjs`, then
-  a line in `lib/timetableRegions.js`); the GTFS Data Repository,
-  [gtfs-data.jp](https://gtfs-data.jp/), lists Japan's. Unlike Tokyo's, these
-  are one operator among several, so a timetable answer is used only when it
-  is not clearly slower than the estimate over every line.
+- **Other open timetables.** Every railway and tram in Japan's GTFS Data
+  Repository ([gtfs-data.jp](https://gtfs-data.jp/); of its 579 current
+  feeds, nearly all are buses), plus Fukuoka's subway from
+  [GTFS-FukuokaCitySubway](https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway):
+  the Kumamoto, Kōchi, Toyama and Takaoka trams, and the Kumamoto Electric,
+  Ise, Akechi, Yamagata and Kōnan railways. Each feed's licence is in
+  `data/transit/LICENSE-open`. They are one operator among several, so a
+  timetable answer is used only when it is not clearly slower than the
+  estimate over every line. A new feed is a line in `FEEDS` in
+  `scripts/transit/build-gtfs.mjs`.
 - **The rest of Japan: an estimate over the real network.** No operator
   outside Tokyo publishes its timetable openly, so every other line in the
   country (about 9,000 stations on 590 lines, JR to trams) is modelled: the
   real route over real track, time on board from distance, the kind of line
   and how many trains stop at each station, and the wait from how often trains
   run. Shown with `~` and drawn along the track. Its speeds are fitted
-  against Tokyo's timetables, where both exist: 80% of journeys come within
-  ±13% (`scripts/transit/calibrate.mjs`), and in Fukuoka, where it was not
-  fitted, it lands within a few minutes of the subway's timetable. Source: the
+  against real timetables (`scripts/transit/calibrate.mjs`): on 300 Tokyo
+  journeys of 2 to 120 km, 80% come within −15%/+10% and 95% within 10
+  minutes or 20%; on the regional railways, trams and Fukuoka subway of the
+  open feeds, time on board is right at the median. Fast JR corridors, where
+  a special rapid skips most stations, come out about a fifth slow. Source: the
   [全国鉄道運行本数データ](https://gtfs-gis.jp/railway_honsu/) of the University of
   Tokyo and the Japan Bus Information Association (CC BY 4.0 / ODbL).
 - **Shinkansen.** That dataset counts only trains needing no extra ticket, so
   the eight Shinkansen lines come from `scripts/transit/shinkansen.mjs`, a
   small table of published journey times and service frequencies. Tokyo to
   Kyoto comes out at 2h22 door to door.
+- **English names.** Greater Tokyo's from mini-tokyo-3d, the rest from
+  [Wikidata](https://www.wikidata.org/) (CC0), matched by name and position
+  (`scripts/transit/wikidata.mjs`): 99.5% of stations and 99% of lines. The
+  rest show their Japanese names.
 - **Left out.** Surcharge trains other than the Shinkansen (Narita Express,
   Romancecar, limited expresses such as the Hida or Thunderbird), ferries,
-  buses, and public holidays (treated as weekdays). Station and line names
-  outside greater Tokyo are Japanese until a source of English names is added.
+  buses, and public holidays (treated as weekdays).
 
 How it fits together: `/api/routes` sends transit in Japan to
 `lib/japanTransit.js`, which tries the timetable regions
 (`lib/timetableRegions.js` over `lib/timetable.js`, a connection scan), then
 the nationwide model (`lib/railModel.js`, Dijkstra's). Each answers in
 Google's shape with `source: 'timetable'` or `'model'`, and loads its data
-(`data/transit/tokyo-rail.json`, 2.5 MB; `fukuoka-rail.json`, 28 KB;
-`japan-rail.json`, 0.9 MB) on its first request. Everything else goes to
+(`data/transit/tokyo-rail.json`, 2.5 MB; `open-rail.json`, 0.2 MB;
+`japan-rail.json`, 1 MB) on its first request. Everything else goes to
 Google as before.
 
 **Keeping it current.** Timetables change every March. Rebuild, refit, test,
@@ -101,12 +108,13 @@ node scripts/transit/build-tokyo.mjs mini-tokyo-3d
 mkdir honsu && cd honsu
 curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_kukan.geojson
 curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_eki.geojson
-cd .. && node scripts/transit/build-japan.mjs honsu mini-tokyo-3d
+cd ..
+node scripts/transit/wikidata.mjs wikidata             # English names
+node scripts/transit/build-japan.mjs honsu mini-tokyo-3d --wikidata wikidata
 
-git clone --depth 1 https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway.git
-node scripts/transit/build-gtfs.mjs fukuoka GTFS-FukuokaCitySubway/dist
+node scripts/transit/build-gtfs.mjs feeds              # downloads the open feeds into feeds/
 
-node scripts/transit/calibrate.mjs     # copy what it prints into PACE in lib/railModel.js
+node scripts/transit/calibrate.mjs     # fits PACE in lib/railModel.js; check its regional line too
 npm test
 ```
 

@@ -17,10 +17,12 @@
  *
  *   curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_kukan.geojson
  *   curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_eki.geojson
- *   node scripts/transit/build-japan.mjs <that folder> [mini-tokyo-3d checkout]
+ *   node scripts/transit/build-japan.mjs <that folder> [mini-tokyo-3d checkout] [--wikidata <folder>]
  *
- * The mini-tokyo-3d checkout, the one build-tokyo.mjs reads, is optional: it
- * gives English names to the lines and stations of greater Tokyo.
+ * Both of the others are optional, and give English names: the mini-tokyo-3d
+ * checkout build-tokyo.mjs reads, to greater Tokyo as the Tokyo timetable
+ * names it; and the Wikidata labels scripts/transit/wikidata.mjs fetches, to
+ * the rest of the country.
  */
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,7 +31,10 @@ import { MODEL_FORMAT } from '../../lib/railModel.js';
 import { lineName } from './names.mjs';
 import { SHINKANSEN } from './shinkansen.mjs';
 
-const [dir, tokyo] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const flag = args.indexOf('--wikidata');
+const wikidata = flag >= 0 ? args.splice(flag, 2)[1] : null;
+const [dir, tokyo] = args;
 const latest = (kind) => {
   const files = existsSync(dir || '') ? readdirSync(dir).filter((f) => new RegExp(`^unkohonsu(\\d{4})_${kind}\\.geojson$`).test(f)).sort() : [];
   return files.length ? join(dir, files[files.length - 1]) : null;
@@ -208,6 +213,36 @@ stations.forEach((f) => {
   if (byLine.has(k)) byLine.get(k).stations.push(f);
 });
 
+/*
+ * The register sometimes gives a station another's position: the Saikyō and
+ * Shōnan-Shinjuku Lines' 恵比寿 sit on 目黒's exact point, 1.6 km away. A
+ * station sharing its exact point with one of another name, where the same
+ * company has a station of its own name nearby, takes that station's point.
+ */
+const pointKey = (f) => f.geometry.coordinates.join(',');
+const namesAt = new Map();
+stations.forEach((f) => {
+  if (!namesAt.has(pointKey(f))) namesAt.set(pointKey(f), new Set());
+  namesAt.get(pointKey(f)).add(f.properties['駅名']);
+});
+const namesakes = new Map();
+stations.forEach((f) => {
+  const k = `${f.properties['事業者コード']}|${f.properties['駅名']}`;
+  if (!namesakes.has(k)) namesakes.set(k, []);
+  namesakes.get(k).push(f.geometry.coordinates);
+});
+let repaired = 0;
+stations.forEach((f) => {
+  if (namesAt.get(pointKey(f)).size < 2) return;
+  const here = toPoint(f.geometry.coordinates);
+  const own = (namesakes.get(`${f.properties['事業者コード']}|${f.properties['駅名']}`) || [])
+    .filter((c) => namesAt.get(c.join(',')).size === 1)
+    .map((c) => ({ c, d: metres(toPoint(c), here) }))
+    .filter(({ d }) => d < 5000)
+    .sort((a, b) => a.d - b.d)[0];
+  if (own) { f.geometry.coordinates = own.c; repaired += 1; }
+});
+
 const operators = [];
 const operatorIndex = new Map();
 const lines = [];
@@ -344,6 +379,131 @@ for (const s of SHINKANSEN) {
   });
 }
 
+/* ----------------------------------------------------------- Wikidata -- */
+
+/*
+ * English names for the rest of Japan, from Wikidata's labels. A station is
+ * matched by name within 1.5 km. Wikidata often files a station once per
+ * company, with the company in the label (京都市営地下鉄京都駅, "Kyoto Municipal
+ * Subway Kyōto Station"); where a plain label sits beside such a one, the two
+ * teach what the prefix is in each language, and that is taken off where only
+ * the prefixed label exists. A line is matched by vote: the Wikidata lines
+ * its stations are on, the one most of them share, ahead if its name agrees.
+ */
+const bare = (s) => fold(s).replace(/[（(][^）)]*[）)]/g, '').replace(/(駅|停留場|停留所|電停)$/, '');
+const bareEn = (s) => String(s || '').replace(/\s*\([^)]*\)/g, '').replace(/[‐‑–]/g, '-')
+  .replace(/\s+(station|stop|tram stop|streetcar stop|halt)$/i, '').trim();
+
+function wikidataItems(folder) {
+  const items = new Map();
+  readdirSync(folder).filter((f) => /^box_.*\.json$/.test(f)).forEach((f) => {
+    JSON.parse(readFileSync(join(folder, f), 'utf8')).results.bindings.forEach((r) => {
+      const id = r.st.value;
+      if (!items.has(id)) {
+        const m = r.coord.value.match(/Point\(([-\d.eE]+) ([-\d.eE]+)\)/);
+        if (!m) return;
+        items.set(id, {
+          ja: r.stJa ? r.stJa.value : '', en: r.stEn ? r.stEn.value : '',
+          lat: Number(m[2]), lng: Number(m[1]), lines: new Map(),
+        });
+      }
+      if (r.line) items.get(id).lines.set(r.line.value, { ja: r.lineJa ? r.lineJa.value : '', en: r.lineEn ? r.lineEn.value : '' });
+    });
+  });
+  return [...items.values()].filter((i) => i.ja);
+}
+
+let wd = null;
+if (wikidata) {
+  const items = wikidataItems(wikidata);
+  const cell = (lat, lng) => `${Math.floor(lat * 50)},${Math.floor(lng * 50)}`;
+  const grid = new Map();
+  items.forEach((it) => {
+    const k = cell(it.lat, it.lng);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(it);
+  });
+  const around = (at) => {
+    const out = [];
+    const r = Math.floor(at.lat * 50);
+    const c = Math.floor(at.lng * 50);
+    for (let i = r - 2; i <= r + 2; i += 1) {
+      for (let j = c - 2; j <= c + 2; j += 1) (grid.get(`${i},${j}`) || []).forEach((it) => out.push(it));
+    }
+    return out.filter((it) => metres(it, at) < 1500).sort((a, b) => metres(a, at) - metres(b, at));
+  };
+
+  // Each interchange's namesakes in Wikidata, the plain ones first.
+  const named = hubs.map((h) => {
+    const name = bare(h.name);
+    const same = around(h.at).filter((it) => bare(it.ja) === name || bare(it.ja).endsWith(name));
+    return { name, plain: same.filter((it) => bare(it.ja) === name), all: same };
+  });
+
+  // What a company prefix is in each language, learned where both labels exist.
+  const prefixes = new Map();
+  named.forEach(({ name, plain, all }) => {
+    const base = plain.find((it) => it.en);
+    if (!base) return;
+    all.filter((it) => it.en && bare(it.ja) !== name).forEach((it) => {
+      const ja = bare(it.ja).slice(0, -name.length);
+      const full = bareEn(it.en);
+      const tail = bareEn(base.en);
+      if (!ja || !full.endsWith(tail)) return;
+      const en = full.slice(0, full.length - tail.length);
+      const seen = prefixes.get(ja) || new Map();
+      seen.set(en, (seen.get(en) || 0) + 1);
+      prefixes.set(ja, seen);
+    });
+  });
+  const prefixFor = (ja) => {
+    const seen = prefixes.get(ja);
+    return seen ? [...seen].sort((a, b) => b[1] - a[1])[0][0] : null;
+  };
+
+  const stationEn = named.map(({ name, plain, all }) => {
+    const base = plain.find((it) => it.en);
+    if (base) return bareEn(base.en);
+    for (const it of all.filter((x) => x.en)) {
+      const en = bareEn(it.en);
+      const prefix = prefixFor(bare(it.ja).slice(0, -name.length));
+      if (prefix != null && en.startsWith(prefix)) return en.slice(prefix.length).trim();
+    }
+    return '';
+  });
+
+  // Lines, by what their stations vote for.
+  const similar = (a, b) => {
+    const x = fold(a).replace(/本線$/, '線');
+    const y = fold(b).replace(/本線$/, '線');
+    return x === y || y.endsWith(x) || x.endsWith(y);
+  };
+  const lineEn = lines.map((l) => {
+    if (l.k === 'shinkansen') return '';
+    const votes = new Map();
+    l.s.forEach((h) => {
+      const here = new Map();
+      named[h].all.forEach((it) => it.lines.forEach((v, q) => here.set(q, v)));
+      here.forEach((v, q) => {
+        const vote = votes.get(q) || { ...v, n: 0 };
+        vote.n += 1;
+        votes.set(q, vote);
+      });
+    });
+    const need = Math.max(2, Math.ceil(l.s.length * 0.3));
+    const best = [...votes.values()]
+      .map((v) => ({ ...v, score: v.n + (similar(l.ja, v.ja) ? l.s.length / 2 : 0) }))
+      .filter((v) => v.n >= need && v.en)
+      .sort((a, b) => b.score - a.score)[0];
+    if (!best) return '';
+    const en = bareEn(best.en);
+    // The JR lines are called JR this and that, as in Tokyo.
+    return /^JR/.test(operators[l.o]) && !/^JR\b/.test(en) ? `JR ${en}` : en;
+  });
+  wd = { stationEn, lineEn, items: items.length };
+  lines.forEach((l, i) => { if (!l.en && lineEn[i]) l.en = lineEn[i]; });
+}
+
 /* --------------------------------------------------------------- write -- */
 
 const data = {
@@ -356,11 +516,11 @@ const data = {
     licence: 'CC BY 4.0 / ODbL; University of Tokyo Social ICT Research Center and Japan Bus Information Association; see LICENSE-japan',
   },
   operators,
-  hubs: hubs.map((h) => {
+  hubs: hubs.map((h, i) => {
     const lat = h.points.reduce((s, p) => s + p.lat, 0) / h.points.length;
     const lng = h.points.reduce((s, p) => s + p.lng, 0) / h.points.length;
     const at = { lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5 };
-    return [h.name, h.en || stationEnglish(h.name, at), at.lat, at.lng];
+    return [h.name, h.en || stationEnglish(h.name, at) || (wd ? wd.stationEn[i] : ''), at.lat, at.lng];
   }),
   lines,
 };
@@ -384,8 +544,10 @@ the file beside this one, built by scripts/transit/build-japan.mjs.
 `);
 
 const named = data.hubs.filter((h) => h[1]).length;
+if (wd) console.log(`Wikidata: ${wd.items} stations read; English names for ${named} of ${data.hubs.length} stations, `
+  + `${lines.filter((l) => l.en).length} of ${lines.length} lines.`);
 console.log(`${data.hubs.length} stations (${named} with English names) on ${lines.length} lines `
   + `(${lines.filter((l) => l.k === 'shinkansen').length} Shinkansen), ${operators.length} companies; `
   + `${(JSON.stringify(data).length / 1e6).toFixed(2)} MB.`);
-console.log(`${rerouted} hops drawn straight where the track missed a station.`);
+console.log(`${rerouted} hops drawn straight where the track missed a station; ${repaired} stations moved off another's point.`);
 if (problems.length) console.log(`Skipped:\n  ${problems.join('\n  ')}`);

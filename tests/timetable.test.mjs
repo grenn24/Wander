@@ -183,11 +183,12 @@ test('Tokyo: the shipped timetable plans journeys a local would recognise', () =
 });
 
 /*
- * Fukuoka's subway, from the open GTFS feed (scripts/transit/build-gtfs.mjs).
+ * The other open timetables, from the GTFS Data Repository and GitHub
+ * (scripts/transit/build-gtfs.mjs), in one file.
  */
-test('Fukuoka: the subway timetable, through-running included', async () => {
+test('Open feeds: Fukuoka\'s subway, through-running included', async () => {
   const { REGIONS } = await import('../lib/timetableRegions.js');
-  const data = JSON.parse(readFileSync(new URL('../data/transit/fukuoka-rail.json', import.meta.url), 'utf8'));
+  const data = JSON.parse(readFileSync(new URL('../data/transit/open-rail.json', import.meta.url), 'utf8'));
   const net = buildNetwork(data, 'weekday');
   const at = (name) => { const s = data.stops.find((x) => x[0] === name); return { lat: s[1], lng: s[2] }; };
 
@@ -199,8 +200,23 @@ test('Fukuoka: the subway timetable, through-running included', async () => {
   const kaizuka = asRoute(net, typicalJourney(net, at('Meinohama'), at('Kaizuka')));
   assert.deepEqual(kaizuka.lines.map((l) => [l.name, l.through]), [['Kuko Line', false], ['Hakozaki Line', true]]);
 
-  const area = REGIONS.find((r) => r.id === 'fukuoka').area;
+  const area = REGIONS.find((r) => r.id === 'open').area;
   const reach = 0.04;
   data.stops.forEach(([name, lat, lng]) => assert.ok(lat - reach > area.south && lat + reach < area.north
-    && lng - reach > area.west && lng + reach < area.east, `${name} is outside the Fukuoka area`));
+    && lng - reach > area.west && lng + reach < area.east, `${name} is outside the open feeds' area`));
+});
+
+test('Open feeds: trams too, named in English, and no surcharge trains', () => {
+  const data = JSON.parse(readFileSync(new URL('../data/transit/open-rail.json', import.meta.url), 'utf8'));
+  const net = buildNetwork(data, 'weekday');
+  const at = (name) => { const s = data.stops.find((x) => x[0] === name); return { lat: s[1], lng: s[2] }; };
+  // Kumamoto Station to Suizenji Park: the A tram, about half an hour.
+  const suizenji = asRoute(net, typicalJourney(net, at('Kumamoto Station'), at('Suizenji Park')));
+  assert.equal(suizenji.lines[0].name, 'Kumamoto City Tram A');
+  assert.equal(suizenji.lines[0].vehicle, 'TRAM');
+  assert.ok(suizenji.seconds / 60 > 20 && suizenji.seconds / 60 < 50, `${suizenji.seconds / 60} min`);
+  // Ten feeds, nearly every station named in English, and the Ise Railway's Limited Express Nanki left out.
+  const names = [...new Set(data.stops.map((s) => s[0]))];
+  assert.ok(names.filter((n) => /[ぁ-んァ-ン一-龥]/.test(n)).length <= names.length * 0.05, 'English names');
+  assert.ok(data.lines.every(([name]) => !/特急|Nanki/.test(name)));
 });

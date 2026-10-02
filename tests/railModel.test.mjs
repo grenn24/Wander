@@ -160,8 +160,16 @@ test('Japan: where real timetables exist, the model agrees with them', async () 
   // The same comparison scripts/transit/calibrate.mjs fits PACE by, on a smaller sample.
   const { samplePairs, score } = await import('../scripts/transit/calibrate.mjs');
   const { error, median } = score(samplePairs(120), PACE);
-  assert.ok(error < 0.1, `mean |log ratio| ${error.toFixed(3)}`);
+  assert.ok(error < 0.12, `mean |log ratio| ${error.toFixed(3)}`);
   assert.ok(median > 0.93 && median < 1.07, `median ratio ${median.toFixed(3)}`);
+});
+
+test('Japan: and outside Tokyo, it agrees with the open timetables on board', async () => {
+  const { regionalPairs, regionalScore } = await import('../scripts/transit/calibrate.mjs');
+  const byKind = regionalScore(regionalPairs(30), PACE);
+  for (const [kind, { median }] of Object.entries(byKind)) {
+    assert.ok(median > 0.8 && median < 1.25, `${kind}: median ratio ${median.toFixed(2)}`);
+  }
 });
 
 test('a partial timetable is taken unless it is clearly slower than the estimate', async () => {
@@ -178,7 +186,7 @@ test('a partial timetable is taken unless it is clearly slower than the estimate
 
 test('Fukuoka: the model, fitted in Tokyo, agrees with a real timetable elsewhere', async () => {
   const { buildNetwork, typicalJourney } = await import('../lib/timetable.js');
-  const data = JSON.parse(readFileSync(new URL('../data/transit/fukuoka-rail.json', import.meta.url), 'utf8'));
+  const data = JSON.parse(readFileSync(new URL('../data/transit/open-rail.json', import.meta.url), 'utf8'));
   const net = buildNetwork(data, 'weekday');
   const at = (name) => { const s = data.stops.find((x) => x[0] === name); return { lat: s[1], lng: s[2] }; };
   for (const [a, b] of [['Tenjin', 'Hakata'], ['Meinohama', 'Kaizuka'], ['Fukuoka Airport', 'Tenjin'], ['Hashimoto', 'Hakata']]) {
