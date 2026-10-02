@@ -91,10 +91,11 @@ out or clear offline downloads. Keep auth consumers outside the SDK callback
 lock. Regression coverage is in `tests/session-recovery.test.mjs`.
 
 Transit in Japan does not come from Google, whose Routes API has none there.
-`/api/routes` sends it to `lib/japanTransit.js`: greater Tokyo from bundled
-timetables (`lib/timetable.js`, `lib/tokyoTransit.js`), the rest of the
-country from a model of every line (`lib/railModel.js`), and Google for
-everything else. In `lib/travel.js`, `canRoute` still means "Google can";
+`/api/routes` sends it to `lib/japanTransit.js`: real timetables where they
+are open (`lib/timetableRegions.js`: greater Tokyo, complete; Fukuoka's
+subway, partial, so used only when not clearly slower than the model), the
+rest of the country from a model of every line (`lib/railModel.js`), and
+Google for everything else. In `lib/travel.js`, `canRoute` still means "Google can";
 `canAsk` adds the gaps the app fills itself, and the client sends
 `google: false` for those so they never cost a Google call. Answers carry
 `source: 'timetable'` or `'model'`; a model answer is an estimate (`~`) whose

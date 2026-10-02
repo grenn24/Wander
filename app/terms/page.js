@@ -72,7 +72,12 @@ export default function Terms() {
         Train times in Japan come from open data. Greater Tokyo&rsquo;s timetables are the
         operators&rsquo;, through the Public Transportation Open Data Center, as gathered by{' '}
         <a href="https://github.com/nagix/mini-tokyo-3d" target="_blank" rel="noreferrer">mini-tokyo-3d</a>{' '}
-        (MIT licence). Elsewhere in Japan, times are estimated from the{' '}
+        (MIT licence). Fukuoka&rsquo;s subway timetable is the Fukuoka City Transportation
+        Bureau&rsquo;s, as published in GTFS by{' '}
+        <a href="https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway" target="_blank" rel="noreferrer">
+          Masayuki Kuwayama
+        </a>{' '}
+        (CC BY 4.0). Elsewhere in Japan, times are estimated from the{' '}
         <a href="https://gtfs-gis.jp/railway_honsu/" target="_blank" rel="noreferrer">
           全国鉄道運行本数データ
         </a>{' '}

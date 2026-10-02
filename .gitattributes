@@ -1,3 +1,2 @@
 # Packed by scripts/transit/build-*.mjs: one long line each, not worth diffing.
-data/transit/tokyo-rail.json -diff linguist-generated=true
-data/transit/japan-rail.json -diff linguist-generated=true
+data/transit/*-rail.json -diff linguist-generated=true

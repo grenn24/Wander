@@ -6,7 +6,7 @@ import {
   typicalJourney, asRoute, covers, tokyoClock, encodePath, walkFor,
 } from '../lib/timetable.js';
 import { decodePath } from '../lib/geo.js';
-import { TOKYO_AREA } from '../lib/tokyoTransit.js';
+import { TOKYO_AREA } from '../lib/timetableRegions.js';
 
 test('minute runs and trains survive packing, including the rare long one', () => {
   const values = [0, 1, 2, 60, 61, 62, 95, 400, 3];
@@ -180,4 +180,27 @@ test('Tokyo: the shipped timetable plans journeys a local would recognise', () =
   // No surcharge trains: Narita to Ueno is the ordinary Keisei, not the Skyliner.
   const narita = asRoute(net, typicalJourney(net, { lat: 35.7720, lng: 140.3929 }, { lat: 35.7148, lng: 139.7732 }));
   assert.ok(narita.lines.every((l) => !/Skyliner|Narita Express/.test(`${l.name} ${l.type}`)), JSON.stringify(narita.lines));
+});
+
+/*
+ * Fukuoka's subway, from the open GTFS feed (scripts/transit/build-gtfs.mjs).
+ */
+test('Fukuoka: the subway timetable, through-running included', async () => {
+  const { REGIONS } = await import('../lib/timetableRegions.js');
+  const data = JSON.parse(readFileSync(new URL('../data/transit/fukuoka-rail.json', import.meta.url), 'utf8'));
+  const net = buildNetwork(data, 'weekday');
+  const at = (name) => { const s = data.stops.find((x) => x[0] === name); return { lat: s[1], lng: s[2] }; };
+
+  const airport = asRoute(net, typicalJourney(net, at('Fukuoka Airport'), at('Tenjin')));
+  assert.deepEqual(airport.lines.map((l) => l.name), ['Kuko Line']);
+  assert.ok(airport.seconds / 60 > 10 && airport.seconds / 60 < 30, `${airport.seconds / 60} min`);
+
+  // Kūkō Line trains run on into the Hakozaki Line at Nakasu-Kawabata.
+  const kaizuka = asRoute(net, typicalJourney(net, at('Meinohama'), at('Kaizuka')));
+  assert.deepEqual(kaizuka.lines.map((l) => [l.name, l.through]), [['Kuko Line', false], ['Hakozaki Line', true]]);
+
+  const area = REGIONS.find((r) => r.id === 'fukuoka').area;
+  const reach = 0.04;
+  data.stops.forEach(([name, lat, lng]) => assert.ok(lat - reach > area.south && lat + reach < area.north
+    && lng - reach > area.west && lng + reach < area.east, `${name} is outside the Fukuoka area`));
 });

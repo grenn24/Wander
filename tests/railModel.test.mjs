@@ -163,3 +163,28 @@ test('Japan: where real timetables exist, the model agrees with them', async () 
   assert.ok(error < 0.1, `mean |log ratio| ${error.toFixed(3)}`);
   assert.ok(median > 0.93 && median < 1.07, `median ratio ${median.toFixed(3)}`);
 });
+
+test('a partial timetable is taken unless it is clearly slower than the estimate', async () => {
+  const { preferTimetable } = await import('../lib/japanTransit.js');
+  const timed = (min) => ({ found: true, seconds: min * 60 });
+  assert.equal(preferTimetable(timed(20), timed(18)), true);
+  assert.equal(preferTimetable(timed(30), timed(18)), false);
+  // Leaving now, the timetable's real wait is allowed for.
+  assert.equal(preferTimetable(timed(26), timed(18), true), true);
+  assert.equal(preferTimetable(timed(20), null), true);
+  assert.equal(preferTimetable({ found: false }, timed(18)), false);
+  assert.equal(preferTimetable(null, timed(18)), false);
+});
+
+test('Fukuoka: the model, fitted in Tokyo, agrees with a real timetable elsewhere', async () => {
+  const { buildNetwork, typicalJourney } = await import('../lib/timetable.js');
+  const data = JSON.parse(readFileSync(new URL('../data/transit/fukuoka-rail.json', import.meta.url), 'utf8'));
+  const net = buildNetwork(data, 'weekday');
+  const at = (name) => { const s = data.stops.find((x) => x[0] === name); return { lat: s[1], lng: s[2] }; };
+  for (const [a, b] of [['Tenjin', 'Hakata'], ['Meinohama', 'Kaizuka'], ['Fukuoka Airport', 'Tenjin'], ['Hashimoto', 'Hakata']]) {
+    const real = typicalJourney(net, at(a), at(b));
+    const estimate = go(at(a), at(b));
+    const gap = Math.abs(estimate.minutes - (real.arrives - real.leaves));
+    assert.ok(gap <= 8, `${a} to ${b}: model ${estimate.minutes.toFixed(0)} vs timetable ${real.arrives - real.leaves}`);
+  }
+});
