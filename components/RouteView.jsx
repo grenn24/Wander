@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
-import { fmtDuration } from '@/lib/util';
+import { fmtDuration, fmtTime } from '@/lib/util';
 
 /**
  * The way there, on this app's own map.
@@ -279,9 +279,9 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
               <span className="rv-lines">
                 {leg.lines.map((l) => (
                   <span className="rv-line" key={l.name + l.from}
-                    data-tip={l.departs ? (l.through ? `Same train, on from ${l.from}` : `From ${l.from} at ${l.departs}`) : undefined}>
+                    data-tip={l.departs ? (l.through ? `Same train, on from ${l.from}` : `From ${l.from} at ${fmtTime(l.departs)}`) : undefined}>
                     {l.name}
-                    {l.departs && !l.through ? <span className="mono"> {l.departs}</span> : null}
+                    {l.departs && !l.through ? <span className="mono"> {fmtTime(l.departs)}</span> : null}
                   </span>
                 ))}
               </span>
