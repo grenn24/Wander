@@ -425,6 +425,17 @@ Match the surrounding code — it is consistent and deliberate.
   needed. Keep explicit dimensions, lazy loading, empty alt text and print hiding.
 - UI copy is plain and short. No exclamation marks. Errors say what happened and
   what to do, never "Oops".
+- Loading, saving and other waiting text never ends in "…", "..." or animated
+  dots ("Saving", not "Saving…"; "Loading your globe", not "Loading your
+  globe..."). The spinner or the `Loading.jsx` plane carries the motion, and the
+  words just name what is happening. A chip waiting on a value (`LegLine`'s
+  travel times) shows its icon and holds its width, with no placeholder text.
+  This covers copy that tests assert (`notes-sync`, `planning-progress`) and
+  `public/offline.html`, whose cached shell is versioned in `public/sw.js`: bump
+  `CACHE` when that page changes or returning visitors keep the old one. Still
+  fine: the "…" on input placeholders and on buttons or menu items that open a
+  further step ("Something else…"), CSS `text-overflow: ellipsis`, and "…" that
+  marks cut-off text.
 - Reuse existing patterns before inventing one — there is already a confirm
   pattern, a popover, a menu, a toast, a tooltip. The previous agent shipped a
   fourth confirm design and was rightly told off for it.

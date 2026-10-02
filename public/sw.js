@@ -1,6 +1,6 @@
 /* Cache only the dedicated reader. Never cache API responses, account pages,
    Google imagery, or Next's authenticated navigation payloads. */
-const CACHE = 'wander-reader-v1';
+const CACHE = 'wander-reader-v2';
 const SHELL = ['/offline.html', '/offline.css', '/offline.js', '/offline-store.js', '/trip-time.js'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

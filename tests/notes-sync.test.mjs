@@ -23,7 +23,7 @@ test('optimistic updates and realtime echoes of our own saves are not conflicts'
   h.editor.change('second');
   await h.finish(0);
   assert.equal(h.state.text, 'second');
-  assert.equal(h.state.status, 'Saving…');
+  assert.equal(h.state.status, 'Saving');
   h.tick(); await h.finish(1);
   h.editor.receive('first');
   assert.equal(h.state.text, 'second');

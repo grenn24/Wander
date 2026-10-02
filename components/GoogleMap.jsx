@@ -1014,7 +1014,7 @@ function GoogleMapCanvas({
       </div>
       <div className="map-el" ref={elRef} />
       {!ready && !failed ? <div className={loadStyles.status}>
-        <div className={loadStyles.card} role="status">Loading map…</div>
+        <div className={loadStyles.card} role="status">Loading map</div>
       </div> : null}
     </>
   );

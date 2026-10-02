@@ -615,7 +615,7 @@ export default function MapView({
             onStopOpen={onEdit}
             onPhoto={openPhotos}
             onDropPin={async (lat, lng) => {
-              setDropped({ lat, lng, label: 'Looking up…', name: '' });
+              setDropped({ lat, lng, label: 'Looking up', name: '' });
               reveal();
               try {
                 const r = await reverseGeocode(lat, lng);
@@ -815,7 +815,7 @@ export default function MapView({
             <div className="mapfinds">
               {findsBusy ? (
                 <div className="small muted mapside-busy">
-                  <Loader2 size={14} className="spin" /> Looking around here…
+                  <Loader2 size={14} className="spin" /> Looking around here
                 </div>
               ) : finds.length === 0 ? (
                 <p className="small muted">
@@ -856,7 +856,7 @@ export default function MapView({
               <span className="tiny dim">
                 {picking ? `${pickedStops.length} of ${stops.length} picked`
                   : `${stops.length} stop${stops.length === 1 ? '' : 's'}`}
-                {locating ? ` · locating ${locating.done}/${locating.total}…` : ''}
+                {locating ? ` · locating ${locating.done}/${locating.total}` : ''}
               </span>
               {stops.length > 1 ? (
                 <button type="button" className={`btn sm ${m.pickToggle}`} aria-pressed={picking}

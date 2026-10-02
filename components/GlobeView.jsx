@@ -859,7 +859,7 @@ export default function GlobeView() {
                 {query.trim().length >= 3 ? (
                   <ul className={s.results} aria-label="Places found">
                     {!results.length ? (
-                      <li className={s.note}>{searching ? 'Looking…' : searchError || 'Nothing found.'}</li>
+                      <li className={s.note}>{searching ? 'Searching' : searchError || 'Nothing found.'}</li>
                     ) : results.map((r) => (
                       <li key={r.place_id || `${r.lat},${r.lng}`}>
                         <button type="button" className={s.result} onClick={() => pick(r)}>
@@ -955,7 +955,7 @@ export default function GlobeView() {
             </div>
             <div className={s.planList}>
               {!route ? (
-                <p className={s.note}>Finding its places…</p>
+                <p className={s.note}>Finding its places</p>
               ) : plan.days.map((day) => (
                 <section key={day.section} className={s.planDay}>
                   <h3 className={s.planDayTitle}>

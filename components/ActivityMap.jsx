@@ -206,7 +206,7 @@ export default function ActivityMap({
       ) : (
         <div className="amap-blank">
           {busy ? (
-            <><Loader2 size={16} className="spin" /> <span>Looking that up…</span></>
+            <><Loader2 size={16} className="spin" /> <span>Looking that up</span></>
           ) : (
             <><MapPin size={16} /> <span>Add a location and it appears here.</span></>
           )}

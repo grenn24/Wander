@@ -11,7 +11,9 @@
  * offset-path, so the plane cannot drift off the route it is drawing.
  *
  * `label` is announced to screen readers, so it should say what is being
- * waited for rather than "loading".
+ * waited for rather than "loading". Give it no trailing "…" and add no dots:
+ * the plane is the motion, and waiting text anywhere in the app is written
+ * without an ellipsis.
  */
 
 const PATH = 'M9,42 C38,4 80,6 111,24';

@@ -2236,16 +2236,9 @@ body:has(.lp)::before { display: none; }
 .loader-label {
   font-size: var(--fs-sm); color: var(--text-2); letter-spacing: .01em;
 }
-.loader-label::after {
-  content: '…';
-  /* Held in the layout so the label never shifts as the dots come and go. */
-  animation: loader-dots 2s steps(1) infinite;
-}
-@keyframes loader-dots {
-  0%   { content: '.'; }
-  33%  { content: '..'; }
-  66%  { content: '…'; }
-}
+/* The label carries no ellipsis or animated dots: the plane is the motion, and
+   a trailing "…" under it says "busy" twice. Loading text everywhere in the app
+   follows the same rule (see HANDOVER.md, conventions). */
 
 /* offset-path is what puts the plane on the route; without it the plane would
    sit in the corner, so hide it and let the trail carry the animation. */
@@ -2257,7 +2250,6 @@ body:has(.lp)::before { display: none; }
   .loader-trail { animation: none; stroke-dashoffset: 0; }
   .loader-plane { animation: none; offset-distance: 100%; }
   .loader-pin-to { animation: none; fill: var(--accent); stroke: var(--accent); }
-  .loader-label::after { animation: none; content: '…'; }
 }
 
 @media print { .loader { display: none !important; } }

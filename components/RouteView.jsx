@@ -242,11 +242,11 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
 
       <footer className="rv-foot">
         {where === 'asking' && !from ? (
-          <p className="rv-note"><LocateFixed size={14} /> Finding where you are…</p>
+          <p className="rv-note"><LocateFixed size={14} /> Finding where you are</p>
         ) : nowhere ? (
           <p className="rv-note">No starting point.</p>
         ) : busy ? (
-          <p className="rv-note"><Loader2 size={14} className="spin" /> Working out the route…</p>
+          <p className="rv-note"><Loader2 size={14} className="spin" /> Working out the route</p>
         ) : err ? (
           <p className="rv-note">{err}</p>
         ) : leg && !leg.found ? (

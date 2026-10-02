@@ -98,7 +98,7 @@ export default function AiSuggest({
 
       {busy && !ideas.length ? (
         <div className="small muted mapside-busy">
-          <Loader2 size={14} className="spin" /> Thinking about {dayLabel}…
+          <Loader2 size={14} className="spin" /> Thinking about {dayLabel}
         </div>
       ) : null}
 

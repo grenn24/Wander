@@ -9,6 +9,8 @@
 }
 .way > svg { flex: none; color: var(--text-3); }
 .way[data-estimate] { font-style: italic; border-style: dashed; }
+/* Waiting on Google: the icon alone, in the width the time will take, so the chip does not jump when it arrives. */
+.way[data-waiting] { min-width: 3.4em; opacity: .6; }
 .way[data-on] { border-color: var(--border-strong); background: var(--surface-2); color: var(--text-1); }
 .way[data-on] > svg { color: var(--text-1); }
 /* As buttons: each way can be chosen for its hop. */

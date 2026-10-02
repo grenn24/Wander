@@ -428,7 +428,7 @@ export default function ActivityModal({ draft, days, currency, onChange, onSave,
                 <span>
                   {pinned ? 'Pinned to this spot.'
                     : !said ? 'Anything written here is found on the map for you.'
-                      : guess.busy ? 'Looking that up…'
+                      : guess.busy ? 'Looking that up'
                         : found ? `Best match — ${found.name || found.label}`
                           : 'Nothing found for that yet.'}
                 </span>

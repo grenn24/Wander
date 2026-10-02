@@ -105,7 +105,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     baseline.current = next;
     if (saving.current) return;
     saving.current = true;
-    setMessage('Saving…');
+    setMessage('Saving');
     try {
       while (pending.current.length) {
         await remote.save(pending.current[0]);
@@ -306,7 +306,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     <button type="button" disabled={!ready} onClick={() => add()}><StickyNote size={15} /> Note</button>
     <button type="button" disabled={!ready} onClick={() => { uploadTarget.current = null; fileInput.current.click(); }}><ImagePlus size={15} /> Picture</button>
     {deleted ? <button type="button" onClick={() => { change([...current.current, deleted]); setDeleted(null); }}><Undo2 size={15} /> Undo delete</button> : null}
-    <span role="status">{preparing ? 'Preparing pictures…' : message || 'Loading shared desk…'}</span>
+    <span role="status">{preparing ? 'Preparing pictures' : message || 'Loading shared desk'}</span>
   </div>;
 
   return <>
@@ -322,7 +322,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
         <button type="button" disabled={!ready} onClick={() => add()}><StickyNote size={18} /> Add note</button>
         <button type="button" disabled={!ready} onClick={() => { uploadTarget.current = null; fileInput.current.click(); }}><ImagePlus size={18} /> Add picture</button>
         <span className={styles.marginTip}>Double-click empty space to add a note</span>
-        {preparing ? <span className={styles.marginTip} role="status">Preparing pictures…</span> : null}
+        {preparing ? <span className={styles.marginTip} role="status">Preparing pictures</span> : null}
       </div>
       {ready && !items.length ? <button type="button" className={styles.starter} style={{ width: Math.min(244, bounds.lane - 12) }} onClick={() => add()}>
         <StickyNote size={25} aria-hidden="true" />

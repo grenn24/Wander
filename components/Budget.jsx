@@ -124,7 +124,7 @@ export default function Budget({ trip, days, activities, members = [], onSplitCh
           </div>)}
           <p className="tiny dim">{money(total, currency)} across {included.length} {included.length === 1 ? 'person' : 'people'}. Rounding is distributed so shares add up to the total.</p>
         </div> : <p className="small muted">Select at least one traveller to calculate a share.</p>}
-        {onSplitChange ? <button className="btn" disabled={saving || !included.length} onClick={saveSplit}>{saving ? 'Saving…' : 'Save split'}</button> : null}
+        {onSplitChange ? <button className="btn" disabled={saving || !included.length} onClick={saveSplit}>{saving ? 'Saving' : 'Save split'}</button> : null}
         {splitMessage ? <p className="small muted" role="status">{splitMessage}</p> : null}
       </section>
 

@@ -44,7 +44,7 @@ export default function OfflineDownload() {
     <div className="chiprow">
       <button className="btn" disabled={busy || !ready} onClick={download}>
         {busy ? <Loader2 size={15} className="spin" /> : saved ? <Check size={15} /> : <Download size={15} />}
-        {busy ? 'Downloading…' : saved ? 'Update offline copy' : 'Download for offline'}
+        {busy ? 'Downloading' : saved ? 'Update offline copy' : 'Download for offline'}
       </button>
       {saved ? <><a className="btn" href={`/offline.html?trip=${encodeURIComponent(trip.id)}`}>Open saved trip</a>
         <button className="btn ghost" disabled={busy} onClick={async () => {

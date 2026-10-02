@@ -125,7 +125,7 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
     if (!state || !state.connected) return (
       <section className="card tset">
         <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Google Calendar</h3>
-        <p className="tset-hint">{!state ? 'Checking your calendar connection…'
+        <p className="tset-hint">{!state ? 'Checking your calendar connection'
           : !state.available ? 'Google Calendar is not available on this deployment.'
             : 'Connect Google Calendar from your account page, then return here to add this trip.'}</p>
         {state?.available ? <a className="btn" href="/account">Open account</a> : null}
@@ -185,9 +185,9 @@ export default function CalendarLink({ mode = 'account', trip = null, synced = f
       <h3 className="tset-h"><CalendarClock size={15} aria-hidden="true" /> Google Calendar</h3>
 
       {calendar.saving ? (
-        <p className="tset-hint"><Loader2 size={13} className="spin" /> Finishing the connection…</p>
+        <p className="tset-hint"><Loader2 size={13} className="spin" /> Finishing the connection</p>
       ) : state === null ? (
-        <p className="tset-hint"><Loader2 size={13} className="spin" /> Checking…</p>
+        <p className="tset-hint"><Loader2 size={13} className="spin" /> Checking</p>
       ) : !state.available ? (
         <p className="tset-hint">Not set up on this deployment.</p>
       ) : state.connected ? (

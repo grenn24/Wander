@@ -181,7 +181,7 @@ export default function TripCover({ trip, onChange, bare = false }) {
           {working ? (
             <span className={s.busy}>
               <LoaderCircle size={18} className={s.spin} aria-hidden="true" />
-              {{ draw: 'Drawing…', delete: 'Deleting…', upload: 'Saving…', use: 'Changing…' }[busy]}
+              {{ draw: 'Drawing', delete: 'Deleting', upload: 'Saving', use: 'Changing' }[busy]}
             </span>
           ) : null}
         </div>

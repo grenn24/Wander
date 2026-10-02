@@ -48,5 +48,5 @@ function Joiner({ code }) {
     );
   }
 
-  return <div className="gate"><div className="muted">Joining trip…</div></div>;
+  return <div className="gate"><div className="muted">Joining trip</div></div>;
 }

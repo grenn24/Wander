@@ -45,7 +45,7 @@ export default function StaticActivityMap({ at, pinned, category, compact, title
       alt={`Map preview of ${title || 'this location'}`} draggable={false}
       onError={() => setResult({ query, error: true })} /> : <div className="amap-static-status" role="status">
       {current?.error ? <><MapPin size={22} /><span>Preview unavailable</span><small>Open the map to view this location.</small></>
-        : <><Loader2 size={20} className="spin" /><span>Loading map preview…</span></>}
+        : <><Loader2 size={20} className="spin" /><span>Loading map preview</span></>}
     </div>}
   </div>;
 }

@@ -42,8 +42,8 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
       <span className={s.ways}>
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
-          const time = o.waiting ? '…' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
-          const why = o.waiting ? 'Asking Google…'
+          const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
+          const why = o.waiting ? 'Asking Google'
             : o.estimate ? `Estimate${leg.gap ? `: Google has no ${o.mode === 'TRANSIT' ? 'transit' : TRAVEL_LABEL[o.mode].toLowerCase()} routes in ${leg.gap}` : ''}`
               : `${TRAVEL_LABEL[o.mode]}, by Google`;
           const chosen = o.mode === leg.chosen;
@@ -53,6 +53,7 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
             'data-on': o.mode === leg.drawn ? '' : undefined,
             'data-chosen': chosen ? '' : undefined,
             'data-estimate': o.estimate ? '' : undefined,
+            'data-waiting': o.waiting ? '' : undefined,
           };
           if (!onChoose) {
             return (
