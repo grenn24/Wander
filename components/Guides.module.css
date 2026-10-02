@@ -388,6 +388,12 @@
   min-height: 34px; padding: 0 13px; border: 0; border-radius: 999px; cursor: pointer;
   background: rgb(0 0 0 / .5); color: #fff; font: inherit; font-size: 13px; font-weight: 600;
 }
+/* Over the whole cover and under everything else in it: the title is text, so a click
+   on it lands here too. */
+.heroOpen {
+  position: absolute; inset: 0; padding: 0; border: 0; border-radius: inherit;
+  background: none; cursor: zoom-in;
+}
 .heroPhotos:hover { background: rgb(0 0 0 / .65); }
 .heroPhotos:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .flow { margin-top: 36px; }

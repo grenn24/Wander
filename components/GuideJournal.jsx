@@ -234,6 +234,8 @@ export default function GuideJournal({ guide: doc, hero = null }) {
     const at = gallery.findIndex((p) => (p.id || p.ref) === id);
     setViewer({ photos: gallery, index: Math.max(0, at) });
   };
+  // The cover is the first photograph, so this opens the viewer on it.
+  const openCover = () => setViewer({ photos: gallery, index: 0 });
 
   function rich(text) {
     return tokenize(text).map((part, i) => {
@@ -349,6 +351,12 @@ export default function GuideJournal({ guide: doc, hero = null }) {
         ) : hero ? (
           <img className={s.heroImg} alt="" src={`/api/places/photo?ref=${encodeURIComponent(hero.ref)}&w=2400`} />
         ) : null}
+        {/* The whole cover opens the viewer. It sits before the credit and the photo count in the
+            markup so they stay on top and keep their own clicks, and is skipped by the keyboard
+            because the count button does the same thing. */}
+        {gallery.length ? (
+          <button type="button" className={s.heroOpen} tabIndex={-1} aria-hidden="true" onClick={openCover} />
+        ) : null}
         <div className={s.heroText}>
           <span className={s.heroKicker}><Flag code={doc.flag} className={s.flag} />{placeLine(doc)}</span>
           <h1 className={s.heroTitle}>{doc.title}</h1>
@@ -368,7 +376,7 @@ export default function GuideJournal({ guide: doc, hero = null }) {
           <span className={s.heroCredit}>Photo: {hero.author}</span>
         ) : null}
         {gallery.length ? (
-          <button type="button" className={s.heroPhotos} onClick={() => setViewer({ photos: gallery, index: 0 })}>
+          <button type="button" className={s.heroPhotos} onClick={openCover}>
             <Camera size={15} aria-hidden="true" /> {gallery.length} {gallery.length === 1 ? 'photo' : 'photos'}
           </button>
         ) : null}
