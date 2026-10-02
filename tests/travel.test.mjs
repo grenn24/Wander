@@ -29,9 +29,9 @@ test('Japan\'s trains are asked of the app\'s own timetable; Korea\'s walks are 
   assert.equal(canAsk(KOREA, 'WALK'), false);
   assert.equal(canAsk(CHINA, 'TRANSIT'), false);
   assert.equal(canAsk(SINGAPORE, 'TRANSIT'), true);
-  assert.equal(whyEstimate(JAPAN, 'TRANSIT'), 'no station within walking distance');
-  assert.equal(whyEstimate(KOREA, 'DRIVE'), 'Google has no drive routes in South Korea');
-  assert.equal(whyEstimate(CHINA, 'TRANSIT'), 'Google has no transit routes in China');
+  assert.equal(whyEstimate(JAPAN, 'TRANSIT'), 'no station nearby');
+  assert.equal(whyEstimate(KOREA, 'DRIVE'), 'no Google drive routes in South Korea');
+  assert.equal(whyEstimate(CHINA, 'TRANSIT'), 'no Google transit routes in China');
   assert.equal(whyEstimate(SINGAPORE, 'TRANSIT'), '');
 });
 

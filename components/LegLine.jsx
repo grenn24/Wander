@@ -44,13 +44,12 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
-          const reason = o.source === 'model' ? 'worked out from how often trains run on these lines'
-            : o.source === 'walk' ? 'quicker on foot, no train here saves time'
-              : o.estimate ? whyEstimate(leg.country, o.mode) : '';
+          const reason = o.estimate && !o.source ? whyEstimate(leg.country, o.mode) : '';
           const why = o.waiting ? 'Working it out'
-            : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
-              : o.source === 'timetable' ? `${TRAVEL_LABEL[o.mode]}, from the train timetable`
-                : `${TRAVEL_LABEL[o.mode]}, by Google`;
+            : o.source === 'walk' ? 'Walking is quicker'
+              : o.source === 'model' ? 'Estimate, from train frequency'
+                : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
+                  : o.source === 'timetable' ? 'From the timetable' : 'From Google';
           const chosen = o.mode === leg.chosen;
           const said = `${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`;
           const shared = {
@@ -69,8 +68,7 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
           }
           return (
             <button key={o.mode} type="button" {...shared} aria-pressed={o.mode === leg.drawn}
-              data-tip={chosen ? `${why}. Chosen for this hop; click again to follow the map's Routes setting`
-                : `${why}. Click to show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
+              data-tip={chosen ? `${why} · chosen, click to undo` : why}
               aria-label={chosen ? `${said}, chosen for this hop` : `${said}. Show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
               onClick={(event) => {
                 event.preventDefault();
