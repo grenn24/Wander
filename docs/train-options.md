@@ -47,7 +47,15 @@ Clicking the chip opens the train options.
   - **Walks:** the last one starts with the exit badge (`Exit 2`).
   - **Trains:** the line badge; the boarding station with a platform chip;
     the line, then the operator mark and name; direction · stops · minutes;
-    the frequency and a **Departures** button; the station you get off at.
+    how often the trains run and, where there is a timetable, the next one
+    (`Every 5 min · next 10:07am`); the station you get off at.
+  - **The stop count opens:** tapping `3 stops` lists the stations passed in
+    between (Kanda, Ochanomizu), with their times where there is a timetable.
+    It leaves out the station you board at and the one you get off at, which
+    are already shown. Tapping again closes it.
+  - **Tapping a train step** anywhere else opens its departures, as in Google
+    Maps. There's no separate button: the step itself responds on hover and
+    press so it reads as something to tap.
 - **Fare:** one operator is one line: `[IC] IC card · [op] Tokyo Metro ¥209`.
   Several operators get a line each, then an `IC card` total.
 - **Saving:** a **Use** button. Once used, it reads **Remove**, with "Saved to
@@ -65,7 +73,7 @@ Clicking the chip opens the train options.
 
 ### Departures
 
-- **Opening it:** from a train step's Departures button. On desktop it replaces
+- **Opening it:** by tapping a train step. On desktop it replaces
   the panel's content, with `‹ Train options` to go back. On the phone it is
   full screen with a back arrow.
 - **The header:** the line badge, name and operator mark; `Tokyo → toward
@@ -83,8 +91,8 @@ Clicking the chip opens the train options.
 - **Another day:** a trip on a later day shows that day's timetable, weekday
   or weekend, from the planned leaving time.
 - **Where it exists:** only where there is a real timetable, which is Tokyo
-  and the open regional feeds. Elsewhere the step says `Every ~N min`, with no
-  Departures button.
+  and the open regional feeds. Elsewhere the step says `Every ~N min`, and
+  tapping it does nothing, so it doesn't respond as if it could be tapped.
 
 ### Badges and marks
 
@@ -126,7 +134,10 @@ four.
 - `legs`, each walk, wait or ride, with:
   - `minutes` and a polyline per leg, so each line is drawn in its own colour;
   - `line`: `{ id, name, code, colour, shape, operator }`;
-  - `from`, `to`, `stops`, `toward` and `every` (trains per hour, as minutes);
+  - `from`, `to`, `toward` and `every` (trains per hour, as minutes);
+  - `stops`: the stations passed in between, each with its time where there is
+    a timetable;
+  - `next`: the next departure, where there is a timetable;
   - `platform` and `exit`, where known.
 
 **Changes to the planners:**
