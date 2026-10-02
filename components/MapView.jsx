@@ -20,6 +20,7 @@ import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
 import TrainOptions from '@/components/TrainOptions';
+import { trainDrawing } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { travelNote } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
@@ -292,6 +293,13 @@ export default function MapView({
 
   const linesFor = (list, legsFound) => list.map((h) => {
     const leg = legsFound.byKey[h.key];
+    // The hop whose train options are open: the option shown, line by line, the others faint.
+    if (trainHop && h.key === trainHop) {
+      const way = trainsOf(h.key, legsFound);
+      const colour = dayColor(days.indexOf(h.day), days.length);
+      const train = way && trainDrawing(way.trains, shownTrain[h.key], { to: h.toTitle, walk: colour });
+      if (train) return { from: h.from, to: h.to, colour, train };
+    }
     const way = leg && leg.options.find((o) => o.mode === leg.drawn);
     // A modelled train time is an estimate, but its line follows the real track, so it is drawn.
     const real = !!(way && way.polyline && (!way.estimate || way.source === 'model'));
@@ -307,7 +315,7 @@ export default function MapView({
     if (!travel.on) return null;
     return linesFor(hops, travel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showingPicks, pickHops, pickTravel, travel, hops, days]);
+  }, [showingPicks, pickHops, pickTravel, travel, hops, days, trainHop, shownTrain]);
 
   const stopGroups = useMemo(() => {
     const groups = new Map();
@@ -646,6 +654,7 @@ export default function MapView({
             stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
             allowRoutes
             routeLines={routeLines}
+            onTrainShow={(id) => { if (trainHop) setShownTrain((v) => ({ ...v, [trainHop]: id })); }}
             covered={covered}
             placeColour={catColor}
             /*

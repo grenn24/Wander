@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeft, MapPin } from 'lucide-react';
 import {
   LineBadge, OperatorMark, ICCard, ExitBadge, PlatformChip, WalkIcon, TagChip, RichTip,
@@ -33,6 +33,8 @@ export default function TrainOptions({
   const [open, setOpen] = useState(() => shownId || (options[0] && options[0].id) || null);
   const [hover, setHover] = useState(null); // { id, piece }
   const [stopsOpen, setStopsOpen] = useState(() => new Set());
+  // An option shown from elsewhere (clicked on the map) opens here too.
+  useEffect(() => { if (shownId) setOpen(shownId); }, [shownId]);
   const longest = Math.max(1, ...options.map((o) => o.seconds));
 
   function toggle(o) {
