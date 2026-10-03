@@ -96,3 +96,4 @@
 .yen { font-family: var(--font-mono), monospace; font-weight: 600; color: var(--text-1); }
 .use { margin-top: 10px; width: 100%; min-height: 44px; justify-content: center; }
 .saved { margin: 8px 2px 0; font-size: var(--fs-xs); color: var(--text-3); }
+.ticket { flex: none; color: var(--text-3); }

@@ -27,19 +27,20 @@ import { FORMAT, packTiming, packTrain, haversineKm } from '../../lib/timetable.
  * The feeds. `repository` is the repository's organisation/feed id; `git` is
  * a repository and folder to clone instead. `en` names the operator in
  * English, for lines whose feed names them only generically. `vehicle`
- * corrects a feed that files its trams as buses.
+ * corrects a feed that files its trams as buses. `op` is the operator as
+ * lib/operators knows it, where it does; otherwise the English name stands.
  */
 const FEEDS = [
   {
-    id: 'fukuoka-subway', en: 'Fukuoka City Subway',
+    id: 'fukuoka-subway', en: 'Fukuoka City Subway', op: '福岡市',
     git: 'https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway.git', folder: 'dist',
     publisher: 'Fukuoka City Transportation Bureau; GTFS by Masayuki Kuwayama', licence: 'CC BY 4.0',
   },
-  { id: 'kumamoto-tram', repository: 'kumamoto-shiden/kumamotoshiden', en: 'Kumamoto City Tram' },
+  { id: 'kumamoto-tram', repository: 'kumamoto-shiden/kumamotoshiden', en: 'Kumamoto City Tram', op: '熊本市' },
   { id: 'kumamoto-dentetsu', repository: 'kumamotodentetsu/kumamotodentetsu', en: 'Kumamoto Electric Railway' },
-  { id: 'kochi-tram', repository: 'tosaden-kotsu/GTFS-Tosadentraffic_Streetcar', en: 'Tosaden Kōtsū Tram' },
-  { id: 'toyama-tram', repository: 'chitetsu/chitetsushinaidensha', en: 'Toyama City Tram', vehicle: 'TRAM' },
-  { id: 'takaoka-tram', repository: 'manyosen/manyosen', en: 'Manyōsen' },
+  { id: 'kochi-tram', repository: 'tosaden-kotsu/GTFS-Tosadentraffic_Streetcar', en: 'Tosaden Kōtsū Tram', op: 'とさでん交通' },
+  { id: 'toyama-tram', repository: 'chitetsu/chitetsushinaidensha', en: 'Toyama City Tram', vehicle: 'TRAM', op: '富山地方鉄道' },
+  { id: 'takaoka-tram', repository: 'manyosen/manyosen', en: 'Manyōsen', op: '万葉線' },
   { id: 'ise-railway', repository: 'isetetu/iserailway', en: 'Ise Railway' },
   { id: 'akechi-railway', repository: 'aketetsu/akechirailway', en: 'Akechi Railway' },
   { id: 'yamagata-railway', repository: 'yamagatatetsudo/flowerliner', en: 'Yamagata Railway' },
@@ -181,6 +182,16 @@ const intern = (list, index, key, value) => {
   return index.get(key);
 };
 const days = { weekday: [], weekend: [] };
+// Each feed's fares, by its fare zones: [line or -1 for any, from zone or -1 for any, to zone, yen].
+// Zones are numbered across all the feeds, so one feed's zone 1 is not another's.
+const fares = [];
+const zones = new Map();
+const zoneOf = (feed, z) => {
+  if (!z) return -1;
+  const key = `${feed.id}:${z}`;
+  if (!zones.has(key)) zones.set(key, zones.size);
+  return zones.get(key);
+};
 const skipped = { broken: 0 };
 let groups = 0;
 
@@ -214,7 +225,7 @@ for (const feed of FEEDS) {
     if (letter) en = `${feed.en} ${letter[1]}`;
     else if (/^To\s|streetcar/i.test(en)) en = feed.en;
     routeIndex.set(r.route_id, lines.length);
-    lines.push([en, (r.route_color || '').toUpperCase(), feed.vehicle || VEHICLE[r.route_type] || 'RAIL']);
+    lines.push([en, (r.route_color || '').toUpperCase(), feed.vehicle || VEHICLE[r.route_type] || 'RAIL', feed.op || feed.en]);
   });
 
   // Platforms belong to their station; one station is one place to change.
@@ -238,10 +249,24 @@ for (const feed of FEEDS) {
         Math.round(Number(at.stop_lat) * 1e5) / 1e5,
         Math.round(Number(at.stop_lon) * 1e5) / 1e5,
         route, group, group,
+        // Its fare zone, numbered apart from every other feed's.
+        zoneOf(feed, at.zone_id || station.zone_id),
       ]);
     }
     return stopIndex.get(key);
   };
+
+  // The feed's fares: the price of each, and the zones (and lines) each is for. An empty zone is any.
+  const prices = new Map(table(dir, 'fare_attributes')
+    .filter((f) => !f.currency_type || f.currency_type === 'JPY')
+    .map((f) => [f.fare_id, Number(f.price)]));
+  table(dir, 'fare_rules').forEach((r) => {
+    const yen = prices.get(r.fare_id);
+    if (!Number.isFinite(yen)) return;
+    const line = r.route_id ? routeIndex.get(r.route_id) : -1;
+    if (line === undefined) return; // a line left out, like the Limited Express
+    fares.push([line, zoneOf(feed, r.origin_id), zoneOf(feed, r.destination_id), yen]);
+  });
 
   const calendar = table(dir, 'calendar');
   const exceptions = table(dir, 'calendar_dates');
@@ -322,6 +347,7 @@ const data = {
   lines,
   types: [''],
   stops,
+  fares,
   seqs,
   timings,
   days: packed,

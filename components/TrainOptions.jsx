@@ -6,6 +6,8 @@ import {
 } from '@/components/TrainBits';
 import { summaryOf, barOf, stepsOf, linesOf, directionOf } from '@/lib/trainView';
 import { fmtMinute } from '@/lib/util';
+import { yen } from '@/lib/fares';
+import { Ticket } from 'lucide-react';
 import s from './TrainOptions.module.css';
 
 /**
@@ -94,7 +96,9 @@ export default function TrainOptions({
                   )}
                   {tags.map((t) => <TagChip key={t} tag={t} />)}
                   {o.fare ? (
-                    <span className={s.fare}><ICCard /> ¥{o.fare.total.toLocaleString('en-US')}</span>
+                    <span className={s.fare} data-tip={o.fare.upTo ? 'One fare or the other, by the distance ridden' : undefined}>
+                      {o.fare.basis === 'ic' ? <ICCard /> : <Ticket size={15} className={s.ticket} aria-hidden="true" />} {yen(o.fare)}
+                    </span>
                   ) : null}
                 </span>
                 <span className={s.barRow} onMouseLeave={() => setHover(null)}>
@@ -197,7 +201,7 @@ function RideStep({ option, index, leg, mode, stopsShown, onStops, onLeg }) {
     <li className={s.step} data-kind="ride" data-taps={onLeg ? '' : undefined}
       style={{ '--line': leg.line.colour || (leg.line.operator && leg.line.operator.colour) || 'var(--text-3)' }} {...tap}>
       <span className={s.rail}>
-        <LineBadge line={leg.line} />
+        <LineBadge line={leg.line} compact />
         <span className={s.track} aria-hidden="true" />
       </span>
       <span className={s.ride}>
@@ -257,16 +261,19 @@ function RideStep({ option, index, leg, mode, stopsShown, onStops, onLeg }) {
 
 /** The fare: one line for one operator, a line each and the total for several. */
 function FareBox({ fare }) {
-  const yen = (n) => `¥${n.toLocaleString('en-US')}`;
-  if (fare.parts.length === 1) {
-    const [part] = fare.parts;
+  const how = fare.basis === 'ic'
+    ? <><ICCard /> <b>IC card</b></>
+    : <><Ticket size={15} className={s.ticket} aria-hidden="true" /> <b>Fare</b></>;
+  const parts = fare.parts.filter((p) => !p.discount);
+  if (parts.length === 1 && parts.length === fare.parts.length) {
+    const [part] = parts;
     return (
       <div className={s.fareBox}>
         <span className={s.fareLine}>
-          <ICCard /> <b>IC card</b>
+          {how}
           {part.operator ? <><span className={s.dot}>·</span><OperatorMark operator={part.operator} /> {part.operator.name}</> : null}
         </span>
-        <span className={s.yen}>{yen(fare.total)}</span>
+        <span className={s.yen}>{yen(fare)}</span>
       </div>
     );
   }
@@ -274,13 +281,15 @@ function FareBox({ fare }) {
     <div className={s.fareBox} data-split="">
       {fare.parts.map((p, i) => (
         <span key={i} className={s.farePart}>
-          <span className={s.fareLine}>{p.operator ? <OperatorMark operator={p.operator} /> : null} {p.operator ? p.operator.name : ''}</span>
-          <span className={s.yen}>{yen(p.yen)}</span>
+          <span className={s.fareLine}>
+            {p.discount ? 'Changing between the two' : <>{p.operator ? <OperatorMark operator={p.operator} /> : null} {p.operator ? p.operator.name : ''}</>}
+          </span>
+          <span className={s.yen}>{yen(p)}</span>
         </span>
       ))}
       <span className={s.fareTotal}>
-        <span className={s.fareLine}><ICCard /> <b>IC card</b></span>
-        <span className={s.yen}>{yen(fare.total)}</span>
+        <span className={s.fareLine}>{how}</span>
+        <span className={s.yen}>{yen(fare)}</span>
       </span>
     </div>
   );

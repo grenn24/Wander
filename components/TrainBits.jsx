@@ -17,7 +17,7 @@ import s from './TrainBits.module.css';
  * letters shows a train; any other line without them, a bar of its colour
  * and its name.
  */
-export function LineBadge({ line, size = 'md', named = false }) {
+export function LineBadge({ line, size = 'md', named = false, compact = false }) {
   if (!line) return null;
   const ring = line.colour || (line.operator && line.operator.colour) || 'var(--text-3)';
   if (line.code || line.vehicle === 'HIGH_SPEED_TRAIN') {
@@ -30,6 +30,10 @@ export function LineBadge({ line, size = 'md', named = false }) {
         {named ? <span className={s.badgeName}>{line.name}</span> : null}
       </span>
     );
+  }
+  // Where there is no room for a name (a step's rail, a chip): a ring of the line's colour, named for screen readers.
+  if (compact) {
+    return <span className={s.blank} data-size={size} style={{ '--ring': ring }} role="img" aria-label={line.name} />;
   }
   return (
     <span className={s.bar} data-size={size} style={{ '--ring': ring }}>

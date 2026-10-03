@@ -3,6 +3,7 @@ import { Footprints, TrainFront, Car, TriangleAlert, Pin } from 'lucide-react';
 import TravelEstimate from '@/components/TravelEstimate';
 import { LineBadge } from '@/components/TrainBits';
 import { linesOf } from '@/lib/trainView';
+import { yen } from '@/lib/fares';
 import { fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
 import { TRAVEL_LABEL, whyEstimate } from '@/lib/travel';
@@ -76,10 +77,10 @@ export default function LegLine({ km, leg, gap = null, onChoose = null, onTrains
               <button key={o.mode} type="button" {...shared} data-trains="" data-tip={tip}
                 aria-label={`${said}. ${lines.map((l) => l.name).join(', ')}. Show other routes`}
                 onClick={(event) => { event.preventDefault(); event.stopPropagation(); onTrains(); }}>
-                {lines.slice(0, 3).map((l) => <LineBadge key={l.id} line={l} size="sm" />)}
+                {lines.slice(0, 3).map((l) => <LineBadge key={l.id} line={l} size="sm" compact />)}
                 {saved ? <Pin size={11} className={s.pin} aria-hidden="true" /> : null}
                 {time}
-                {first.fare ? <span className={s.fare}>· ¥{first.fare.total.toLocaleString('en-US')}</span> : null}
+                {first.fare ? <span className={s.fare}>· {yen(first.fare)}</span> : null}
               </button>
             );
           }

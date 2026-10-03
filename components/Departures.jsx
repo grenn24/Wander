@@ -62,7 +62,7 @@ export default function Departures({
           </button>
         ) : null}
         <div className={s.line}>
-          <LineBadge line={leg.line} size="lg" />
+          <LineBadge line={leg.line} size="lg" compact />
           <span className={s.name}>{leg.line.name}</span>
           <OperatorMark operator={leg.line.operator} />
         </div>

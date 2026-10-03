@@ -15,6 +15,14 @@
 .badge[data-size="lg"][data-shape="square"] { min-width: 32px; }
 .badgeName { font-weight: 600; color: var(--text-1); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* A line with no letters, where there is no room for its name: an empty ring of its colour. */
+.blank {
+  box-sizing: border-box; flex: none; display: inline-block;
+  width: 18px; height: 18px; border: 4px solid var(--ring); border-radius: 50%; background: #fff;
+}
+.blank[data-size="sm"] { width: 14px; height: 14px; border-width: 3.5px; }
+.blank[data-size="lg"] { width: 22px; height: 22px; }
+
 /* A line with no letters: a bar of its colour, then its name. */
 .bar { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .barSwatch { flex: none; width: 4px; height: 18px; border-radius: 2px; background: var(--ring); }
