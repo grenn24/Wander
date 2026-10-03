@@ -107,7 +107,7 @@ export default function Terms() {
             <li key={l.key}>
               {l.operator}:{' '}
               <a href={l.source} target="_blank" rel="noreferrer">{l.name || 'logo'}</a>
-              {l.artist ? `, by ${l.artist}` : ''}, {l.licence}
+              {l.artist ? `, by ${l.artist}` : ''}, {l.licence}{l.crop ? '; cut to its mark' : ''}
             </li>
           ))}
         </ul>
