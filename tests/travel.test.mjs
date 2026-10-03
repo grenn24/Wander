@@ -131,3 +131,14 @@ test('trains in Japan bring the other ways along', () => {
   });
   assert.equal(missing.find((o) => o.mode === 'TRANSIT').preferMissing, true);
 });
+
+test('a saved train route holds only while the stop before is the one it was chosen after', async () => {
+  const { savedLines } = await import('../lib/travel.js');
+  const before = { id: 'a1' };
+  const stop = { id: 'a2', transit_pick: { after: 'a1', lines: ['Marunouchi Line'] } };
+  assert.deepEqual(savedLines(before, stop), ['Marunouchi Line']);
+  assert.equal(savedLines({ id: 'a9' }, stop), null, 'the day was reordered');
+  assert.equal(savedLines(before, { id: 'a2' }), null);
+  assert.equal(savedLines(before, { id: 'a2', transit_pick: { after: 'a1', lines: [] } }), null);
+  assert.equal(savedLines(null, stop), null);
+});

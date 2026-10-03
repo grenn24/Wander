@@ -212,7 +212,8 @@ function RideStep({ option, index, leg, mode, stopsShown, onStops, onLeg }) {
             <>
               <span className={s.dot}>·</span>
               <OperatorMark operator={leg.line.operator} />
-              <span className={s.op}>{leg.line.operator.name}</span>
+              {/* The mark alone where the line's name already says who runs it. */}
+              {leg.line.name.includes(leg.line.operator.name) ? null : <span className={s.op}>{leg.line.operator.name}</span>}
             </>
           ) : null}
         </span>

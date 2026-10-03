@@ -44,7 +44,8 @@ function keep(key, value) {
   try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* the session still has it */ }
 }
 
-const legKey = (from, to, mode) => `${mode}:${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+const legKey = (from, to, mode, prefer = null) => `${mode}:${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`
+  + (prefer && prefer.length && mode === 'TRANSIT' ? `:${prefer.join('>')}` : '');
 
 // Three at a time, and one request per hop however many screens want it.
 const asking = new Map();
@@ -57,9 +58,9 @@ function pump() {
     next.job().then(next.resolve, next.reject).finally(() => { running -= 1; pump(); });
   }
 }
-function ask(key, from, to, mode, google) {
+function ask(key, from, to, mode, google, prefer) {
   if (!asking.has(key)) {
-    const job = () => routeBetween(from, to, mode, { google });
+    const job = () => routeBetween(from, to, mode, { google, ...(mode === 'TRANSIT' && prefer ? { prefer } : {}) });
     asking.set(key, new Promise((resolve, reject) => { waiting.push({ job, resolve, reject }); pump(); })
       .then((answer) => { keep(key, answer); return answer; })
       .finally(() => asking.delete(key)));
@@ -121,8 +122,9 @@ export function useLegChoices(tripId) {
 }
 
 /**
- * hops     [{ key, hop, from: { lat, lng }, to: { lat, lng }, km }] — `hop` names
- *          the pair of stops ("fromId>toId") a chosen way is kept under
+ * hops     [{ key, hop, from: { lat, lng }, to: { lat, lng }, km, prefer }] — `hop`
+ *          names the pair of stops ("fromId>toId") a chosen way is kept under,
+ *          `prefer` the train lines saved for it (lib/travel savedLines)
  * setting  the map's Routes setting: 'off', 'auto', or one way for every hop
  * choices  ways chosen for particular hops, from useLegChoices, over the setting
  *
@@ -158,7 +160,7 @@ export default function useLegs(hops, setting, choices = NONE) {
     };
   }, [countries]);
 
-  const signature = hops.map((h) => legKey(h.from, h.to, '')).join('|');
+  const signature = hops.map((h) => legKey(h.from, h.to, 'TRANSIT', h.prefer)).join('|');
   useEffect(() => {
     if (!on || !countries) return undefined;
     let live = true;
@@ -167,11 +169,11 @@ export default function useLegs(hops, setting, choices = NONE) {
       const country = countryOf(h.from);
       TRAVEL_MODES.forEach((mode) => {
         if (!canAsk(country, mode)) return;
-        const key = legKey(h.from, h.to, mode);
+        const key = legKey(h.from, h.to, mode, h.prefer);
         if (answers[key] !== undefined) return;
         const kept = recall(key);
         if (kept !== undefined) { found[key] = kept; return; }
-        ask(key, h.from, h.to, mode, canRoute(country, mode))
+        ask(key, h.from, h.to, mode, canRoute(country, mode), h.prefer)
           .then((answer) => { if (live) setAnswers((a) => ({ ...a, [key]: answer })); })
           // Not configured, or Google refused: this session goes without, and nothing is kept.
           .catch(() => { if (live) setAnswers((a) => ({ ...a, [key]: { mode, found: false } })); });
@@ -193,7 +195,7 @@ export default function useLegs(hops, setting, choices = NONE) {
       const name = gapCountry(country);
       const got = {};
       TRAVEL_MODES.forEach((mode) => {
-        const answer = answers[legKey(h.from, h.to, mode)];
+        const answer = answers[legKey(h.from, h.to, mode, h.prefer)];
         if (answer !== undefined) got[mode] = answer;
       });
       const options = countries ? travelOptions(h.km, country, got)

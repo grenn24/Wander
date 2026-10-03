@@ -26,7 +26,7 @@ import { activityDistance, fmtKm } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
 import TrainSheet from '@/components/TrainSheet';
 import useLegs, { useLegChoices } from '@/components/useLegs';
-import { travelNote } from '@/lib/travel';
+import { travelNote, savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
@@ -50,6 +50,8 @@ export default function Itinerary({
   // Which row is waiting on its place before the editor can open. A click that
   // does nothing visible for half a second reads as a click that missed.
   opening = '',
+  // Saving the train route for the way to a stop (TripProvider setTransitPick).
+  onTransitPick = null,
 }) {
   const today = clockAt(trip.timezone).day;
   const todayIndex = days.indexOf(today);
@@ -83,6 +85,8 @@ export default function Itinerary({
           hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
           fromTitle: prev.title, toTitle: a.title, day: a.day, fromEnd: prev.end_time, toStart: a.start_time,
+          fromId: (prev._source || prev).id, toId: (a._source || a).id,
+          prefer: savedLines(prev._source || prev, a._source || a),
         });
       });
     });
@@ -110,7 +114,9 @@ export default function Itinerary({
         title={`${h.fromTitle} → ${h.toTitle}`}
         sub={`${h.day ? `${fmtDay(h.day)} · ` : ''}≈ ${fmtKm(h.km)}`}
         note={way.source === 'model' ? 'Estimated from how often trains run' : 'Usual weekday trip around 10am'}
-        to={h.toTitle} preferMissing={!!way.preferMissing} />
+        to={h.toTitle} preferMissing={!!way.preferMissing}
+        savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
+        onUse={onTransitPick ? (id) => onTransitPick(h.toId, id ? { after: h.fromId, lines: id.split('>') } : null) : null} />
     );
   })();
   const params = useSearchParams();

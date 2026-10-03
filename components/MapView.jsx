@@ -24,7 +24,7 @@ import LegLine from '@/components/LegLine';
 import TrainPanel from '@/components/TrainPanel';
 import { trainDrawing } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
-import { travelNote } from '@/lib/travel';
+import { travelNote, savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import useKept from '@/components/useKept';
@@ -33,7 +33,7 @@ import m from './MapView.module.css';
 
 
 export default function MapView({
-  trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '',
+  trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '', onTransitPick = null,
 }) {
   const mapsReady = googleMapsAvailable();
   const [err, setErr] = useState('');
@@ -197,6 +197,7 @@ export default function MapView({
           key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
           fromTitle: prev.title, toTitle: a.title, fromEnd: prev.end_time, toStart: a.start_time,
+          fromId: prev.id, prefer: savedLines(prev, a),
         });
       }
       prev = a;
@@ -253,6 +254,8 @@ export default function MapView({
         to={h.toTitle}
         shownId={shownTrain[trainHop] || way.trains[0].id}
         onShow={(id) => setShownTrain((v) => ({ ...v, [trainHop]: id }))}
+        savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
+        onUse={onTransitPick ? (id) => onTransitPick(h.key, id ? { after: h.fromId, lines: id.split('>') } : null) : null}
         preferMissing={!!way.preferMissing}
         onBack={() => setTrainHop(null)} />
     );
