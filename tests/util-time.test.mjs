@@ -16,3 +16,12 @@ test('a timetable minute, past midnight included, is a 12-hour time', () => {
   assert.equal(fmtMinute(1500), '1am');
   assert.equal(fmtMinute(-5), '11:55pm');
 });
+
+test('the time in Japan, whatever the phone says', async () => {
+  const { tokyoNow, clockMinutes } = await import('../lib/util.js');
+  assert.deepEqual(tokyoNow(new Date('2026-11-10T01:05:00Z')), { date: '2026-11-10', minute: 10 * 60 + 5 });
+  assert.deepEqual(tokyoNow(new Date('2026-11-10T15:30:00Z')), { date: '2026-11-11', minute: 30 });
+  assert.equal(clockMinutes('09:30:00'), 570);
+  assert.equal(clockMinutes('18:05'), 1085);
+  assert.equal(clockMinutes(''), null);
+});

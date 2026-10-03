@@ -14,7 +14,7 @@ import TripCoverAdd from '@/components/TripCoverAdd';
 import useKept from '@/components/useKept';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
-  shortPlace, activityGap, fmtDuration,
+  shortPlace, activityGap, fmtDuration, tokyoNow, clockMinutes,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
 import { clockAt, tripNow } from '@/public/trip-time';
@@ -82,7 +82,7 @@ export default function Itinerary({
           // The same pair of stops the trip map keeps a chosen way under.
           hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
-          fromTitle: prev.title, toTitle: a.title, day: a.day,
+          fromTitle: prev.title, toTitle: a.title, day: a.day, fromEnd: prev.end_time, toStart: a.start_time,
         });
       });
     });
@@ -97,8 +97,15 @@ export default function Itinerary({
     const leg = h && travel.byKey[trainHop];
     const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
     if (!h || !way) return null;
+    const today = tokyoNow();
+    const live = h.day === today.date;
+    const end = clockMinutes(h.fromEnd);
+    const start = clockMinutes(h.toStart);
+    const leaveAt = live ? today.minute : end != null ? end
+      : start != null ? Math.max(0, start - Math.round(way.trains[0].seconds / 60)) : 600;
     return (
       <TrainSheet onClose={() => setTrainHop(null)}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} leaveAt={leaveAt}
         options={way.trains} mode="plan"
         title={`${h.fromTitle} → ${h.toTitle}`}
         sub={`${h.day ? `${fmtDay(h.day)} · ` : ''}≈ ${fmtKm(h.km)}`}

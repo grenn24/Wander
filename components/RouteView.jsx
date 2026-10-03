@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
-import TrainOptions from '@/components/TrainOptions';
-import { fmtDuration, fmtTime } from '@/lib/util';
+import TrainPanel from '@/components/TrainPanel';
+import { fmtDuration, fmtTime, tokyoNow } from '@/lib/util';
 
 /**
  * The way there, on this app's own map.
@@ -254,7 +254,8 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
 
       {trains ? (
         <div className="rv-trains">
-          <TrainOptions options={trains} mode="now" to={title}
+          <TrainPanel options={trains} mode="now" to={title}
+            ends={{ from, to }} date={tokyoNow().date} leaveAt={tokyoNow().minute} live
             note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
             shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
         </div>

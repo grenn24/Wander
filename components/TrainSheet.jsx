@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import TrainOptions from '@/components/TrainOptions';
+import TrainPanel from '@/components/TrainPanel';
 import s from './TrainSheet.module.css';
 
 /**
@@ -25,7 +25,7 @@ export default function TrainSheet({ onClose, ...options }) {
           data-tip="Close  Esc" onClick={onClose}>
           <X size={16} />
         </button>
-        <TrainOptions {...options} />
+        <TrainPanel {...options} />
       </div>
     </div>
   ), document.body);

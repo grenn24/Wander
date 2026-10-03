@@ -4,7 +4,9 @@ import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
   Search, Crosshair, ChevronUp, ChevronDown, Check, List,
 } from 'lucide-react';
-import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
+import {
+  fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs, tokyoNow, clockMinutes,
+} from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
@@ -19,7 +21,7 @@ import Popover from '@/components/Popover';
 import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
-import TrainOptions from '@/components/TrainOptions';
+import TrainPanel from '@/components/TrainPanel';
 import { trainDrawing } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { travelNote } from '@/lib/travel';
@@ -194,7 +196,7 @@ export default function MapView({
         out.push({
           key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
-          fromTitle: prev.title, toTitle: a.title,
+          fromTitle: prev.title, toTitle: a.title, fromEnd: prev.end_time, toStart: a.start_time,
         });
       }
       prev = a;
@@ -216,6 +218,14 @@ export default function MapView({
     const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
     return way || null;
   };
+  // When you leave for a hop: when the stop before ends, or in time for the next, or a late morning.
+  const leaveFor = (h, option) => {
+    const end = clockMinutes(h.fromEnd);
+    if (end != null) return end;
+    const start = clockMinutes(h.toStart);
+    if (start != null && option) return Math.max(0, start - Math.round(option.seconds / 60));
+    return 600;
+  };
   const trainPanel = () => {
     const h = hops.find((x) => x.key === trainHop);
     const way = h && trainsOf(trainHop, travel);
@@ -228,8 +238,12 @@ export default function MapView({
       );
     }
     const dayIndex = days.indexOf(h.day);
+    const today = tokyoNow();
+    const live = h.day === today.date;
     return (
-      <TrainOptions key={trainHop}
+      <TrainPanel key={trainHop}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live}
+        leaveAt={live ? today.minute : leaveFor(h, way.trains[0])}
         options={way.trains}
         mode="plan"
         title={`${h.fromTitle} → ${h.toTitle}`}
