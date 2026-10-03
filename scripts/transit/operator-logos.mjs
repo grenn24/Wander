@@ -15,7 +15,10 @@
  * Writes public/operators/<country>/<id>.<svg|png> and
  * data/transit/registry/logos.json. Wikidata's query service and Commons ask
  * for a slow, named client, so it is one request at a time and it waits
- * when told to.
+ * when told to. Commons serves its original files to scripts only slowly and
+ * asks for thumbnails at its standard widths instead, so a logo is a PNG
+ * thumbnail tall enough for a sharp 12px mark on any screen, and an SVG only
+ * where it is cut to its mark (`logoCrop`).
  *
  *   node scripts/transit/operator-logos.mjs             every country
  *   node scripts/transit/operator-logos.mjs jp           one
@@ -77,7 +80,7 @@ function commonsFiles(names) {
   for (let i = 0; i < names.length; i += 50) {
     const titles = names.slice(i, i + 50).map((n) => `File:${n}`).join('|');
     const body = get(`https://commons.wikimedia.org/w/api.php?${new URLSearchParams({
-      action: 'query', format: 'json', prop: 'imageinfo', titles, iiurlwidth: '160',
+      action: 'query', format: 'json', prop: 'imageinfo', titles,
       iiprop: 'url|mime|size|extmetadata', iiextmetadatafilter: 'LicenseShortName|Artist|UsageTerms',
     })}`);
     if (!body) throw new Error('Commons did not answer.');
@@ -90,7 +93,7 @@ function commonsFiles(names) {
       const text = (k) => ((meta[k] || {}).value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
       const name = (renamed[page.title] || page.title).replace(/^File:/, '');
       out[name] = {
-        url: info.url, thumb: info.thumburl, mime: info.mime, page: info.descriptionurl,
+        url: info.url, mime: info.mime, page: info.descriptionurl, width: info.width, height: info.height,
         licence: text('LicenseShortName') || text('UsageTerms'), artist: text('Artist'),
       };
     }
@@ -101,6 +104,21 @@ function commonsFiles(names) {
 // Plain shapes and text only: nothing that runs, nothing fetched from elsewhere (inline pictures are fine).
 const safe = (svg) => svg.includes('<svg')
   && !/<script|\son[a-z]+\s*=|javascript:|<foreignObject|<iframe|(?:xlink:)?href="(?!#|data:image\/(?:png|jpe?g|gif);base64,)/i.test(svg);
+/*
+ * A thumbnail at one of Commons' standard widths (https://w.wiki/GHai): the
+ * narrowest at which the logo is at least 64px tall, for a 12px mark at up
+ * to five times over.
+ */
+const WIDTHS = [60, 120, 250, 330, 500];
+function thumbOf(info) {
+  const aspect = info.width && info.height ? info.width / info.height : 1;
+  const width = WIDTHS.find((w) => w / aspect >= 64) || WIDTHS[WIDTHS.length - 1];
+  if (info.width && info.mime !== 'image/svg+xml' && info.width <= width) return info.url;
+  const [, path, file] = /\/commons\/(.+\/)([^/]+)$/.exec(info.url);
+  const png = /\.png$/i.test(file) ? '' : '.png';
+  return `https://upload.wikimedia.org/wikipedia/commons/thumb/${path}${file}/${width}px-${file}${png}`;
+}
+
 const crop = (svg, box) => svg.replace(/<svg[\s\S]*?>/, (tag) => tag
   .replace(/\s(width|height|viewBox)="[^"]*"/g, '')
   .replace(/<svg/, `<svg viewBox="${box.join(' ')}"`));
@@ -139,13 +157,14 @@ for (const file of countries) {
     if (!info) { console.log(`  ${op.id}: ${name} not on Commons`); continue; }
     let out = null;
     let ext = null;
-    if (info.mime === 'image/svg+xml') {
+    if (op.logoCrop && info.mime === 'image/svg+xml') {
+      // Cut to its mark: the drawing itself.
       const svg = get(info.url, { pace: 10000, patient: true });
-      if (svg && safe(svg)) { out = op.logoCrop ? crop(svg, op.logoCrop) : svg; ext = 'svg'; }
-    } else if (info.mime === 'image/png' && /logo|mark|symbol|emblem|ロゴ/i.test(name)) {
-      // A picture logo, at the 160px Commons scales it to where that host is reachable, else as it is.
-      const png = (info.thumb && get(info.thumb, { binary: true, pace: 10000 })) || get(info.url, { binary: true, pace: 10000, patient: true });
-      if (png) { out = Buffer.from(png, 'latin1'); ext = 'png'; }
+      if (svg && safe(svg)) { out = crop(svg, op.logoCrop); ext = 'svg'; }
+    } else if (/^image\/(svg\+xml|png)$/.test(info.mime)
+      && (info.mime === 'image/svg+xml' || /logo|mark|symbol|emblem|ロゴ/i.test(name))) {
+      const png = get(thumbOf(info), { binary: true, pace: 3000, patient: true });
+      if (png && png.startsWith('\x89PNG')) { out = Buffer.from(png, 'latin1'); ext = 'png'; }
     }
     if (!out) { console.log(`  ${op.id}: ${name} (${info.mime}) left out`); continue; }
     writeFileSync(new URL(`${op.id}.${ext}`, dir), out);
