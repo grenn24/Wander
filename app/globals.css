@@ -3303,6 +3303,11 @@ body:has(.lp)::before { display: none; }
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
 }
 .rv-go { margin-left: auto; }
+/* Trains to compare, leaving now: between the map and the button that hands over to a navigation app. */
+.rv-trains {
+  flex: none; max-height: 52vh; overflow-y: auto;
+  padding: 12px 14px 4px; border-top: 1px solid var(--border); background: var(--surface-1);
+}
 @media print { .rv { display: none !important; } }
 
 /*

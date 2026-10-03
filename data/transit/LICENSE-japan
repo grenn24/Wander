@@ -1,0 +1,14 @@
+japan-rail.json is derived from 全国鉄道運行本数データ 2026年版
+(https://gtfs-gis.jp/railway_honsu/), made by the Social ICT Research Center of the
+University of Tokyo's Graduate School of Information Science and Technology and the
+Regional Transport Data Laboratory of the Japan Bus Information Association, and
+published under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) and ODbL
+(https://opendatacommons.org/licenses/odbl/1-0/).
+
+It was changed: stations of one name are joined into interchanges, each section of
+track is cut at its stations and simplified, and Shinkansen lines from published
+journey times (scripts/transit/shinkansen.mjs) are added. English names in greater
+Tokyo come from mini-tokyo-3d (see LICENSE).
+
+As the source allows, this derived database is offered under the ODbL too: it is
+the file beside this one, built by scripts/transit/build-japan.mjs.

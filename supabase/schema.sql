@@ -106,6 +106,11 @@ alter table public.trips add column if not exists budget_member_ids uuid[];
 -- sync updates what it wrote the first time instead of adding it all again.
 alter table public.activities add column if not exists google_event_id text;
 
+-- The train route chosen for the way to this activity, in Japan: the lines to
+-- prefer and the activity before it they were chosen from, so a reordered day
+-- leaves the choice alone. { "after": "<id>", "lines": ["Marunouchi Line"] }
+alter table public.activities add column if not exists transit_pick jsonb;
+
 -- ------------------------------------------------------- google calendar ---
 -- A long-lived key to somebody's calendar, which is not the same kind of thing
 -- as a trip and is not stored like one.

@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
-import { fmtDuration } from '@/lib/util';
+import TrainPanel from '@/components/TrainPanel';
+import { fmtDuration, fmtTime, zonedNow } from '@/lib/util';
 
 /**
  * The way there, on this app's own map.
@@ -147,11 +148,16 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   const from = mine || (where !== 'asking' && fallback ? fallback : null);
   const guessed = !mine && !!from;
 
+  /*
+   * Transit is asked for from now: in greater Tokyo the answer comes from the
+   * timetable, and the train to catch is the next one, not a typical one.
+   * Google ignores it, answering from now anyway.
+   */
   useEffect(() => {
     if (!from || legs[mode]) return undefined;
     let alive = true;
     setBusy(true); setErr('');
-    routeBetween(from, to, mode)
+    routeBetween(from, to, mode, { now: mode === 'TRANSIT' })
       .then((r) => { if (alive) setLegs((v) => ({ ...v, [mode]: r })); })
       .catch(() => { if (alive) setErr('Could not work out a route just now.'); })
       .finally(() => { if (alive) setBusy(false); });
@@ -160,13 +166,19 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
 
   const leg = legs[mode];
   const nowhere = where !== 'asking' && !from;
+  // Trains in Japan, leaving now: the ways to compare, and which the map draws.
+  const trains = mode === 'TRANSIT' && leg && leg.found && Array.isArray(leg.options) && leg.options.length
+    ? leg.options : null;
+  const [shownTrain, setShownTrain] = useState(null);
+  const shown = trains ? (trains.find((o) => o.id === shownTrain) || trains[0]) : null;
   const dest = useMemo(() => [{
     id: 'to', lat: to.lat, lng: to.lng, day: 'to', title, category: 'sightseeing',
   }], [to.lat, to.lng, title]);
-  const path = useMemo(
-    () => (leg && leg.polyline ? decodePath(leg.polyline) : null),
-    [leg],
-  );
+  const path = useMemo(() => {
+    // The train shown: each of its legs' lines, end to end.
+    if (shown) return shown.legs.flatMap((l) => (l.polyline ? decodePath(l.polyline) : []));
+    return leg && leg.polyline ? decodePath(leg.polyline) : null;
+  }, [leg, shown]);
 
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lng}`
     + `&travelmode=${mode.toLowerCase()}`;
@@ -188,7 +200,7 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
               <w.icon size={14} aria-hidden="true" />
               {w.label}
               {got && got.found ? (
-                <b className="rv-when mono">{fmtDuration(Math.round(got.seconds / 60))}</b>
+                <b className="rv-when mono">{got.source === 'model' || got.source === 'walk' ? '~' : ''}{fmtDuration(Math.round(got.seconds / 60))}</b>
               ) : null}
             </button>
           );
@@ -240,6 +252,15 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
         </button>
       </div>
 
+      {trains ? (
+        <div className="rv-trains">
+          <TrainPanel options={trains} mode="now" to={title}
+            ends={{ from, to }} date={zonedNow(leg.timeZone).date} leaveAt={zonedNow(leg.timeZone).minute} live timeZone={leg.timeZone}
+            note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
+            shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
+        </div>
+      ) : null}
+
       <footer className="rv-foot">
         {where === 'asking' && !from ? (
           <p className="rv-note"><LocateFixed size={14} /> Finding where you are</p>
@@ -249,21 +270,36 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
           <p className="rv-note"><Loader2 size={14} className="spin" /> Working out the route</p>
         ) : err ? (
           <p className="rv-note">{err}</p>
-        ) : leg && !leg.found ? (
-          <p className="rv-note">No {WAYS.find((w) => w.id === mode).label.toLowerCase()} route
-            {' '}between here and there.</p>
+        ) : trains ? null : leg && !leg.found ? (
+          <p className="rv-note">{leg.source === 'timetable'
+            ? 'No more trains from here today.'
+            : `No ${WAYS.find((w) => w.id === mode).label.toLowerCase()} route between here and there.`}</p>
         ) : leg ? (
           <p className="rv-said">
-            <b>{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
+            <b>{leg.source === 'model' || leg.source === 'walk' ? 'About ' : ''}{fmtDuration(Math.round(leg.seconds / 60)) || 'Under a minute'}</b>
             <span className="dim"> · {fmtKm(leg.metres / 1000)}</span>
+            {/* No timetable here: the lines are right, the minutes are worked out. */}
+            {leg.source === 'model' ? (
+              <span className="rv-from" data-tip="No timetable here, so the time is worked out from how often trains run on these lines">estimated</span>
+            ) : leg.source === 'walk' ? (
+              <span className="rv-from">quicker on foot</span>
+            ) : null}
             {/* Said out loud, because a time measured from the wrong place is
                 worth having and not worth mistaking for the right one. */}
             {guessed ? (
               <span className="rv-from">from {fallbackName || 'where you were'}</span>
             ) : null}
+            {/* From a timetable, each train says when it leaves, and a train
+                that runs on as another line says to stay on it. */}
             {leg.lines.length ? (
               <span className="rv-lines">
-                {leg.lines.map((l) => <span className="rv-line" key={l.name + l.from}>{l.name}</span>)}
+                {leg.lines.map((l) => (
+                  <span className="rv-line" key={l.name + l.from}
+                    data-tip={l.departs ? (l.through ? `Same train, on from ${l.from}` : `From ${l.from} at ${fmtTime(l.departs)}`) : undefined}>
+                    {l.name}
+                    {l.departs && !l.through ? <span className="mono"> {fmtTime(l.departs)}</span> : null}
+                  </span>
+                ))}
               </span>
             ) : null}
           </p>

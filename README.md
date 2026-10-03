@@ -39,6 +39,140 @@ changing reader assets; its script is served with `Cache-Control: no-store`.
 Implementation references: [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers)
 and [Google Calendar event times](https://developers.google.com/workspace/calendar/api/v3/reference/events).
 
+## Train times in Japan
+
+Google's Routes API has no transit in Japan (the Google Maps app does; the API
+does not), so the app answers trains in Japan itself, from open data, at no
+cost and with no key:
+
+- **Greater Tokyo: real timetables.** Every urban railway (JR East, Tokyo
+  Metro, Toei, the private railways, monorails, trams), out to Nikko, Hakone,
+  Kamakura, Kawaguchiko and both airports. Planning times are typical: the
+  median of departures every ten minutes from 10am on a weekday, waiting
+  included. Directions in Traveller mode give the next train from now, with
+  each train's departure ("Ginza Line 9:32pm"). Source:
+  [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT), which gathers
+  the operators' data from the Public Transportation Open Data Center.
+- **Other open timetables.** Every railway and tram in Japan's GTFS Data
+  Repository ([gtfs-data.jp](https://gtfs-data.jp/); of its 579 current
+  feeds, nearly all are buses), plus Fukuoka's subway from
+  [GTFS-FukuokaCitySubway](https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway):
+  the Kumamoto, Kōchi, Toyama and Takaoka trams, and the Kumamoto Electric,
+  Ise, Akechi, Yamagata and Kōnan railways. Each feed's licence is in
+  `data/transit/LICENSE-open`. They are one operator among several, so a
+  timetable answer is used only when it is not clearly slower than the
+  estimate over every line. A new feed is a line in `FEEDS` in
+  `scripts/transit/build-gtfs.mjs`.
+- **The rest of Japan: an estimate over the real network.** No operator
+  outside Tokyo publishes its timetable openly, so every other line in the
+  country (about 9,000 stations on 590 lines, JR to trams) is modelled: the
+  real route over real track, time on board from distance, the kind of line
+  and how many trains stop at each station, and the wait from how often trains
+  run. Shown with `~` and drawn along the track. Its speeds are fitted
+  against real timetables (`scripts/transit/calibrate.mjs`): on 300 Tokyo
+  journeys of 2 to 120 km, 80% come within −15%/+10% and 95% within 10
+  minutes or 20%; on the regional railways, trams and Fukuoka subway of the
+  open feeds, time on board is right at the median. Fast JR corridors, where
+  a special rapid skips most stations, come out about a fifth slow. Source: the
+  [全国鉄道運行本数データ](https://gtfs-gis.jp/railway_honsu/) of the University of
+  Tokyo and the Japan Bus Information Association (CC BY 4.0 / ODbL).
+- **Shinkansen.** That dataset counts only trains needing no extra ticket, so
+  the eight Shinkansen lines come from `scripts/transit/shinkansen.mjs`, a
+  small table of published journey times and service frequencies. Tokyo to
+  Kyoto comes out at 2h22 door to door.
+- **English names.** Greater Tokyo's from mini-tokyo-3d, the rest from
+  [Wikidata](https://www.wikidata.org/) (CC0), matched by name and position
+  (`scripts/transit/wikidata.mjs`): 99.5% of stations and 99% of lines. The
+  rest show their Japanese names.
+- **Left out.** Surcharge trains other than the Shinkansen (Narita Express,
+  Romancecar, limited expresses such as the Hida or Thunderbird), ferries,
+  buses, and public holidays (treated as weekdays).
+
+**Comparing routes.** Clicking a hop's train chip (on the trip map, the
+itinerary or the directions sheet) opens up to four ways to go, fastest
+first: the fastest route, then the same trip with each of its lines left out,
+with all of them left out, and with fewer changes, keeping those within 15
+minutes or half again of the fastest (`lib/trainOptions.js`). Each card has a
+journey bar on a shared time scale, the line badges, tags (fastest, cheapest,
+changes, JR only) and, opened, the steps: the stations passed, how often
+trains run and the next one, and in greater Tokyo the exit to leave by (the
+one nearest where you are going, from mini-tokyo-3d's station exits). **Use** saves the lines on the
+activity (`activities.transit_pick`), and that hop prefers them from then on.
+Tapping a train step lists its departures for the rest of the day, from a
+leave-at time, with the last train (`lib/departures.js`, timetable regions
+only). Every time in the app is 12-hour.
+
+**Fares** (`lib/fares.js`) are shown only where they are known: the open
+feeds' GTFS fares, and card fares by distance where an operator's registry
+entry lists its bands (Tokyo Metro and Toei: a range near a band's edge, ¥70
+off a change between the two). JR and the other private railways publish no
+machine-readable fares, so their routes show none. **Operator logos** are the
+railways' own: the logo Wikidata gives each operator, from Wikimedia Commons
+with its licence and author (`scripts/transit/operator-logos.mjs` fetches them
+into `public/operators/<country>/` and `data/transit/registry/logos.json`; the
+Terms page credits each). An operator without one shows its initials.
+
+**The registry: operators, lines, fares, countries.** Everything the app
+knows *about* a railway, as opposed to its timetable, is data in
+`data/transit/registry/<country>.json` (read by `lib/registry.js`), one
+operator or line to a line:
+
+- an **operator**: `{ id, name, local, aliases, mark, colour, group, badge,
+  linePrefix, wikidata, logo, logoCrop, fares }`. It is found by any of its
+  names, so `aliases` holds whatever each data source calls it
+  (mini-tokyo-3d's `TokyoMetro`, an open feed's `Kōnan Railway`). `group`
+  makes the "JR only" tag, `badge: "square"` JR's square line badges,
+  `linePrefix` how its lines are named in English ("JR Yamanote Line"), and
+  `fares.card.bands` its card fares by distance (`[km, fare]`, `null` for any
+  distance beyond).
+- a **line**: `{ operator, name, local, aliases, code, colour }`, its station
+  signs' letters and colour.
+- **transfers**: `{ between: [a, b], basis: "card", off: 70 }`, what changing
+  between two operators takes off.
+- the country's `currency`, `timeZone` and the name of its stored-value
+  `card`, which fares, "leave now" and the fare box use.
+
+Adding a line or an operator is a line in that file (then
+`node scripts/transit/operator-logos.mjs jp` for its logo). Adding a country
+is a new `<cc>.json` imported in `lib/registry.js`, its timetables as a
+region in `lib/timetableRegions.js` (with `country`), and, where Google has
+no transit there, its modelled network in `NETWORKS` in `lib/railTransit.js`;
+the planners, the options panel and departures are the same everywhere.
+
+How it fits together: `/api/routes` sends transit to
+`lib/railTransit.js`, which tries the timetable regions
+(`lib/timetableRegions.js` over `lib/timetable.js`, a connection scan), then
+the nationwide model (`lib/railModel.js`, Dijkstra's). Each answers in
+Google's shape with `source: 'timetable'` or `'model'`, and loads its data
+(`data/transit/tokyo-rail.json`, 2.5 MB; `open-rail.json`, 0.2 MB;
+`japan-rail.json`, 1 MB) on its first request. Everything else goes to
+Google as before.
+
+**Keeping it current.** Timetables change every March. Rebuild, refit, test,
+commit:
+
+```
+git clone --depth 1 --filter=blob:none --sparse https://github.com/nagix/mini-tokyo-3d.git
+git -C mini-tokyo-3d sparse-checkout set data
+node scripts/transit/build-tokyo.mjs mini-tokyo-3d
+
+mkdir honsu && cd honsu
+curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_kukan.geojson
+curl -O https://gtfs-gis.jp/railway_honsu/data/unkohonsu2026_rosen_eki.geojson
+cd ..
+node scripts/transit/wikidata.mjs wikidata             # English names
+node scripts/transit/build-japan.mjs honsu mini-tokyo-3d --wikidata wikidata
+
+node scripts/transit/build-gtfs.mjs feeds              # downloads the open feeds into feeds/
+
+node scripts/transit/calibrate.mjs     # fits PACE in lib/railModel.js; check its regional line too
+npm test
+```
+
+Check `scripts/transit/shinkansen.mjs` against the new Shinkansen timetable
+too. The `LICENSE*` files in `data/transit/` carry each source's terms and
+must stay beside the data; the Terms page credits them.
+
 ## Configuration
 
 The app reads its Supabase connection from two environment variables. There is
@@ -214,6 +348,9 @@ rows.
   `/api/places/*` so `PLACES_API_KEY` never leaves the server.
 - **OpenAI** plans trips, suggests activities and builds packing lists, through
   `/api/plan`, `/api/suggest` and `/api/packing`.
+- **Japanese train data** is bundled in `data/transit/` (Tokyo timetables
+  from mini-tokyo-3d, MIT; the nationwide network from gtfs-gis.jp, CC BY 4.0 /
+  ODbL) and planned on the server; nothing is called at runtime.
 
 Without the Google keys the map is replaced by a panel naming what to set, and
 stops are not located. Without the OpenAI key the planning features return a

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  canRoute, gapCountry, realRoute, estimateMinutes, suggestMode, travelOptions, drawnMode,
+  canRoute, canAsk, gapCountry, whyEstimate, realRoute, estimateMinutes, suggestMode, travelOptions, lineNames,
+  drawnMode, travelNote,
 } from '../lib/travel.js';
 
 const JAPAN = 392;
@@ -20,6 +21,18 @@ test('each country\'s gaps, as the live API answered', () => {
   assert.equal(canRoute(null, 'TRANSIT'), true);
   assert.equal(gapCountry(JAPAN), 'Japan');
   assert.equal(gapCountry(SINGAPORE), '');
+});
+
+test('Japan\'s trains are asked of the app\'s own timetable; Korea\'s walks are not asked at all', () => {
+  assert.equal(canAsk(JAPAN, 'TRANSIT'), true);
+  assert.equal(canAsk(JAPAN, 'WALK'), true);
+  assert.equal(canAsk(KOREA, 'WALK'), false);
+  assert.equal(canAsk(CHINA, 'TRANSIT'), false);
+  assert.equal(canAsk(SINGAPORE, 'TRANSIT'), true);
+  assert.equal(whyEstimate(JAPAN, 'TRANSIT'), 'no station nearby');
+  assert.equal(whyEstimate(KOREA, 'DRIVE'), 'no Google drive routes in South Korea');
+  assert.equal(whyEstimate(CHINA, 'TRANSIT'), 'no Google transit routes in China');
+  assert.equal(whyEstimate(SINGAPORE, 'TRANSIT'), '');
 });
 
 test('a transit route with no line on it is not a train', () => {
@@ -48,12 +61,33 @@ test('a short hop is a walk, a long one the train — even where the train is on
 });
 
 test('the options for a hop: real where Google has them, estimates where it cannot', () => {
-  // Tokyo: walk and drive from Google, transit estimated.
+  const walk = { mode: 'WALK', found: true, seconds: 6393, polyline: 'w' };
+  const drive = { mode: 'DRIVE', found: true, seconds: 1624, polyline: 'd' };
+  // Tokyo: walk and drive from Google, the train from the timetable, and each says so.
   const tokyo = travelOptions(8.6, JAPAN, {
-    WALK: { mode: 'WALK', found: true, seconds: 6393, polyline: 'w' },
-    DRIVE: { mode: 'DRIVE', found: true, seconds: 1624, polyline: 'd' },
+    WALK: walk,
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'timetable', seconds: 1740, polyline: 't', lines: [{ name: 'Ginza Line' }] },
+    DRIVE: drive,
   });
-  assert.deepEqual(tokyo.map((o) => [o.mode, o.minutes, o.estimate]),
+  assert.deepEqual(tokyo.map((o) => [o.mode, o.minutes, o.estimate, o.source]),
+    [['WALK', 107, false, 'google'], ['TRANSIT', 29, false, 'timetable'], ['DRIVE', 27, false, 'google']]);
+  // The train says which line it is; a walk or a drive rides none.
+  assert.deepEqual(tokyo.map((o) => o.lines), [[], ['Ginza Line'], []]);
+  // Still asking the timetable: waiting, not yet an estimate.
+  assert.equal(travelOptions(8.6, JAPAN, { WALK: walk, DRIVE: drive })[1].waiting, true);
+  // Osaka: the railway model's estimate, with its line still there to draw.
+  const osaka = travelOptions(8.6, JAPAN, {
+    WALK: walk,
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'model', seconds: 2280, polyline: 'm', lines: [{ name: '御堂筋線' }] },
+    DRIVE: drive,
+  });
+  assert.deepEqual(osaka[1], { mode: 'TRANSIT', minutes: 38, estimate: true, polyline: 'm', source: 'model', lines: ['御堂筋線'] });
+  // No train beats walking: the walk, as an estimate, with nothing to draw but a straight line.
+  const walkOnly = travelOptions(1.3, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: true, source: 'walk', seconds: 1080, lines: [] }, DRIVE: drive });
+  assert.deepEqual(walkOnly[1], { mode: 'TRANSIT', minutes: 18, estimate: true, polyline: '', source: 'walk' });
+  // Nowhere near a station: the straight-line estimate, as before.
+  const remote = travelOptions(8.6, JAPAN, { WALK: walk, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: drive });
+  assert.deepEqual(remote.map((o) => [o.mode, o.minutes, o.estimate]),
     [['WALK', 107, false], ['TRANSIT', estimateMinutes(8.6, 'TRANSIT'), true], ['DRIVE', 27, false]]);
   // Seoul: transit only; the rest estimated.
   const seoul = travelOptions(8, KOREA, { TRANSIT: { mode: 'TRANSIT', found: true, seconds: 1968, lines: [{ name: '2' }] } });
@@ -65,4 +99,46 @@ test('the options for a hop: real where Google has them, estimates where it cann
     WALK: { mode: 'WALK', found: false }, TRANSIT: { mode: 'TRANSIT', found: false }, DRIVE: { mode: 'DRIVE', found: false },
   });
   assert.deepEqual(island, []);
+});
+
+test('the lines a route rides, each once even where the train runs on as the same line', () => {
+  assert.deepEqual(lineNames({ lines: [
+    { name: 'JR Chuo Rapid Line' }, { name: 'Marunouchi Line' }, { name: 'Marunouchi Line', through: true },
+  ] }), ['JR Chuo Rapid Line', 'Marunouchi Line']);
+  assert.deepEqual(lineNames({ lines: [{ name: 'Hanzomon Line' }, { name: 'Den-en-toshi Line', through: true }] }),
+    ['Hanzomon Line', 'Den-en-toshi Line']);
+  assert.deepEqual(lineNames(null), []);
+  assert.deepEqual(lineNames({ found: true }), []);
+});
+
+test('the note under the hops says where the times came from', () => {
+  assert.equal(travelNote({ gaps: [], timetable: false }),
+    "Distances are straight-line. Travel times are Google's. ~ marks an estimate.");
+  assert.equal(travelNote({ gaps: ['South Korea'], timetable: true, modelled: true }),
+    "Distances are straight-line. Travel times are Google's, and trains in Japan are from the operators' timetables where they publish them. "
+    + "~ marks an estimate: trains elsewhere in Japan are worked out from how often they run; "
+    + "Google can't route that way in South Korea.");
+});
+
+test('trains in Japan bring the other ways along', () => {
+  const options = [{ id: 'Ginza Line', seconds: 1740, legs: [] }, { id: 'Toei Asakusa Line', seconds: 1900, legs: [] }];
+  const tokyo = travelOptions(8.6, JAPAN, {
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'timetable', seconds: 1740, polyline: 't', lines: [{ name: 'Ginza Line' }], options },
+  });
+  assert.equal(tokyo.find((o) => o.mode === 'TRANSIT').trains, options);
+  const missing = travelOptions(8.6, JAPAN, {
+    TRANSIT: { mode: 'TRANSIT', found: true, source: 'model', seconds: 1740, polyline: 'm', lines: [], options, preferMissing: true },
+  });
+  assert.equal(missing.find((o) => o.mode === 'TRANSIT').preferMissing, true);
+});
+
+test('a saved train route holds only while the stop before is the one it was chosen after', async () => {
+  const { savedLines } = await import('../lib/travel.js');
+  const before = { id: 'a1' };
+  const stop = { id: 'a2', transit_pick: { after: 'a1', lines: ['Marunouchi Line'] } };
+  assert.deepEqual(savedLines(before, stop), ['Marunouchi Line']);
+  assert.equal(savedLines({ id: 'a9' }, stop), null, 'the day was reordered');
+  assert.equal(savedLines(before, { id: 'a2' }), null);
+  assert.equal(savedLines(before, { id: 'a2', transit_pick: { after: 'a1', lines: [] } }), null);
+  assert.equal(savedLines(null, stop), null);
 });

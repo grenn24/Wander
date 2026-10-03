@@ -1,0 +1,43 @@
+open-rail.json is packed from these open GTFS feeds, each under its own licence.
+Changed: trains needing a surcharge are left out, two days of service are kept, and
+English names missing from a feed are taken from japan-rail.json (see LICENSE-japan).
+
+Fukuoka City Subway — Fukuoka City Transportation Bureau; GTFS by Masayuki Kuwayama
+  Licence: CC BY 4.0
+  Source: https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway.git
+
+Kumamoto City Tram — 熊本市交通局
+  Licence: CC BY 2.1 JP
+  Source: https://api.gtfs-data.jp/v2/organizations/kumamoto-shiden/feeds/kumamotoshiden
+
+Kumamoto Electric Railway — 熊本電鉄
+  Licence: CC0 1.0
+  Source: https://api.gtfs-data.jp/v2/organizations/kumamotodentetsu/feeds/kumamotodentetsu
+
+Tosaden Kōtsū Tram — とさでん交通株式会社
+  Licence: CC BY 4.0
+  Source: https://api.gtfs-data.jp/v2/organizations/tosaden-kotsu/feeds/GTFS-Tosadentraffic_Streetcar
+
+Toyama City Tram — 富山地方鉄道
+  Licence: CC0 1.0
+  Source: https://api.gtfs-data.jp/v2/organizations/chitetsu/feeds/chitetsushinaidensha
+
+Manyōsen — 万葉線
+  Licence: CC0 1.0
+  Source: https://api.gtfs-data.jp/v2/organizations/manyosen/feeds/manyosen
+
+Ise Railway — 伊勢鉄道
+  Licence: CC BY 4.0
+  Source: https://api.gtfs-data.jp/v2/organizations/isetetu/feeds/iserailway
+
+Akechi Railway — 明知鉄道
+  Licence: CC BY 4.0
+  Source: https://api.gtfs-data.jp/v2/organizations/aketetsu/feeds/akechirailway
+
+Yamagata Railway — 山形鉄道株式会社
+  Licence: CC BY 4.0
+  Source: https://api.gtfs-data.jp/v2/organizations/yamagatatetsudo/feeds/flowerliner
+
+Kōnan Railway — 弘前市
+  Licence: CC BY 4.0
+  Source: https://api.gtfs-data.jp/v2/organizations/hirosakicity/feeds/kounan-tetsudou

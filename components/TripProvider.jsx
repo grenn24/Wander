@@ -246,6 +246,18 @@ export default function TripProvider({ tripId, children }) {
     if (error) fail(error);
   }, [supabase, fail]);
 
+  /*
+   * The train route chosen for the way to a stop: { after, lines } — the stop
+   * before, and the lines to prefer — or null to stop preferring any.
+   */
+  const setTransitPick = useCallback(async (id, pick) => {
+    if (!supabase || !id) return;
+    const patch = { transit_pick: pick, updated_at: new Date().toISOString() };
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    const { error } = await supabase.from('activities').update(patch).eq('id', id);
+    if (error) fail(error);
+  }, [supabase, fail]);
+
   /** Adds a stop straight from the map, already located. */
   const addLocatedActivity = useCallback(async (draft) => {
     if (!supabase || !tripId) return null;
@@ -457,14 +469,14 @@ export default function TripProvider({ tripId, children }) {
     intent, request, clearIntent,
     reload: () => load(tripId),
     setTrip,
-    saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
+    saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity, setTransitPick,
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
     tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, loadError, isOwner, load,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
-    saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
+    saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity, setTransitPick,
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   ]);

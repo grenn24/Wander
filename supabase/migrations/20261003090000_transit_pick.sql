@@ -1,0 +1,11 @@
+-- The train route chosen for the way to an activity, in Japan: the lines to
+-- prefer, and the activity before it they were chosen from. Lines rather than
+-- a train, so the next time the hop is planned it is with fresh times; and
+-- the activity before, so that once the day is reordered the choice, made for
+-- a different hop, is left alone rather than applied to the wrong one.
+--
+--   { "after": "<id of the activity before>", "lines": ["Marunouchi Line"] }
+--
+-- It belongs to the trip like the rest of the activity, so everyone on the
+-- trip sees it and the existing policies cover it.
+alter table public.activities add column if not exists transit_pick jsonb;

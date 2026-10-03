@@ -45,7 +45,7 @@ export default function TripTabPage({ params }) {
     trip, days, activities, packing, members, online, isOwner,
     focusReq, clearFocus, intent, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity,
-    setActivityCoords, addActivities, addPackingItems,
+    setActivityCoords, addActivities, addPackingItems, setTransitPick,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember, updateTrip, setTrip,
   } = useTrip();
 
@@ -182,6 +182,7 @@ export default function TripTabPage({ params }) {
           opening={opening}
           onQuickAdd={quickAddActivity}
           onMove={moveActivity}
+          onTransitPick={setTransitPick}
           onDuplicate={onDuplicate}
           onDelete={deleteActivity}
           onPrint={() => window.print()}
@@ -198,6 +199,7 @@ export default function TripTabPage({ params }) {
           opening={opening}
           onNewAt={(draft) => setEditing(draft)}
           onSetCoords={setActivityCoords}
+          onTransitPick={setTransitPick}
         />
       ) : null}
 

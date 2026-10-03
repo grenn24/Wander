@@ -3,18 +3,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { routeBetween } from '@/lib/geo';
 import { prepareCountries, countryAt } from '@/lib/globeRegions';
 import {
-  TRAVEL_MODES, canRoute, gapCountry, travelOptions, drawnMode,
+  TRAVEL_MODES, canRoute, canAsk, gapCountry, travelOptions, drawnMode,
 } from '@/lib/travel';
 
 /*
- * The real way from each stop to the next, from Google, for the trip map and
- * the itinerary — asked for only once the map's Routes setting is on.
+ * The real way from each stop to the next, from Google — or for trains in
+ * greater Tokyo, from the operators' timetables — for the trip map and the
+ * itinerary, asked for only once the map's Routes setting is on.
  *
  * Each answer costs a call, so each is kept on this device for a fortnight
  * and a hop is paid for once, not every time the page is opened. They are
  * asked a few at a time, not a week's worth in one burst, and never twice at
- * once for the same hop. A way Google cannot route in that country is not
- * asked for at all (see lib/travel).
+ * once for the same hop. A way nothing can route in that country is not
+ * asked for at all, and one only the app's timetable might is asked of that
+ * alone (see lib/travel).
  */
 
 const STORE = 'wander-legs-v1';
@@ -42,7 +44,8 @@ function keep(key, value) {
   try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* the session still has it */ }
 }
 
-const legKey = (from, to, mode) => `${mode}:${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+const legKey = (from, to, mode, prefer = null) => `${mode}:${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`
+  + (prefer && prefer.length && mode === 'TRANSIT' ? `:${prefer.join('>')}` : '');
 
 // Three at a time, and one request per hop however many screens want it.
 const asking = new Map();
@@ -55,9 +58,9 @@ function pump() {
     next.job().then(next.resolve, next.reject).finally(() => { running -= 1; pump(); });
   }
 }
-function ask(key, from, to, mode) {
+function ask(key, from, to, mode, google, prefer) {
   if (!asking.has(key)) {
-    const job = () => routeBetween(from, to, mode);
+    const job = () => routeBetween(from, to, mode, { google, ...(mode === 'TRANSIT' && prefer ? { prefer } : {}) });
     asking.set(key, new Promise((resolve, reject) => { waiting.push({ job, resolve, reject }); pump(); })
       .then((answer) => { keep(key, answer); return answer; })
       .finally(() => asking.delete(key)));
@@ -119,15 +122,18 @@ export function useLegChoices(tripId) {
 }
 
 /**
- * hops     [{ key, hop, from: { lat, lng }, to: { lat, lng }, km }] — `hop` names
- *          the pair of stops ("fromId>toId") a chosen way is kept under
+ * hops     [{ key, hop, from: { lat, lng }, to: { lat, lng }, km, prefer }] — `hop`
+ *          names the pair of stops ("fromId>toId") a chosen way is kept under,
+ *          `prefer` the train lines saved for it (lib/travel savedLines)
  * setting  the map's Routes setting: 'off', 'auto', or one way for every hop
  * choices  ways chosen for particular hops, from useLegChoices, over the setting
  *
- * Returns { on, byKey, gaps }: for each hop its options (see travelOptions),
- * the way the map draws and whether it was chosen for that hop, and the names
- * of countries on the trip where Google leaves a way out, for saying why some
- * times are estimates.
+ * Returns { on, byKey, gaps, timetable, modelled }: for each hop its options
+ * (see travelOptions), the way the map draws and whether it was chosen for
+ * that hop; the names of countries on the trip where some time is an
+ * estimate because nothing could route that way, for saying why; and whether
+ * any time came from a train timetable or the railway model rather than
+ * Google, for saying so.
  */
 export default function useLegs(hops, setting, choices = NONE) {
   const on = !!setting && setting !== 'off';
@@ -154,7 +160,7 @@ export default function useLegs(hops, setting, choices = NONE) {
     };
   }, [countries]);
 
-  const signature = hops.map((h) => legKey(h.from, h.to, '')).join('|');
+  const signature = hops.map((h) => legKey(h.from, h.to, 'TRANSIT', h.prefer)).join('|');
   useEffect(() => {
     if (!on || !countries) return undefined;
     let live = true;
@@ -162,12 +168,12 @@ export default function useLegs(hops, setting, choices = NONE) {
     hops.forEach((h) => {
       const country = countryOf(h.from);
       TRAVEL_MODES.forEach((mode) => {
-        if (!canRoute(country, mode)) return;
-        const key = legKey(h.from, h.to, mode);
+        if (!canAsk(country, mode)) return;
+        const key = legKey(h.from, h.to, mode, h.prefer);
         if (answers[key] !== undefined) return;
         const kept = recall(key);
         if (kept !== undefined) { found[key] = kept; return; }
-        ask(key, h.from, h.to, mode)
+        ask(key, h.from, h.to, mode, canRoute(country, mode), h.prefer)
           .then((answer) => { if (live) setAnswers((a) => ({ ...a, [key]: answer })); })
           // Not configured, or Google refused: this session goes without, and nothing is kept.
           .catch(() => { if (live) setAnswers((a) => ({ ...a, [key]: { mode, found: false } })); });
@@ -181,28 +187,34 @@ export default function useLegs(hops, setting, choices = NONE) {
   return useMemo(() => {
     const byKey = {};
     const gaps = new Set();
+    let timetable = false;
+    let modelled = false;
     hops.forEach((h) => {
       if (!on) { byKey[h.key] = { km: h.km, options: [], drawn: null, country: null }; return; }
       const country = countryOf(h.from);
       const name = gapCountry(country);
-      if (name) gaps.add(name);
       const got = {};
       TRAVEL_MODES.forEach((mode) => {
-        const answer = answers[legKey(h.from, h.to, mode)];
+        const answer = answers[legKey(h.from, h.to, mode, h.prefer)];
         if (answer !== undefined) got[mode] = answer;
       });
+      const options = countries ? travelOptions(h.km, country, got)
+        : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true }));
+      // A gap is an estimate nothing could route; the model's and the walk's say their own why.
+      if (name && options.some((o) => o.estimate && !o.source)) gaps.add(name);
+      if (options.some((o) => o.source === 'timetable')) timetable = true;
+      if (options.some((o) => o.source === 'model')) modelled = true;
       const chosen = (h.hop && choices[h.hop]) || null;
       byKey[h.key] = {
         km: h.km,
         country,
         gap: name,
-        options: countries ? travelOptions(h.km, country, got)
-          : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true })),
+        options,
         chosen,
         drawn: chosen || drawnMode(setting, h.km, country),
       };
     });
-    return { on, byKey, gaps: [...gaps] };
+    return { on, byKey, gaps: [...gaps], timetable, modelled };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, setting, countries, answers, signature, choices]);
 }

@@ -1,9 +1,12 @@
 'use client';
-import { Footprints, TrainFront, Car, TriangleAlert } from 'lucide-react';
+import { Footprints, TrainFront, Car, TriangleAlert, Pin } from 'lucide-react';
 import TravelEstimate from '@/components/TravelEstimate';
+import { LineBadge } from '@/components/TrainBits';
+import { linesOf } from '@/lib/trainView';
+import { fareText } from '@/lib/fareText';
 import { fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
-import { TRAVEL_LABEL } from '@/lib/travel';
+import { TRAVEL_LABEL, whyEstimate } from '@/lib/travel';
 import s from './LegLine.module.css';
 
 const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
@@ -15,8 +18,9 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  * distance and a rule of thumb. With them on, the straight-line distance
  * stays — it is the one number that is never a guess — and beside it each way
  * of getting there and how long it takes: 🚶 18m · 🚆 9m · 🚗 6m. A time with ~
- * is an estimate, where Google cannot route that way (trains in Japan); the
- * way the map is drawing is picked out; and where the time between two
+ * is an estimate: a train in Japan outside greater Tokyo, worked out over the
+ * real lines from how often trains run, or a way nothing can route at all;
+ * the way the map is drawing is picked out; and where the time between two
  * activities is shorter than the quickest way between them, it says so.
  *
  * Each way is also a button: the map's Routes setting decides how every hop
@@ -28,8 +32,11 @@ const ICON = { WALK: Footprints, TRANSIT: TrainFront, DRIVE: Car };
  *   leg       this hop from useLegs, or nothing while Routes are off
  *   gap       minutes between the two activities, where known
  *   onChoose  called with the way chosen for this hop, or null to follow the setting
+ *   onTrains  called when a train with other ways to compare is clicked: in
+ *             Japan the train chip shows its lines' badges and fare, and opens
+ *             the train options rather than choosing the way
  */
-export default function LegLine({ km, leg, gap = null, onChoose = null }) {
+export default function LegLine({ km, leg, gap = null, onChoose = null, onTrains = null }) {
   if (!leg || !leg.options || (!leg.options.length && !leg.drawn)) return <TravelEstimate km={km} />;
   const known = leg.options.filter((o) => Number.isFinite(o.minutes));
   const quickest = known.length ? Math.min(...known.map((o) => o.minutes)) : null;
@@ -43,9 +50,14 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
         {leg.options.map((o) => {
           const Icon = ICON[o.mode];
           const time = o.waiting ? '' : `${o.estimate ? '~' : ''}${fmtDuration(o.minutes) || '1m'}`;
-          const why = o.waiting ? 'Asking Google'
-            : o.estimate ? `Estimate${leg.gap ? `: Google has no ${o.mode === 'TRANSIT' ? 'transit' : TRAVEL_LABEL[o.mode].toLowerCase()} routes in ${leg.gap}` : ''}`
-              : `${TRAVEL_LABEL[o.mode]}, by Google`;
+          // Which train it is, not where the time came from: the ~ already says when it is a guess.
+          const lines = (o.lines || []).join(' → ');
+          const reason = o.estimate && !o.source ? whyEstimate(leg.country, o.mode) : '';
+          const why = o.waiting ? 'Working it out'
+            : o.source === 'walk' ? 'Walking is quicker'
+              : o.source === 'model' ? (lines ? `${lines} · estimated` : 'Estimated from train frequency')
+                : o.estimate ? `Estimate${reason ? `: ${reason}` : ''}`
+                  : lines;
           const chosen = o.mode === leg.chosen;
           const said = `${TRAVEL_LABEL[o.mode]}: ${o.waiting ? 'working it out' : `${o.estimate ? 'about ' : ''}${fmtDuration(o.minutes) || '1m'}`}`;
           const shared = {
@@ -55,17 +67,33 @@ export default function LegLine({ km, leg, gap = null, onChoose = null }) {
             'data-estimate': o.estimate ? '' : undefined,
             'data-waiting': o.waiting ? '' : undefined,
           };
+          const trains = o.mode === 'TRANSIT' && o.trains && onTrains ? o.trains : null;
+          if (trains) {
+            const first = trains[0];
+            const lines = linesOf(first);
+            const saved = first.tags && first.tags.includes('saved');
+            const tip = `${lines.map((l) => l.name.replace(/ Line$/, '')).join(' → ')}${o.estimate ? ' · estimated' : ''}. Click for other routes`;
+            return (
+              <button key={o.mode} type="button" {...shared} data-trains="" data-tip={tip}
+                aria-label={`${said}. ${lines.map((l) => l.name).join(', ')}. Show other routes`}
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); onTrains(); }}>
+                {lines.slice(0, 3).map((l) => <LineBadge key={l.id} line={l} size="sm" compact />)}
+                {saved ? <Pin size={11} className={s.pin} aria-hidden="true" /> : null}
+                {time}
+                {first.fare ? <span className={s.fare}>· {fareText(first.fare)}</span> : null}
+              </button>
+            );
+          }
           if (!onChoose) {
             return (
-              <span key={o.mode} {...shared} data-tip={why} aria-label={said}>
+              <span key={o.mode} {...shared} data-tip={why || undefined} aria-label={said}>
                 <Icon size={12} aria-hidden="true" />{time}
               </span>
             );
           }
           return (
             <button key={o.mode} type="button" {...shared} aria-pressed={o.mode === leg.drawn}
-              data-tip={chosen ? `${why}. Chosen for this hop; click again to follow the map's Routes setting`
-                : `${why}. Click to show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
+              data-tip={chosen ? (why ? `${why} · chosen, click to undo` : 'Chosen, click to undo') : (why || undefined)}
               aria-label={chosen ? `${said}, chosen for this hop` : `${said}. Show this hop by ${TRAVEL_LABEL[o.mode].toLowerCase()}`}
               onClick={(event) => {
                 event.preventDefault();

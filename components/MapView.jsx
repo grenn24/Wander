@@ -4,7 +4,9 @@ import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
   Search, Crosshair, ChevronUp, ChevronDown, Check, List,
 } from 'lucide-react';
-import { fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs } from '@/lib/util';
+import {
+  fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs, zonedNow, clockMinutes,
+} from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
@@ -19,7 +21,10 @@ import Popover from '@/components/Popover';
 import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
+import TrainPanel from '@/components/TrainPanel';
+import { trainDrawing } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
+import { travelNote, savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import useKept from '@/components/useKept';
@@ -28,7 +33,7 @@ import m from './MapView.module.css';
 
 
 export default function MapView({
-  trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '',
+  trip, days, activities, onEdit, onSetCoords, onNewAt, opening = '', onTransitPick = null,
 }) {
   const mapsReady = googleMapsAvailable();
   const [err, setErr] = useState('');
@@ -191,6 +196,8 @@ export default function MapView({
         out.push({
           key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          fromTitle: prev.title, toTitle: a.title, fromEnd: prev.end_time, toStart: a.start_time,
+          fromId: prev.id, prefer: savedLines(prev, a),
         });
       }
       prev = a;
@@ -199,6 +206,60 @@ export default function MapView({
   }, [stops]);
   const hopOf = useMemo(() => Object.fromEntries(hops.map((h) => [h.key, h.hop])), [hops]);
   const travel = useLegs(hops, mapPrefs.routes, choices);
+
+  /*
+   * The train options for one hop, opened from its train chip: they take the
+   * stop list's place, and the map draws the option opened. Which option each
+   * hop shows is kept while the page is open.
+   */
+  const [trainHop, setTrainHop] = useState(null);
+  const [shownTrain, setShownTrain] = useState({});
+  const trainsOf = (key, legsFound) => {
+    const leg = legsFound && legsFound.byKey[key];
+    const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
+    return way || null;
+  };
+  // When you leave for a hop: when the stop before ends, or in time for the next, or a late morning.
+  const leaveFor = (h, option) => {
+    const end = clockMinutes(h.fromEnd);
+    if (end != null) return end;
+    const start = clockMinutes(h.toStart);
+    if (start != null && option) return Math.max(0, start - Math.round(option.seconds / 60));
+    return 600;
+  };
+  const trainPanel = () => {
+    const h = hops.find((x) => x.key === trainHop);
+    const way = h && trainsOf(trainHop, travel);
+    if (!h || !way) {
+      return (
+        <div className={m.trainsGone}>
+          <button type="button" className="btn sm" onClick={() => setTrainHop(null)}>Your stops</button>
+          <p className="small muted">These train options are no longer on the map.</p>
+        </div>
+      );
+    }
+    const dayIndex = days.indexOf(h.day);
+    const today = zonedNow(way.trainZone);
+    const live = h.day === today.date;
+    return (
+      <TrainPanel key={trainHop}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} timeZone={way.trainZone}
+        leaveAt={live ? today.minute : leaveFor(h, way.trains[0])}
+        options={way.trains}
+        mode="plan"
+        title={`${h.fromTitle} → ${h.toTitle}`}
+        sub={[dayIndex >= 0 ? `Day ${dayIndex + 1}` : null, h.day ? fmtDay(h.day) : null, `≈ ${fmtKm(h.km)}`]
+          .filter(Boolean).join(' · ')}
+        note={way.source === 'model' ? 'Estimated from how often trains run' : 'Usual weekday trip around 10am'}
+        to={h.toTitle}
+        shownId={shownTrain[trainHop] || way.trains[0].id}
+        onShow={(id) => setShownTrain((v) => ({ ...v, [trainHop]: id }))}
+        savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
+        onUse={onTransitPick ? (id) => onTransitPick(h.key, id ? { after: h.fromId, lines: id.split('>') } : null) : null}
+        preferMissing={!!way.preferMissing}
+        onBack={() => setTrainHop(null)} />
+    );
+  };
 
   /*
    * Picking stops to see the way between them.
@@ -249,8 +310,16 @@ export default function MapView({
 
   const linesFor = (list, legsFound) => list.map((h) => {
     const leg = legsFound.byKey[h.key];
+    // The hop whose train options are open: the option shown, line by line, the others faint.
+    if (trainHop && h.key === trainHop) {
+      const way = trainsOf(h.key, legsFound);
+      const colour = dayColor(days.indexOf(h.day), days.length);
+      const train = way && trainDrawing(way.trains, shownTrain[h.key], { to: h.toTitle, walk: colour });
+      if (train) return { from: h.from, to: h.to, colour, train };
+    }
     const way = leg && leg.options.find((o) => o.mode === leg.drawn);
-    const real = !!(way && !way.estimate && way.polyline);
+    // A modelled train time is an estimate, but its line follows the real track, so it is drawn.
+    const real = !!(way && way.polyline && (!way.estimate || way.source === 'model'));
     return {
       from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
       // Thinned: a drive across a city comes back with hundreds of points a
@@ -263,7 +332,7 @@ export default function MapView({
     if (!travel.on) return null;
     return linesFor(hops, travel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showingPicks, pickHops, pickTravel, travel, hops, days]);
+  }, [showingPicks, pickHops, pickTravel, travel, hops, days, trainHop, shownTrain]);
 
   const stopGroups = useMemo(() => {
     const groups = new Map();
@@ -602,6 +671,7 @@ export default function MapView({
             stopColour={(a) => dayColor(days.indexOf(a.day), days.length)}
             allowRoutes
             routeLines={routeLines}
+            onTrainShow={(id) => { if (trainHop) setShownTrain((v) => ({ ...v, [trainHop]: id })); }}
             covered={covered}
             placeColour={catColor}
             /*
@@ -766,6 +836,7 @@ export default function MapView({
             </div>
           ) : null}
 
+        {trainHop ? null : (
         <div className="mappanel-head map-explore">
           <form className="mapfind" onSubmit={(e) => { runSearch(e); reveal(); }}>
             <Search size={15} className="mapfind-ico" aria-hidden="true" />
@@ -804,7 +875,9 @@ export default function MapView({
             ) : null}
           </div>
         </div>
+        )}
 
+        {trainHop ? <div className="mappanel-body">{trainPanel()}</div> : (
         <div className="mappanel-body">
           <div className="map-explore map-explore-results">
           {!mapsReady ? (
@@ -903,7 +976,8 @@ export default function MapView({
                             {leg != null ? (
                               <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
                                 <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null}
-                                  onChoose={(mode) => choose(hopOf[a.id], mode)} />
+                                  onChoose={(mode) => choose(hopOf[a.id], mode)}
+                                  onTrains={() => setTrainHop(a.id)} />
                               </div>
                             ) : null}
                             <div id={`stop-${a.id}`} className={m.stop}
@@ -946,8 +1020,7 @@ export default function MapView({
               {Object.keys(legs).length ? (
                 <p className={m.note}>
                   {travel.on
-                    ? `Distances are straight-line. Travel times are Google's; ~ marks an estimate${travel.gaps.length
-                      ? `, where Google can't route that way in ${travel.gaps.join(' or ')}` : ''}.`
+                    ? travelNote(travel)
                     : 'Straight-line distances. Walking times are estimates; actual routes may take longer. Turn on Routes in Map appearance for real travel times.'}
                 </p>
               ) : null}
@@ -962,6 +1035,7 @@ export default function MapView({
 
           </div>
         </div>
+        )}
         </div>
       </aside>
 

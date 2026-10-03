@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LegalPage from '@/components/LegalPage';
+import { logoCredits } from '@/lib/registry';
 
 export const metadata = {
   title: 'Terms of Service — Wander',
@@ -68,6 +69,49 @@ export default function Terms() {
         </a>. Place photographs and reviews belong to the people who made them and are shown
         with attribution.
       </p>
+      <p>
+        Train times in Japan come from open data. Greater Tokyo&rsquo;s timetables and station
+        exits are the operators&rsquo;, through the Public Transportation Open Data Center, as
+        gathered by{' '}
+        <a href="https://github.com/nagix/mini-tokyo-3d" target="_blank" rel="noreferrer">mini-tokyo-3d</a>{' '}
+        (MIT licence). Other timetables are the operators&rsquo; open GTFS feeds, from the{' '}
+        <a href="https://gtfs-data.jp/" target="_blank" rel="noreferrer">GTFS Data Repository</a>:
+        熊本市交通局 (CC BY 2.1 JP), とさでん交通 (CC BY 4.0), 伊勢鉄道 (CC BY 4.0), 明知鉄道
+        (CC BY 4.0), 山形鉄道 (CC BY 4.0), 弘前市 for 弘南鉄道 (CC BY 4.0), and 熊本電鉄,
+        富山地方鉄道 and 万葉線 (CC0); and Fukuoka&rsquo;s subway, the Fukuoka City Transportation
+        Bureau&rsquo;s, as published by{' '}
+        <a href="https://github.com/kuwayamamasayuki/GTFS-FukuokaCitySubway" target="_blank" rel="noreferrer">
+          Masayuki Kuwayama
+        </a>{' '}
+        (CC BY 4.0). English station names outside greater Tokyo come from{' '}
+        <a href="https://www.wikidata.org/" target="_blank" rel="noreferrer">Wikidata</a>.
+        Elsewhere in Japan, times are estimated from the{' '}
+        <a href="https://gtfs-gis.jp/railway_honsu/" target="_blank" rel="noreferrer">
+          全国鉄道運行本数データ
+        </a>{' '}
+        of the University of Tokyo and the Japan Bus Information Association, under CC BY 4.0
+        and the ODbL; the database Wander derives from it is offered under the ODbL too.
+      </p>
+      <p>
+        Fares are the operators&rsquo; own, from their GTFS feeds and published fare tables,
+        and are shown only where they are known; check the fare at the station before you
+        rely on it. Railway companies&rsquo; logos come from{' '}
+        <a href="https://commons.wikimedia.org/" target="_blank" rel="noreferrer">Wikimedia Commons</a>,
+        each under the licence below; they remain their owners&rsquo; trademarks and are shown
+        only to say who runs a line.
+      </p>
+      <details>
+        <summary>Railway logos and their licences</summary>
+        <ul>
+          {logoCredits().map((l) => (
+            <li key={l.key}>
+              {l.operator}:{' '}
+              <a href={l.source} target="_blank" rel="noreferrer">{l.name || 'logo'}</a>
+              {l.artist ? `, by ${l.artist}` : ''}, {l.licence}{l.crop ? '; cut to its mark' : ''}
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <h2>No warranty</h2>
       <p>

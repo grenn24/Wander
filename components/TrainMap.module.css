@@ -1,0 +1,28 @@
+/* The tooltip over the map, beside the pointer. */
+.tip { position: absolute; z-index: 20; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; white-space: nowrap; }
+
+/* A station got off at: a white dot ringed in the map's ink. */
+.station {
+  width: 10px; height: 10px; border-radius: 50%; transform: translateY(50%);
+  background: #fff; border: 2.5px solid #181612; box-shadow: 0 0 0 1px rgba(255, 255, 255, .5);
+}
+/* The line's badge where it is boarded: white, a ring of the line's colour, its letters. */
+.board {
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 3px; transform: translateY(-6px);
+  border: 3px solid var(--ring); border-radius: 50%; background: #fff; color: #141413;
+  font: 700 10px/1 var(--font-sans), system-ui, sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+}
+.board[data-shape="square"] { border-radius: 6px; min-width: 28px; }
+.board[data-blank] { min-width: 14px; height: 14px; }
+.exit {
+  padding: 1px 6px; border-radius: 4px; transform: translateY(-4px);
+  background: #f2c230; color: #141413; border: 1.5px solid #181612;
+  font: 700 11px/1.4 var(--font-sans), system-ui, sans-serif; white-space: nowrap;
+}
+.walk {
+  display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; transform: translateY(50%);
+  background: var(--glass-strong, #28241e); color: var(--text-1, #f4eee3); border: 1px solid var(--border-strong, #51483c);
+  font: 600 11px/1.4 var(--font-sans), system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+.walk svg { color: var(--text-2, #b9ae9f); }

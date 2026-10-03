@@ -14,7 +14,7 @@ import TripCoverAdd from '@/components/TripCoverAdd';
 import useKept from '@/components/useKept';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
-  shortPlace, activityGap, fmtDuration,
+  shortPlace, activityGap, fmtDuration, zonedNow, clockMinutes,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
 import { clockAt, tripNow } from '@/public/trip-time';
@@ -22,9 +22,11 @@ import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
-import { activityDistance } from '@/lib/geo';
+import { activityDistance, fmtKm } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
+import TrainSheet from '@/components/TrainSheet';
 import useLegs, { useLegChoices } from '@/components/useLegs';
+import { travelNote, savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
@@ -48,6 +50,8 @@ export default function Itinerary({
   // Which row is waiting on its place before the editor can open. A click that
   // does nothing visible for half a second reads as a click that missed.
   opening = '',
+  // Saving the train route for the way to a stop (TripProvider setTransitPick).
+  onTransitPick = null,
 }) {
   const today = clockAt(trip.timezone).day;
   const todayIndex = days.indexOf(today);
@@ -80,12 +84,41 @@ export default function Itinerary({
           // The same pair of stops the trip map keeps a chosen way under.
           hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
           from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          fromTitle: prev.title, toTitle: a.title, day: a.day, fromEnd: prev.end_time, toStart: a.start_time,
+          fromId: (prev._source || prev).id, toId: (a._source || a).id,
+          prefer: savedLines(prev._source || prev, a._source || a),
         });
       });
     });
     return out;
   }, [activities]);
   const travel = useLegs(hops, mapPrefs.routes, choices);
+  // The train options for one hop, opened from its train chip over the page.
+  const [trainHop, setTrainHop] = useState(null);
+  const trainSheet = (() => {
+    if (!trainHop) return null;
+    const h = hops.find((x) => x.key === trainHop);
+    const leg = h && travel.byKey[trainHop];
+    const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
+    if (!h || !way) return null;
+    const today = zonedNow(way.trainZone);
+    const live = h.day === today.date;
+    const end = clockMinutes(h.fromEnd);
+    const start = clockMinutes(h.toStart);
+    const leaveAt = live ? today.minute : end != null ? end
+      : start != null ? Math.max(0, start - Math.round(way.trains[0].seconds / 60)) : 600;
+    return (
+      <TrainSheet onClose={() => setTrainHop(null)}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} leaveAt={leaveAt} timeZone={way.trainZone}
+        options={way.trains} mode="plan"
+        title={`${h.fromTitle} → ${h.toTitle}`}
+        sub={`${h.day ? `${fmtDay(h.day)} · ` : ''}≈ ${fmtKm(h.km)}`}
+        note={way.source === 'model' ? 'Estimated from how often trains run' : 'Usual weekday trip around 10am'}
+        to={h.toTitle} preferMissing={!!way.preferMissing}
+        savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
+        onUse={onTransitPick ? (id) => onTransitPick(h.toId, id ? { after: h.fromId, lines: id.split('>') } : null) : null} />
+    );
+  })();
   const params = useSearchParams();
   const pathname = usePathname();
   // Two ways in: the search bar asks through the trip, and a link from outside
@@ -373,6 +406,7 @@ export default function Itinerary({
 
   return (
     <div ref={itineraryRef} className={`itin${hasStrip ? ' has-strip' : ''}`} style={{ position: 'relative' }}>
+      {trainSheet}
       {/* No usable cover: a slim bar to ask for one. With one, the pill on the hero does it. */}
       {!cover && onEditCover ? <TripCoverAdd changing={!!coverURL(trip)} onClick={onEditCover} /> : null}
       <div className={`page-head spread${cover ? ' has-cover' : ''}`}>
@@ -463,7 +497,8 @@ export default function Itinerary({
                             data-tip={travel.on ? undefined : 'Straight-line distance. Actual routes may take longer.'}>
                             <LegLine km={distance} gap={gapMins}
                               leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null}
-                              onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)} />
+                              onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)}
+                              onTrains={() => setTrainHop(`${prev._entryId || prev.id}>${a._entryId || a.id}`)} />
                           </div>
                         ) : null}
                         {gapMins != null ? <span className="itinerary-gap-time">
@@ -535,7 +570,7 @@ export default function Itinerary({
             {list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
               <p className="itinerary-distance-note">
                 {travel.on
-                  ? 'Distances are straight-line. Travel times are Google\'s; ~ marks an estimate where Google can\'t route that way.'
+                  ? travelNote(travel)
                   : 'Straight-line distances. Walking times are estimates; actual routes may take longer.'}
               </p>
             ) : null}

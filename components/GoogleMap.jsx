@@ -14,6 +14,8 @@ import { centreBeside, coverPadding, FIT_MARGIN } from '@/lib/map3dCamera';
 import { createMapsLoader } from '@/lib/googleMapsLoader';
 import { retryImport } from '@/lib/chunkRetry';
 import loadStyles from './GoogleMap.module.css';
+import trainStyles from './TrainMap.module.css';
+import { RichTip } from '@/components/TrainBits';
 
 /*
  * Markers are plain DOM, built outside React, but their icons should be the
@@ -216,6 +218,8 @@ function GoogleMapCanvas({
    * stops are joined by one dashed straight line, as they always were.
    */
   routeLines = null,
+  // A faint train option clicked on the map: show that one instead (its id).
+  onTrainShow,
   /*
    * How far the controls laid over the map reach in from each edge, asked at
    * the moment of a fit: () => ({ top, right, bottom, left }) in pixels. The
@@ -239,6 +243,9 @@ function GoogleMapCanvas({
   const grouping = useRef('');
   const placeMarks = useRef([]);
   const lines = useRef([]);
+  // A hop's train options: the marks along the shown one, and the tooltip under the pointer.
+  const trainMarks = useRef([]);
+  const [trainTip, setTrainTip] = useState(null); // { x, y, tip }
   const route = useRef(null);
   const mine = useRef(null);
   const info = useRef(null);
@@ -275,7 +282,7 @@ function GoogleMapCanvas({
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
-    describeStop, onStopOpen, onPhoto, routeLines, covered,
+    describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow,
   };
 
   useEffect(() => {
@@ -813,6 +820,9 @@ function GoogleMapCanvas({
     if (!L || !map) return;
     lines.current.forEach((l) => l.setMap(null));
     lines.current = [];
+    trainMarks.current.forEach((mk) => { mk.map = null; });
+    trainMarks.current = [];
+    setTrainTip(null);
     const dashed = (path, colour) => new L.Polyline({
       path,
       strokeOpacity: 0,
@@ -827,6 +837,7 @@ function GoogleMapCanvas({
     const hops = latest.current.routeLines;
     if (hops) {
       hops.forEach((h) => {
+        if (h.train) { drawTrain(h.train); return; }
         lines.current.push(h.path && h.path.length > 1 && !h.estimate
           ? new L.Polyline({ path: h.path, strokeColor: h.colour, strokeOpacity: 0.9, strokeWeight: 4, map })
           : dashed([h.from, h.to], h.colour));
@@ -843,6 +854,59 @@ function GoogleMapCanvas({
     });
     Object.keys(byDay).forEach((d) => {
       if (byDay[d].path.length > 1) lines.current.push(dashed(byDay[d].path, byDay[d].line));
+    });
+  }
+
+  /*
+   * A hop's train options (lib/trainMap): the option shown, train by train in
+   * its line's colour and each walk dotted; the others faint underneath,
+   * brightening under the pointer and shown when clicked; and the marks along
+   * the way. Every piece says what it is when pointed at.
+   */
+  function drawTrain(train) {
+    const L = libs.current;
+    const map = mapRef.current;
+    const g = window.google && window.google.maps;
+    const tipAt = (event, tip) => {
+      const box = elRef.current && elRef.current.getBoundingClientRect();
+      const dom = event && event.domEvent;
+      if (!box || !dom || dom.clientX == null) return;
+      setTrainTip({ x: dom.clientX - box.left, y: dom.clientY - box.top, tip });
+    };
+    const hover = (line, tip, on, off) => {
+      line.addListener('mouseover', (e) => { if (on) line.setOptions(on); tipAt(e, tip); });
+      line.addListener('mousemove', (e) => tipAt(e, tip));
+      line.addListener('mouseout', () => { if (off) line.setOptions(off); setTrainTip(null); });
+    };
+    train.faint.forEach((f) => {
+      const line = new L.Polyline({
+        path: f.path, map, zIndex: 1, clickable: true,
+        strokeColor: '#8d8377', strokeOpacity: 0.45, strokeWeight: 5,
+      });
+      hover(line, f.tip, { strokeOpacity: 0.9 }, { strokeOpacity: 0.45 });
+      line.addListener('click', () => {
+        setTrainTip(null);
+        if (latest.current.onTrainShow) latest.current.onTrainShow(f.id);
+      });
+      lines.current.push(line);
+    });
+    train.segments.forEach((sg) => {
+      const line = sg.kind === 'ride'
+        ? new L.Polyline({ path: sg.path, map, zIndex: 3, strokeColor: sg.colour, strokeOpacity: 1, strokeWeight: 6 })
+        : new L.Polyline({
+          path: sg.path, map, zIndex: 2, strokeColor: sg.colour, strokeOpacity: 0, strokeWeight: 6,
+          icons: [{
+            icon: { path: g ? g.SymbolPath.CIRCLE : 'M 0,-1 0,1', fillColor: sg.colour, fillOpacity: 1, strokeOpacity: 0, scale: 2.4 },
+            offset: '0', repeat: '9px',
+          }],
+        });
+      hover(line, sg.tip);
+      lines.current.push(line);
+    });
+    train.marks.forEach((mk) => {
+      trainMarks.current.push(new L.AdvancedMarkerElement({
+        map, position: mk.at, content: trainMark(mk), zIndex: mk.kind === 'station' ? 4 : 5,
+      }));
     });
   }
 
@@ -1013,11 +1077,50 @@ function GoogleMapCanvas({
         })}
       </div>
       <div className="map-el" ref={elRef} />
+      {trainTip ? (
+        <div className={trainStyles.tip} style={{ left: trainTip.x, top: trainTip.y }}>
+          <RichTip tip={trainTip.tip} />
+        </div>
+      ) : null}
       {!ready && !failed ? <div className={loadStyles.status}>
         <div className={loadStyles.card} role="status">Loading map</div>
       </div> : null}
     </>
   );
+}
+
+/*
+ * The marks along a train option, as plain elements for the map's markers:
+ * a dot at a station, the line's badge where it is boarded, the exit in the
+ * yellow of the signs, and a walk's minutes with the walking icon.
+ */
+const FOOTPRINTS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M4 16v-2.4C4 11.5 3 10.5 3 8c0-2.7 1.5-6 4.5-6C9.4 2 10 3.8 10 5.5c0 3.1-2 5.7-2 8.7V16a2 2 0 1 1-4 0Z"/>'
+  + '<path d="M20 20v-2.4c0-2.1 1-3.1 1-5.6 0-2.7-1.5-6-4.5-6C14.6 6 14 7.8 14 9.5c0 3.1 2 5.7 2 8.7V20a2 2 0 1 0 4 0Z"/></svg>';
+
+function trainMark(mk) {
+  const el = document.createElement('div');
+  if (mk.kind === 'station') {
+    el.className = trainStyles.station;
+  } else if (mk.kind === 'board') {
+    const l = mk.line;
+    el.className = trainStyles.board;
+    el.dataset.shape = l.shape === 'square' ? 'square' : 'round';
+    el.style.setProperty('--ring', l.colour || (l.operator && l.operator.colour) || '#8d8377');
+    el.textContent = l.code || '';
+    el.title = l.name;
+    if (!l.code) el.dataset.blank = '';
+  } else if (mk.kind === 'exit') {
+    el.className = trainStyles.exit;
+    el.textContent = mk.label;
+  } else {
+    el.className = trainStyles.walk;
+    const text = document.createElement('span');
+    text.textContent = mk.label;
+    el.appendChild(text);
+    el.insertAdjacentHTML('beforeend', FOOTPRINTS);
+  }
+  return el;
 }
 
 /** Nearby kinds are not categories; this is the bridge for marker colour. */
