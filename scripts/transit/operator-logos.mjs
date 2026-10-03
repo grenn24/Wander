@@ -93,7 +93,7 @@ function commonsFiles(names) {
       const text = (k) => ((meta[k] || {}).value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
       const name = (renamed[page.title] || page.title).replace(/^File:/, '');
       out[name] = {
-        url: info.url, mime: info.mime, page: info.descriptionurl, width: info.width, height: info.height,
+        url: info.url.replace(/\?.*$/, ''), mime: info.mime, page: info.descriptionurl, width: info.width, height: info.height,
         licence: text('LicenseShortName') || text('UsageTerms'), artist: text('Artist'),
       };
     }
@@ -114,7 +114,7 @@ function thumbOf(info) {
   const aspect = info.width && info.height ? info.width / info.height : 1;
   const width = WIDTHS.find((w) => w / aspect >= 64) || WIDTHS[WIDTHS.length - 1];
   if (info.width && info.mime !== 'image/svg+xml' && info.width <= width) return info.url;
-  const [, path, file] = /\/commons\/(.+\/)([^/]+)$/.exec(info.url);
+  const [, path, file] = /\/commons\/(.+\/)([^/?]+)(\?.*)?$/.exec(info.url);
   const png = /\.png$/i.test(file) ? '' : '.png';
   return `https://upload.wikimedia.org/wikipedia/commons/thumb/${path}${file}/${width}px-${file}${png}`;
 }
@@ -150,7 +150,7 @@ for (const file of countries) {
     const key = `${cc}/${op.id}`;
     const had = logos[key];
     const cut = op.logoCrop ? op.logoCrop.join(' ') : null;
-    if (had && had.name === name && (had.crop || null) === cut && existsSync(new URL(`../..${had.file}`, import.meta.url))) {
+    if (had && had.name === name && (had.crop || null) === cut && existsSync(new URL(`public${had.file}`, root))) {
       keep.add(key);
       continue;
     }
