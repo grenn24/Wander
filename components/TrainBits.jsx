@@ -43,9 +43,19 @@ export function LineBadge({ line, size = 'md', named = false, compact = false })
   );
 }
 
-/** An operator: its initials on its colour, standing for its logo, with its name for screen readers. */
+/**
+ * An operator: its logo on a white tile, as on a station sign, or where there
+ * is none its initials on its colour; its name for screen readers either way.
+ */
 export function OperatorMark({ operator }) {
   if (!operator) return null;
+  if (operator.logo) {
+    return (
+      <span className={s.logo} role="img" aria-label={operator.name}>
+        <img src={operator.logo} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
   return (
     <span className={s.operator} style={{ '--op': operator.colour }} role="img" aria-label={operator.name}>
       <span aria-hidden="true">{operator.mark}</span>

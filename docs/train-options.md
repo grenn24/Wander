@@ -187,19 +187,19 @@ IC fares only, and never a guess. A fare that isn't known is not shown.
   note.
 - **Sharing:** it syncs to everyone on the trip like the rest of the activity.
 
-### Exits and platforms (OpenStreetMap, ODbL)
+### Exits and platforms
 
-A build step reads OpenStreetMap through Overpass and writes
-`data/transit/stations-extra.json`.
-
-- **Exits:** station entrances with their number or name. The exit shown is the
-  entrance nearest where you are going (or, for the first walk, nearest where
-  you start).
-- **Platforms:** the platform each line usually uses in each direction, from
-  the platforms in its route relations. A platform that varies reads
-  `Platform 1 or 2`.
-
-Anything not mapped is not shown. The Terms page credits OpenStreetMap.
+- **Exits in greater Tokyo** come with the timetables: mini-tokyo-3d lists
+  each station's exits with their positions and names (`Exit A2`,
+  `North Exit`), about 1,700 of them, mostly the subways' and the
+  underground stations'. `build-tokyo` keeps them in `tokyo-rail.json`, and
+  the walk off the last train leaves by the one nearest where you are going;
+  the map draws that walk from the station through the exit.
+- **Exits elsewhere and platforms** would come from OpenStreetMap through
+  Overpass (station entrances with their `ref`; the platforms in each route
+  relation, `Platform 1 or 2` where it varies), written to
+  `data/transit/stations-extra.json` and credited on the Terms page. Not built
+  while Overpass is out of reach. Anything not known is not shown.
 
 ### Train types
 
@@ -221,7 +221,7 @@ trains, so no type.
 Each feature below is left out until its host is allowed. Everything else
 ships without them.
 
-- `overpass-api.de`: exits and platforms.
+- `overpass-api.de`: platforms, and exits outside greater Tokyo.
 - `jreast.co.jp`: the JR East fare table.
 - `commons.wikimedia.org` and `upload.wikimedia.org`: operator logos.
 

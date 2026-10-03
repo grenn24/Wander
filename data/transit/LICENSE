@@ -1,4 +1,4 @@
-The timetables in tokyo-rail.json are derived from mini-tokyo-3d
+The timetables and station exits in tokyo-rail.json are derived from mini-tokyo-3d
 (https://github.com/nagix/mini-tokyo-3d), which is distributed under this licence.
 Its timetables come from the operators, through the Public Transportation Open Data Center.
 

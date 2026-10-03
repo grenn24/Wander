@@ -48,9 +48,9 @@ cost and with no key:
 - **Greater Tokyo: real timetables.** Every urban railway (JR East, Tokyo
   Metro, Toei, the private railways, monorails, trams), out to Nikko, Hakone,
   Kamakura, Kawaguchiko and both airports. Planning times are typical: the
-  median of departures every ten minutes from 10:00 on a weekday, waiting
+  median of departures every ten minutes from 10am on a weekday, waiting
   included. Directions in Traveller mode give the next train from now, with
-  each train's departure ("Ginza Line 21:32"). Source:
+  each train's departure ("Ginza Line 9:32pm"). Source:
   [mini-tokyo-3d](https://github.com/nagix/mini-tokyo-3d) (MIT), which gathers
   the operators' data from the Public Transportation Open Data Center.
 - **Other open timetables.** Every railway and tram in Japan's GTFS Data
@@ -87,6 +87,29 @@ cost and with no key:
 - **Left out.** Surcharge trains other than the Shinkansen (Narita Express,
   Romancecar, limited expresses such as the Hida or Thunderbird), ferries,
   buses, and public holidays (treated as weekdays).
+
+**Comparing routes.** Clicking a hop's train chip (on the trip map, the
+itinerary or the directions sheet) opens up to four ways to go, fastest
+first: the fastest route, then the same trip with each of its lines left out,
+with all of them left out, and with fewer changes, keeping those within 15
+minutes or half again of the fastest (`lib/trainOptions.js`). Each card has a
+journey bar on a shared time scale, the line badges, tags (fastest, cheapest,
+changes, JR only) and, opened, the steps: the stations passed, how often
+trains run and the next one, and in greater Tokyo the exit to leave by (the
+one nearest where you are going, from mini-tokyo-3d's station exits). **Use** saves the lines on the
+activity (`activities.transit_pick`), and that hop prefers them from then on.
+Tapping a train step lists its departures for the rest of the day, from a
+leave-at time, with the last train (`lib/departures.js`, timetable regions
+only). Every time in the app is 12-hour.
+
+**Fares** (`lib/fares.js`) are shown only where they are known: the open
+feeds' GTFS fares, and the IC fares of Tokyo Metro and Toei from their
+distance bands (a range near a band's edge, ¥70 off a change between the
+two). JR and the other private railways publish no machine-readable fares, so
+their routes show none. **Operator logos** are the railways' own from
+Wikimedia Commons, only those filed there as public domain
+(`scripts/transit/operator-logos.mjs` fetches them into `public/operators/`
+and `lib/operatorLogos.js`); other operators show their initials.
 
 How it fits together: `/api/routes` sends transit in Japan to
 `lib/japanTransit.js`, which tries the timetable regions

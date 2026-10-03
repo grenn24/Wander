@@ -8,9 +8,10 @@
  * change: JR East, Tokyo Metro, Toei, the private railways, the monorails and
  * the trams, out to Nikko, Hakone and Kawaguchiko. Not the Shinkansen.
  *
- * Its 110 MB of JSON become one file of about 2.5 MB: the stations, the lines,
- * and each weekday and weekend train as a stop sequence, a run of times and a
- * departure, with the trains it runs through into. lib/timetable.js reads it.
+ * Its 110 MB of JSON become one file of about 2.5 MB: the stations and their
+ * exits, the lines, and each weekday and weekend train as a stop sequence, a
+ * run of times and a departure, with the trains it runs through into.
+ * lib/timetable.js reads it.
  *
  * Run it again when the timetables change — a revision every March, and
  * smaller ones through the year:
@@ -103,12 +104,12 @@ function typeOf(id) {
 const stationById = new Map(stations.map((s) => [s.id, s]));
 const stops = [];
 const stopIndex = new Map();
+const round = (v) => Math.round(v * 1e5) / 1e5;
 function stopOf(id) {
   if (!stopIndex.has(id)) {
     const s = stationById.get(id);
     if (!s) throw new Error(`Unknown station ${id}`);
     const [group, place] = groupOf.get(id) || [-1, -1];
-    const round = (v) => Math.round(v * 1e5) / 1e5;
     stopIndex.set(id, stops.length);
     stops.push([
       s.title.en,
@@ -187,6 +188,22 @@ for (const [day, trains] of Object.entries(days)) {
   packed[day] = { trains: trains.map(packTrain).join(''), through };
 }
 
+/*
+ * The stations' exits, for the walk at the end of a journey: the one nearest
+ * where it is going ("Exit A2", "North Exit"). Mostly the subways' and the
+ * underground stations'. Lifts are left out, and so is an exit with no name
+ * or number, which would say nothing.
+ */
+const poi = new Map(read('poi.json').map((p) => [p.id, p]));
+const exits = [];
+for (const [id, index] of stopIndex) {
+  for (const exitId of stationById.get(id).exit || []) {
+    const p = poi.get(exitId);
+    const label = p && p.coord && p.description && (p.description.en || '').replace(/\s*\(Elevator[^)]*\)/i, '');
+    if (label && label !== 'Exit' && /\bexit\b/i.test(label)) exits.push([index, label, round(p.coord[1]), round(p.coord[0])]);
+  }
+}
+
 let commit = '';
 try { commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { /* not a checkout */ }
 
@@ -202,6 +219,7 @@ const data = {
   lines,
   types: typeNames,
   stops,
+  exits,
   seqs,
   timings,
   days: packed,
@@ -210,13 +228,13 @@ const data = {
 mkdirSync(out, { recursive: true });
 writeFileSync(new URL('tokyo-rail.json', out), JSON.stringify(data));
 const licence = readFileSync(join(repo, 'LICENSE'), 'utf8');
-writeFileSync(new URL('LICENSE', out), 'The timetables in tokyo-rail.json are derived from mini-tokyo-3d\n'
+writeFileSync(new URL('LICENSE', out), 'The timetables and station exits in tokyo-rail.json are derived from mini-tokyo-3d\n'
   + '(https://github.com/nagix/mini-tokyo-3d), which is distributed under this licence.\n'
   + 'Its timetables come from the operators, through the Public Transportation Open Data Center.\n\n'
   + licence);
 
 const size = JSON.stringify(data).length;
-console.log(`${stops.length} stations on ${lines.length} lines; `
+console.log(`${stops.length} stations on ${lines.length} lines, ${exits.length} exits; `
   + `${days.weekday.length} weekday and ${days.weekend.length} weekend trains `
   + `(${seqs.length} stop sequences, ${timings.length} runs of times); ${(size / 1e6).toFixed(2)} MB.`);
 console.log(`Left out: ${skipped.surcharge} surcharge trains, ${skipped.other} on other timetables, ${skipped.broken} unreadable.`);

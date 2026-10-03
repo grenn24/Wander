@@ -74,6 +74,7 @@
 .lineRow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: var(--fs-sm); color: var(--text-1); }
 .dot { color: var(--text-3); }
 .op { color: var(--text-3); }
+.opGroup { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .dir { font-size: var(--fs-sm); color: var(--text-2); }
 .stopsBtn {
   padding: 0; border: 0; background: none; font: inherit; color: var(--accent-ink);

@@ -38,6 +38,19 @@ test('the shown option drawn leg by leg, the others faint', () => {
   ]);
 });
 
+test('a walk out of an exit marks the exit, and its minutes beyond it', () => {
+  const station = p(35.685, 139.71);
+  const exit = p(35.6846, 139.7092);
+  const gyoen = p(35.684, 139.708);
+  const out = { ...one, legs: [...one.legs.slice(0, -1), { kind: 'walk', minutes: 4, exit: 'Exit 2', polyline: encodePath([station, exit, gyoen]) }] };
+  const { marks } = trainDrawing([out], out.id);
+  const near = (a, b) => Math.abs(a.lat - b.lat) < 1e-5 && Math.abs(a.lng - b.lng) < 1e-5;
+  const exitMark = marks.find((m) => m.kind === 'exit');
+  const walkMark = marks.filter((m) => m.kind === 'walk').pop();
+  assert.ok(near(exitMark.at, exit), 'the exit is marked where it is');
+  assert.ok(near(walkMark.at, p((exit.lat + gyoen.lat) / 2, (exit.lng + gyoen.lng) / 2)), 'the minutes halfway from the exit');
+});
+
 test('an option not among them shows the first; no options, nothing', () => {
   assert.equal(trainDrawing([one, two], 'gone').shownId, 'Marunouchi Line');
   assert.equal(trainDrawing([], 'x'), null);

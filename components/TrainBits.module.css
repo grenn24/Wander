@@ -37,6 +37,14 @@
   background: var(--op); color: #fff;
   font-size: 9px; font-weight: 700; letter-spacing: .02em; line-height: 1;
 }
+/* Its logo, where it has one: on white, so its own colours read in either theme. */
+.logo {
+  box-sizing: border-box; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 16px; min-width: 20px; max-width: 44px; padding: 2px 3px; border-radius: 4px;
+  background: #fff; box-shadow: inset 0 0 0 1px var(--border);
+}
+.logo img { display: block; height: 100%; width: auto; max-width: 38px; object-fit: contain; }
 
 .ic { flex: none; color: var(--text-3); }
 .walk { flex: none; color: var(--text-3); }

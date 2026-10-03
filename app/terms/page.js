@@ -69,8 +69,9 @@ export default function Terms() {
         with attribution.
       </p>
       <p>
-        Train times in Japan come from open data. Greater Tokyo&rsquo;s timetables are the
-        operators&rsquo;, through the Public Transportation Open Data Center, as gathered by{' '}
+        Train times in Japan come from open data. Greater Tokyo&rsquo;s timetables and station
+        exits are the operators&rsquo;, through the Public Transportation Open Data Center, as
+        gathered by{' '}
         <a href="https://github.com/nagix/mini-tokyo-3d" target="_blank" rel="noreferrer">mini-tokyo-3d</a>{' '}
         (MIT licence). Other timetables are the operators&rsquo; open GTFS feeds, from the{' '}
         <a href="https://gtfs-data.jp/" target="_blank" rel="noreferrer">GTFS Data Repository</a>:
@@ -89,6 +90,14 @@ export default function Terms() {
         </a>{' '}
         of the University of Tokyo and the Japan Bus Information Association, under CC BY 4.0
         and the ODbL; the database Wander derives from it is offered under the ODbL too.
+      </p>
+      <p>
+        Fares are the operators&rsquo; own, from their GTFS feeds and published fare tables,
+        and are shown only where they are known; check the fare at the station before you
+        rely on it. Railway companies&rsquo; logos come from{' '}
+        <a href="https://commons.wikimedia.org/" target="_blank" rel="noreferrer">Wikimedia Commons</a>,
+        where they are in the public domain; they remain their owners&rsquo; trademarks and are
+        shown only to say who runs a line.
       </p>
 
       <h2>No warranty</h2>

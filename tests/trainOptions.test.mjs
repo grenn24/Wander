@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { buildNetwork } from '../lib/timetable.js';
 import { buildModel } from '../lib/railModel.js';
 import { timetableOptions, modelOptions } from '../lib/trainOptions.js';
+import { decodePath } from '../lib/polyline.js';
 
 const read = (name) => JSON.parse(readFileSync(new URL(`../data/transit/${name}`, import.meta.url), 'utf8'));
 const minutesOf = (o) => o.legs.reduce((s, l) => s + l.minutes, 0);
@@ -23,6 +24,31 @@ function wellFormed(o) {
     }
   });
 }
+
+test('Tokyo: the walk off the last train leaves by the exit nearest where it is going', () => {
+  const data = read('tokyo-rail.json');
+  assert.ok(data.exits.length > 1000, `${data.exits.length} exits`);
+  data.exits.forEach(([stop, label]) => {
+    assert.ok(data.stops[stop], 'an exit belongs to a station');
+    assert.match(label, /Exit/);
+    assert.doesNotMatch(label, /Elevator|^Exit$/);
+  });
+  const net = buildNetwork(data, 'weekday');
+  const sensoji = { lat: 35.7148, lng: 139.7967 };
+  const { options } = timetableOptions(net, { lat: 35.6812, lng: 139.7671 }, sensoji);
+  const out = options.map((o) => o.legs[o.legs.length - 1]).filter((l) => l.kind === 'walk' && l.exit);
+  assert.ok(out.length, 'some way to Senso-ji names its exit');
+  out.forEach((walk) => {
+    const station = net.stops.find((s) => s.name === walk.from && s.exits && s.exits.some((e) => e.label === walk.exit));
+    assert.ok(station, `${walk.exit} is one of ${walk.from}'s`);
+    const km = (e) => Math.hypot(e.lat - sensoji.lat, (e.lng - sensoji.lng) * Math.cos(sensoji.lat * Math.PI / 180));
+    const nearest = station.exits.reduce((a, b) => (km(b) < km(a) ? b : a));
+    assert.equal(walk.exit, nearest.label);
+    assert.equal(decodePath(walk.polyline).length, 3, 'station, exit, Senso-ji');
+  });
+  // No exit where the station lists none, or the walk is not the last.
+  options.forEach((o) => o.legs.slice(0, -1).forEach((l) => { if (l.kind === 'walk') assert.equal(l.exit, null); }));
+});
 
 test('Tokyo: Tokyo Station to Shinjuku Gyoen has other ways than the fastest', () => {
   const net = buildNetwork(read('tokyo-rail.json'), 'weekday');
