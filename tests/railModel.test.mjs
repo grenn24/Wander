@@ -173,7 +173,7 @@ test('Japan: and outside Tokyo, it agrees with the open timetables on board', as
 });
 
 test('a partial timetable is taken unless it is clearly slower than the estimate', async () => {
-  const { preferTimetable } = await import('../lib/japanTransit.js');
+  const { preferTimetable } = await import('../lib/railTransit.js');
   const timed = (min) => ({ found: true, seconds: min * 60 });
   assert.equal(preferTimetable(timed(20), timed(18)), true);
   assert.equal(preferTimetable(timed(30), timed(18)), false);
@@ -198,7 +198,7 @@ test('Fukuoka: the model, fitted in Tokyo, agrees with a real timetable elsewher
 });
 
 test('a train that loses to walking is not offered: the walk is', async () => {
-  const { onFoot } = await import('../lib/japanTransit.js');
+  const { onFoot } = await import('../lib/railTransit.js');
   // Kiyomizu-dera to Gion, 1.3 km: a 42-minute train journey against a walk of about 21.
   const kiyomizu = { lat: 34.9949, lng: 135.7850 };
   const gion = { lat: 35.0037, lng: 135.7756 };

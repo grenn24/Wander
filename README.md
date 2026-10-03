@@ -103,16 +103,44 @@ leave-at time, with the last train (`lib/departures.js`, timetable regions
 only). Every time in the app is 12-hour.
 
 **Fares** (`lib/fares.js`) are shown only where they are known: the open
-feeds' GTFS fares, and the IC fares of Tokyo Metro and Toei from their
-distance bands (a range near a band's edge, ¥70 off a change between the
-two). JR and the other private railways publish no machine-readable fares, so
-their routes show none. **Operator logos** are the railways' own from
-Wikimedia Commons, only those filed there as public domain
-(`scripts/transit/operator-logos.mjs` fetches them into `public/operators/`
-and `lib/operatorLogos.js`); other operators show their initials.
+feeds' GTFS fares, and card fares by distance where an operator's registry
+entry lists its bands (Tokyo Metro and Toei: a range near a band's edge, ¥70
+off a change between the two). JR and the other private railways publish no
+machine-readable fares, so their routes show none. **Operator logos** are the
+railways' own: the logo Wikidata gives each operator, from Wikimedia Commons
+with its licence and author (`scripts/transit/operator-logos.mjs` fetches them
+into `public/operators/<country>/` and `data/transit/registry/logos.json`; the
+Terms page credits each). An operator without one shows its initials.
 
-How it fits together: `/api/routes` sends transit in Japan to
-`lib/japanTransit.js`, which tries the timetable regions
+**The registry: operators, lines, fares, countries.** Everything the app
+knows *about* a railway, as opposed to its timetable, is data in
+`data/transit/registry/<country>.json` (read by `lib/registry.js`), one
+operator or line to a line:
+
+- an **operator**: `{ id, name, local, aliases, mark, colour, group, badge,
+  linePrefix, wikidata, logo, logoCrop, fares }`. It is found by any of its
+  names, so `aliases` holds whatever each data source calls it
+  (mini-tokyo-3d's `TokyoMetro`, an open feed's `Kōnan Railway`). `group`
+  makes the "JR only" tag, `badge: "square"` JR's square line badges,
+  `linePrefix` how its lines are named in English ("JR Yamanote Line"), and
+  `fares.card.bands` its card fares by distance (`[km, fare]`, `null` for any
+  distance beyond).
+- a **line**: `{ operator, name, local, aliases, code, colour }`, its station
+  signs' letters and colour.
+- **transfers**: `{ between: [a, b], basis: "card", off: 70 }`, what changing
+  between two operators takes off.
+- the country's `currency`, `timeZone` and the name of its stored-value
+  `card`, which fares, "leave now" and the fare box use.
+
+Adding a line or an operator is a line in that file (then
+`node scripts/transit/operator-logos.mjs jp` for its logo). Adding a country
+is a new `<cc>.json` imported in `lib/registry.js`, its timetables as a
+region in `lib/timetableRegions.js` (with `country`), and, where Google has
+no transit there, its modelled network in `NETWORKS` in `lib/railTransit.js`;
+the planners, the options panel and departures are the same everywhere.
+
+How it fits together: `/api/routes` sends transit to
+`lib/railTransit.js`, which tries the timetable regions
 (`lib/timetableRegions.js` over `lib/timetable.js`, a connection scan), then
 the nationwide model (`lib/railModel.js`, Dijkstra's). Each answers in
 Google's shape with `source: 'timetable'` or `'model'`, and loads its data

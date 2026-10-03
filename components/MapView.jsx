@@ -5,7 +5,7 @@ import {
   Search, Crosshair, ChevronUp, ChevronDown, Check, List,
 } from 'lucide-react';
 import {
-  fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs, tokyoNow, clockMinutes,
+  fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs, zonedNow, clockMinutes,
 } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
@@ -239,11 +239,11 @@ export default function MapView({
       );
     }
     const dayIndex = days.indexOf(h.day);
-    const today = tokyoNow();
+    const today = zonedNow(way.trainZone);
     const live = h.day === today.date;
     return (
       <TrainPanel key={trainHop}
-        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} timeZone={way.trainZone}
         leaveAt={live ? today.minute : leaveFor(h, way.trains[0])}
         options={way.trains}
         mode="plan"

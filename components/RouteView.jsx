@@ -8,7 +8,7 @@ import {
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
 import TrainPanel from '@/components/TrainPanel';
-import { fmtDuration, fmtTime, tokyoNow } from '@/lib/util';
+import { fmtDuration, fmtTime, zonedNow } from '@/lib/util';
 
 /**
  * The way there, on this app's own map.
@@ -255,7 +255,7 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
       {trains ? (
         <div className="rv-trains">
           <TrainPanel options={trains} mode="now" to={title}
-            ends={{ from, to }} date={tokyoNow().date} leaveAt={tokyoNow().minute} live
+            ends={{ from, to }} date={zonedNow(leg.timeZone).date} leaveAt={zonedNow(leg.timeZone).minute} live timeZone={leg.timeZone}
             note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
             shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
         </div>

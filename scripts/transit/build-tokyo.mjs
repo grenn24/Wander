@@ -24,7 +24,7 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { FORMAT, packTiming, packTrain } from '../../lib/timetable.js';
-import { lineName, vehicle } from './names.mjs';
+import { lineName, vehicle, operatorOfRailway } from './names.mjs';
 
 const repo = process.argv[2];
 if (!repo || !existsSync(join(repo, 'data', 'railways.json'))) {
@@ -79,7 +79,10 @@ const stations = read('stations.json');
 const groups = read('station-groups.json');
 const types = read('train-types.json');
 
-const lines = railways.map((r) => [lineName(r), (r.color || '').replace('#', '').toUpperCase(), vehicle(r.id)]);
+// Each line with its operator as mini-tokyo-3d names it ("TokyoMetro", an alias in the registry) and its Japanese name.
+const lines = railways.map((r) => [
+  lineName(r), (r.color || '').replace('#', '').toUpperCase(), vehicle(r.id), operatorOfRailway(r), '', r.title.ja,
+]);
 const lineIndex = new Map(railways.map((r, i) => [r.id, i]));
 
 // Each station's interchange complex, and which part of it.

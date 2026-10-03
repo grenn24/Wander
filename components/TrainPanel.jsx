@@ -12,15 +12,16 @@ import Departures from '@/components/Departures';
  *   date     the hop's day, YYYY-MM-DD, for the departures' timetable
  *   leaveAt  the minute you leave, for the departures to start from
  *   live     the day is today
+ *   timeZone where the trains run, for what time it is there now
  *
  * Everything else is TrainOptions'.
  */
-export default function TrainPanel({ ends, date, leaveAt, live = false, ...options }) {
+export default function TrainPanel({ ends, date, leaveAt, live = false, timeZone, ...options }) {
   const [leg, setLeg] = useState(null); // { option, ride }
   if (leg) {
     return (
       <Departures option={leg.option} ride={leg.ride} from={ends.from} to={ends.to}
-        toName={options.to} date={date} leaveAt={leaveAt} live={live}
+        toName={options.to} date={date} leaveAt={leaveAt} live={live} timeZone={timeZone}
         onBack={() => setLeg(null)} />
     );
   }

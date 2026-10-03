@@ -3,21 +3,19 @@
  * greater Tokyo, made into the names people use there.
  */
 
+import { linePrefixOf, plain } from '../../lib/registry.js';
+
 /*
  * Lines are named as people in Tokyo name them, and as Google Maps does there:
  * the JR lines as JR, the subway lines plain, and the private railways with
- * the company first — "Shinjuku Line" alone is both Toei's and Seibu's.
+ * the company first — "Shinjuku Line" alone is both Toei's and Seibu's. Which
+ * companies come first is each operator's `linePrefix` in the registry, found
+ * by mini-tokyo-3d's name for it ("JR-East"), one of its aliases there.
  */
-export const COMPANY = {
-  'JR-East': 'JR', 'JR-Central': 'JR', Toei: 'Toei', YokohamaMunicipal: 'Yokohama Subway',
-  Keio: 'Keio', Keikyu: 'Keikyu', Keisei: 'Keisei', Tobu: 'Tobu', Seibu: 'Seibu',
-  Odakyu: 'Odakyu', Tokyu: 'Tokyu', Sotetsu: 'Sotetsu', TokyoMonorail: 'Tokyo Monorail',
-  KantoRailway: 'Kanto Railway', IzuHakone: 'Izuhakone',
-};
-const plain = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+export const operatorOfRailway = (railway) => railway.id.split('.')[0];
 export function lineName(railway) {
   const title = railway.title.en;
-  const company = COMPANY[railway.id.split('.')[0]];
+  const company = linePrefixOf(operatorOfRailway(railway));
   return company && !plain(title).includes(plain(company)) ? `${company} ${title}` : title;
 }
 

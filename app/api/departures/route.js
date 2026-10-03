@@ -1,5 +1,5 @@
 import { timetablesFor } from '@/lib/timetableRegions';
-import { earliestJourney, typicalJourney, tokyoClock } from '@/lib/timetable';
+import { earliestJourney, typicalJourney } from '@/lib/timetable';
 import { departures, dayOf } from '@/lib/departures';
 
 export const runtime = 'nodejs';
@@ -34,13 +34,14 @@ export async function POST(req) {
   }
   const a = { lat: Number(from.lat), lng: Number(from.lng) };
   const b = { lat: Number(to.lat), lng: Number(to.lng) };
-  const clock = tokyoClock();
-  const day = now ? clock.day : /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? dayOf(date) : 'weekday';
-  const start = Number.isFinite(Number(after)) ? Math.max(0, Math.min(27 * 60, Number(after))) : clock.minute;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? dayOf(date) : 'weekday';
+  const asked = Number.isFinite(Number(after)) ? Math.max(0, Math.min(27 * 60, Number(after))) : null;
 
   try {
     const ids = option.split('>');
-    for (const { net } of await timetablesFor({ from: a, to: b, day })) {
+    for (const { net, clock } of await timetablesFor({ from: a, to: b, day, now: !!now })) {
+      // From the minute asked for, or now where the timetable runs.
+      const start = asked ?? clock.minute;
       const lines = ids.map((id) => net.lines.findIndex((l) => l[0] === id));
       if (lines.some((i) => i < 0)) continue;
       const only = new Set(lines);

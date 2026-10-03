@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   FORMAT, packTiming, unpackTiming, packTrain, unpackTrain, buildNetwork, earliestJourney,
-  typicalJourney, asRoute, covers, tokyoClock, encodePath, walkFor,
+  typicalJourney, asRoute, covers, serviceClock, encodePath, walkFor,
 } from '../lib/timetable.js';
 import { decodePath } from '../lib/geo.js';
 import { TOKYO_AREA } from '../lib/timetableRegions.js';
@@ -135,13 +135,13 @@ test('a typical journey is the median of several departures, so one lucky connec
 
 test('Tokyo\'s clock: the service day runs to three in the morning', () => {
   // 01:30 on Saturday in Tokyo is still Friday's weekday timetable.
-  assert.deepEqual(tokyoClock(new Date('2026-10-02T16:30:00Z')), { day: 'weekday', minute: 25 * 60 + 30 });
+  assert.deepEqual(serviceClock('Asia/Tokyo', new Date('2026-10-02T16:30:00Z')), { day: 'weekday', minute: 25 * 60 + 30 });
   // Saturday noon, Sunday noon, Monday 08:15.
-  assert.deepEqual(tokyoClock(new Date('2026-10-03T03:00:00Z')), { day: 'weekend', minute: 720 });
-  assert.deepEqual(tokyoClock(new Date('2026-10-04T03:00:00Z')), { day: 'weekend', minute: 720 });
-  assert.deepEqual(tokyoClock(new Date('2026-10-04T23:15:00Z')), { day: 'weekday', minute: 495 });
+  assert.deepEqual(serviceClock('Asia/Tokyo', new Date('2026-10-03T03:00:00Z')), { day: 'weekend', minute: 720 });
+  assert.deepEqual(serviceClock('Asia/Tokyo', new Date('2026-10-04T03:00:00Z')), { day: 'weekend', minute: 720 });
+  assert.deepEqual(serviceClock('Asia/Tokyo', new Date('2026-10-04T23:15:00Z')), { day: 'weekday', minute: 495 });
   // And 02:00 on Monday is Sunday's.
-  assert.equal(tokyoClock(new Date('2026-10-04T17:00:00Z')).day, 'weekend');
+  assert.equal(serviceClock('Asia/Tokyo', new Date('2026-10-04T17:00:00Z')).day, 'weekend');
 });
 
 /*

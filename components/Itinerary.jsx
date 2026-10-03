@@ -14,7 +14,7 @@ import TripCoverAdd from '@/components/TripCoverAdd';
 import useKept from '@/components/useKept';
 import {
   categoryOf, fmtDay, fmtDayTiny, fmtTime, money, sortActs,
-  shortPlace, activityGap, fmtDuration, tokyoNow, clockMinutes,
+  shortPlace, activityGap, fmtDuration, zonedNow, clockMinutes,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
 import { clockAt, tripNow } from '@/public/trip-time';
@@ -101,7 +101,7 @@ export default function Itinerary({
     const leg = h && travel.byKey[trainHop];
     const way = leg && leg.options.find((o) => o.mode === 'TRANSIT' && o.trains);
     if (!h || !way) return null;
-    const today = tokyoNow();
+    const today = zonedNow(way.trainZone);
     const live = h.day === today.date;
     const end = clockMinutes(h.fromEnd);
     const start = clockMinutes(h.toStart);
@@ -109,7 +109,7 @@ export default function Itinerary({
       : start != null ? Math.max(0, start - Math.round(way.trains[0].seconds / 60)) : 600;
     return (
       <TrainSheet onClose={() => setTrainHop(null)}
-        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} leaveAt={leaveAt}
+        ends={{ from: h.from, to: h.to }} date={h.day || today.date} live={live} leaveAt={leaveAt} timeZone={way.trainZone}
         options={way.trains} mode="plan"
         title={`${h.fromTitle} → ${h.toTitle}`}
         sub={`${h.day ? `${fmtDay(h.day)} · ` : ''}≈ ${fmtKm(h.km)}`}

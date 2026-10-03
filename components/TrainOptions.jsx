@@ -6,7 +6,7 @@ import {
 } from '@/components/TrainBits';
 import { summaryOf, barOf, stepsOf, linesOf, directionOf } from '@/lib/trainView';
 import { fmtMinute } from '@/lib/util';
-import { yen } from '@/lib/fares';
+import { fareText } from '@/lib/fareText';
 import { Ticket } from 'lucide-react';
 import s from './TrainOptions.module.css';
 
@@ -94,10 +94,10 @@ export default function TrainOptions({
                   ) : (
                     <span className={s.big}>{estimate ? '~' : ''}{minutes}<span className={s.unit}> min</span></span>
                   )}
-                  {tags.map((t) => <TagChip key={t} tag={t} />)}
+                  {tags.map((t) => <TagChip key={t} tag={t} currency={o.fare ? o.fare.currency : undefined} />)}
                   {o.fare ? (
                     <span className={s.fare} data-tip={o.fare.upTo ? 'One fare or the other, by the distance ridden' : undefined}>
-                      {o.fare.basis === 'ic' ? <ICCard /> : <Ticket size={15} className={s.ticket} aria-hidden="true" />} {yen(o.fare)}
+                      {byCard(o.fare) ? <ICCard /> : <Ticket size={15} className={s.ticket} aria-hidden="true" />} {fareText(o.fare)}
                     </span>
                   ) : null}
                 </span>
@@ -259,10 +259,13 @@ function RideStep({ option, index, leg, mode, stopsShown, onStops, onLeg }) {
   );
 }
 
+// Paid with the country's stored-value card ('ic' is how routes cached before the registry say so).
+const byCard = (fare) => fare.basis === 'card' || fare.basis === 'ic';
+
 /** The fare: one line for one operator, a line each and the total for several. */
 function FareBox({ fare }) {
-  const how = fare.basis === 'ic'
-    ? <><ICCard /> <b>IC card</b></>
+  const how = byCard(fare)
+    ? <><ICCard /> <b>{fare.card || 'IC card'}</b></>
     : <><Ticket size={15} className={s.ticket} aria-hidden="true" /> <b>Fare</b></>;
   const parts = fare.parts.filter((p) => !p.discount);
   if (parts.length === 1 && parts.length === fare.parts.length) {
@@ -273,7 +276,7 @@ function FareBox({ fare }) {
           {how}
           {part.operator ? <><span className={s.dot}>·</span><OperatorMark operator={part.operator} /> {part.operator.name}</> : null}
         </span>
-        <span className={s.yen}>{yen(fare)}</span>
+        <span className={s.yen}>{fareText(fare)}</span>
       </div>
     );
   }
@@ -284,12 +287,12 @@ function FareBox({ fare }) {
           <span className={s.fareLine}>
             {p.discount ? 'Changing between the two' : <>{p.operator ? <OperatorMark operator={p.operator} /> : null} {p.operator ? p.operator.name : ''}</>}
           </span>
-          <span className={s.yen}>{yen(p)}</span>
+          <span className={s.yen}>{fareText(p, fare.currency)}</span>
         </span>
       ))}
       <span className={s.fareTotal}>
         <span className={s.fareLine}>{how}</span>
-        <span className={s.yen}>{yen(fare)}</span>
+        <span className={s.yen}>{fareText(fare)}</span>
       </span>
     </div>
   );

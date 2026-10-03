@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LegalPage from '@/components/LegalPage';
+import { logoCredits } from '@/lib/registry';
 
 export const metadata = {
   title: 'Terms of Service — Wander',
@@ -96,9 +97,21 @@ export default function Terms() {
         and are shown only where they are known; check the fare at the station before you
         rely on it. Railway companies&rsquo; logos come from{' '}
         <a href="https://commons.wikimedia.org/" target="_blank" rel="noreferrer">Wikimedia Commons</a>,
-        where they are in the public domain; they remain their owners&rsquo; trademarks and are
-        shown only to say who runs a line.
+        each under the licence below; they remain their owners&rsquo; trademarks and are shown
+        only to say who runs a line.
       </p>
+      <details>
+        <summary>Railway logos and their licences</summary>
+        <ul>
+          {logoCredits().map((l) => (
+            <li key={l.key}>
+              {l.operator}:{' '}
+              <a href={l.source} target="_blank" rel="noreferrer">{l.name || 'logo'}</a>
+              {l.artist ? `, by ${l.artist}` : ''}, {l.licence}
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <h2>No warranty</h2>
       <p>

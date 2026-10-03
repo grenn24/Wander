@@ -1,6 +1,6 @@
 'use client';
 import {
-  Zap, JapaneseYen, ArrowLeftRight, Ticket, Pin, Footprints, CreditCard, TrainFront,
+  Zap, JapaneseYen, Coins, ArrowLeftRight, Ticket, Pin, Footprints, CreditCard, TrainFront,
 } from 'lucide-react';
 import s from './TrainBits.module.css';
 
@@ -87,11 +87,10 @@ export function WalkIcon({ size = 14 }) {
 const TAGS = {
   fastest: { icon: Zap, label: 'Fastest' },
   cheapest: { icon: JapaneseYen, label: 'Cheapest' },
-  'jr-only': { icon: Ticket, label: 'JR only' },
 };
 
-/** One of an option's tags; a saved route is its pin alone. */
-export function TagChip({ tag }) {
+/** One of an option's tags; a saved route is its pin alone. `currency` picks the cheapest tag's icon. */
+export function TagChip({ tag, currency = 'JPY' }) {
   if (tag === 'saved') {
     return (
       <span className={s.tag} data-saved="" role="img" aria-label="Saved for this hop">
@@ -100,10 +99,14 @@ export function TagChip({ tag }) {
     );
   }
   let def = TAGS[tag];
+  if (tag === 'cheapest' && currency && currency !== 'JPY') def = { icon: Coins, label: 'Cheapest' };
   if (!def && tag.startsWith('changes:')) {
     const n = Number(tag.slice(8));
     def = { icon: ArrowLeftRight, label: `${n} change${n === 1 ? '' : 's'}` };
   }
+  // Every train one group's, as a rail pass covers them: "JR only".
+  if (!def && tag.startsWith('only:')) def = { icon: Ticket, label: `${tag.slice(5)} only` };
+  if (!def && tag === 'jr-only') def = { icon: Ticket, label: 'JR only' };
   if (!def) return null;
   const Icon = def.icon;
   return (

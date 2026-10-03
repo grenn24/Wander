@@ -1,84 +1,82 @@
-// Written by scripts/transit/operator-logos.mjs: each operator's logo from Wikimedia Commons,
-// public domain or CC0, with the page it came from. The trademarks are their owners'.
-export default {
- "JR East": {
-  "file": "/operators/jr-east.svg",
+{
+ "JP/jr-east": {
+  "file": "/operators/jp/jr-east.svg",
   "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(east).svg",
   "licence": "Public domain"
  },
- "JR Central": {
-  "file": "/operators/jr-central.svg",
+ "JP/jr-central": {
+  "file": "/operators/jp/jr-central.svg",
   "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(central).svg",
   "licence": "Public domain"
  },
- "JR West": {
-  "file": "/operators/jr-west.svg",
+ "JP/jr-west": {
+  "file": "/operators/jp/jr-west.svg",
   "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(west).svg",
   "licence": "Public domain"
  },
- "JR Hokkaido": {
-  "file": "/operators/jr-hokkaido.svg",
+ "JP/jr-hokkaido": {
+  "file": "/operators/jp/jr-hokkaido.svg",
   "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(hokkaido).svg",
   "licence": "Public domain"
  },
- "JR Shikoku": {
-  "file": "/operators/jr-shikoku.svg",
+ "JP/jr-shikoku": {
+  "file": "/operators/jp/jr-shikoku.svg",
   "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(shikoku).svg",
   "licence": "Public domain"
  },
- "Tokyo Metro": {
-  "file": "/operators/tokyo-metro.svg",
+ "JP/tokyo-metro": {
+  "file": "/operators/jp/tokyo-metro.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Tokyo_Metro_logo.svg",
   "licence": "Public domain"
  },
- "Toei": {
-  "file": "/operators/toei.svg",
+ "JP/toei": {
+  "file": "/operators/jp/toei.svg",
   "source": "https://commons.wikimedia.org/wiki/File:BTTMG_logomark.svg",
   "licence": "Public domain"
  },
- "Osaka Metro": {
-  "file": "/operators/osaka-metro.svg",
+ "JP/osaka-metro": {
+  "file": "/operators/jp/osaka-metro.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Osaka_Metro_logo.svg",
   "licence": "Public domain"
  },
- "Tokyu": {
-  "file": "/operators/tokyu.svg",
+ "JP/tokyu": {
+  "file": "/operators/jp/tokyu.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Tokyu_logo.svg",
   "licence": "Public domain"
  },
- "Seibu": {
-  "file": "/operators/seibu.svg",
+ "JP/seibu": {
+  "file": "/operators/jp/seibu.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Seibu_logo.svg",
   "licence": "Public domain"
  },
- "Keisei": {
-  "file": "/operators/keisei.svg",
+ "JP/keisei": {
+  "file": "/operators/jp/keisei.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Keisei_Electric_Railway_logo.svg",
   "licence": "Public domain"
  },
- "Keikyu": {
-  "file": "/operators/keikyu.svg",
+ "JP/keikyu": {
+  "file": "/operators/jp/keikyu.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Keikyu_logo.svg",
   "licence": "Public domain"
  },
- "Tsukuba Express": {
-  "file": "/operators/tsukuba-express.svg",
+ "JP/tsukuba-express": {
+  "file": "/operators/jp/tsukuba-express.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Tsukuba_Express_logo.svg",
   "licence": "Public domain"
  },
- "Nankai": {
-  "file": "/operators/nankai.svg",
+ "JP/nankai": {
+  "file": "/operators/jp/nankai.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Nankai_logo.svg",
   "licence": "Public domain"
  },
- "Hanshin": {
-  "file": "/operators/hanshin.svg",
+ "JP/hanshin": {
+  "file": "/operators/jp/hanshin.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Hanshin_logo.svg",
   "licence": "Public domain"
  },
- "Meitetsu": {
-  "file": "/operators/meitetsu.svg",
+ "JP/meitetsu": {
+  "file": "/operators/jp/meitetsu.svg",
   "source": "https://commons.wikimedia.org/wiki/File:Meitetsu_logo.svg",
   "licence": "Public domain"
  }
-};
+}

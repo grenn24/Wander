@@ -3,7 +3,7 @@
 Comparing ways to take the train between two stops: different lines, what
 each costs, when the trains leave, and which one to use next time. Builds on
 the Japan train times already in the app (`lib/timetable`, `lib/railModel`,
-`lib/japanTransit`). Mockup: the "Train options mockup" artifact; its numbers
+`lib/railTransit`). Mockup: the "Train options mockup" artifact; its numbers
 are placeholders.
 
 ## What the traveller sees

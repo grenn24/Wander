@@ -91,7 +91,7 @@ out or clear offline downloads. Keep auth consumers outside the SDK callback
 lock. Regression coverage is in `tests/session-recovery.test.mjs`.
 
 Transit in Japan does not come from Google, whose Routes API has none there.
-`/api/routes` sends it to `lib/japanTransit.js`: real timetables where they
+`/api/routes` sends it to `lib/railTransit.js`: real timetables where they
 are open (`lib/timetableRegions.js`: greater Tokyo, complete; ten open GTFS
 feeds outside it, partial, so used only when not clearly slower than the
 model), the
@@ -104,6 +104,14 @@ line is still drawn, and the tooltips and footnotes read the source. The
 model's speeds (`PACE`) are fitted to Tokyo's timetables by
 `scripts/transit/calibrate.mjs`, and `tests/railModel.test.mjs` fails if they
 drift apart. Rebuilding is in the README, "Train times in Japan".
+
+What the app knows *about* railways (operators, their names in each data
+source, marks, colours, logos, fares by distance, transfer discounts; lines'
+codes and colours; each country's currency, time zone and card) is data in
+`data/transit/registry/<country>.json`, read by `lib/registry.js`. Don't put
+an operator's name, a line code or a fare in code: add it to the country's
+file. The README section "The registry" says how to add a line, an operator
+or a country.
 
 These are the recurring bug classes in this codebase. Most "the model is being
 stupid" reports turned out to be one of them.

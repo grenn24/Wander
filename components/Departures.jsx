@@ -4,7 +4,7 @@ import { ChevronLeft, Moon, Loader2 } from 'lucide-react';
 import { LineBadge, OperatorMark, PlatformChip } from '@/components/TrainBits';
 import TimePicker from '@/components/TimePicker';
 import { departuresOf } from '@/lib/geo';
-import { fmtMinute, tokyoNow } from '@/lib/util';
+import { fmtMinute, zonedNow } from '@/lib/util';
 import s from './Departures.module.css';
 
 /**
@@ -21,7 +21,7 @@ import s from './Departures.module.css';
  *   live          the day is today: "in N min" while the time is still now
  */
 export default function Departures({
-  option, ride = 0, from, to, toName = '', date, leaveAt = 600, live = false,
+  option, ride = 0, from, to, toName = '', date, leaveAt = 600, live = false, timeZone,
   onBack, backLabel = 'Train options',
 }) {
   const leg = option.legs.filter((l) => l.kind === 'ride')[ride];
@@ -51,7 +51,7 @@ export default function Departures({
   const shown = more ? list : list.slice(0, 5);
   const firstId = list.length ? list[0].leaves : null;
   const chosen = picked ?? firstId;
-  const now = live && !touched ? tokyoNow().minute : null;
+  const now = live && !touched ? zonedNow(timeZone).minute : null;
 
   return (
     <div className={s.panel}>

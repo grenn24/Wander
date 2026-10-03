@@ -3,7 +3,7 @@ import { Footprints, TrainFront, Car, TriangleAlert, Pin } from 'lucide-react';
 import TravelEstimate from '@/components/TravelEstimate';
 import { LineBadge } from '@/components/TrainBits';
 import { linesOf } from '@/lib/trainView';
-import { yen } from '@/lib/fares';
+import { fareText } from '@/lib/fareText';
 import { fmtKm } from '@/lib/geo';
 import { fmtDuration } from '@/lib/util';
 import { TRAVEL_LABEL, whyEstimate } from '@/lib/travel';
@@ -80,7 +80,7 @@ export default function LegLine({ km, leg, gap = null, onChoose = null, onTrains
                 {lines.slice(0, 3).map((l) => <LineBadge key={l.id} line={l} size="sm" compact />)}
                 {saved ? <Pin size={11} className={s.pin} aria-hidden="true" /> : null}
                 {time}
-                {first.fare ? <span className={s.fare}>· {yen(first.fare)}</span> : null}
+                {first.fare ? <span className={s.fare}>· {fareText(first.fare)}</span> : null}
               </button>
             );
           }

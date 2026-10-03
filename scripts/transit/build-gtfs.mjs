@@ -27,8 +27,9 @@ import { FORMAT, packTiming, packTrain, haversineKm } from '../../lib/timetable.
  * The feeds. `repository` is the repository's organisation/feed id; `git` is
  * a repository and folder to clone instead. `en` names the operator in
  * English, for lines whose feed names them only generically. `vehicle`
- * corrects a feed that files its trams as buses. `op` is the operator as
- * lib/operators knows it, where it does; otherwise the English name stands.
+ * corrects a feed that files its trams as buses. `op` is one of the
+ * operator's names in the registry (data/transit/registry/jp.json), where it
+ * is not `en`; an operator the registry does not know is added there.
  */
 const FEEDS = [
   {
