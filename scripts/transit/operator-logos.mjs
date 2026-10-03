@@ -112,8 +112,12 @@ function commonsFiles(names) {
 const WIDTHS = [60, 120, 250, 330, 500, 960];
 function thumbOf(info, tall = 1) {
   const aspect = info.width && info.height ? info.width / info.height : 1;
-  const width = WIDTHS.find((w) => (w / aspect) * tall >= 64) || WIDTHS[WIDTHS.length - 1];
-  if (info.width && info.mime !== 'image/svg+xml' && info.width <= width) return info.url;
+  let width = WIDTHS.find((w) => (w / aspect) * tall >= 64) || WIDTHS[WIDTHS.length - 1];
+  // A picture is not scaled up: the widest standard thumbnail it has, or itself where it is smaller still.
+  if (info.width && info.mime !== 'image/svg+xml' && info.width <= width) {
+    width = [...WIDTHS].reverse().find((w) => w < info.width);
+    if (!width) return info.url;
+  }
   const [, path, file] = /\/commons\/(.+\/)([^/?]+)(\?.*)?$/.exec(info.url);
   // An SVG's thumbnail is a PNG; a picture's is its own kind.
   const png = info.mime === 'image/svg+xml' ? '.png' : '';
