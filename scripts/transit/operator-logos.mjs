@@ -2,23 +2,26 @@
  * Railway operators' logos for the marks beside their names, for every
  * operator in the registry (data/transit/registry/<country>.json) that has a
  * Wikidata item: the logo Wikidata gives it (P154), or the file its registry
- * entry names instead (`logo`, a Commons file name, where Wikidata's has a
- * slogan or a long name that would not read at 12px), cut to `logoCrop` (a
- * viewBox in the file's units) where that is given.
+ * entry names instead (`logo`, a Commons file name), cut to its mark where
+ * the entry says where that is (`logoCrop`: left, top, width and height as
+ * fractions of the picture), for a logo whose slogan or long name would not
+ * read at 12px.
  *
  * Every file on Wikimedia Commons is free to use under the licence it states;
  * each is kept with that licence, its author and its page, for the Terms
  * page. Logos remain their owners' trademarks and are shown only to say who
- * runs a line. A file that is not a plain SVG (nothing that runs or loads
- * anything) or a small PNG is left out, and the operator keeps its initials.
+ * runs a line. Wikidata's logo is taken as an SVG or PNG, or a JPEG named
+ * as a logo (a JPEG it lists may be a photograph); anything else is left
+ * out, and the operator keeps its initials.
  *
  * Writes public/operators/<country>/<id>.<svg|png> and
  * data/transit/registry/logos.json. Wikidata's query service and Commons ask
  * for a slow, named client, so it is one request at a time and it waits
  * when told to. Commons serves its original files to scripts only slowly and
  * asks for thumbnails at its standard widths instead, so a logo is a PNG
- * thumbnail tall enough for a sharp 12px mark on any screen, and an SVG only
- * where it is cut to its mark (`logoCrop`).
+ * thumbnail with its mark tall enough for a sharp 12px mark on any screen,
+ * cut with sharp (Next's image library). Logos already here of the same file
+ * and cut are kept as they are, SVG or PNG.
  *
  *   node scripts/transit/operator-logos.mjs             every country
  *   node scripts/transit/operator-logos.mjs jp           one
@@ -101,27 +104,33 @@ function commonsFiles(names) {
   return out;
 }
 
-// Plain shapes and text only: nothing that runs, nothing fetched from elsewhere (inline pictures are fine).
-const safe = (svg) => svg.includes('<svg')
-  && !/<script|\son[a-z]+\s*=|javascript:|<foreignObject|<iframe|(?:xlink:)?href="(?!#|data:image\/(?:png|jpe?g|gif);base64,)/i.test(svg);
 /*
  * A thumbnail at one of Commons' standard widths (https://w.wiki/GHai): the
- * narrowest at which the logo is at least 64px tall, for a 12px mark at up
- * to five times over.
+ * narrowest at which the part kept (`tall`, a fraction of the height) is at
+ * least 64px tall, for a 12px mark at up to five times over.
  */
-const WIDTHS = [60, 120, 250, 330, 500];
-function thumbOf(info) {
+const WIDTHS = [60, 120, 250, 330, 500, 960];
+function thumbOf(info, tall = 1) {
   const aspect = info.width && info.height ? info.width / info.height : 1;
-  const width = WIDTHS.find((w) => w / aspect >= 64) || WIDTHS[WIDTHS.length - 1];
+  const width = WIDTHS.find((w) => (w / aspect) * tall >= 64) || WIDTHS[WIDTHS.length - 1];
   if (info.width && info.mime !== 'image/svg+xml' && info.width <= width) return info.url;
   const [, path, file] = /\/commons\/(.+\/)([^/?]+)(\?.*)?$/.exec(info.url);
-  const png = /\.png$/i.test(file) ? '' : '.png';
+  // An SVG's thumbnail is a PNG; a picture's is its own kind.
+  const png = info.mime === 'image/svg+xml' ? '.png' : '';
   return `https://upload.wikimedia.org/wikipedia/commons/thumb/${path}${file}/${width}px-${file}${png}`;
 }
 
-const crop = (svg, box) => svg.replace(/<svg[\s\S]*?>/, (tag) => tag
-  .replace(/\s(width|height|viewBox)="[^"]*"/g, '')
-  .replace(/<svg/, `<svg viewBox="${box.join(' ')}"`));
+// A picture cut to [left, top, width, height], fractions of it, as far as it goes; as a PNG.
+async function cut(png, [left, top, width, height]) {
+  const { default: sharp } = await import('sharp');
+  const image = sharp(png);
+  const { width: W, height: H } = await image.metadata();
+  const x = Math.max(0, Math.round(left * W));
+  const y = Math.max(0, Math.round(top * H));
+  const w = Math.min(W - x, Math.round(width * W));
+  const h = Math.min(H - y, Math.round(height * H));
+  return image.extract({ left: x, top: y, width: w, height: h }).png().toBuffer();
+}
 
 const countries = readdirSync(registryDir).filter((f) => /^[a-z]{2}\.json$/.test(f) && (!only || f === `${only}.json`));
 const logosFile = new URL('logos.json', registryDir);
@@ -149,29 +158,29 @@ for (const file of countries) {
     const info = files[name];
     const key = `${cc}/${op.id}`;
     const had = logos[key];
-    const cut = op.logoCrop ? op.logoCrop.join(' ') : null;
-    if (had && had.name === name && (had.crop || null) === cut && existsSync(new URL(`public${had.file}`, root))) {
+    const crop = op.logoCrop ? op.logoCrop.join(' ') : null;
+    if (had && had.name === name && (had.crop || null) === crop && existsSync(new URL(`public${had.file}`, root))) {
       keep.add(key);
       continue;
     }
     if (!info) { console.log(`  ${op.id}: ${name} not on Commons`); continue; }
     let out = null;
     let ext = null;
-    if (op.logoCrop && info.mime === 'image/svg+xml') {
-      // Cut to its mark: the drawing itself.
-      const svg = get(info.url, { pace: 10000, patient: true });
-      if (svg && safe(svg)) { out = crop(svg, op.logoCrop); ext = 'svg'; }
-    } else if (/^image\/(svg\+xml|png)$/.test(info.mime)
-      && (info.mime === 'image/svg+xml' || /logo|mark|symbol|emblem|ロゴ/i.test(name))) {
-      const png = get(thumbOf(info), { binary: true, pace: 3000, patient: true });
-      if (png && png.startsWith('\x89PNG')) { out = Buffer.from(png, 'latin1'); ext = 'png'; }
+    const usable = /^image\/(svg\+xml|png)$/.test(info.mime) || (info.mime === 'image/jpeg' && /logo|mark|symbol|emblem|ロゴ/i.test(name));
+    if (usable) {
+      const got = get(thumbOf(info, op.logoCrop ? op.logoCrop[3] : 1), { binary: true, pace: 3000, patient: true });
+      const bytes = got && Buffer.from(got, 'latin1');
+      if (bytes && (got.startsWith('\x89PNG') || got.startsWith('\xff\xd8'))) {
+        out = await cut(bytes, op.logoCrop || [0, 0, 1, 1]);
+        ext = 'png';
+      }
     }
     if (!out) { console.log(`  ${op.id}: ${name} (${info.mime}) left out`); continue; }
     writeFileSync(new URL(`${op.id}.${ext}`, dir), out);
     logos[key] = {
       file: `/operators/${cc.toLowerCase()}/${op.id}.${ext}`,
       name, source: info.page, licence: info.licence || 'see source',
-      ...(info.artist ? { artist: info.artist } : {}), ...(cut ? { crop: cut } : {}),
+      ...(info.artist ? { artist: info.artist } : {}), ...(crop ? { crop } : {}),
     };
     keep.add(key);
     save();

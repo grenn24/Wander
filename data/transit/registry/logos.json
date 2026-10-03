@@ -5,14 +5,14 @@
   "JP/jr-hokkaido": {"file": "/operators/jp/jr-hokkaido.svg", "name": "JR logo (hokkaido).svg", "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(hokkaido).svg", "licence": "Public domain"},
   "JP/jr-shikoku": {"file": "/operators/jp/jr-shikoku.svg", "name": "JR logo (shikoku).svg", "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(shikoku).svg", "licence": "Public domain"},
   "JP/jr-west": {"file": "/operators/jp/jr-west.svg", "name": "JR logo (west).svg", "source": "https://commons.wikimedia.org/wiki/File:JR_logo_(west).svg", "licence": "Public domain"},
-  "JP/keikyu": {"file": "/operators/jp/keikyu.svg", "name": "Keikyu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Keikyu_logo.svg", "licence": "Public domain", "crop": "-47.34 -47.34 1278.14 386.4"},
-  "JP/keisei": {"file": "/operators/jp/keisei.svg", "name": "Keisei Electric Railway logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Keisei_Electric_Railway_logo.svg", "licence": "Public domain", "crop": "-11.38 -11.38 307.39 161.52"},
+  "JP/keikyu": {"file": "/operators/jp/keikyu.svg", "name": "Keikyu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Keikyu_logo.svg", "licence": "Public domain", "crop": "-0.04 -0.085 1.08 0.696"},
+  "JP/keisei": {"file": "/operators/jp/keisei.svg", "name": "Keisei Electric Railway logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Keisei_Electric_Railway_logo.svg", "licence": "Public domain", "crop": "-0.015 -0.082 0.41 1.163"},
   "JP/meitetsu": {"file": "/operators/jp/meitetsu.svg", "name": "Meitetsu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Meitetsu_logo.svg", "licence": "Public domain"},
-  "JP/nankai": {"file": "/operators/jp/nankai.svg", "name": "Nankai logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Nankai_logo.svg", "licence": "Public domain", "crop": "-5.07 -5.07 152.23 121.54"},
+  "JP/nankai": {"file": "/operators/jp/nankai.svg", "name": "Nankai logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Nankai_logo.svg", "licence": "Public domain", "crop": "-0.009 -0.045 0.268 1.088"},
   "JP/osaka-metro": {"file": "/operators/jp/osaka-metro.svg", "name": "Osaka Metro logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Osaka_Metro_logo.svg", "licence": "Public domain"},
   "JP/seibu": {"file": "/operators/jp/seibu.svg", "name": "Seibu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Seibu_logo.svg", "licence": "Public domain"},
   "JP/toei": {"file": "/operators/jp/toei.svg", "name": "BTTMG logomark.svg", "source": "https://commons.wikimedia.org/wiki/File:BTTMG_logomark.svg", "licence": "Public domain"},
   "JP/tokyo-metro": {"file": "/operators/jp/tokyo-metro.svg", "name": "Tokyo Metro logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Tokyo_Metro_logo.svg", "licence": "Public domain"},
-  "JP/tokyu": {"file": "/operators/jp/tokyu.svg", "name": "Tokyu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Tokyu_logo.svg", "licence": "Public domain", "crop": "226 188 548 448"},
-  "JP/tsukuba-express": {"file": "/operators/jp/tsukuba-express.svg", "name": "Tsukuba Express logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Tsukuba_Express_logo.svg", "licence": "Public domain", "crop": "-3.69 -3.38 99.65 52.6"}
+  "JP/tokyu": {"file": "/operators/jp/tokyu.svg", "name": "Tokyu logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Tokyu_logo.svg", "licence": "Public domain", "crop": "0.226 0.159 0.548 0.379"},
+  "JP/tsukuba-express": {"file": "/operators/jp/tsukuba-express.svg", "name": "Tsukuba Express logo.svg", "source": "https://commons.wikimedia.org/wiki/File:Tsukuba_Express_logo.svg", "licence": "Public domain", "crop": "-0.012 -0.073 0.324 1.142"}
 }
