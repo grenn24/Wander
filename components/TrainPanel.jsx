@@ -21,7 +21,7 @@ export default function TrainPanel({ ends, date, leaveAt, live = false, timeZone
   if (leg) {
     return (
       <Departures option={leg.option} ride={leg.ride} from={ends.from} to={ends.to}
-        toName={options.to} date={date} leaveAt={leaveAt} live={live} timeZone={timeZone}
+        date={date} leaveAt={leaveAt} live={live} timeZone={timeZone}
         onBack={() => setLeg(null)} />
     );
   }

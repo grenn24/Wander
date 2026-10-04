@@ -15,13 +15,12 @@ import s from './Departures.module.css';
  *
  *   option, ride  the option and which of its trains (0 for the first)
  *   from, to      the hop's two ends, { lat, lng }
- *   toName        where the hop ends, for "Arrive"
  *   date          the day, YYYY-MM-DD, for its timetable
  *   leaveAt       the minute you leave, to start from
  *   live          the day is today: "in N min" while the time is still now
  */
 export default function Departures({
-  option, ride = 0, from, to, toName = '', date, leaveAt = 600, live = false, timeZone,
+  option, ride = 0, from, to, date, leaveAt = 600, live = false, timeZone,
   onBack, backLabel = 'Train options',
 }) {
   const leg = option.legs.filter((l) => l.kind === 'ride')[ride];
@@ -70,13 +69,6 @@ export default function Departures({
           <span>{(data && data.from) || leg.from} → toward {(data && data.toward) || leg.toward}</span>
           <PlatformChip label={leg.platform} />
         </div>
-        {last ? (
-          <div className={s.last}>
-            <Moon size={15} className={s.moon} aria-hidden="true" />
-            <span><b>Last train</b> <span className={s.mono}>{fmtMinute(last.leaves)}</span></span>
-            <span className={s.lastArrive}>arrives <span className={s.mono}>{fmtMinute(last.arrives)}</span></span>
-          </div>
-        ) : null}
       </div>
 
       <div className={s.leave}>
@@ -92,7 +84,7 @@ export default function Departures({
               : (
                 <>
                   {list.length ? (
-                    <div className={s.cols}><span>Next trains</span><span>Arrive {toName}</span></div>
+                    <div className={s.cols} aria-hidden="true"><span>Leaves</span><span>Arrives</span></div>
                   ) : <p className={s.quiet}>Only the last train is left.</p>}
                   <ol className={s.trains}>
                     {shown.map((t) => {
@@ -114,6 +106,14 @@ export default function Departures({
                   </ol>
                   {!more && list.length > 5 ? (
                     <button type="button" className={`btn ${s.more}`} onClick={() => setMore(true)}>More</button>
+                  ) : null}
+                  {/* The last train of the day, always, after the rest. */}
+                  {last ? (
+                    <div className={s.last}>
+                      <Moon size={15} className={s.moon} aria-hidden="true" />
+                      <span><b>Last train</b> <span className={s.mono}>{fmtMinute(last.leaves)}</span></span>
+                      <span className={s.lastArrive}>arrives <span className={s.mono}>{fmtMinute(last.arrives)}</span></span>
+                    </div>
                   ) : null}
                 </>
               )}

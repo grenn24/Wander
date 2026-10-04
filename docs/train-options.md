@@ -87,20 +87,20 @@ Clicking the chip opens the train options.
   the panel's content, with `‹ Train options` to go back. On the phone it is
   full screen with a back arrow.
 - **The header:** the line badge, name and operator mark; `Tokyo → toward
-  Ogikubo` with the platform chip; the last train at the top (`Last train
-  12:13am`, arriving `12:32am`).
+  Ogikubo` with the platform chip.
 - **Leave at:** a single time picker, with no Now button. It shows the
   current time until you change it. The picker is our own component, not the
   browser's, and is 12-hour.
 - **Train types:** where a line runs more than one type (Local, Rapid,
   Special Rapid), each row shows its type. A train that doesn't stop where you
   get off is left out.
-- **The list:** the next five trains you can still catch. Each shows when it
-  leaves, `in N min` (only while the picker still shows the current time) and
-  when you arrive at the destination. Tapping one selects it, and the first is
-  selected to start.
+- **The list:** under `Leaves` and `Arrives` column labels, the next five
+  trains you can still catch. Each shows when it leaves, `in N min` (only
+  while the picker still shows the current time) and when you arrive at the
+  destination. Tapping one selects it, and the first is selected to start.
 - **More:** extends the list to the end of the service day, leaving out the
-  last train, which is already at the top.
+  last train, which always closes the list, below More (`Last train
+  12:13am`, arriving `12:32am`).
 - **Another day:** a trip on a later day shows that day's timetable, weekday
   or weekend, from the planned leaving time.
 - **Where it exists:** only where there is a real timetable, which is Tokyo
