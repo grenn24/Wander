@@ -2921,6 +2921,9 @@ body:has(.lp)::before { display: none; }
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   --panel-pad: 12px; padding: var(--panel-pad); display: flex; flex-direction: column; gap: 6px;
 }
+/* The map's panel scrolls without drawing a bar: on Windows a classic one eats into its cards. */
+.mappanel-body, .mappanel-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.mappanel-body::-webkit-scrollbar, .mappanel-scroll::-webkit-scrollbar { display: none; }
 .mappanel-title {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 8px; flex-wrap: wrap;
