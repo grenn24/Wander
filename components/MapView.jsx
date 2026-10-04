@@ -291,10 +291,14 @@ export default function MapView({
   // A hop that leaves the map (another day chosen, a stop moved) takes its train options with it.
   const trainGone = !!trainHop && !openTrain[1];
   useEffect(() => { if (trainGone) setTrainHop(null); }, [trainGone]);
-  const mapStops = useMemo(
-    () => (showingPicks ? pickedStops.map((a) => ({ ...a, pinLabel: numberOf.get(a.id) })) : stops),
-    [showingPicks, pickedStops, stops, numberOf],
-  );
+  // With a hop's train options open, the map keeps only its two ends, numbered as in the trip.
+  const openFrom = openTrain[0] ? openTrain[0].fromId : null;
+  const openTo = openTrain[0] ? openTrain[0].toId || openTrain[0].key : null;
+  const mapStops = useMemo(() => {
+    const shown = showingPicks ? pickedStops.map((a) => ({ ...a, pinLabel: numberOf.get(a.id) })) : stops;
+    return openFrom ? shown.filter((a) => a.id === openFrom || a.id === openTo)
+      .map((a) => ({ ...a, pinLabel: a.pinLabel ?? numberOf.get(a.id) })) : shown;
+  }, [showingPicks, pickedStops, stops, numberOf, openFrom, openTo]);
   function togglePick(a) {
     setPicked((current) => {
       const next = new Set(current);
