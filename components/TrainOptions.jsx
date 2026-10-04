@@ -29,7 +29,7 @@ import s from './TrainOptions.module.css';
  */
 export default function TrainOptions({
   options = [], mode = 'plan', title, sub, note, to = '',
-  shownId = null, onShow, savedId = null, onUse, onLeg, onBack, backLabel = 'Your stops',
+  shownId = null, onShow, savedId = null, onUse, onLeg, onBack, backLabel = 'Back',
   preferMissing = false,
 }) {
   const [open, setOpen] = useState(() => shownId || (options[0] && options[0].id) || null);
@@ -37,6 +37,17 @@ export default function TrainOptions({
   const [stopsOpen, setStopsOpen] = useState(() => new Set());
   // An option shown from elsewhere (clicked on the map) opens here too.
   useEffect(() => { if (shownId) setOpen(shownId); }, [shownId]);
+  /*
+   * What Use or Remove just did, shown at once: the hop's options are asked
+   * for again with the route saved, and say so themselves when they come.
+   */
+  const [using, setUsing] = useState(undefined);
+  useEffect(() => { setUsing(undefined); }, [savedId]);
+  const saved = using !== undefined ? using : savedId;
+  function use(id) {
+    setUsing(id);
+    onUse(id);
+  }
   const longest = Math.max(1, ...options.map((o) => o.seconds));
 
   function toggle(o) {
@@ -80,7 +91,7 @@ export default function TrainOptions({
           const centres = pieces.map((p) => { const c = before + p.minutes / 2; before += p.minutes; return c; });
           const width = (o.seconds / longest) * 100;
           const firstRide = o.legs.find((l) => l.kind === 'ride');
-          const tags = [...(o.id === savedId && !o.tags.includes('saved') ? ['saved'] : []), ...o.tags];
+          const tags = [...(o.id === saved && !o.tags.includes('saved') ? ['saved'] : []), ...o.tags.filter((t) => t !== 'saved' || o.id === saved)];
           return (
             <section key={o.id} className={s.card} data-open={isOpen ? '' : undefined}
               data-shown={o.id === shownId ? '' : undefined}>
@@ -158,12 +169,12 @@ export default function TrainOptions({
 
                   {onUse ? (
                     <>
-                      <button type="button" className={`btn ${o.id === savedId ? '' : 'primary'} ${s.use}`}
-                        aria-label={o.id === savedId ? 'Stop using this route for this hop' : 'Use this route for this hop'}
-                        onClick={() => onUse(o.id === savedId ? null : o.id)}>
-                        {o.id === savedId ? 'Remove' : 'Use'}
+                      <button type="button" className={`btn ${o.id === saved ? '' : 'primary'} ${s.use}`}
+                        aria-label={o.id === saved ? 'Stop using this route for this hop' : 'Use this route for this hop'}
+                        onClick={() => use(o.id === saved ? null : o.id)}>
+                        {o.id === saved ? 'Remove' : 'Use'}
                       </button>
-                      {o.id === savedId ? <p className={s.saved}>Saved to the trip for next time.</p> : null}
+                      {o.id === saved ? <p className={s.saved}>Saved to the trip for next time.</p> : null}
                     </>
                   ) : null}
                 </div>

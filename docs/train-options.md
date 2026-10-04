@@ -25,8 +25,12 @@ Clicking the chip opens the train options.
 ### Train options
 
 - **Where:** on desktop it replaces the stop list in the map's right-hand
-  panel, with `‹ Your stops` to go back. On the phone it is the Transit tab of
-  the directions sheet.
+  panel, with `‹ Back` to go back; it closes by itself when its hop leaves the
+  map (another day picked). On the phone it is the Transit tab of the
+  directions sheet.
+- **When:** a hop in Japan has its trains from the moment the trip opens,
+  whatever the map's Routes setting, since the app answers them itself at no
+  cost; the itinerary and the stop list show its train chip straight away.
 - **Planning versus now:** the trip map plans the trip's day with usual
   weekday times ("Usual weekday trip around 10am"). The directions sheet plans
   from now ("Leave now · 10:02am from Tokyo Station").
@@ -62,18 +66,20 @@ Clicking the chip opens the train options.
     press so it reads as something to tap.
 - **Fare:** one operator is one line: `[IC] IC card · [op] Tokyo Metro ¥209`.
   Several operators get a line each, then an `IC card` total.
-- **Saving:** a **Use** button. Once used, it reads **Remove**, with "Saved to
-  the trip for next time." underneath.
+- **Saving:** a **Use** button. Once used, it reads **Remove** at once, with
+  "Saved to the trip for next time." underneath, while the hop is asked for
+  again with the route saved; the hop keeps its trains meanwhile.
 - **The map:**
-  - **The shown option** is drawn in its line colours, with station dots,
-    badges where you board, the exit badge, and walking labels (`3 min` and the
-    walking icon). The other options are drawn faint behind it.
+  - **With a hop's options open**, the map draws that hop alone: the shown
+    option in its line colours, with station dots, badges where you board,
+    the exit badge, and walking labels (`3 min` and the walking icon). Other
+    hops and the other options are not drawn; the cards switch between them.
   - **Hovering the shown route:** a train shows its badge and line, then
     from → to · minutes, then the operator · stops · frequency. A walk shows
     the exit and its minutes.
-  - **Hovering a faint option** brightens it and shows its badges and lines,
-    then the destination · minutes · fare, then the changes and "click to
-    show". Clicking shows that option.
+  - **Hovering a train route with no options open** thickens it and shows its
+    badges and lines, then the destination · minutes · fare, then the changes
+    and "click to show". Clicking opens that hop's options.
 
 ### Departures
 

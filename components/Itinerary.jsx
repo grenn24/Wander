@@ -496,7 +496,7 @@ export default function Itinerary({
                           <div className="itinerary-leg"
                             data-tip={travel.on ? undefined : 'Straight-line distance. Actual routes may take longer.'}>
                             <LegLine km={distance} gap={gapMins}
-                              leg={travel.on ? travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`] : null}
+                              leg={travel.byKey[`${prev._entryId || prev.id}>${a._entryId || a.id}`]}
                               onChoose={(mode) => choose(`${(prev._source || prev).id}>${(a._source || a).id}`, mode)}
                               onTrains={() => setTrainHop(`${prev._entryId || prev.id}>${a._entryId || a.id}`)} />
                           </div>

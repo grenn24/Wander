@@ -10,7 +10,7 @@ import {
 import { categoryIcon } from '@/lib/icons';
 import {
   reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
-  NEARBY_KINDS, decodePath, thinPath,
+  NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, {
   googleMapsAvailable, catColor, dayColor,
@@ -22,7 +22,7 @@ import { viewportChanged } from '@/lib/explore';
 import TravelArt from '@/components/TravelArt';
 import LegLine from '@/components/LegLine';
 import TrainPanel from '@/components/TrainPanel';
-import { trainDrawing } from '@/lib/trainMap';
+import { hopLines } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
 import { travelNote, savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
@@ -227,17 +227,13 @@ export default function MapView({
     if (start != null && option) return Math.max(0, start - Math.round(option.seconds / 60));
     return 600;
   };
+  // A hop that leaves the map (another day chosen, a stop moved) takes its train options with it.
+  const trainGone = !!trainHop && !(hops.some((x) => x.key === trainHop) && trainsOf(trainHop, travel));
+  useEffect(() => { if (trainGone) setTrainHop(null); }, [trainGone]);
   const trainPanel = () => {
     const h = hops.find((x) => x.key === trainHop);
     const way = h && trainsOf(trainHop, travel);
-    if (!h || !way) {
-      return (
-        <div className={m.trainsGone}>
-          <button type="button" className="btn sm" onClick={() => setTrainHop(null)}>Your stops</button>
-          <p className="small muted">These train options are no longer on the map.</p>
-        </div>
-      );
-    }
+    if (!h || !way) return null;
     const dayIndex = days.indexOf(h.day);
     const today = zonedNow(way.trainZone);
     const live = h.day === today.date;
@@ -257,7 +253,7 @@ export default function MapView({
         savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
         onUse={onTransitPick ? (id) => onTransitPick(h.key, id ? { after: h.fromId, lines: id.split('>') } : null) : null}
         preferMissing={!!way.preferMissing}
-        onBack={() => setTrainHop(null)} />
+        onBack={() => setTrainHop(null)} backLabel="Back" />
     );
   };
 
@@ -308,29 +304,17 @@ export default function MapView({
   // On the button itself, the shortest thing that still says which day.
   const dayShort = day === 'all' ? 'All days' : `Day ${days.indexOf(day) + 1}`;
 
-  const linesFor = (list, legsFound) => list.map((h) => {
-    const leg = legsFound.byKey[h.key];
-    // The hop whose train options are open: the option shown, line by line, the others faint.
-    if (trainHop && h.key === trainHop) {
-      const way = trainsOf(h.key, legsFound);
-      const colour = dayColor(days.indexOf(h.day), days.length);
-      const train = way && trainDrawing(way.trains, shownTrain[h.key], { to: h.toTitle, walk: colour });
-      if (train) return { from: h.from, to: h.to, colour, train };
-    }
-    const way = leg && leg.options.find((o) => o.mode === leg.drawn);
-    // A modelled train time is an estimate, but its line follows the real track, so it is drawn.
-    const real = !!(way && way.polyline && (!way.estimate || way.source === 'model'));
-    return {
-      from: h.from, to: h.to, colour: dayColor(days.indexOf(h.day), days.length),
-      // Thinned: a drive across a city comes back with hundreds of points a
-      // few metres apart, and every one of them is carried in every frame.
-      path: real ? thinPath(decodePath(way.polyline), 15) : null, estimate: !real,
-    };
+  const linesFor = (list, legsFound, { trains = false } = {}) => hopLines(list, legsFound, {
+    open: trainHop, shown: shownTrain, trains, colourOf: (h) => dayColor(days.indexOf(h.day), days.length),
   });
   const routeLines = useMemo(() => {
     if (showingPicks) return linesFor(pickHops, pickTravel);
-    if (!travel.on) return null;
-    return linesFor(hops, travel);
+    // A hop's open train options are drawn whatever the Routes setting.
+    if (!travel.on) {
+      const open = trainHop ? linesFor(hops, travel, { trains: true }) : null;
+      return open && open.length === 1 && open[0].train ? open : null;
+    }
+    return linesFor(hops, travel, { trains: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showingPicks, pickHops, pickTravel, travel, hops, days, trainHop, shownTrain]);
 
@@ -672,6 +656,7 @@ export default function MapView({
             allowRoutes
             routeLines={routeLines}
             onTrainShow={(id) => { if (trainHop) setShownTrain((v) => ({ ...v, [trainHop]: id })); }}
+            onTrainOpen={(key) => setTrainHop(key)}
             covered={covered}
             placeColour={catColor}
             /*
@@ -975,7 +960,7 @@ export default function MapView({
                           <li key={a.id}>
                             {leg != null ? (
                               <div className={`${m.leg}${leg > 60 ? ` ${m.legFar}` : ''}`}>
-                                <LegLine km={leg} leg={travel.on ? travel.byKey[a.id] : null}
+                                <LegLine km={leg} leg={travel.byKey[a.id]}
                                   onChoose={(mode) => choose(hopOf[a.id], mode)}
                                   onTrains={() => setTrainHop(a.id)} />
                               </div>

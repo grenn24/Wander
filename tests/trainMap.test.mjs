@@ -55,3 +55,32 @@ test('an option not among them shows the first; no options, nothing', () => {
   assert.equal(trainDrawing([one, two], 'gone').shownId, 'Marunouchi Line');
   assert.equal(trainDrawing([], 'x'), null);
 });
+
+test('the trip map: a train hop says what it rides and opens; an open hop is drawn alone', async () => {
+  const { hopLines } = await import('../lib/trainMap.js');
+  const hop = (key, a, b) => ({ key, from: a, to: b, toTitle: `To ${key}`, day: '2026-11-10' });
+  const hops = [hop('a', p(35.68, 139.76), p(35.685, 139.71)), hop('b', p(35.685, 139.71), p(35.69, 139.70))];
+  const legs = {
+    byKey: {
+      a: { drawn: 'TRANSIT', options: [{ mode: 'TRANSIT', polyline: encodePath([p(35.68, 139.76), p(35.685, 139.71)]), trains: [one, two] }] },
+      b: { drawn: 'WALK', options: [{ mode: 'WALK', polyline: encodePath([p(35.685, 139.71), p(35.69, 139.70)]) }] },
+    },
+  };
+  const colourOf = () => '#9bc53d';
+
+  const all = hopLines(hops, legs, { trains: true, colourOf });
+  assert.equal(all.length, 2);
+  assert.equal(all[0].open, 'a', 'the train opens its hop');
+  assert.equal(all[0].tip.title, 'Marunouchi');
+  assert.match(all[0].tip.meta, /click to show/);
+  assert.equal(all[1].tip, undefined, 'a walk says nothing');
+
+  const focused = hopLines(hops, legs, { trains: true, open: 'a', shown: { a: 'Chuo Rapid Line' }, colourOf });
+  assert.equal(focused.length, 1, 'the open hop alone');
+  assert.equal(focused[0].train.shownId, 'Chuo Rapid Line');
+  assert.deepEqual(focused[0].train.faint, [], 'and no other options under it');
+
+  const picked = hopLines(hops, legs, { open: 'a', colourOf });
+  assert.equal(picked.length, 2, 'picked stops: every hop, as drawn');
+  assert.equal(picked[0].tip, undefined);
+});

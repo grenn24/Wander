@@ -294,5 +294,3 @@
   .stage[data-card="leaving"] .pickFloat { opacity: 0; }
 }
 
-/* Train options for a hop whose answer has gone (Routes turned off, another day picked). */
-.trainsGone { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }

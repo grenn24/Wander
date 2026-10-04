@@ -1,15 +1,17 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { routeBetween } from '@/lib/geo';
 import { prepareCountries, countryAt } from '@/lib/globeRegions';
 import {
-  TRAVEL_MODES, canRoute, canAsk, gapCountry, travelOptions, drawnMode,
+  TRAVEL_MODES, canRoute, canAsk, gapCountry, travelOptions, drawnMode, nearOwn, ownModes,
 } from '@/lib/travel';
 
 /*
  * The real way from each stop to the next, from Google — or for trains in
- * greater Tokyo, from the operators' timetables — for the trip map and the
- * itinerary, asked for only once the map's Routes setting is on.
+ * Japan, from the app's own timetables and railway model — for the trip map
+ * and the itinerary. Google's are asked for only once the map's Routes
+ * setting is on; the app's own cost nothing and are asked for from the start,
+ * so a hop in Japan shows its train lines as soon as the trip opens.
  *
  * Each answer costs a call, so each is kept on this device for a fortnight
  * and a hop is paid for once, not every time the page is opened. They are
@@ -139,13 +141,15 @@ export default function useLegs(hops, setting, choices = NONE) {
   const on = !!setting && setting !== 'off';
   const [countries, setCountries] = useState(null);
   const [answers, setAnswers] = useState({});
+  // Borders are wanted for the Routes setting, or for a hop where the app answers a way itself.
+  const own = hops.some((h) => nearOwn(h.from) && nearOwn(h.to));
 
   useEffect(() => {
-    if (!on || countries) return undefined;
+    if ((!on && !own) || countries) return undefined;
     let live = true;
     loadBorders().then((c) => { if (live) setCountries(c || []); });
     return () => { live = false; };
-  }, [on, countries]);
+  }, [on, own, countries]);
 
   const countryOf = useMemo(() => {
     const seen = new Map();
@@ -162,12 +166,14 @@ export default function useLegs(hops, setting, choices = NONE) {
 
   const signature = hops.map((h) => legKey(h.from, h.to, 'TRANSIT', h.prefer)).join('|');
   useEffect(() => {
-    if (!on || !countries) return undefined;
+    if ((!on && !own) || !countries) return undefined;
     let live = true;
     const found = {};
     hops.forEach((h) => {
       const country = countryOf(h.from);
-      TRAVEL_MODES.forEach((mode) => {
+      // With Routes off, only what the app answers itself.
+      const modes = on ? TRAVEL_MODES : ownModes(country);
+      modes.forEach((mode) => {
         if (!canAsk(country, mode)) return;
         const key = legKey(h.from, h.to, mode, h.prefer);
         if (answers[key] !== undefined) return;
@@ -182,7 +188,14 @@ export default function useLegs(hops, setting, choices = NONE) {
     if (Object.keys(found).length) setAnswers((a) => ({ ...a, ...found }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, countries, signature]);
+  }, [on, own, countries, signature]);
+
+  /*
+   * A hop's last answer for each way, shown while a new one is asked for: a
+   * route saved with Use asks again with its lines, and the hop should keep
+   * its trains in the meantime rather than empty.
+   */
+  const last = useRef(new Map());
 
   return useMemo(() => {
     const byKey = {};
@@ -190,14 +203,21 @@ export default function useLegs(hops, setting, choices = NONE) {
     let timetable = false;
     let modelled = false;
     hops.forEach((h) => {
-      if (!on) { byKey[h.key] = { km: h.km, options: [], drawn: null, country: null }; return; }
       const country = countryOf(h.from);
-      const name = gapCountry(country);
       const got = {};
       TRAVEL_MODES.forEach((mode) => {
         const answer = answers[legKey(h.from, h.to, mode, h.prefer)];
-        if (answer !== undefined) got[mode] = answer;
+        const before = `${h.key}|${mode}`;
+        if (answer !== undefined) { got[mode] = answer; last.current.set(before, answer); } else if (last.current.has(before)) got[mode] = last.current.get(before);
       });
+      if (!on) {
+        // Routes off: the trains the app found itself, and nothing else.
+        const trains = countries && ownModes(country).length
+          ? travelOptions(h.km, country, got).filter((o) => o.mode === 'TRANSIT' && o.trains) : [];
+        byKey[h.key] = { km: h.km, options: trains, drawn: null, country };
+        return;
+      }
+      const name = gapCountry(country);
       const options = countries ? travelOptions(h.km, country, got)
         : TRAVEL_MODES.map((mode) => ({ mode, minutes: null, waiting: true }));
       // A gap is an estimate nothing could route; the model's and the walk's say their own why.

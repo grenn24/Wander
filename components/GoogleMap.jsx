@@ -214,12 +214,15 @@ function GoogleMapCanvas({
   describeStop, onStopOpen, onPhoto,
   /*
    * The real way between stops, when the map's Routes setting asks for it:
-   * [{ from, to, colour, path, estimate }], one per hop. Without it each day's
+   * [{ from, to, colour, path, estimate, tip, open }], one per hop; a train
+   * carries its tooltip (`tip`) and its hop (`open`). Without it each day's
    * stops are joined by one dashed straight line, as they always were.
    */
   routeLines = null,
   // A faint train option clicked on the map: show that one instead (its id).
   onTrainShow,
+  // A hop's train clicked on the map: open its train options (the hop's key).
+  onTrainOpen,
   /*
    * How far the controls laid over the map reach in from each edge, asked at
    * the moment of a fit: () => ({ top, right, bottom, left }) in pixels. The
@@ -282,7 +285,7 @@ function GoogleMapCanvas({
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
-    describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow,
+    describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow, onTrainOpen,
   };
 
   useEffect(() => {
@@ -838,9 +841,17 @@ function GoogleMapCanvas({
     if (hops) {
       hops.forEach((h) => {
         if (h.train) { drawTrain(h.train); return; }
-        lines.current.push(h.path && h.path.length > 1 && !h.estimate
-          ? new L.Polyline({ path: h.path, strokeColor: h.colour, strokeOpacity: 0.9, strokeWeight: 4, map })
-          : dashed([h.from, h.to], h.colour));
+        if (!(h.path && h.path.length > 1 && !h.estimate)) { lines.current.push(dashed([h.from, h.to], h.colour)); return; }
+        const line = new L.Polyline({ path: h.path, strokeColor: h.colour, strokeOpacity: 0.9, strokeWeight: 4, map });
+        // A train says which lines it rides when pointed at, and opens its options when clicked.
+        if (h.tip) {
+          hoverTip(line, h.tip, { strokeWeight: 6 }, { strokeWeight: 4 });
+          line.addListener('click', () => {
+            setTrainTip(null);
+            if (latest.current.onTrainOpen) latest.current.onTrainOpen(h.open);
+          });
+        }
+        lines.current.push(line);
       });
       return;
     }
@@ -863,27 +874,29 @@ function GoogleMapCanvas({
    * brightening under the pointer and shown when clicked; and the marks along
    * the way. Every piece says what it is when pointed at.
    */
-  function drawTrain(train) {
-    const L = libs.current;
-    const map = mapRef.current;
-    const g = window.google && window.google.maps;
-    const tipAt = (event, tip) => {
+  // A line's tooltip follows the pointer along it, and the line can change while pointed at.
+  function hoverTip(line, tip, on, off) {
+    const tipAt = (event) => {
       const box = elRef.current && elRef.current.getBoundingClientRect();
       const dom = event && event.domEvent;
       if (!box || !dom || dom.clientX == null) return;
       setTrainTip({ x: dom.clientX - box.left, y: dom.clientY - box.top, tip });
     };
-    const hover = (line, tip, on, off) => {
-      line.addListener('mouseover', (e) => { if (on) line.setOptions(on); tipAt(e, tip); });
-      line.addListener('mousemove', (e) => tipAt(e, tip));
-      line.addListener('mouseout', () => { if (off) line.setOptions(off); setTrainTip(null); });
-    };
+    line.addListener('mouseover', (e) => { if (on) line.setOptions(on); tipAt(e); });
+    line.addListener('mousemove', tipAt);
+    line.addListener('mouseout', () => { if (off) line.setOptions(off); setTrainTip(null); });
+  }
+
+  function drawTrain(train) {
+    const L = libs.current;
+    const map = mapRef.current;
+    const g = window.google && window.google.maps;
     train.faint.forEach((f) => {
       const line = new L.Polyline({
         path: f.path, map, zIndex: 1, clickable: true,
         strokeColor: '#8d8377', strokeOpacity: 0.45, strokeWeight: 5,
       });
-      hover(line, f.tip, { strokeOpacity: 0.9 }, { strokeOpacity: 0.45 });
+      hoverTip(line, f.tip, { strokeOpacity: 0.9 }, { strokeOpacity: 0.45 });
       line.addListener('click', () => {
         setTrainTip(null);
         if (latest.current.onTrainShow) latest.current.onTrainShow(f.id);
@@ -900,7 +913,7 @@ function GoogleMapCanvas({
             offset: '0', repeat: '9px',
           }],
         });
-      hover(line, sg.tip);
+      hoverTip(line, sg.tip);
       lines.current.push(line);
     });
     train.marks.forEach((mk) => {
