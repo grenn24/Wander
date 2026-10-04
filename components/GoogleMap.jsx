@@ -15,6 +15,7 @@ import { createMapsLoader } from '@/lib/googleMapsLoader';
 import { retryImport } from '@/lib/chunkRetry';
 import loadStyles from './GoogleMap.module.css';
 import trainStyles from './TrainMap.module.css';
+import { clearSpot } from '@/lib/trainMap';
 import { RichTip } from '@/components/TrainBits';
 
 /*
@@ -346,6 +347,7 @@ function GoogleMapCanvas({
       mapRef.current.addListener('idle', () => {
         applyFit();
         regroup();
+        soon(untangle);
         const current = mapRef.current;
         const center = current.getCenter();
         if (center) camera.current = {
@@ -917,9 +919,43 @@ function GoogleMapCanvas({
       lines.current.push(line);
     });
     train.marks.forEach((mk) => {
-      trainMarks.current.push(new L.AdvancedMarkerElement({
+      const mark = new L.AdvancedMarkerElement({
         map, position: mk.at, content: trainMark(mk), zIndex: mk.kind === 'station' ? 4 : 5,
-      }));
+      });
+      mark.__kind = mk.kind;
+      trainMarks.current.push(mark);
+    });
+    soon(untangle);
+  }
+
+  /*
+   * A route's marks kept clear of the stops' pins and of each other. After
+   * every zoom or pan, and whenever they are drawn, a mark that lands on a pin
+   * or on a mark that matters more moves beside it, the nearest way that is
+   * clear; where none is, a walking time steps aside altogether. Boarding
+   * badges first, then exits, then walking times; a station's dot stays on
+   * its station. Done on the marks as drawn on screen, so it holds at any zoom.
+   */
+  function untangle() {
+    const ORDER = { board: 0, exit: 1, walk: 2 };
+    const marks = trainMarks.current.filter((m) => m.map && m.content && m.__kind in ORDER)
+      .sort((a, b) => ORDER[a.__kind] - ORDER[b.__kind]);
+    if (!marks.length) return;
+    marks.forEach((m) => { m.content.style.translate = ''; m.content.style.visibility = ''; });
+    const taken = stopMarks.current.filter((m) => m.map && m.content)
+      .map((m) => m.content.getBoundingClientRect()).filter((r) => r.width);
+    marks.forEach((m) => {
+      const r = m.content.getBoundingClientRect();
+      if (!r.width) return;
+      const shift = clearSpot(r, taken);
+      if (!shift) {
+        if (m.__kind === 'walk') { m.content.style.visibility = 'hidden'; return; }
+        taken.push(r);
+        return;
+      }
+      const [dx, dy] = shift;
+      if (dx || dy) m.content.style.translate = `${dx}px ${dy}px`;
+      taken.push({ left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy });
     });
   }
 
@@ -1110,6 +1146,9 @@ function GoogleMapCanvas({
 const FOOTPRINTS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
   + '<path d="M4 16v-2.4C4 11.5 3 10.5 3 8c0-2.7 1.5-6 4.5-6C9.4 2 10 3.8 10 5.5c0 3.1-2 5.7-2 8.7V16a2 2 0 1 1-4 0Z"/>'
   + '<path d="M20 20v-2.4c0-2.1 1-3.1 1-5.6 0-2.7-1.5-6-4.5-6C14.6 6 14 7.8 14 9.5c0 3.1 2 5.7 2 8.7V20a2 2 0 1 0 4 0Z"/></svg>';
+
+// After the next layout, when markers just added have their places on screen.
+const soon = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
 
 function trainMark(mk) {
   const el = document.createElement('div');

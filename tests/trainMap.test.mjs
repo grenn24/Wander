@@ -84,3 +84,15 @@ test('the trip map: a train hop says what it rides and opens; an open hop is dra
   assert.equal(picked.length, 2, 'picked stops: every hop, as drawn');
   assert.equal(picked[0].tip, undefined);
 });
+
+test('a route mark moves clear of a stop pin, the nearest way round', async () => {
+  const { clearSpot } = await import('../lib/trainMap.js');
+  const box = (left, top, w, h) => ({ left, top, right: left + w, bottom: top + h });
+  const label = box(100, 100, 50, 20);
+  assert.deepEqual(clearSpot(label, []), [0, 0], 'clear: stays');
+  assert.deepEqual(clearSpot(label, [box(160, 60, 30, 30)]), [0, 0], 'a pin beside it: stays');
+  assert.deepEqual(clearSpot(label, [box(110, 98, 30, 25)]), [0, -24], 'a pin on it: above');
+  assert.deepEqual(clearSpot(label, [box(110, 70, 30, 52)]), [0, 24], 'above taken too: below');
+  const everywhere = [box(0, 0, 400, 400)];
+  assert.equal(clearSpot(label, everywhere), null, 'nowhere clear');
+});
