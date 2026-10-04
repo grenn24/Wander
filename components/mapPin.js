@@ -172,15 +172,15 @@ export function createCluster({ count, colours = [], name = '', size = 34, lift 
 
   const behind = document.createElement('div');
   behind.style.cssText = `position:absolute;inset:0;border-radius:50%;background:${ink};`
-    + `border:2px solid ${WHITE};transform:translate(4px,-4px);opacity:.75;box-sizing:border-box;`;
+    + `border:1.5px solid ${WHITE};transform:translate(3px,-3px);opacity:.7;box-sizing:border-box;`;
   holder.append(behind);
 
   const face = document.createElement('div');
-  face.style.cssText = 'position:absolute;inset:0;box-sizing:border-box;border-radius:50%;border:3px solid transparent;'
+  face.style.cssText = `position:absolute;inset:0;box-sizing:border-box;border-radius:50%;border:${size < 30 ? 2.5 : 3}px solid transparent;`
     + `background:linear-gradient(${ink}, ${ink}) padding-box, ${ring} border-box;`
     + `color:${WHITE};display:grid;place-items:center;`
-    + `font:700 ${Math.round(size * 0.4)}px/1 var(--font-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;`
-    + 'box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 2px 6px rgba(0,0,0,.45);';
+    + `font:700 ${Math.max(10, Math.round(size * 0.42))}px/1 var(--font-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;`
+    + 'box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 1px 4px rgba(0,0,0,.4);';
   face.textContent = String(count);
   holder.append(face);
 

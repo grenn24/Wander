@@ -689,7 +689,8 @@ function GoogleMapCanvas({
     });
 
     const fanned = new Map();
-    const PIN = 26;
+    // Small enough that a city's worth of stops leaves the map to be seen.
+    const PIN = 22;
     stopUnits.current = spots.map((g) => {
       const k = g.items.length;
       // Enough room for k pins around the circle without them touching again.
@@ -1002,6 +1003,7 @@ function GoogleMapCanvas({
         ? `${numbers.slice(0, 5).join(', ')} and ${numbers.length - 5} more`
         : `${numbers.slice(0, -1).join(', ')} and ${numbers[numbers.length - 1]}`;
       const face = createCluster({
+        size: 26,
         count: marks.length,
         colours: [...new Set(marks.map((m) => m.__colour))],
         name: `Stops ${listed}. Zoom in`,
