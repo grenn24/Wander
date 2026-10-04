@@ -71,7 +71,7 @@ export default function TrainOptions({
             <ChevronLeft size={15} aria-hidden="true" /> {backLabel}
           </button>
         ) : null}
-        {title ? <h3 className={s.title}>{title}</h3> : null}
+        {title ? <h3 className={s.title} title={title}>{title}</h3> : null}
         {sub ? <p className={s.sub}>{sub}</p> : null}
         {note ? <p className={s.note}>{note}</p> : null}
         {preferMissing ? (

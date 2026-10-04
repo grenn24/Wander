@@ -2919,7 +2919,7 @@ body:has(.lp)::before { display: none; }
 .mappanel-head .mapfind, .mappanel-head .mapkinds { margin: 0; }
 .mappanel-body {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  padding: 12px; display: flex; flex-direction: column; gap: 6px;
+  --panel-pad: 12px; padding: var(--panel-pad); display: flex; flex-direction: column; gap: 6px;
 }
 .mappanel-title {
   display: flex; align-items: baseline; justify-content: space-between;

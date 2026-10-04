@@ -227,12 +227,8 @@ export default function MapView({
     if (start != null && option) return Math.max(0, start - Math.round(option.seconds / 60));
     return 600;
   };
-  // A hop that leaves the map (another day chosen, a stop moved) takes its train options with it.
-  const trainGone = !!trainHop && !(hops.some((x) => x.key === trainHop) && trainsOf(trainHop, travel));
-  useEffect(() => { if (trainGone) setTrainHop(null); }, [trainGone]);
   const trainPanel = () => {
-    const h = hops.find((x) => x.key === trainHop);
-    const way = h && trainsOf(trainHop, travel);
+    const [h, way] = openTrain;
     if (!h || !way) return null;
     const dayIndex = days.indexOf(h.day);
     const today = zonedNow(way.trainZone);
@@ -251,7 +247,7 @@ export default function MapView({
         shownId={shownTrain[trainHop] || way.trains[0].id}
         onShow={(id) => setShownTrain((v) => ({ ...v, [trainHop]: id }))}
         savedId={(way.trains.find((o) => o.tags.includes('saved')) || {}).id || null}
-        onUse={onTransitPick ? (id) => onTransitPick(h.key, id ? { after: h.fromId, lines: id.split('>') } : null) : null}
+        onUse={onTransitPick ? (id) => onTransitPick(h.toId || h.key, id ? { after: h.fromId, lines: id.split('>') } : null) : null}
         preferMissing={!!way.preferMissing}
         onBack={() => setTrainHop(null)} backLabel="Back" />
     );
@@ -275,7 +271,8 @@ export default function MapView({
     const prev = pickedStops[i];
     return {
       key: `pick:${prev.id}>${a.id}`, hop: `${prev.id}>${a.id}`, day: a.day,
-      fromId: prev.id, toId: a.id,
+      fromId: prev.id, toId: a.id, fromTitle: prev.title, toTitle: a.title,
+      fromEnd: prev.end_time, toStart: a.start_time, prefer: savedLines(prev, a),
       from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng },
       km: haversine(prev.lat, prev.lng, a.lat, a.lng),
     };
@@ -283,6 +280,17 @@ export default function MapView({
   const showingPicks = picking && pickedStops.length > 0;
   const pickTravel = useLegs(pickHops, showingPicks && pickHops.length
     ? (mapPrefs.routes === 'off' ? 'auto' : mapPrefs.routes) : 'off', choices);
+
+  // The hop whose train options are open, among the trip's or the picked stops', and its trains.
+  const openTrain = (() => {
+    if (!trainHop) return [null, null];
+    const [list, found] = showingPicks ? [pickHops, pickTravel] : [hops, travel];
+    const h = list.find((x) => x.key === trainHop);
+    return [h || null, (h && trainsOf(trainHop, found)) || null];
+  })();
+  // A hop that leaves the map (another day chosen, a stop moved) takes its train options with it.
+  const trainGone = !!trainHop && !openTrain[1];
+  useEffect(() => { if (trainGone) setTrainHop(null); }, [trainGone]);
   const mapStops = useMemo(
     () => (showingPicks ? pickedStops.map((a) => ({ ...a, pinLabel: numberOf.get(a.id) })) : stops),
     [showingPicks, pickedStops, stops, numberOf],
@@ -308,7 +316,7 @@ export default function MapView({
     open: trainHop, shown: shownTrain, trains, colourOf: (h) => dayColor(days.indexOf(h.day), days.length),
   });
   const routeLines = useMemo(() => {
-    if (showingPicks) return linesFor(pickHops, pickTravel);
+    if (showingPicks) return linesFor(pickHops, pickTravel, { trains: true });
     // A hop's open train options are drawn whatever the Routes setting.
     if (!travel.on) {
       const open = trainHop ? linesFor(hops, travel, { trains: true }) : null;
@@ -620,7 +628,8 @@ export default function MapView({
               <i style={{ background: toColour, color: inkOn(toColour) }}>{numberOf.get(h.toId)}</i>
             </span>
             <div className={m.pickLeg}>
-              <LegLine km={h.km} leg={pickTravel.byKey[h.key]} onChoose={(mode) => choose(h.hop, mode)} />
+              <LegLine km={h.km} leg={pickTravel.byKey[h.key]} onChoose={(mode) => choose(h.hop, mode)}
+                onTrains={() => setTrainHop(h.key)} />
             </div>
           </div>
         );

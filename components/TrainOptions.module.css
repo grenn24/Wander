@@ -1,8 +1,20 @@
 /* The ways to go by train: a header, then one card per option. */
 .panel { display: flex; flex-direction: column; min-height: 0; }
-.head { display: flex; flex-direction: column; gap: 4px; padding: 2px 2px 12px; }
+/* Kept in view while the cards scroll under it, on the panel's own glass. */
+.head {
+  position: sticky; top: calc(-1 * var(--panel-pad, 0px)); z-index: 4;
+  display: flex; flex-direction: column; gap: 4px;
+  /* Across the whole panel, its padding included, so nothing shows beside it. */
+  margin: calc(-1 * var(--panel-pad, 0px)) calc(-1 * var(--panel-pad, 0px)) 0;
+  padding: calc(2px + var(--panel-pad, 0px)) calc(2px + var(--panel-pad, 0px)) 12px;
+  background: var(--glass-strong, var(--surface-1));
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
 .back { align-self: flex-start; margin-bottom: 6px; padding-left: 6px; }
-.title { margin: 0; font-size: var(--fs-lg); font-weight: 600; color: var(--text-1); }
+.title {
+  margin: 0; font-size: var(--fs-lg); font-weight: 600; color: var(--text-1);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
 .sub { margin: 0; font-size: var(--fs-sm); color: var(--text-2); }
 .note { margin: 0; font-size: var(--fs-xs); color: var(--text-3); }
 .missing { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--accent-ink); }
