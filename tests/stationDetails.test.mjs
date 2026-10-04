@@ -80,3 +80,20 @@ test('options get what they were missing, and keep what they had', () => {
   assert.equal(decodePath(c.legs[1].polyline).length, 3, 'the walk goes through the exit');
   assert.equal(fillStationDetails([c], null)[0], c, 'no stations file, nothing changes');
 });
+
+test('the stations file: platforms and exits for real Tokyo journeys', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { buildNetwork } = await import('../lib/timetable.js');
+  const { timetableOptions } = await import('../lib/trainOptions.js');
+  const read = (name) => JSON.parse(readFileSync(new URL(`../data/transit/${name}`, import.meta.url), 'utf8'));
+  const stations = read('stations/jp.json');
+  assert.ok(stations.exits.length > 1000 && stations.routes.length > 500, `${stations.exits.length} exits, ${stations.routes.length} routes`);
+  stations.routes.forEach((r) => r.stops.forEach(([, , platform]) => {
+    if (platform) assert.match(platform, /^\d{1,2}[A-Za-z]?( or \d{1,2}[A-Za-z]?)?$/, `platform ${platform}`);
+  }));
+  const net = buildNetwork(read('tokyo-rail.json'), 'weekday');
+  const { options } = timetableOptions(net, { lat: 35.6812, lng: 139.7671 }, { lat: 35.6852, lng: 139.7101 });
+  fillStationDetails(options, indexStations(stations));
+  const rides = options.flatMap((o) => o.legs.filter((l) => l.kind === 'ride'));
+  assert.ok(rides.some((l) => /^Platform \d/.test(l.platform || '')), rides.map((l) => `${l.line.name}: ${l.platform}`).join(', '));
+});

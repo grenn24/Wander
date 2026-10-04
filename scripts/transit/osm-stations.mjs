@@ -102,9 +102,16 @@ console.log(`  ${entrances.length} entrances, ${exits.length} with a number or a
 const byWikidata = new Map(registry.operators.filter((o) => o.wikidata).map((o) => [o.wikidata, o.id]));
 const byName = new Map();
 registry.operators.forEach((o) => [o.name, o.local, ...(o.aliases || [])].forEach((n) => n && byName.set(n, o.id)));
+// A company's name without its legal form: 西武鉄道株式会社, Seibu Railway Company, Ltd. and 西武鉄道 are one.
+const bare = (n) => n.replace(/株式会社|株式會社|\(株\)|（株）/g, '').replace(/,?\s*(Co\.,?\s*Ltd\.?|Company,?\s*Ltd\.?|Inc\.|Ltd\.|Corporation|Company)$/i, '')
+  .replace(/\s*\([^)]*\)$/, '').trim();
+registry.operators.forEach((o) => [o.name, o.local, ...(o.aliases || [])].forEach((n) => n && byName.set(bare(n), o.id)));
 const operatorOf = (tags) => {
   for (const q of (tags['operator:wikidata'] || '').split(';')) if (byWikidata.has(q.trim())) return byWikidata.get(q.trim());
-  for (const n of (tags.operator || '').split(';')) if (byName.has(n.trim())) return byName.get(n.trim());
+  for (const n of (tags.operator || '').split(';')) {
+    const hit = byName.get(n.trim()) || byName.get(bare(n.trim()));
+    if (hit) return hit;
+  }
   return null;
 };
 

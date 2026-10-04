@@ -93,6 +93,12 @@ export default function Terms() {
         and the ODbL; the database Wander derives from it is offered under the ODbL too.
       </p>
       <p>
+        Station platforms, and station exits outside greater Tokyo, come from{' '}
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>,
+        &copy; OpenStreetMap contributors, under the Open Database License; the database Wander
+        derives from it is offered under the same licence.
+      </p>
+      <p>
         Fares are the operators&rsquo; own, from their GTFS feeds and published fare tables,
         and are shown only where they are known; check the fare at the station before you
         rely on it. Railway companies&rsquo; logos come from{' '}

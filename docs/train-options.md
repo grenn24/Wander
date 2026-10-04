@@ -201,11 +201,15 @@ IC fares only, and never a guess. A fare that isn't known is not shown.
   underground stations'. `build-tokyo` keeps them in `tokyo-rail.json`, and
   the walk off the last train leaves by the one nearest where you are going;
   the map draws that walk from the station through the exit.
-- **Exits elsewhere and platforms** would come from OpenStreetMap through
-  Overpass (station entrances with their `ref`; the platforms in each route
-  relation, `Platform 1 or 2` where it varies), written to
-  `data/transit/stations-extra.json` and credited on the Terms page. Not built
-  while Overpass is out of reach. Anything not known is not shown.
+- **Platforms, and exits elsewhere** come from OpenStreetMap
+  (`scripts/transit/osm-stations.mjs`, from Overpass or the regional extracts
+  `scripts/transit/osm-extract.py` reads): station entrances with a number
+  or a side (`Exit 3`, `East Exit`), and each railway route's stops in order
+  with the platform it uses there (`Platform 1 or 2` where it varies). They
+  are in `data/transit/stations/<country>.json`, and `lib/stationDetails.js`
+  fills a ride's platform (its line's route, the right way round) and the
+  last walk's exit wherever the timetable has not. The Terms page credits
+  OpenStreetMap (ODbL). Anything not known is not shown.
 
 ### Train types
 

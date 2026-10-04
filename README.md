@@ -94,9 +94,11 @@ first: the fastest route, then the same trip with each of its lines left out,
 with all of them left out, and with fewer changes, keeping those within 15
 minutes or half again of the fastest (`lib/trainOptions.js`). Each card has a
 journey bar on a shared time scale, the line badges, tags (fastest, cheapest,
-changes, JR only) and, opened, the steps: the stations passed, how often
-trains run and the next one, and in greater Tokyo the exit to leave by (the
-one nearest where you are going, from mini-tokyo-3d's station exits). **Use** saves the lines on the
+changes, JR only) and, opened, the steps: the platform, the stations
+passed, how often trains run and the next one, and the exit to leave by
+(the one nearest where you are going: mini-tokyo-3d's station exits in
+greater Tokyo, OpenStreetMap's entrances elsewhere; platforms are
+OpenStreetMap's, in `data/transit/stations/`). **Use** saves the lines on the
 activity (`activities.transit_pick`), and that hop prefers them from then on.
 Tapping a train step lists its departures for the rest of the day, from a
 leave-at time, with the last train (`lib/departures.js`, timetable regions
@@ -166,6 +168,15 @@ node scripts/transit/build-japan.mjs honsu mini-tokyo-3d --wikidata wikidata
 node scripts/transit/build-gtfs.mjs feeds              # downloads the open feeds into feeds/
 
 node scripts/transit/calibrate.mjs     # fits PACE in lib/railModel.js; check its regional line too
+
+# Platforms and exits from OpenStreetMap: Overpass, or where it cannot be
+# reached, the regional extracts (pip install osmium), one region at a time.
+node scripts/transit/osm-stations.mjs jp
+for r in hokkaido tohoku kanto chubu kansai chugoku shikoku kyushu; do
+  curl -O https://download.openstreetmap.fr/extracts/asia/japan/$r-latest.osm.pbf
+  python3 scripts/transit/osm-extract.py $r-latest.osm.pbf > $r.json
+done
+node scripts/transit/osm-stations.mjs jp --from hokkaido.json tohoku.json kanto.json chubu.json kansai.json chugoku.json shikoku.json kyushu.json
 npm test
 ```
 
