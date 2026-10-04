@@ -1,5 +1,6 @@
 /* The ways to go by train: a header, then one card per option. */
-.panel { display: flex; flex-direction: column; min-height: 0; }
+/* Room under the last card, so it never ends flush against the panel's edge. */
+.panel { display: flex; flex-direction: column; min-height: 0; padding-bottom: 20px; }
 /* Kept in view while the cards scroll under it, on the panel's own glass. */
 .head {
   position: sticky; top: calc(-1 * var(--panel-pad, 0px)); z-index: 4;

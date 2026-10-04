@@ -1,4 +1,4 @@
-.panel { display: flex; flex-direction: column; min-height: 0; }
+.panel { display: flex; flex-direction: column; min-height: 0; padding-bottom: 20px; }
 .head { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 12px; }
 .back { align-self: flex-start; margin-bottom: 6px; padding-left: 6px; }
 .line { display: flex; align-items: center; gap: 8px; }
