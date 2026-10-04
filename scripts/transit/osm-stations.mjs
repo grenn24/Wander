@@ -15,10 +15,12 @@
  *
  *   { source, exits: [[lat, lng, label]], routes: [{ op, names, stops: [[lat, lng, platform]] }] }
  *
- * with only the routes that have a platform. Overpass asks for one query at
- * a time; this makes two, with long timeouts.
+ * with only the routes that have a platform. From Overpass, two queries with
+ * long timeouts; or, where Overpass cannot be reached, from regional extracts
+ * read by scripts/transit/osm-extract.py, which gives the same elements.
  *
  *   node scripts/transit/osm-stations.mjs jp [south,west,north,east]
+ *   node scripts/transit/osm-stations.mjs jp --from kanto.json kansai.json ...
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -28,7 +30,9 @@ if (!/^[a-z]{2}$/.test(cc)) {
   console.error('Usage: node scripts/transit/osm-stations.mjs <country code> [south,west,north,east]');
   process.exit(1);
 }
-const bbox = process.argv[3] || null;
+const rest = process.argv.slice(3);
+const from = rest[0] === '--from' ? rest.slice(1) : [];
+const bbox = from.length ? null : rest[0] || null;
 const root = new URL('../../', import.meta.url);
 const registry = JSON.parse(readFileSync(new URL(`data/transit/registry/${cc}.json`, root), 'utf8'));
 const UA = 'WanderTripPlanner/1.0 (station exits and platforms; https://github.com/grenn24/Wander)';
@@ -69,9 +73,23 @@ function exitLabel(tags) {
   return null;
 }
 
+// The extracts' elements, each once (the regions overlap at their edges).
+let extracted = null;
+if (from.length) {
+  const seen = new Map();
+  for (const file of from) {
+    for (const e of JSON.parse(readFileSync(file, 'utf8')).elements) seen.set(`${e.type}/${e.id}`, e);
+  }
+  extracted = [...seen.values()];
+  console.log(`${extracted.length} elements from ${from.length} extracts`);
+}
+
 const round = (v) => Math.round(v * 1e5) / 1e5;
 console.log('Exits…');
-const entrances = overpass(`${head}node${where}["railway"~"^(subway_entrance|train_station_entrance)$"];out tags;`);
+const ENTRANCE = /^(subway_entrance|train_station_entrance)$/;
+const entrances = extracted
+  ? extracted.filter((e) => e.type === 'node' && ENTRANCE.test((e.tags || {}).railway || ''))
+  : overpass(`${head}node${where}["railway"~"^(subway_entrance|train_station_entrance)$"];out tags;`);
 const exits = [];
 for (const e of entrances) {
   const label = exitLabel(e.tags || {});
@@ -90,17 +108,23 @@ const operatorOf = (tags) => {
   return null;
 };
 
-// A platform's number: one, or "1 or 2" where it lists both sides.
+/*
+ * A platform's number: one, or "1 or 2" where it lists both sides. A number
+ * starts with a digit ("3", "10", "1A"): a stop's ref is as often its
+ * station's number on the signs ("Y10", "JY01"), which is not a platform.
+ */
 function platformOf(tags) {
-  const value = (tags.local_ref || tags['railway:track_ref'] || tags.ref || '').trim();
-  if (!value || value.length > 12) return null;
-  const parts = value.split(/[;,/・]/).map((p) => p.trim()).filter((p) => /^[0-9A-Za-z]{1,4}$/.test(p));
-  if (!parts.length) return null;
-  return parts.length === 1 ? parts[0] : parts.slice(0, 2).join(' or ');
+  for (const key of ['local_ref', 'railway:track_ref', 'ref']) {
+    const value = (tags[key] || '').replace(/番線?$/, '').trim();
+    if (!value || value.length > 12) continue;
+    const parts = value.split(/[;,/・]/).map((p) => p.replace(/番線?$/, '').trim()).filter((p) => /^\d{1,2}[A-Za-z]?$/.test(p));
+    if (parts.length) return parts.length === 1 ? parts[0] : parts.slice(0, 2).join(' or ');
+  }
+  return null;
 }
 
 console.log('Routes and platforms…');
-const elements = overpass(`${head}rel${where}["type"="route"]["route"~"^(train|subway|light_rail|monorail|tram)$"]->.r;.r out body;`
+const elements = extracted || overpass(`${head}rel${where}["type"="route"]["route"~"^(train|subway|light_rail|monorail|tram)$"]->.r;.r out body;`
   + '(node(r.r:"stop");node(r.r:"stop_entry_only");node(r.r:"stop_exit_only");'
   + 'node(r.r:"platform");way(r.r:"platform");node(r.r:"platform_entry_only");way(r.r:"platform_entry_only");'
   + 'node(r.r:"platform_exit_only");way(r.r:"platform_exit_only"););out tags center;');
@@ -139,4 +163,7 @@ const out = {
   routes,
 };
 writeFileSync(new URL(`data/transit/stations/${cc}.json`, root), JSON.stringify(out));
+writeFileSync(new URL('data/transit/stations/LICENSE', root), 'The stations files here are derived from OpenStreetMap,\n'
+  + '© OpenStreetMap contributors, https://www.openstreetmap.org/copyright.\n'
+  + 'They are made available under the Open Database License 1.0: https://opendatacommons.org/licenses/odbl/1-0/.\n');
 console.log(`data/transit/stations/${cc}.json: ${(JSON.stringify(out).length / 1e6).toFixed(2)} MB`);
