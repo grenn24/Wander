@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Compass, MapPinOff, Loader2, Plus, SquarePen, X,
-  Search, Crosshair, ChevronUp, ChevronDown, Check, List,
+  Search, Crosshair, ChevronUp, ChevronDown, Check, List, TrainFront,
 } from 'lucide-react';
 import {
   fmtDay, fmtDayTiny, fmtTime, money, shortPlace, sortActs, zonedNow, clockMinutes,
@@ -55,32 +55,42 @@ export default function MapView({
    * How much of the phone screen the panel is taking.
    *
    * Collapsed it is a search box and four chips over the map; open it is a
-   * list. Two states and no third: the only heights anyone wants are "let me
-   * see the map" and "let me read the list". The bar can be pulled between
-   * them — it looks like a handle, so it is one — but the sheet always settles
-   * on one of the two, never wherever the hand happened to stop.
+   * list over the lower part of the map; pulled all the way up it is the
+   * whole screen, for a long list or a hop's trains. The bar can be pulled
+   * between them — it looks like a handle, so it is one — and the sheet
+   * always settles on one of the three, never wherever the hand happened to
+   * stop. A tap on the bar opens it, or puts it away from either height.
    */
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetSize, setSheetSize] = useState('shut'); // shut | open | full
+  const sheetOpen = sheetSize !== 'shut';
+  const setSheetOpen = useCallback((open) => setSheetSize((was) => {
+    const want = typeof open === 'function' ? open(was !== 'shut') : open;
+    if (!want) return 'shut';
+    return was === 'shut' ? 'open' : was;
+  }), []);
   /*
    * On a phone the sheet slides up to open and back down to close: it keeps
    * its open shape for the length of the slide down, marked as leaving from
    * the moment it is put away, and the corner controls take its place once it
    * has gone (MapView.module.css).
    */
-  const sheet = useKept(sheetOpen ? 'open' : null, 260);
+  const sheet = useKept(sheetOpen ? sheetSize : null, 260);
   const panelRef = useRef(null);
   /*
-   * Open and shut are a class on the stage rather than anything on the sheet
-   * itself, so that is what the drag tries on while it measures the two.
+   * Its sizes are classes on the stage rather than anything on the sheet
+   * itself, so that is what the drag tries on while it measures them.
    */
+  const SHEET_SIZES = ['shut', 'open', 'full'];
   const sheetDrag = useSheetDrag({
     ref: panelRef,
-    sizes: ['shut', 'open'],
-    size: sheetOpen ? 'open' : 'shut',
+    sizes: SHEET_SIZES,
+    size: sheetSize,
     apply: (el, name) => {
-      if (stageRef.current) stageRef.current.classList.toggle('is-open', name === 'open');
+      if (!stageRef.current) return;
+      stageRef.current.classList.toggle('is-open', name !== 'shut');
+      stageRef.current.classList.toggle('is-full', name === 'full');
     },
-    onSize: (name) => setSheetOpen(name === 'open'),
+    onSize: setSheetSize,
   });
   const [panelView, setPanelView] = useState('explore');
   // The day being shown, on a phone: one button over the map, its days in a list.
@@ -656,7 +666,7 @@ export default function MapView({
    * there is not.
    */
   return (
-    <div ref={stageRef} className={`mapstage ${m.stage}${sheet.value ? ' is-open' : ''}`}
+    <div ref={stageRef} className={`mapstage ${m.stage}${sheet.value ? ' is-open' : ''}${sheet.value === 'full' ? ' is-full' : ''}`}
       data-sheet={sheet.leaving ? 'leaving' : undefined} data-card={floatCard.leaving ? 'leaving' : undefined}>
       <div className="mapcanvas">
         {mapsReady ? (
@@ -781,24 +791,49 @@ export default function MapView({
 
       {floatCard.value}
 
-      <aside ref={panelRef} className="mappanel" data-view={panelView} aria-label="Places and stops">
-        <div className="mappanel-compact">
-          <button type="button" className="map-explore-trigger" onClick={() => openPanel('explore')}>
-            <Search size={18} aria-hidden="true" /><span>Explore nearby…</span>
-          </button>
-          <button type="button" className="map-stops-trigger" onClick={() => openPanel('stops')}
-            aria-label={`${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}. Show the list`}>
-            <List size={15} aria-hidden="true" />
-            {stops.length}
-            <ChevronUp size={15} aria-hidden="true" />
-          </button>
-        </div>
+      <aside ref={panelRef} className="mappanel" data-view={trainHop ? 'trains' : panelView}
+        aria-label={trainHop ? 'Train options' : 'Places and stops'}>
+        {/*
+          * Put away, the sheet is what it would open to: a hop's trains while
+          * they are open, and searching and the stops otherwise.
+          */}
+        {openTrain[0] ? (
+          <div className="mappanel-compact">
+            <button type="button" className="map-stops-trigger" onClick={() => setSheetOpen(true)}
+              aria-label={`Trains from ${openTrain[0].fromTitle} to ${openTrain[0].toTitle}. Show them`}>
+              <TrainFront size={15} aria-hidden="true" />
+              Trains
+              <ChevronUp size={15} aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          <div className="mappanel-compact">
+            <button type="button" className="map-explore-trigger" onClick={() => openPanel('explore')}>
+              <Search size={18} aria-hidden="true" /><span>Explore nearby…</span>
+            </button>
+            <button type="button" className="map-stops-trigger" onClick={() => openPanel('stops')}
+              aria-label={`${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}. Show the list`}>
+              <List size={15} aria-hidden="true" />
+              {stops.length}
+              <ChevronUp size={15} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         {/*
           * The handle is the whole top edge, and it says what it will do.
-          * Keep collapse discoverable without requiring a swipe gesture.
+          * Keep collapse discoverable without requiring a swipe gesture; the
+          * arrow keys step it up and down, as the hand does.
           */}
         <button className="mappanel-grab" type="button" aria-expanded={sheetOpen}
+          aria-keyshortcuts="ArrowUp ArrowDown"
           {...sheetDrag.handlers}
+          onKeyDown={(e) => {
+            const step = { ArrowUp: 1, ArrowDown: -1 }[e.key];
+            if (!step) return;
+            e.preventDefault();
+            const at = SHEET_SIZES.indexOf(sheetSize) + step;
+            if (at >= 0 && at < SHEET_SIZES.length) setSheetSize(SHEET_SIZES[at]);
+          }}
           onClick={() => { if (!sheetDrag.dragged()) setSheetOpen((o) => !o); }}>
           <span className="mappanel-bar" aria-hidden="true" />
           <span className="mappanel-grab-label">
@@ -808,10 +843,13 @@ export default function MapView({
           </span>
         </button>
 
-        <div className="mappanel-views" role="group" aria-label="Map panel view">
-          <button type="button" aria-pressed={panelView === 'explore'} onClick={() => openPanel('explore')}>Explore</button>
-          <button type="button" aria-pressed={panelView === 'stops'} onClick={() => openPanel('stops')}>My stops <span>{stops.length}</span></button>
-        </div>
+        {/* A hop's trains are neither, so while they are open the choice between the two is not offered. */}
+        {trainHop ? null : (
+          <div className="mappanel-views" role="group" aria-label="Map panel view">
+            <button type="button" aria-pressed={panelView === 'explore'} onClick={() => openPanel('explore')}>Explore</button>
+            <button type="button" aria-pressed={panelView === 'stops'} onClick={() => openPanel('stops')}>My stops <span>{stops.length}</span></button>
+          </div>
+        )}
 
         <div className="mappanel-scroll" ref={panelScrollRef}>
           {dropped ? (

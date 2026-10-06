@@ -413,6 +413,13 @@ Match the surrounding code — it is consistent and deliberate.
   not filter its own backdrop or it prevents the panel from sampling the page.
 - The map shell fills the viewport using flex sizing, including the variable
   Today banner height, so the phone's bottom sheet stays above its navigation.
+- Every sheet that stops partway up the phone screen has a grip that pulls it
+  further (`useSheetDrag`, sizes measured off the CSS): the map's sheet is
+  shut, open or full (`is-open`, `is-full` on `.mapstage`), the itinerary's
+  `TrainSheet` some or all (or down off the screen to close), and the
+  directions trains some or all. A new sheet of that kind should do the same.
+  The train options' sticky head reads `--panel-pad`, `--panel-top` and
+  `--head-end` from whatever holds it.
 - Anchor the command shortcut with viewport units, not percentage offsets:
   page scrollbars otherwise shift it sideways between the map and itinerary.
   Keep its bottom offset shared across routes.

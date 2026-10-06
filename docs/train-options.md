@@ -26,8 +26,16 @@ Clicking the chip opens the train options.
 
 - **Where:** on desktop it replaces the stop list in the map's right-hand
   panel, with `‹ Back` to go back; it closes by itself when its hop leaves the
-  map (another day picked). On the phone it is the Transit tab of the
-  directions sheet.
+  map (another day picked). On the phone it takes the map's sheet in the same
+  way, without the Explore and My stops tabs; put away, the sheet is a
+  `Trains` button that brings it back. It is also the Transit tab of the
+  directions sheet, and the itinerary's train chip opens it as a sheet of its
+  own.
+- **Sheets on the phone:** each one can be pulled up by its grip, or stepped
+  up with the arrow keys on the map's: the map's sheet from put away to open
+  to the whole screen, the itinerary's sheet to the whole screen (and down
+  off the screen to close it), and the directions sheet's trains over all of
+  the map but a strip.
 - **When:** a hop in Japan has its trains from the moment the trip opens,
   whatever the map's Routes setting, since the app answers them itself at no
   cost; the itinerary and the stop list show its train chip straight away.

@@ -756,6 +756,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   .page-head.spread { flex-direction: column; align-items: stretch; gap: 10px; }
   .page-head .chiprow { flex-wrap: nowrap; }
   .page-head .chiprow > .btn { flex: 1; justify-content: center; }
+  /* With Today among them, four do not fit across a phone and pushed the
+     whole page wider than the screen: two rows of two instead. */
+  .page-head .chiprow:has(> button:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
 /* The rail holds links now, not buttons, so it needs both selectors. */
@@ -2932,10 +2935,12 @@ body:has(.lp)::before { display: none; }
 
 @media print { .mapstage { display: none !important; } }
 
-/* ---- phones: a sheet, in two honest heights ------------------------------ */
+/* ---- phones: a sheet, put away, open or pulled all the way up ------------- */
 @media (max-width: 1000px) {
   .shell:has(.mapstage) { --sheet-h: 72px; }
   .shell:has(.mapstage.is-open) { --sheet-h: min(60dvh, 480px); }
+  /* As tall as the map lets it be (MapView.module.css caps it short of the top). */
+  .shell:has(.mapstage.is-open.is-full) { --sheet-h: 100dvh; }
 
   .mapstage { height: calc(100dvh - var(--topbar-h) - var(--vv-bottom, 0px)); }
   .mapdays { max-width: calc(100% - 24px); right: 12px; }
@@ -2977,7 +2982,8 @@ body:has(.lp)::before { display: none; }
   .mappanel-compact button:focus-visible, .mappanel-views button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .mapstage.is-open .mappanel-compact { display: none; }
   .mapstage:not(.is-open) :is(.mappanel-grab, .mappanel-views, .mappanel-scroll) { display: none; }
-  .mappanel[data-view="stops"] .map-explore, .mappanel[data-view="explore"] .map-stops { display: none; }
+  .mappanel[data-view="stops"] .map-explore, .mappanel[data-view="explore"] .map-stops,
+  .mappanel[data-view="trains"] :is(.map-explore, .map-stops) { display: none; }
   .mappanel .mapside-sep { display: none; }
   .map-explore-hint { display: block; margin: 0; line-height: 1.5; text-align: center; font-size: var(--fs-xs); }
   .mappanel[data-view="explore"] .mappanel-body { padding: 4px 18px 18px; }
@@ -3285,7 +3291,8 @@ body:has(.lp)::before { display: none; }
 .rv-ways .btn { flex: none; }
 /* The time each way would take, read off the chips without choosing one. */
 .rv-when { margin-left: 2px; font-size: var(--fs-xs); opacity: .85; }
-.rv-map { flex: 1; min-height: 0; position: relative; }
+/* However far the trains are pulled up, a strip of the map stays. */
+.rv-map { flex: 1; min-height: min(150px, 22dvh); position: relative; }
 .rv-map .map-el { height: 100%; }
 
 .rv-foot {
@@ -3306,11 +3313,33 @@ body:has(.lp)::before { display: none; }
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
 }
 .rv-go { margin-left: auto; }
-/* Trains to compare, leaving now: between the map and the button that hands over to a navigation app. */
+/*
+ * Trains to compare, leaving now: between the map and the button that hands
+ * over to a navigation app. Part of the screen, or pulled up by its grip over
+ * all of the map but the strip it keeps (useSheetDrag).
+ */
 .rv-trains {
-  flex: none; max-height: 52vh; overflow-y: auto;
-  padding: 12px 14px 4px; border-top: 1px solid var(--border); background: var(--surface-1);
+  flex: 0 1 auto; min-height: 0; max-height: 52vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border); background: var(--surface-1);
+  transition: max-height .3s var(--ease), height .3s var(--ease);
 }
+.rv-trains[data-size="all"] { max-height: 100dvh; }
+.rv-trains[data-dragging], .rv-trains[data-measuring] { transition: none; }
+/* A strip above the list, so the list's head never scrolls under it. */
+.rv-grip {
+  flex: none; display: flex; justify-content: center; width: 100%; height: 20px; padding: 8px 0 0;
+  border: 0; background: transparent; cursor: grab; touch-action: none;
+}
+.rv-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+.rv-grip-bar { width: 38px; height: 4px; border-radius: 999px; background: var(--border-strong); }
+.rv-trains-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  --panel-pad: 14px; --panel-top: 2px; padding: var(--panel-top) var(--panel-pad) 4px;
+  scrollbar-width: none;
+}
+.rv-trains-list::-webkit-scrollbar { display: none; }
+@media (prefers-reduced-motion: reduce) { .rv-trains { transition: none; } }
 @media print { .rv { display: none !important; } }
 
 /*

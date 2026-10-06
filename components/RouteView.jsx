@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Loader2, Footprints, TrainFront, Car, LocateFixed, Navigation,
@@ -8,6 +8,7 @@ import {
 import GoogleMap, { googleMapsAvailable, catColor } from '@/components/GoogleMap';
 import { routeBetween, decodePath, fmtKm } from '@/lib/geo';
 import TrainPanel from '@/components/TrainPanel';
+import useSheetDrag from '@/components/useSheetDrag';
 import { fmtDuration, fmtTime, zonedNow } from '@/lib/util';
 
 /**
@@ -30,6 +31,8 @@ const WAYS = [
   { id: 'DRIVE', label: 'Drive', icon: Car },
 ];
 
+const TRAIN_SIZES = ['some', 'all'];
+
 /**
  * `fallback` is where the route starts from when the phone will not say: the
  * activity you are in the middle of. It is a worse answer than your actual
@@ -46,6 +49,15 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
   const [legs, setLegs] = useState({}); // mode -> result
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  /*
+   * The trains under the map take part of the screen, and their grip pulls
+   * them up over most of the map for a long list, and back.
+   */
+  const trainsRef = useRef(null);
+  const [trainsSize, setTrainsSize] = useState('some');
+  const trainsDrag = useSheetDrag({
+    ref: trainsRef, sizes: TRAIN_SIZES, size: trainsSize, onSize: setTrainsSize,
+  });
 
   /*
    * Where you are, asked for the moment this opens — which is the one moment
@@ -253,11 +265,18 @@ export default function RouteView({ to, title, fallback, fallbackName, onClose }
       </div>
 
       {trains ? (
-        <div className="rv-trains">
-          <TrainPanel options={trains} mode="now" to={title}
-            ends={{ from, to }} date={zonedNow(leg.timeZone).date} leaveAt={zonedNow(leg.timeZone).minute} live timeZone={leg.timeZone}
-            note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
-            shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
+        <div ref={trainsRef} className="rv-trains" data-size={trainsSize}>
+          <button type="button" className="rv-grip" {...trainsDrag.handlers}
+            aria-label={trainsSize === 'all' ? 'Show more of the map' : 'Show more of the trains'}
+            onClick={() => { if (!trainsDrag.dragged()) setTrainsSize((v) => (v === 'all' ? 'some' : 'all')); }}>
+            <span className="rv-grip-bar" aria-hidden="true" />
+          </button>
+          <div className="rv-trains-list">
+            <TrainPanel options={trains} mode="now" to={title}
+              ends={{ from, to }} date={zonedNow(leg.timeZone).date} leaveAt={zonedNow(leg.timeZone).minute} live timeZone={leg.timeZone}
+              note={guessed ? `Leaving now from ${fallbackName || 'where you were'}` : 'Leaving now'}
+              shownId={shown.id} onShow={setShownTrain} preferMissing={!!leg.preferMissing} />
+          </div>
         </div>
       ) : null}
 
