@@ -16,7 +16,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import useKept from '@/components/useKept';
 import PlanPrompt from '@/components/PlanPrompt';
 import PlacePhoto from '@/components/PlacePhoto';
-import { COVER_BUCKET, coverKind, coverPathFor, coverURL, removeAllCovers } from '@/lib/tripCover';
+import { COVER_BUCKET, coverKind, coverPathFor, coverURL } from '@/lib/tripCover';
 import TravelArt from '@/components/TravelArt';
 import HomeNav from '@/components/HomeNav';
 import GuideRail from '@/components/GuideRail';
@@ -276,11 +276,8 @@ export default function TripsHome() {
     if (!supabase) return;
     setConfirmKill(null);
     setMenuFor(null);
-    // Before the trip goes: whether its covers may be taken away is decided by
-    // membership of a trip that is about to stop existing. All of them, not just
-    // the one showing — the rest are the trip's too.
-    try { await removeAllCovers(supabase, t.id, t.cover_path); } catch { /* left behind */ }
-    const { error } = await supabase.from('trips').delete().eq('id', t.id);
+    // Hides the trip; nothing is destroyed, so its covers stay in the bucket too.
+    const { error } = await supabase.rpc('delete_trip', { p_trip: t.id });
     if (error) { fail(error); return; }
     await removeDownload(t.id).catch(() => {});
     pushToast(`"${t.name}" deleted.`);

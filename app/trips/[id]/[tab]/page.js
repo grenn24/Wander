@@ -30,7 +30,6 @@ const TripCoverDialog = dynamic(() => retryImport(() => import('@/components/Tri
 import useKept from '@/components/useKept';
 import { retryImport } from '@/lib/chunkRetry';
 import { todayISO } from '@/lib/util';
-import { removeAllCovers } from '@/lib/tripCover';
 import { placeDetails } from '@/lib/geo';
 
 export default function TripTabPage({ params }) {
@@ -148,10 +147,8 @@ export default function TripTabPage({ params }) {
 
   async function deleteTrip() {
     if (!supabase) return;
-    // The covers first: taking them away is allowed to a member of this trip, and
-    // in a moment there will be no trip to be a member of.
-    try { await removeAllCovers(supabase, trip.id, trip.cover_path); } catch { /* left behind */ }
-    const { error } = await supabase.from('trips').delete().eq('id', trip.id);
+    // Hides the trip; nothing is destroyed, so its covers stay in the bucket too.
+    const { error } = await supabase.rpc('delete_trip', { p_trip: trip.id });
     if (error) { fail(error); return; }
     await removeDownload(trip.id).catch(() => {});
     pushToast('Trip deleted.');

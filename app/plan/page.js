@@ -82,7 +82,7 @@ function Planner() {
   const discardPendingTrip = useCallback(async () => {
     const tripId = pendingTripRef.current;
     if (!tripId || !supabase) return;
-    const { error: discardErr } = await supabase.from('trips').delete().eq('id', tripId);
+    const { error: discardErr } = await supabase.rpc('delete_trip', { p_trip: tripId });
     if (discardErr) {
       console.error('[planner] could not discard cancelled trip:', discardErr.message);
       return;

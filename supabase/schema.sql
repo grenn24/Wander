@@ -102,6 +102,12 @@ alter table public.trips      add column if not exists cover_path text;
 alter table public.trips add column if not exists timezone text;
 alter table public.trips add column if not exists budget_member_ids uuid[];
 
+-- A trip that has been deleted keeps its row and everything under it; this is
+-- when. Set only by public.delete_trip() (below), and read by the policies and
+-- helper functions, which treat a trip with it set as not there. There is no
+-- hard delete: see the privileges section.
+alter table public.trips add column if not exists deleted_at timestamptz;
+
 -- The event this activity became in someone's Google Calendar, so a second
 -- sync updates what it wrote the first time instead of adding it all again.
 alter table public.activities add column if not exists google_event_id text;
@@ -248,12 +254,19 @@ create unique index if not exists trips_share_code_idx on public.trips (share_co
 
 -- SECURITY DEFINER so they bypass RLS; this is what stops policy recursion
 -- between trips <-> trip_members.
+--
+-- A deleted trip has no members and no owner. These two are what the policies
+-- on every table that hangs off a trip ask, so this is the one place that
+-- closes activities, packing, the agent's messages, the planning desk,
+-- favourites and the cover and desk-picture buckets behind a deleted trip.
 create or replace function public.is_trip_member(p_trip uuid)
 returns boolean language sql security definer stable
 set search_path = public as $fn$
   select exists (
-    select 1 from public.trip_members m
-    where m.trip_id = p_trip and m.user_id = auth.uid()
+    select 1
+    from public.trip_members m
+    join public.trips t on t.id = m.trip_id
+    where m.trip_id = p_trip and m.user_id = auth.uid() and t.deleted_at is null
   );
 $fn$;
 
@@ -262,7 +275,7 @@ returns boolean language sql security definer stable
 set search_path = public as $fn$
   select exists (
     select 1 from public.trips t
-    where t.id = p_trip and t.owner_id = auth.uid()
+    where t.id = p_trip and t.owner_id = auth.uid() and t.deleted_at is null
   );
 $fn$;
 
@@ -308,7 +321,9 @@ create trigger trips_add_owner
   after insert on public.trips
   for each row execute function public.add_owner_as_member();
 
--- Anyone holding a trip's share code becomes an editor on it.
+-- Anyone holding a trip's share code becomes an editor on it. This runs as its
+-- owner, so the policies do not hold it back: it has to leave a deleted trip
+-- alone itself, or an old link would enrol someone in a trip they cannot open.
 create or replace function public.join_trip_by_code(p_code text)
 returns uuid language plpgsql security definer
 set search_path = public as $fn$
@@ -320,7 +335,7 @@ begin
   end if;
 
   select t.id into v_trip from public.trips t
-  where t.share_code = lower(trim(p_code));
+  where t.share_code = lower(trim(p_code)) and t.deleted_at is null;
 
   if v_trip is null then
     raise exception 'That share link is not valid.';
@@ -337,8 +352,35 @@ begin
 end;
 $fn$;
 
+-- The only way to delete a trip, and it only hides it: sets deleted_at. A plain
+-- UPDATE cannot do this, because a row that has stopped being visible fails the
+-- SELECT policy that is checked against an updated row — the rule that hides
+-- deleted trips would also forbid deleting one. A function that runs as its
+-- owner can set the column, so it checks for itself that the caller owns the
+-- trip. A trip that is already deleted, or was never there, is refused the same
+-- way as one that belongs to somebody else.
+create or replace function public.delete_trip(p_trip uuid)
+returns void language plpgsql security definer
+set search_path = public as $fn$
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in.';
+  end if;
+
+  update public.trips
+     set deleted_at = now(), updated_at = now()
+   where id = p_trip and owner_id = auth.uid() and deleted_at is null;
+
+  if not found then
+    raise exception 'Only the owner can delete a trip.' using errcode = '42501';
+  end if;
+end;
+$fn$;
+
 grant execute on function public.join_trip_by_code(text) to authenticated, anon;
 grant execute on function public.my_display_name() to authenticated, anon;
+revoke all on function public.delete_trip(uuid) from public;
+grant execute on function public.delete_trip(uuid) to authenticated;
 
 -- v1 invite machinery is no longer used.
 drop function if exists public.claim_my_invites();
@@ -358,8 +400,14 @@ drop table if exists public.trip_invites cascade;
 -- sign-ins switched off on the project a real boundary rather than a setting.
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete
-  on public.trips, public.trip_members, public.activities, public.packing_items
+  on public.trip_members, public.activities, public.packing_items
   to authenticated;
+-- A trip is never deleted for good: public.delete_trip() hides it. Not granted,
+-- and revoked for a database that was given the grant before this was written
+-- (and from anon, for one whose default privileges hand it out). The trips_delete
+-- policy is gone as well, so there are two locks, not one.
+grant select, insert, update on public.trips to authenticated;
+revoke delete on public.trips from anon, authenticated;
 grant select, insert on public.trip_agent_messages to authenticated;
 
 -- --------------------------------------------------------------- row-level ---
@@ -369,9 +417,12 @@ alter table public.activities    enable row level security;
 alter table public.packing_items enable row level security;
 alter table public.trip_agent_messages enable row level security;
 
+-- Deleted trips are invisible, and cannot be changed by a plain UPDATE either:
+-- the WITH CHECK is what stops a member deleting a trip by setting deleted_at
+-- themselves, and what stops anyone bringing one back that way.
 drop policy if exists trips_select on public.trips;
 create policy trips_select on public.trips for select to authenticated
-  using (owner_id = auth.uid() or public.is_trip_member(id));
+  using (deleted_at is null and (owner_id = auth.uid() or public.is_trip_member(id)));
 
 drop policy if exists trips_insert on public.trips;
 create policy trips_insert on public.trips for insert to authenticated
@@ -379,12 +430,12 @@ create policy trips_insert on public.trips for insert to authenticated
 
 drop policy if exists trips_update on public.trips;
 create policy trips_update on public.trips for update to authenticated
-  using (owner_id = auth.uid() or public.is_trip_member(id))
-  with check (owner_id = auth.uid() or public.is_trip_member(id));
+  using (deleted_at is null and (owner_id = auth.uid() or public.is_trip_member(id)))
+  with check (deleted_at is null and (owner_id = auth.uid() or public.is_trip_member(id)));
 
+-- There is no policy that lets anyone delete a trip. This drops the one a
+-- database built before soft delete still has.
 drop policy if exists trips_delete on public.trips;
-create policy trips_delete on public.trips for delete to authenticated
-  using (owner_id = auth.uid());
 
 drop policy if exists members_select on public.trip_members;
 create policy members_select on public.trip_members for select to authenticated

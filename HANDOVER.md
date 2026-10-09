@@ -77,9 +77,8 @@ covers as you go, so it reports them through `onCover` and the page takes them
 at once; do not wait for Save or the realtime refresh. Replacing a cover
 (upload or redraw) deliberately leaves the old file in the `trip-covers` bucket
 — the owner wants every cover a trip has had to stay visible there — so only the
-trip's `cover_path` moves. Files are deleted only by the Remove button and when
-a trip is deleted, and the latter removes just the current cover, so older ones
-stay behind.
+trip's `cover_path` moves. Files are deleted only by the Remove button: deleting
+a trip is a soft delete (below) and leaves all its covers where they are.
 
 Mobile session recovery lives in `lib/sessionRecovery.js`. AppProvider restores
 on visibility, pageshow, focus and reconnect without remounting ready editors.
@@ -231,6 +230,28 @@ by hand from the dashboard; a schema edit that is not flagged becomes a
 production error days later. `supabase/schema.sql` is fully idempotent, so the
 whole file can be re-run safely — but note that the Supabase SQL editor runs a
 paste as **one transaction**, so one failing statement rolls back the lot.
+
+**Deleting a trip is a soft delete.** `trips.deleted_at` is set by
+`public.delete_trip(p_trip)` (owner only, `security definer`) and by nothing
+else; the app calls it with `supabase.rpc('delete_trip', { p_trip })` from the
+trips list, the trip's Settings tab and a cancelled AI plan. A trip with
+`deleted_at` set is invisible: `trips_select`, `is_trip_member` and
+`is_trip_owner` all skip it, which also closes its activities, packing, desk,
+messages and both storage buckets, and `join_trip_by_code` refuses its share
+code. Nothing is removed — rows, covers and members all stay.
+
+- **No hard delete from the app.** `DELETE` is revoked on `public.trips` and the
+  `trips_delete` policy is gone, so `supabase.from('trips').delete()` is a
+  permission error. Do not re-add either; do not put `delete` back in the grant
+  in `schema.sql`. The service role, the SQL editor and removing an auth user
+  (`trips.owner_id … on delete cascade`) can still remove rows.
+- **A plain UPDATE cannot set `deleted_at`.** Postgres checks an updated row
+  against the SELECT policy, so a policy that hides deleted rows also forbids
+  the update that deletes one — hence the function.
+- **There is no way to see or restore a deleted trip yet**; the rows are
+  invisible to every client. Restoring needs its own `security definer` function
+  (and a listing one), for the same reason.
+- `tests/soft-delete-trips.integration.sql` covers it; run it as its header says.
 
 ---
 
