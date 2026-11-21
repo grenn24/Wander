@@ -2,6 +2,7 @@ import {
   aiFailure,
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
+import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
@@ -57,10 +58,12 @@ can reasonably default, and never ask more than one question.`;
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
+  // Every answer is a paid model call: only for someone signed in.
+  if (!(await userFromRequest(req))) return notSignedIn();
 
   let body;
   try {
-    body = await req.json();
+    body = (await req.json()) || {};
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
@@ -73,6 +76,7 @@ export async function POST(req) {
   const dayLabel = String(body.dayLabel || '').slice(0, 60);
   const answer = String(body.answer || '').slice(0, 300);
   const existing = (Array.isArray(body.existing) ? body.existing : [])
+    .filter((a) => a && typeof a === 'object')
     .slice(0, 15)
     .map((a) => `- ${a.start_time ? `${a.start_time} ` : ''}${a.title}`)
     .join('\n');

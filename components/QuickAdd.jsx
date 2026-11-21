@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, X } from 'lucide-react';
 import { parseQuickAdd } from '@/lib/util';
+import { authHeader } from '@/lib/supabase';
 
 /**
  * The line at the foot of each day. You write what you mean — "dinner at that
@@ -77,7 +78,7 @@ export default function QuickAdd({
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           text: raw,
           answer: clarification || '',

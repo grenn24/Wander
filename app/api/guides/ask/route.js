@@ -1,4 +1,5 @@
 import { aiConfigured, notConfigured, aiFailure, aiModel, aiEffort } from '@/lib/ai';
+import { relayStream } from '@/lib/aiStream';
 import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 import { guideDoc } from '@/lib/guideStore';
 import { journalContext } from '@/lib/guideAsk';
@@ -20,6 +21,13 @@ const LIMIT = 40;
 const asked = new Map();
 function allow(id) {
   const now = Date.now();
+  // Everyone who has ever asked used to stay in here for the life of the
+  // server. Anyone whose last question is over the window is forgotten.
+  if (asked.size > 1000) {
+    asked.forEach((times, who) => {
+      if (!times.length || now - times[times.length - 1] >= WINDOW) asked.delete(who);
+    });
+  }
   const recent = (asked.get(id) || []).filter((t) => now - t < WINDOW);
   const ok = recent.length < LIMIT;
   if (ok) recent.push(now);
@@ -75,6 +83,7 @@ export async function POST(req) {
   try {
     upstream = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
+      signal: req.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: JSON.stringify({
         model: aiModel('ask'),
@@ -97,35 +106,13 @@ export async function POST(req) {
     return aiFailure(new Error(`${upstream.status} ${detail || 'no detail'} (model ${aiModel('ask')})`), 'ask');
   }
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-        for (;;) {
-          // eslint-disable-next-line no-await-in-loop
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n');
-          buf = lines.pop() || '';
-          for (const line of lines) {
-            const payload = line.trim().startsWith('data:') ? line.trim().slice(5).trim() : '';
-            if (!payload || payload === '[DONE]') continue;
-            try {
-              const delta = JSON.parse(payload).choices?.[0]?.delta;
-              if (delta && typeof delta.content === 'string') controller.enqueue(encoder.encode(delta.content));
-            } catch (e) { /* one bad frame is not fatal */ }
-          }
-        }
-      } catch (e) {
-        console.error('[ai] ask stream failed:', (e && e.message) || e);
-      } finally {
-        controller.close();
-      }
-    },
+  const stream = relayStream(upstream, async ({ text, send, gone }) => {
+    try {
+      for await (const chunk of text) send(chunk);
+    } catch (e) {
+      if (gone() || (e && e.name === 'AbortError')) return;
+      console.error('[ai] ask stream failed:', (e && e.message) || e);
+    }
   });
   return new Response(stream, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache, no-transform' },

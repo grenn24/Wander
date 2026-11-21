@@ -4,6 +4,7 @@ import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 import Select from '@/components/Select';
 import TravelArt from '@/components/TravelArt';
 import { cap } from '@/lib/util';
+import { authHeader } from '@/lib/supabase';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
@@ -38,7 +39,7 @@ export default function Packing({
     try {
       const res = await fetch('/api/packing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           destination: (trip && (trip.destination || trip.name)) || '',
           dates: trip ? `${trip.start_date} to ${trip.end_date}` : '',

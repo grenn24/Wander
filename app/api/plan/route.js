@@ -3,11 +3,12 @@ import {
   cleanCategory, cleanTime, askJson,
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
+import { relayStream } from '@/lib/aiStream';
 import { publicAgentText } from '@/lib/agentText';
 import { validZone } from '@/public/trip-time';
 import { TRANSPORT } from '@/lib/transport';
 import { LODGING_KEYS, cleanLodging } from '@/lib/lodging';
-import { userFromRequest } from '@/lib/supabaseServer';
+import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 import { listEvents, connection } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
@@ -362,10 +363,8 @@ Rules:
  * planned without the calendar is the behaviour this has always had, and is a
  * far better outcome than a failure.
  */
-async function theirCalendar(req, prompt, today) {
+async function theirCalendar(user, prompt, today) {
   try {
-    const user = await userFromRequest(req);
-    if (!user) return null;
     if (!(await connection(user.id))) return null;
 
     const when = await askJson({
@@ -398,12 +397,21 @@ async function theirCalendar(req, prompt, today) {
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
+  /*
+   * Signed in, like every other route that pays for a model. A whole plan on
+   * the better model is the dearest call in the app, and this one was open to
+   * anyone who could reach the address. The planner page has always sent its
+   * token with the plan itself, for the calendar; the brief check before it
+   * now sends it too.
+   */
+  const user = await userFromRequest(req);
+  if (!user) return notSignedIn();
 
   let prompt = '';
   let today = '';
   let mode = '';
   try {
-    const body = await req.json();
+    const body = (await req.json()) || {};
     prompt = String(body.prompt || '').trim().slice(0, 6000);
     today = String(body.today || '').slice(0, 10);
     mode = String(body.mode || '');
@@ -445,7 +453,7 @@ ${prompt}`,
 
   const strictOnly = hasExclusiveScope(prompt);
 
-  const mine = await theirCalendar(req, prompt, today);
+  const mine = await theirCalendar(user, prompt, today);
   const calendarBlock = mine ? [
     '',
     'Already in their calendar on these dates — use these exactly, and do not',
@@ -476,6 +484,9 @@ and will be removed before the traveller sees it.` : '';
   try {
     upstream = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
+      // A traveller who gives up while the model is still thinking takes the
+      // request with them, rather than leaving it to run and be billed.
+      signal: req.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -523,124 +534,106 @@ and will be removed before the traveller sees it.` : '';
   const exclusiveSummary = 'Only the places and guides you requested are included. '
     + 'The remaining time is left open.';
 
-  const encoder = new TextEncoder();
+  const stream = relayStream(upstream, async ({ text: chunks, send: write, gone }) => {
+    const send = (obj) => write(`${JSON.stringify(obj)}\n`);
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (obj) => controller.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`));
+    // What the client already knows, so each event carries only what is new.
+    let sentMeta = '';
+    const sentThemes = new Map();
+    const sentCounts = new Map();
+    let text = '';
 
-      // What the client already knows, so each event carries only what is new.
-      let sentMeta = '';
-      const sentThemes = new Map();
-      const sentCounts = new Map();
-      let text = '';
+    const flush = () => {
+      const partial = parsePartial(text);
+      if (!partial || typeof partial !== 'object') return;
 
-      const flush = () => {
-        const partial = parsePartial(text);
-        if (!partial || typeof partial !== 'object') return;
+      const meta = {
+        name: typeof partial.name === 'string' ? partial.name : '',
+        destination: typeof partial.destination === 'string' ? partial.destination : '',
+        currency: typeof partial.currency === 'string' ? partial.currency : '',
+        duration_days: Number(partial.duration_days) || 0,
+        summary: strictOnly
+          ? exclusiveSummary
+          : (typeof partial.summary === 'string' ? partial.summary : ''),
+      };
+      const metaKey = JSON.stringify(meta);
+      if (metaKey !== sentMeta) { sentMeta = metaKey; send({ t: 'meta', ...meta }); }
 
-        const meta = {
-          name: typeof partial.name === 'string' ? partial.name : '',
-          destination: typeof partial.destination === 'string' ? partial.destination : '',
-          currency: typeof partial.currency === 'string' ? partial.currency : '',
-          duration_days: Number(partial.duration_days) || 0,
+      (Array.isArray(partial.days) ? partial.days : []).forEach((d) => {
+        if (!d || typeof d !== 'object') return;
+        const idx = Number(d.day_index);
+        if (!Number.isInteger(idx) || idx < 1) return;
+
+        const acts = Array.isArray(d.activities) ? d.activities : [];
+        const theme = typeof d.theme === 'string' ? d.theme : '';
+        if ((!strictOnly || acts.some(includeActivity)) && sentThemes.get(idx) !== theme) {
+          sentThemes.set(idx, theme);
+          send({ t: 'day', i: idx, theme });
+        }
+
+        const already = sentCounts.get(idx) || 0;
+        for (let k = already; k < acts.length; k += 1) {
+          // parsePartial only ever yields complete objects, so this is whole.
+          if (includeActivity(acts[k])) {
+            send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
+          }
+        }
+        if (acts.length > already) sentCounts.set(idx, acts.length);
+      });
+    };
+
+    try {
+      for await (const chunk of chunks) {
+        text += chunk;
+        /*
+         * parsePartial reads the whole answer so far, and its result only
+         * changes when a structure closes outside a string. Parsing it again
+         * for every chunk made a long plan quadratic — thousands of re-reads
+         * of tens of kilobytes — for events that could not have changed.
+         */
+        if (/[}\]]/.test(chunk)) flush();
+      }
+      // Cancelled: nobody is reading, and what arrived is not a plan.
+      if (gone()) return;
+
+      if (!text.trim()) {
+        // Same trap as the blocking routes: the budget can be spent entirely
+        // on reasoning, leaving no itinerary behind.
+        throw new Error('The model produced no itinerary — it may have spent its '
+          + 'budget reasoning. Try again, or lower the plan effort in TASKS.');
+      }
+      const final = JSON.parse(text);
+      const duration = Math.min(30, Math.max(1, Number(final.duration_days) || 1));
+      const days = (Array.isArray(final.days) ? final.days : [])
+        .filter((d) => Number(d.day_index) >= 1 && Number(d.day_index) <= duration)
+        .map((d) => ({
+          day_index: Number(d.day_index),
+          theme: String(d.theme || ''),
+          activities: (Array.isArray(d.activities) ? d.activities : [])
+            .filter(includeActivity).slice(0, 8).map((x) => cleanActivity(x, fix)),
+        }))
+        .filter((d) => !strictOnly || d.activities.length > 0);
+
+      send({
+        t: 'done',
+        plan: {
+          name: String(final.name || '').trim().slice(0, 120) || 'New trip',
+          destination: String(final.destination || '').trim().slice(0, 200),
+          timezone: validZone(final.timezone) ? final.timezone : null,
+          currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
+          start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
+          duration_days: duration,
           summary: strictOnly
             ? exclusiveSummary
-            : (typeof partial.summary === 'string' ? partial.summary : ''),
-        };
-        const metaKey = JSON.stringify(meta);
-        if (metaKey !== sentMeta) { sentMeta = metaKey; send({ t: 'meta', ...meta }); }
-
-        (Array.isArray(partial.days) ? partial.days : []).forEach((d) => {
-          if (!d || typeof d !== 'object') return;
-          const idx = Number(d.day_index);
-          if (!Number.isInteger(idx) || idx < 1) return;
-
-          const acts = Array.isArray(d.activities) ? d.activities : [];
-          const theme = typeof d.theme === 'string' ? d.theme : '';
-          if ((!strictOnly || acts.some(includeActivity)) && sentThemes.get(idx) !== theme) {
-            sentThemes.set(idx, theme);
-            send({ t: 'day', i: idx, theme });
-          }
-
-          const already = sentCounts.get(idx) || 0;
-          for (let k = already; k < acts.length; k += 1) {
-            // parsePartial only ever yields complete objects, so this is whole.
-            if (includeActivity(acts[k])) {
-              send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
-            }
-          }
-          if (acts.length > already) sentCounts.set(idx, acts.length);
-        });
-      };
-
-      try {
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-
-        for (;;) {
-          // eslint-disable-next-line no-await-in-loop
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-
-          const lines = buf.split('\n');
-          buf = lines.pop() || '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const payload = trimmed.slice(5).trim();
-            if (!payload || payload === '[DONE]') continue;
-            try {
-              const evt = JSON.parse(payload);
-              const delta = evt.choices && evt.choices[0] && evt.choices[0].delta;
-              if (delta && typeof delta.content === 'string') text += delta.content;
-            } catch (e) { /* keep reading; one bad frame is not fatal */ }
-          }
-          flush();
-        }
-
-        if (!text.trim()) {
-          // Same trap as the blocking routes: the budget can be spent entirely
-          // on reasoning, leaving no itinerary behind.
-          throw new Error('The model produced no itinerary — it may have spent its '
-            + 'budget reasoning. Try again, or lower the plan effort in TASKS.');
-        }
-        const final = JSON.parse(text);
-        const duration = Math.min(30, Math.max(1, Number(final.duration_days) || 1));
-        const days = (Array.isArray(final.days) ? final.days : [])
-          .filter((d) => Number(d.day_index) >= 1 && Number(d.day_index) <= duration)
-          .map((d) => ({
-            day_index: Number(d.day_index),
-            theme: String(d.theme || ''),
-            activities: (Array.isArray(d.activities) ? d.activities : [])
-              .filter(includeActivity).slice(0, 8).map((x) => cleanActivity(x, fix)),
-          }))
-          .filter((d) => !strictOnly || d.activities.length > 0);
-
-        send({
-          t: 'done',
-          plan: {
-            name: String(final.name || '').trim().slice(0, 120) || 'New trip',
-            destination: String(final.destination || '').trim().slice(0, 200),
-            timezone: validZone(final.timezone) ? final.timezone : null,
-            currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
-            start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
-            duration_days: duration,
-            summary: strictOnly
-              ? exclusiveSummary
-              : String(final.summary || '').trim().slice(0, 500),
-            days,
-          },
-        });
-      } catch (e) {
-        console.error('[ai] plan stream failed:', (e && e.message) || e);
-        send({ t: 'error', error: 'Something went wrong on our end. Please try again.' });
-      } finally {
-        controller.close();
-      }
-    },
+            : String(final.summary || '').trim().slice(0, 500),
+          days,
+        },
+      });
+    } catch (e) {
+      if (gone() || (e && e.name === 'AbortError')) return;
+      console.error('[ai] plan stream failed:', (e && e.message) || e);
+      send({ t: 'error', error: 'Something went wrong on our end. Please try again.' });
+    }
   });
 
   return new Response(stream, {

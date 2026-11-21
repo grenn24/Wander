@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2, Plus, X, RotateCw } from 'lucide-react';
 import { categoryOf, fmtTime } from '@/lib/util';
 import { activityIcon } from '@/lib/icons';
+import { authHeader } from '@/lib/supabase';
 
 /**
  * Asks for ideas for one day and shows them as a reviewable list. Nothing is
@@ -28,7 +29,7 @@ export default function AiSuggest({
     try {
       const res = await fetch('/api/suggest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           destination: trip.destination || trip.name,
           currency: trip.currency,
