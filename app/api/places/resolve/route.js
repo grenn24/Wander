@@ -1,5 +1,6 @@
 import { resolveMany, placesKey, notConfigured, placesFailure } from '@/lib/places';
 import { aiConfigured, askJson } from '@/lib/ai';
+import { userFromRequest } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -107,12 +108,13 @@ export async function POST(req) {
 
   let body;
   try {
-    body = await req.json();
+    body = (await req.json()) || {};
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
 
   const items = (Array.isArray(body.items) ? body.items : [])
+    .filter((i) => i && typeof i === 'object')
     .map((i) => ({
       id: String(i.id || ''),
       query: String(i.query || '').trim().slice(0, 300),
@@ -127,7 +129,15 @@ export async function POST(req) {
   try {
     const bias = String(body.bias || '').slice(0, 200);
     let results = await resolveMany(items, bias);
-    if (body.reviewAmbiguous) results = await rankUncertain(items, results, bias);
+    /*
+     * The second opinion is a model call, so it is only for someone signed in.
+     * The lookup itself stays open, as Google's own search does; without the
+     * ranking an uncertain stop still comes back with its candidates to pick from.
+     */
+    const unsure = results.some((r) => r.ambiguous && r.candidates.length);
+    if (body.reviewAmbiguous && unsure && (await userFromRequest(req))) {
+      results = await rankUncertain(items, results, bias);
+    }
     return Response.json({ results });
   } catch (e) {
     return placesFailure(e, 'resolve');

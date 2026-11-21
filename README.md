@@ -358,7 +358,10 @@ rows.
 - **Google Places** does geocoding, nearby search and photos, always through
   `/api/places/*` so `PLACES_API_KEY` never leaves the server.
 - **OpenAI** plans trips, suggests activities and builds packing lists, through
-  `/api/plan`, `/api/suggest` and `/api/packing`.
+  `/api/plan`, `/api/suggest` and `/api/packing`. Every route that calls a
+  model answers only a signed-in caller (the browser sends its Supabase access
+  token; `authHeader` in `lib/supabase.js`), and `tests/ai-auth.test.mjs`
+  fails if a new one does not check.
 - **Japanese train data** is bundled in `data/transit/` (Tokyo timetables
   from mini-tokyo-3d, MIT; the nationwide network from gtfs-gis.jp, CC BY 4.0 /
   ODbL) and planned on the server; nothing is called at runtime.

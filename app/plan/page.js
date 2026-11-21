@@ -17,6 +17,7 @@ import PlanningJourney from '@/components/PlanningJourney';
 import { planningProgress } from '@/lib/planningProgress';
 import { activityIcon } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
+import { authHeader } from '@/lib/supabase';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
 } from '@/lib/util';
@@ -138,7 +139,7 @@ function Planner() {
       try {
         const res = await fetch('/api/vision', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
           body: JSON.stringify({ images: shots, said: query }),
           signal: controller.signal,
         });
@@ -173,7 +174,7 @@ function Planner() {
       try {
         const res = await fetch('/api/plan', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
           body: JSON.stringify({ mode: 'clarify', prompt: brief, today: todayISO() }),
           signal: controller.signal,
         });
@@ -307,7 +308,7 @@ function Planner() {
         try {
           const res = await fetch('/api/places/resolve', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
             body: JSON.stringify({
               items: targets, bias: plan.destination, reviewAmbiguous: true,
             }),

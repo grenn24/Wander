@@ -1,6 +1,7 @@
 import {
   aiConfigured, notConfigured, aiFailure, askJson,
 } from '@/lib/ai';
+import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
@@ -92,10 +93,12 @@ const KINDS = /^data:image\/(jpeg|jpg|png|webp|gif);base64,/;
 
 export async function POST(req) {
   if (!aiConfigured()) return notConfigured();
+  // Every answer is a paid model call: only for someone signed in.
+  if (!(await userFromRequest(req))) return notSignedIn();
 
   let body;
   try {
-    body = await req.json();
+    body = (await req.json()) || {};
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }

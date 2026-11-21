@@ -14,6 +14,7 @@ import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
+import { authHeader } from '@/lib/supabase';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import { activityIcon, categoryIcon } from '@/lib/icons';
 import { LODGING_KEYS, cleanLodging, moveStay } from '@/lib/lodging';
@@ -407,7 +408,7 @@ function CommandBar({ onClose }) {
       try {
         const res = await fetch('/api/vision', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
           body: JSON.stringify({ images: shots.map((sh) => sh.url), said: instruction }),
         });
         const seen = await res.json().catch(() => ({}));
@@ -709,7 +710,7 @@ function CommandBar({ onClose }) {
     try {
       const res = await fetch('/api/places/resolve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           items: targets, bias: destination, reviewAmbiguous: true,
         }),
