@@ -36,14 +36,30 @@ function recall(key) {
   const hit = stored()[key];
   return hit && Date.now() - hit.at < KEEP_MS ? hit.value : undefined;
 }
-function keep(key, value) {
+/*
+ * Written to storage once a burst of answers has landed, not once per answer.
+ * The whole store goes out on every write — up to MOST routes with their
+ * lines — and a trip opening asks for dozens of hops a few at a time, so
+ * writing each as it came serialised and stored the lot dozens of times over,
+ * on the main thread, while the page was trying to draw.
+ */
+let writing = null;
+function persist() {
+  if (writing) clearTimeout(writing);
+  writing = null;
   const all = stored();
-  all[key] = { at: Date.now(), value };
   const keys = Object.keys(all);
   if (keys.length > MOST) {
     keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - MOST).forEach((k) => { delete all[k]; });
   }
   try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* the session still has it */ }
+}
+function keep(key, value) {
+  stored()[key] = { at: Date.now(), value };
+  if (writing) return;
+  writing = setTimeout(persist, 800);
+  // Leaving before the write would only cost asking again next time, but there is no need to.
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', persist, { once: true });
 }
 
 const legKey = (from, to, mode, prefer = null) => `${mode}:${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`
