@@ -172,8 +172,10 @@ export default function GlobeView() {
     return foot <= 2 ? { bottom: card.offsetHeight } : { top: card.offsetTop + card.offsetHeight };
   }, []);
 
+  // By id: a renewed sign-in is the same person, and must not reload the globe.
+  const userId = user ? user.id : null;
   const load = useCallback(async () => {
-    if (!supabase || !user) return;
+    if (!supabase || !userId) return;
     setLoading(true);
     setLoadError('');
     try {
@@ -238,7 +240,7 @@ export default function GlobeView() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, user]);
+  }, [supabase, userId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (loadError) load(); }, [sessionRevision]); // eslint-disable-line react-hooks/exhaustive-deps

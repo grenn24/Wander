@@ -12,7 +12,7 @@ import { keepCalendar } from '@/lib/gcal';
 import { clearDownloads, setDownloadOwner } from '@/public/offline-store';
 import Loading from '@/components/Loading';
 import AuthScreen from '@/components/AuthScreen';
-import { observeSession } from '@/lib/sessionRecovery';
+import { observeSession, sameSession } from '@/lib/sessionRecovery';
 import { markSigningOut } from '@/lib/accountHint';
 import { returnPath } from '@/lib/authReturn';
 
@@ -104,7 +104,8 @@ export default function AppProvider({ children }) {
       if (!alive) return;
       if (s?.user?.id) setDownloadOwner(s.user.id).catch(() => {});
       else clearDownloads().catch(() => {});
-      setSession(s);
+      // Every return to the tab reads the session again; the same one is not news.
+      setSession((previous) => (sameSession(previous, s) ? previous : s));
       setDisplayName(nameOf(s));
       setPhase(s ? 'ready' : 'signedout');
 
@@ -161,7 +162,16 @@ export default function AppProvider({ children }) {
     return () => { alive = false; recovery.dispose(); sessionRecovery.current = null; };
   }, []);
 
-  const user = session ? session.user : null;
+  /*
+   * The person, kept as the same object for as long as nothing about them
+   * changes. A renewed token is a new session with an equal user in it, and
+   * the trip's realtime channel, the globe's load and every callback that
+   * closes over `user` would otherwise start again with it, once an hour.
+   */
+  const incoming = session ? session.user : null;
+  const userKey = incoming ? JSON.stringify(incoming) : '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const user = useMemo(() => incoming, [userKey]);
 
   const saveDisplayName = useCallback(async (name) => {
     const clean = (name || '').trim().slice(0, 40);

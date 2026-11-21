@@ -26,6 +26,9 @@ export function useTrip() {
  */
 export default function TripProvider({ tripId, children }) {
   const { supabase, user, sessionRevision, displayName, pushToast, fail } = useApp();
+  // Who, by id: the realtime channel and the history writes need nothing else
+  // about them, and should not start again when anything else does.
+  const userId = user ? user.id : null;
 
   const [trip, setTrip] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -121,9 +124,9 @@ export default function TripProvider({ tripId, children }) {
   loadRef.current = load;
 
   useEffect(() => {
-    if (!supabase || !tripId || !user) return undefined;
+    if (!supabase || !tripId || !userId) return undefined;
     const filter = `trip_id=eq.${tripId}`;
-    const ch = supabase.channel(`trip-${tripId}`, { config: { presence: { key: user.id } } });
+    const ch = supabase.channel(`trip-${tripId}`, { config: { presence: { key: userId } } });
 
     let timer = null;
     const refresh = () => {
@@ -150,7 +153,7 @@ export default function TripProvider({ tripId, children }) {
       });
 
     return () => { if (timer) clearTimeout(timer); supabase.removeChannel(ch); setOnline([]); };
-  }, [supabase, tripId, user, displayName]);
+  }, [supabase, tripId, userId, displayName]);
 
   /* -------------------------------------------------------- activities --- */
   function activityPayload(draft) {
@@ -331,13 +334,13 @@ export default function TripProvider({ tripId, children }) {
   /* Messages are append-only. That keeps later requests tied to what was
      actually said at the time, including questions the agent asked. */
   const appendAgentMessage = useCallback(({ role, kind, content, meta = {} }) => {
-    if (!supabase || !tripId || !user || !content) return Promise.resolve(null);
-    const scope = `${tripId}:${user.id}`;
+    if (!supabase || !tripId || !userId || !content) return Promise.resolve(null);
+    const scope = `${tripId}:${userId}`;
     const row = {
       id: crypto.randomUUID(),
       created_at: new Date().toISOString(),
       trip_id: tripId,
-      user_id: user.id,
+      user_id: userId,
       role: role === 'assistant' ? 'assistant' : 'user',
       kind: kind || 'message',
       content: String(content).slice(0, 4000),
@@ -361,7 +364,7 @@ export default function TripProvider({ tripId, children }) {
         return null;
       }
     });
-  }, [supabase, tripId, user, pushToast]);
+  }, [supabase, tripId, userId, pushToast]);
 
   const deleteActivity = useCallback(async (act) => {
     if (!supabase || !act || !act.id) return;

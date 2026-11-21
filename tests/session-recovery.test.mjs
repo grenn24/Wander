@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { observeSession, readWithSessionRecovery } from '../lib/sessionRecovery.js';
+import {
+  observeSession, readWithSessionRecovery, sameSession, sameUser,
+} from '../lib/sessionRecovery.js';
 
 const session = (token = 'old', id = 'traveller') => ({ access_token: token, user: { id } });
 const result = (s) => ({ data: { session: s }, error: null });
@@ -205,4 +207,26 @@ test('a failed refresh is surfaced without replaying the read', async () => {
   let reads = 0;
   await assert.rejects(readWithSessionRecovery(client, async () => { reads++; return { error: expired }; }), /Refresh token expired/);
   assert.equal(reads, 1);
+});
+
+test('the same session read again from storage is the same session', () => {
+  // What getSession hands back on every focus: equal, never identical.
+  const stored = () => JSON.parse(JSON.stringify({
+    access_token: 'a', refresh_token: 'r', expires_at: 100,
+    user: { id: 'traveller', email: 't@example.com', user_metadata: { display_name: 'T' } },
+  }));
+  assert.notEqual(stored(), stored());
+  assert.equal(sameSession(stored(), stored()), true);
+  assert.equal(sameUser(stored().user, stored().user), true);
+});
+
+test('a renewed token, a new name or another person is a different session', () => {
+  const base = { access_token: 'a', refresh_token: 'r', expires_at: 100, user: { id: 'one', user_metadata: {} } };
+  assert.equal(sameSession(base, { ...base, access_token: 'b', expires_at: 200 }), false);
+  assert.equal(sameSession(base, { ...base, user: { id: 'one', user_metadata: { display_name: 'New' } } }), false);
+  assert.equal(sameSession(base, { ...base, user: { id: 'two', user_metadata: {} } }), false);
+  assert.equal(sameSession(base, null), false);
+  assert.equal(sameSession(null, null), true);
+  // A renewed token is still the same person, whose things need not reload.
+  assert.equal(sameUser(base.user, { ...base, access_token: 'b' }.user), true);
 });
