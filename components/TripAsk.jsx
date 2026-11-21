@@ -10,7 +10,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import useKept from '@/components/useKept';
 import AskAnswer from '@/components/AskAnswer';
 import { useAskThread } from '@/components/askThread';
-import { askSuggestions } from '@/lib/tripAsk';
+import { askGreetings, askSuggestions } from '@/lib/tripAsk';
 import { zonedNow } from '@/lib/util';
 import g from './Guides.module.css';
 import s from './TripAsk.module.css';
@@ -45,6 +45,7 @@ export default function TripAsk({ trip, days, activities }) {
   const {
     messages, busy, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load,
   } = useAskThread(trip.id);
+  const empty = !messages.length;
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [menuEl, setMenuEl] = useState(null);
@@ -56,6 +57,11 @@ export default function TripAsk({ trip, days, activities }) {
 
   const today = useMemo(() => zonedNow(trip.timezone || undefined).date, [trip.timezone]);
   const suggestions = useMemo(() => askSuggestions(trip, activities, today), [trip, activities, today]);
+  const pickGreeting = () => {
+    const lines = askGreetings(trip, today);
+    return lines[Math.floor(Math.random() * lines.length)];
+  };
+  const [greeting, setGreeting] = useState(pickGreeting);
 
   useEffect(() => { load(); }, [load]);
 
@@ -92,6 +98,7 @@ export default function TripAsk({ trip, days, activities }) {
 
   function startNew() {
     clear();
+    setGreeting(pickGreeting());
     setError('');
     input.current?.focus();
   }
@@ -120,7 +127,9 @@ export default function TripAsk({ trip, days, activities }) {
     if (pinned.current && end.current) end.current.scrollIntoView({ block: 'end' });
   }, [messages.length, last && last.content, last && last.searching]);
 
-  useEffect(() => { if (input.current) input.current.focus({ preventScroll: true }); }, []);
+  // The box is a different element on the blank page and under a
+  // conversation, so the cursor follows it across.
+  useEffect(() => { if (input.current) input.current.focus({ preventScroll: true }); }, [empty]);
 
   const openStop = useCallback((a) => {
     if (a && a.id) router.push(`/trips/${trip.id}/itinerary?focus=${encodeURIComponent(a.id)}`);
@@ -139,16 +148,93 @@ export default function TripAsk({ trip, days, activities }) {
     });
   }, [request]);
 
-  const empty = !messages.length;
   const current = chats.find((c) => c.id === chatId);
+
+  const chatMenu = (
+    <Popover anchorEl={menuEl} open={!!menuEl} onClose={() => setMenuEl(null)} width={320}>
+      <div className={`act-menu ${s.chatMenu}`} role="menu">
+        {chats.map((c) => (
+          <button key={c.id} type="button" role="menuitem" aria-current={c.id === chatId || undefined}
+            onClick={() => openChat(c.id)}>
+            <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
+            <span className="menu-tail">{when(c.updated_at)}</span>
+          </button>
+        ))}
+      </div>
+    </Popover>
+  );
+
+  const box = (
+    <form className="planbox-field" onSubmit={(e) => { e.preventDefault(); send(text); }}>
+      <span className="planbox-spark" aria-hidden="true"><Sparkles size={17} /></span>
+      <GrowArea ref={input} className={`planbox-input ${s.input}`} value={text} maxLength={2000}
+        aria-label="Your question" placeholder={empty ? 'Ask about this trip' : 'Ask a follow-up'}
+        enterKeyHint="send"
+        onChange={(e) => setText(e.target.value)} onSubmit={() => send(text)} />
+      {busy ? (
+        <button type="button" className="btn planbox-go" aria-label="Stop" data-tip="Stop" onClick={stop}>
+          <Square size={14} />
+        </button>
+      ) : (
+        <button type="submit" className="btn primary planbox-go" aria-label="Ask" disabled={!text.trim()}>
+          <ArrowUp size={18} />
+        </button>
+      )}
+    </form>
+  );
+
+  /*
+   * Before the first question the page is the question: one line, the box
+   * right under it, a few short starters, and the last few chats. The box
+   * moves to the foot of the window once there is a conversation to read
+   * above it.
+   */
+  if (empty) {
+    return (
+      <div className={`${s.page} ${s.blank}`}>
+        <div className={s.corner}>
+          {chats.length ? (
+            <button type="button" className="btn ghost sm" aria-haspopup="menu" aria-expanded={!!menuEl}
+              data-tip="Your chats. Only you can see them."
+              onClick={(e) => setMenuEl(menuEl ? null : e.currentTarget)}>
+              <History size={15} /> Chats
+            </button>
+          ) : null}
+        </div>
+        {chatMenu}
+        <div className={s.hero}>
+          <div className={`page-head ${s.greet}`}><h2>{greeting}</h2></div>
+          {error ? <p className="err" role="alert">{error}</p> : null}
+          {box}
+          <div className={`cmd-examples ${s.chips}`}>
+            {suggestions.map((q) => (
+              <button key={q} type="button" className="samplechip" onClick={() => send(q)}>{q}</button>
+            ))}
+          </div>
+          {chatsReady && chats.length ? (
+            <div className={s.recent}>
+              <div className="small muted">Recent</div>
+              <ul className={s.chatList}>
+                {chats.slice(0, 3).map((c) => (
+                  <li key={c.id}>
+                    <button type="button" className={s.chatRow} onClick={() => openChat(c.id)}>
+                      <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
+                      <span className="small muted">{when(c.updated_at)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={s.page}>
       <div className="page-head spread">
-        <div>
-          <h2>Assistant</h2>
-          <div className="small muted">Questions about {trip.name}, answered from the plan and the web.</div>
-        </div>
+        <h2>Assistant</h2>
         {chats.length || !empty ? (
           <div className="page-head-acts">
             {chats.length ? (
@@ -172,76 +258,22 @@ export default function TripAsk({ trip, days, activities }) {
         ) : null}
       </div>
 
-      <Popover anchorEl={menuEl} open={!!menuEl} onClose={() => setMenuEl(null)} width={320}>
-        <div className={`act-menu ${s.chatMenu}`} role="menu">
-          {chats.map((c) => (
-            <button key={c.id} type="button" role="menuitem" aria-current={c.id === chatId || undefined}
-              onClick={() => openChat(c.id)}>
-              <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
-              <span className="menu-tail">{when(c.updated_at)}</span>
-            </button>
-          ))}
-        </div>
-      </Popover>
+      {chatMenu}
 
-      {empty ? (
-        <div className={s.intro}>
-          <p className="muted">
-            Ask anything about this trip. Answers read the whole plan, link to its stops, and draw maps when a map helps.
-          </p>
-          <div className="cmd-examples">
-            {suggestions.map((q) => (
-              <button key={q} type="button" className="samplechip" onClick={() => send(q)}>{q}</button>
-            ))}
-          </div>
-          {chatsReady && chats.length ? (
-            <div className={s.recent}>
-              <div className="small muted">Your recent chats</div>
-              <ul className={s.chatList}>
-                {chats.slice(0, 6).map((c) => (
-                  <li key={c.id}>
-                    <button type="button" className={s.chatRow} onClick={() => openChat(c.id)}>
-                      <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
-                      <span className="small muted">{when(c.updated_at)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="small muted">Only you can see your chats.</div>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div className={s.log} aria-live="polite">
-          {messages.map((m, i) => (m.role === 'user' ? (
-            <div key={m.id} className={`${g.askMe} ${s.me}`}><p>{m.content}</p></div>
-          ) : (
-            <AskAnswer key={m.id} message={m} last={i === messages.length - 1 && !busy}
-              trip={trip} days={days} activities={activities}
-              onOpenStop={openStop} onAddPlace={addPlace} onAgain={askAgain} />
-          )))}
-        </div>
-      )}
+      <div className={s.log} aria-live="polite">
+        {messages.map((m, i) => (m.role === 'user' ? (
+          <div key={m.id} className={`${g.askMe} ${s.me}`}><p>{m.content}</p></div>
+        ) : (
+          <AskAnswer key={m.id} message={m} last={i === messages.length - 1 && !busy}
+            trip={trip} days={days} activities={activities}
+            onOpenStop={openStop} onAddPlace={addPlace} onAgain={askAgain} />
+        )))}
+      </div>
       <div ref={end} className={s.end} />
 
       <div className={s.dock}>
         {error ? <p className="err" role="alert">{error}</p> : null}
-        <form className="planbox-field" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-          <span className="planbox-spark" aria-hidden="true"><Sparkles size={17} /></span>
-          <GrowArea ref={input} className={`planbox-input ${s.input}`} value={text} maxLength={2000}
-            aria-label="Your question" placeholder={empty ? 'Ask about this trip' : 'Ask a follow-up'}
-            enterKeyHint="send"
-            onChange={(e) => setText(e.target.value)} onSubmit={() => send(text)} />
-          {busy ? (
-            <button type="button" className="btn planbox-go" aria-label="Stop" data-tip="Stop" onClick={stop}>
-              <Square size={14} />
-            </button>
-          ) : (
-            <button type="submit" className="btn primary planbox-go" aria-label="Ask" disabled={!text.trim()}>
-              <ArrowUp size={18} />
-            </button>
-          )}
-        </form>
+        {box}
         <p className={`small muted ${s.fine}`}>Answers can be wrong. Check times and prices before you rely on them.</p>
       </div>
 

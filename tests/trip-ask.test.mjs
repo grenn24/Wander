@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { defaultUrlTransform } from 'react-markdown';
 import {
   stopTokens, stopFor, stopHref, STOP_HREF, parseMapSpec, cleanSourceUrl, isCitation, sourceSite,
-  tripContext, askSuggestions, tidyCitations,
+  tripContext, askSuggestions, askGreetings, tidyCitations,
 } from '../lib/tripAsk.js';
 
 test('a citation loses the brackets around it', () => {
@@ -136,8 +136,19 @@ test('suggestions fit the trip', () => {
   const trip = { destination: 'Tokyo', start_date: '2026-12-12', end_date: '2026-12-24' };
   const acts = [A('a1', { day: '2026-12-13' }), A('a2', { day: '2026-12-13' }), A('a3', { day: '2026-12-14' })];
   const list = askSuggestions(trip, acts, '2026-11-21');
-  assert.equal(list[0], 'Map out day 2 for me');
-  assert.match(list[1], /Tokyo usually like in Dec/);
-  assert.equal(list[2], 'What should we book ahead?');
-  assert.equal(askSuggestions(trip, acts, '2026-12-15')[2], 'What is open late tonight near us?');
+  assert.deepEqual(list, ['Map out day 2', 'Weather in Tokyo in Dec', 'What to book ahead', 'Any gaps or clashes?']);
+  assert.equal(askSuggestions(trip, acts, '2026-12-15')[2], 'Open late near us');
+  assert.equal(askSuggestions(trip, acts, '2026-12-30')[2], 'Sum up the trip');
+  assert.equal(askSuggestions({ ...trip, destination: 'Tokyo, Japan' }, [], '2026-11-21')[0], 'What to see in Tokyo');
+});
+
+test('the blank page greets in a few ways, all short', () => {
+  const trip = { destination: 'Tokyo, Japan', start_date: '2026-12-12', end_date: '2026-12-24' };
+  const before = askGreetings(trip, '2026-11-21');
+  assert.ok(before.includes('Ask anything about the trip'));
+  assert.ok(before.includes('Ask anything about Tokyo'));
+  assert.ok(before.includes('Anything to check before Tokyo?'));
+  assert.ok(askGreetings(trip, '2026-12-15').includes('What do you need today?'));
+  assert.deepEqual(askGreetings({}, ''), ['Ask anything about the trip', 'What would you like to know?']);
+  for (const line of before) assert.ok(line.length <= 40, line);
 });
