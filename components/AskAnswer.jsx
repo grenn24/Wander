@@ -126,9 +126,11 @@ function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPla
     table({ children }) {
       return <div className={s.tableWrap}><table className="data">{children}</table></div>;
     },
-    // A time or a price on one line; anything longer wraps.
+    // A time or a price on one line; a sentence wide enough to read, with the
+    // table scrolling sideways on a phone rather than every row ten lines tall.
     td({ node, ...props }) {
-      return <td {...props} className={textOf(node).length <= 16 ? s.short : undefined} />;
+      const n = textOf(node).length;
+      return <td {...props} className={n <= 16 ? s.short : n > 60 ? s.long : undefined} />;
     },
     h1: ({ children }) => <h3>{children}</h3>,
     h2: ({ children }) => <h3>{children}</h3>,

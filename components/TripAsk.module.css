@@ -52,9 +52,9 @@
 .tableWrap { overflow-x: auto; margin: 4px 0 14px; }
 .tableWrap td, .tableWrap th { vertical-align: top; line-height: 1.5; }
 .tableWrap th, .tableWrap td.short { white-space: nowrap; }
-.tableWrap td { min-width: 6em; }
+.tableWrap td { min-width: 7em; }
 /* Prose in a cell stays readable on a phone; the table scrolls instead. */
-.tableWrap td:not(.short) { min-width: 12em; }
+.tableWrap td.long { min-width: 17em; }
 
 /* A stop in the plan, named in a sentence: it opens that stop. */
 .md a.stop { text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
