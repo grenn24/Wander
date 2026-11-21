@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, MapPin, MapPinOff } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, MapPin, MapPinOff, Maximize2, X } from 'lucide-react';
 import GoogleMap, { dayColor, googleMapsAvailable } from '@/components/GoogleMap';
 import { useTrip } from '@/components/TripProvider';
+import { useModalChrome } from '@/lib/useModal';
 import { searchPlaces } from '@/lib/geo';
 import { categoryIcon } from '@/lib/icons';
 import { stopFor } from '@/lib/tripAsk';
@@ -69,6 +71,7 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
   const [seen, setSeen] = useState(false);
   const [found, setFound] = useState(null); // { [index]: place | null }
   const [failed, setFailed] = useState('');
+  const [full, setFull] = useState(false);
   const { setActivityCoords } = useTrip();
   const [placing, setPlacing] = useState(false);
   const placed = useRef(false);
@@ -167,6 +170,48 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
   // opposed to a search that came back empty.
   const unplaced = rows.some((r) => r.kind === 'stop' && !r.label) && !rows.some((r) => r.kind === 'place' && r.place);
 
+  const mapProps = {
+    showAppearance: false,
+    fitPlaces: true,
+    stops,
+    places,
+    stopColour: (a) => a._colour,
+    describeStop: (a) => ({ meta: [fmtDayTiny(a.day), a.start_time ? fmtTime(a.start_time) : '', shortPlace(a.location)].filter(Boolean).join(' · ') }),
+    onStopOpen: (a) => { setFull(false); onOpenStop(a); },
+    onPlaceAdd: (p) => { setFull(false); onAddPlace(p); },
+    onError: setFailed,
+  };
+
+  const legend = (
+    <ol className={s.legend}>
+      {rows.map((r) => {
+        // A plain pin until the lookup says what kind of place it is.
+        const Icon = r.kind !== 'place' ? null : r.category ? categoryIcon(r.category) : MapPin;
+        const open = r.kind === 'stop' ? () => { setFull(false); onOpenStop(r.a); }
+          : r.place ? () => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.title)}&query_place_id=${encodeURIComponent(r.place.place_id || '')}`, '_blank', 'noopener')
+            : null;
+        return (
+          <li key={r.key}>
+            <button type="button" className={s.legendRow} onClick={open || undefined} disabled={!open}>
+              {r.kind === 'stop' ? (
+                r.label ? <span className={s.pin} style={{ '--pin': r.colour }}>{r.label}</span>
+                  : <span className={s.pinPlace}><MapPinOff size={13} aria-hidden="true" /></span>
+              ) : (
+                <span className={s.pinPlace}><Icon size={13} aria-hidden="true" /></span>
+              )}
+              <span className={s.legendText}>
+                <span className={s.legendName}>{r.title}</span>
+                <span className="small muted">
+                  {[r.missing ? 'Not found on the map' : r.meta, r.kind === 'stop' && !r.label ? 'No location' : '', r.note].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+
   return (
     <figure className={s.map} ref={box}>
       {spec.title ? <figcaption className="small muted">{spec.title}</figcaption> : null}
@@ -178,17 +223,13 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
           </div>
         ) : canDraw ? (
           <div className={s.mapCanvas}>
-            <GoogleMap
-              showAppearance={false}
-              fitPlaces
-              stops={stops}
-              places={places}
-              stopColour={(a) => a._colour}
-              describeStop={(a) => ({ meta: [fmtDayTiny(a.day), a.start_time ? fmtTime(a.start_time) : '', shortPlace(a.location)].filter(Boolean).join(' · ') })}
-              onStopOpen={onOpenStop}
-              onPlaceAdd={onAddPlace}
-              onError={setFailed}
-            />
+            <GoogleMap {...mapProps} />
+            {/* The editor's Expand map pill, without its full-cover hit area:
+                this map is live, and a click on it is a click on the map. */}
+            <button type="button" className={`amap-expand-hit ${s.expand}`} onClick={() => setFull(true)}
+              aria-label="Open the map full size">
+              <span><Maximize2 size={14} /> Expand</span>
+            </button>
           </div>
         ) : (
           <div className={`${s.mapWait} ${s.mapNote}`}>
@@ -201,34 +242,42 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
           </div>
         )}
         {failed ? <p className="small muted" role="alert">{failed}</p> : null}
-        <ol className={s.legend}>
-          {rows.map((r) => {
-            // A plain pin until the lookup says what kind of place it is.
-            const Icon = r.kind !== 'place' ? null : r.category ? categoryIcon(r.category) : MapPin;
-            const open = r.kind === 'stop' ? () => onOpenStop(r.a)
-              : r.place ? () => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.title)}&query_place_id=${encodeURIComponent(r.place.place_id || '')}`, '_blank', 'noopener')
-                : null;
-            return (
-              <li key={r.key}>
-                <button type="button" className={s.legendRow} onClick={open || undefined} disabled={!open}>
-                  {r.kind === 'stop' ? (
-                    r.label ? <span className={s.pin} style={{ '--pin': r.colour }}>{r.label}</span>
-                      : <span className={s.pinPlace}><MapPinOff size={13} aria-hidden="true" /></span>
-                  ) : (
-                    <span className={s.pinPlace}><Icon size={13} aria-hidden="true" /></span>
-                  )}
-                  <span className={s.legendText}>
-                    <span className={s.legendName}>{r.title}</span>
-                    <span className="small muted">
-                      {[r.missing ? 'Not found on the map' : r.meta, r.kind === 'stop' && !r.label ? 'No location' : '', r.note].filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+        {legend}
       </div>
+      {full && canDraw ? createPortal(
+        <FullMap title={spec.title} mapProps={mapProps} legend={legend} onClose={() => setFull(false)} />,
+        document.body,
+      ) : null}
     </figure>
+  );
+}
+
+/**
+ * The same map at the size of the window, with its list beside it (under it
+ * on a phone). The trip editor's expanded map, so it opens, closes and holds
+ * the page still the way that one does. Portalled to the body: anything with
+ * a backdrop filter above it would otherwise become its containing block.
+ */
+function FullMap({ title, mapProps, legend, onClose }) {
+  useModalChrome({ onEscape: onClose });
+  return (
+    <div className={`amap-expanded-backdrop ${s.full}`}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <section className="amap-expanded-shell" role="dialog" aria-modal="true" aria-labelledby="askmap-full-title">
+        <header className="amap-expanded-head">
+          <div>
+            <span className="label">Map</span>
+            <h3 id="askmap-full-title">{title || 'Places in this answer'}</h3>
+          </div>
+          <button className="btn ghost" type="button" onClick={onClose} autoFocus>
+            <X size={15} /> Close
+          </button>
+        </header>
+        <div className={s.fullBody}>
+          <div className={s.fullMap}><GoogleMap {...mapProps} gestures="greedy" /></div>
+          <div className={s.fullList}>{legend}</div>
+        </div>
+      </section>
+    </div>
   );
 }

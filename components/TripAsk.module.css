@@ -113,6 +113,20 @@
 /* Waiting holds the map's own height, so nothing below jumps when it draws. */
 .mapWait { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
 .mapNote { height: 120px; }
+/* The editor's Expand map pill, reduced to the pill: the map under it is live. */
+.mapCanvas .expand { inset: auto; top: 0; right: 0; cursor: pointer; }
+
+/* Full size: above the top bar and the phone's tab bar, as the other dialogs are. */
+.full { z-index: 60; }
+.fullBody { flex: 1; min-height: 0; display: flex; }
+.fullMap { position: relative; flex: 1; min-width: 0; }
+.fullList { flex: 0 0 300px; overflow-y: auto; border-left: 1px solid var(--border); }
+.fullList .legend { border-top: 0; }
+@media (max-width: 699px) {
+  .fullBody { flex-direction: column; }
+  .fullList { flex: 0 0 auto; max-height: 36%; border-left: 0; border-top: 1px solid var(--border); }
+}
+
 .legend { list-style: none; margin: 0; padding: 4px; border-top: 1px solid var(--border); }
 .legendRow {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px;
