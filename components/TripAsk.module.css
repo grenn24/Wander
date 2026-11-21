@@ -16,6 +16,19 @@
 .intro { flex: 1; }
 .intro > p { margin: 0 0 4px; font-size: var(--fs-md); line-height: 1.55; }
 
+/* Earlier conversations: on the blank page, and in the Chats menu. */
+.recent { display: grid; gap: 8px; margin-top: 28px; }
+.chatList { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.chatList li { border-bottom: 1px solid var(--border); }
+.chatRow {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%;
+  padding: 10px 2px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.chatRow:hover .chatTitle { color: var(--accent); }
+.chatTitle { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.chatMenu { max-height: min(60dvh, 420px); overflow-y: auto; }
+.chatMenu button[aria-current] { background: var(--surface-2); }
+
 .log { flex: 1; display: grid; align-content: start; gap: 22px; padding-bottom: 8px; }
 .me { max-width: 85%; font-size: var(--fs-md); }
 /* Scrolled to as the answer grows: clear of the prompt box sitting over the

@@ -10,7 +10,7 @@ import PrintView from '@/components/PrintView';
 import { CommandProvider, CommandTrigger } from '@/components/Command';
 import TodayButton from '@/components/TodayButton';
 import Tourist from '@/components/Tourist';
-import { TAB_ICONS, TRIP_NAV, isTripTab, resolveTab } from '@/lib/icons';
+import { TAB_ICONS, TRIP_HOME, TRIP_NAV, isTripTab, resolveTab, tripHome } from '@/lib/icons';
 
 export default function TripLayout({ children, params }) {
   const { id } = use(params);
@@ -71,7 +71,7 @@ function TripChrome({ tripId, children }) {
 
   const segments = pathname.split('/').filter(Boolean);
   const last = segments[segments.length - 1];
-  const active = isTripTab(last) ? resolveTab(last) : 'itinerary';
+  const active = isTripTab(last) ? resolveTab(last) : TRIP_HOME;
 
   if (ready && notFound) {
     return (
@@ -93,10 +93,10 @@ function TripChrome({ tripId, children }) {
     );
   }
 
-  // Ask has a prompt box of its own along the bottom, right where the
-  // floating command pill would sit on top of it.
+  // The Assistant has a prompt box of its own along the bottom, right where
+  // the floating command pill would sit on top of it.
   return (
-    <CommandProvider floating={active !== 'map' && active !== 'ask'}>
+    <CommandProvider floating={active !== 'map' && active !== 'assistant'}>
       {/*
         * The map is one tap away from every tab of a trip, and its script and
         * tiles come from Google. Opening those connections while the trip
@@ -128,10 +128,10 @@ function TripChrome({ tripId, children }) {
               that is where the trip came from, and only the trip itself leads
               out to the list. */}
           <Link
-            href={active === 'itinerary' ? '/trips' : `/trips/${tripId}/itinerary`}
+            href={active === TRIP_HOME ? '/trips' : tripHome(tripId)}
             className="crumb-back"
-            data-tip={active === 'itinerary' ? 'All trips' : 'Back to trip'}
-            aria-label={active === 'itinerary' ? 'All trips' : 'Back to the itinerary'}
+            data-tip={active === TRIP_HOME ? 'All trips' : 'Back to trip'}
+            aria-label={active === TRIP_HOME ? 'All trips' : 'Back to the trip'}
           >
             <ChevronLeft size={16} />
           </Link>

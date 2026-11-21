@@ -280,8 +280,9 @@ request, deterministic post-processing. There is no tool-use loop of our own
 anywhere, and that is deliberate: it keeps the app streamable, cheap and
 debuggable.
 
-**The one exception is the trip's Ask page** (`/trips/<id>/ask`,
-`components/TripAsk.jsx`, `app/api/trips/ask/route.js`, pure parts in
+**The one exception is the trip Assistant** (`/trips/<id>/assistant`, the tab a
+trip opens on — `TRIP_HOME` / `tripHome()` in `lib/icons.js`, used by the trips
+list, share links, a new plan and the globe; `components/TripAsk.jsx`, `app/api/trips/ask/route.js`, pure parts in
 `lib/tripAsk.js`). It streams free Markdown, not JSON, from the Responses API
 with OpenAI's *hosted* `web_search` tool — OpenAI runs the searches, so there is
 still no loop on our side. The route reads the trip with the asker's own JWT
@@ -293,8 +294,13 @@ activity id (`stopTokens`, stable when stops are added), and ` ```map ` blocks o
 JSON naming stops by token and other places by name, which the page looks up
 with `/api/places/search` — model coordinates are never read. The renderer is
 `react-markdown` + `remark-gfm` with no raw HTML and no images. The thread lives
-in `components/askThread.js` (module store, copied to `sessionStorage`), so an
-answer keeps streaming across tabs; it is not saved to the database.
+in `components/askThread.js` (a module store, so an answer keeps streaming
+across tabs; mirrored to `sessionStorage` for reloads, cleared on sign-out).
+Every finished answer is saved to `public.trip_chats`, one row per conversation
+with its turns in `messages` jsonb, private to the person who had it (RLS:
+`user_id = auth.uid()` and still a member). Saves are chained per trip so a
+second answer updates the row the first made. A database without the table
+(`42P01` / `PGRST205`) is not an error: chats just are not kept, as before.
 
 **The agreed next step, not yet built:** one bounded tool-use pass after the
 plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
@@ -398,6 +404,12 @@ Match the surrounding code — it is consistent and deliberate.
 - `public/promo/wander-promo.mp4` and its poster were recorded before this
   redesign, so the tour's first scene shows the previous landing page.
   Re-record when convenient.
+
+### Assistant chats (22 November 2026)
+
+- Before deploying, apply `supabase/migrations/20261122090000_trip_chats.sql` to the
+  hosted database (also folded into `schema.sql`). Applied locally. Without it the
+  Assistant still answers but keeps no conversations.
 
 ### Destination times, splits and offline access (5 September 2026)
 

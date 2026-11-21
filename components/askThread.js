@@ -1,52 +1,104 @@
 'use client';
 import { useCallback, useSyncExternalStore } from 'react';
+import { getClient } from '@/lib/supabase';
 
 /*
- * The conversation on a trip's Ask page, kept outside the page.
+ * The trip Assistant's conversations, kept outside the page.
  *
  * Leaving the tab unmounts the page, and an answer still being written should
  * not be thrown away because someone glanced at the map meanwhile: the request
- * belongs to this store, which outlives the page, and the page only watches
- * it. The thread is also copied to sessionStorage so a reload keeps it; it is
- * this browser tab's and nobody else's, and closing the tab ends it.
+ * belongs to this store, which outlives the page, and the page only watches it.
+ *
+ * Every finished answer is saved to `trip_chats`, one row per conversation,
+ * readable only by the person who had it (row level security does the
+ * checking). The open conversation is also mirrored to sessionStorage, so a
+ * reload lands back in it before the database has answered — and a
+ * conversation that was never saved (one from before saving existed, or from
+ * a database without the table yet) is saved as soon as it can be.
  */
 
-const EMPTY = Object.freeze({ messages: [], busy: false });
-const threads = new Map();
+const EMPTY_LIST = Object.freeze([]);
+const fresh = () => ({ key: uid(), messages: EMPTY_LIST, busy: false });
+const threads = new Map(); // tripId -> { key, messages, busy }
+const lists = new Map(); // tripId -> { chats, ready, canSave }
 const watchers = new Map();
-const running = new Map();
+const running = new Map(); // tripId -> { ctrl, done: Promise }
+const ids = new Map(); // thread key -> saved chat id
+const chains = new Map(); // tripId -> Promise (saves, one at a time)
 const KEY = (tripId) => `wander:ask:${tripId}`;
+const NO_LIST = Object.freeze({ chats: EMPTY_LIST, ready: false, canSave: true });
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+const SERVER_EMPTY = fresh();
+
+/*
+ * Whose conversations these are. They live in memory and in the tab's
+ * storage, both of which outlast a sign-out; the next person to sign in on
+ * this browser must not find the last one's chat open on a trip they share.
+ */
+let watching = false;
+function watchAuth() {
+  if (watching || typeof window === 'undefined') return;
+  const client = getClient();
+  if (!client) return;
+  watching = true;
+  client.auth.onAuthStateChange((event) => {
+    if (event !== 'SIGNED_OUT') return;
+    running.forEach((r) => r.ctrl.abort());
+    const trips = [...watchers.keys()];
+    threads.clear();
+    lists.clear();
+    ids.clear();
+    try {
+      Object.keys(sessionStorage).filter((k) => k.startsWith('wander:ask')).forEach((k) => sessionStorage.removeItem(k));
+    } catch { /* blocked */ }
+    trips.forEach(notify);
+  });
+}
+
+function notify(tripId) {
+  (watchers.get(tripId) || new Set()).forEach((fn) => fn());
+}
 
 function read(tripId) {
   if (threads.has(tripId)) return threads.get(tripId);
-  let state = EMPTY;
+  let state = fresh();
   try {
     const saved = JSON.parse(sessionStorage.getItem(KEY(tripId)) || 'null');
-    if (saved && Array.isArray(saved.messages)) {
+    if (saved && Array.isArray(saved.messages) && saved.messages.length) {
       // An answer that was being written when the page went away is not
       // coming back; say so rather than show it as still on its way.
       const messages = saved.messages.map((m) => (m.role === 'assistant' && m.status === 'writing'
         ? { ...m, status: m.content ? 'stopped' : 'error', error: m.content ? '' : 'This answer did not finish.' }
         : m));
-      state = { messages, busy: false };
+      state = { key: saved.key || uid(), messages, busy: false };
+      if (saved.chatId) ids.set(state.key, saved.chatId);
     }
   } catch { /* storage blocked or corrupt: start empty */ }
   threads.set(tripId, state);
   return state;
 }
 
-function save(tripId) {
+function mirror(tripId) {
   try {
-    const { messages } = read(tripId);
-    if (messages.length) sessionStorage.setItem(KEY(tripId), JSON.stringify({ messages: messages.slice(-40) }));
-    else sessionStorage.removeItem(KEY(tripId));
+    const { key, messages } = read(tripId);
+    if (messages.length) {
+      sessionStorage.setItem(KEY(tripId), JSON.stringify({ key, chatId: ids.get(key) || null, messages: messages.slice(-40) }));
+    } else sessionStorage.removeItem(KEY(tripId));
   } catch { /* full or blocked: the thread still lives in memory */ }
 }
 
 function set(tripId, next, persist = false) {
   threads.set(tripId, next);
-  (watchers.get(tripId) || new Set()).forEach((fn) => fn());
-  if (persist) save(tripId);
+  notify(tripId);
+  if (persist) mirror(tripId);
+}
+
+function setList(tripId, patch) {
+  lists.set(tripId, { ...(lists.get(tripId) || NO_LIST), ...patch });
+  notify(tripId);
 }
 
 function patchLast(tripId, fn, persist) {
@@ -56,7 +108,84 @@ function patchLast(tripId, fn, persist) {
   set(tripId, { ...s, messages: [...s.messages.slice(0, -1), fn(last)] }, persist);
 }
 
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+/* ------------------------------------------------------------- database --- */
+
+// A database that has not been given the table yet (production before its
+// SQL has been run) is not an error to show anyone: conversations just are
+// not kept there, the way they were not before.
+const missingTable = (error) => !!error && (error.code === '42P01' || error.code === 'PGRST205'
+  || /trip_chats/.test(String(error.message || '')));
+
+const titleOf = (messages) => {
+  const first = messages.find((m) => m.role === 'user');
+  const t = String((first && first.content) || '').replace(/\s+/g, ' ').trim();
+  return t.length > 80 ? `${t.slice(0, 79)}…` : t;
+};
+
+// What is worth keeping of a turn: not whether a search was under way.
+const keepable = (messages) => messages
+  .filter((m) => m.role === 'user' || m.content || m.error)
+  .map(({ searching, ...m }) => m);
+
+export async function loadChats(tripId) {
+  const client = getClient();
+  if (!client) return;
+  const { data, error } = await client.from('trip_chats')
+    .select('id, title, updated_at').eq('trip_id', tripId)
+    .order('updated_at', { ascending: false }).limit(50);
+  if (error) {
+    if (!missingTable(error)) console.warn('[assistant] could not list chats:', error.message);
+    setList(tripId, { ready: true, canSave: !missingTable(error) && (lists.get(tripId) || NO_LIST).canSave });
+    return;
+  }
+  setList(tripId, { chats: data || [], ready: true, canSave: true });
+  // A conversation from before it could be saved is saved now.
+  const s = read(tripId);
+  if (s.messages.length && !ids.get(s.key) && !s.busy) save(tripId);
+}
+
+/**
+ * Save the open conversation as it is now. Saves run one at a time per trip,
+ * so a second answer finishing before the first save has come back updates
+ * the row the first one made rather than making another.
+ */
+function save(tripId) {
+  const { key, messages } = read(tripId);
+  const snapshot = keepable(messages);
+  if (!snapshot.length) return Promise.resolve();
+  const run = async () => {
+    const list = lists.get(tripId) || NO_LIST;
+    const client = getClient();
+    if (!client || !list.canSave) return;
+    const now = new Date().toISOString();
+    const id = ids.get(key);
+    if (id) {
+      const { error } = await client.from('trip_chats').update({ messages: snapshot, updated_at: now }).eq('id', id);
+      if (error) { console.warn('[assistant] could not save the chat:', error.message); return; }
+      const rest = (lists.get(tripId) || NO_LIST).chats.filter((c) => c.id !== id);
+      const was = (lists.get(tripId) || NO_LIST).chats.find((c) => c.id === id);
+      setList(tripId, { chats: [{ ...(was || { id, title: titleOf(snapshot) }), updated_at: now }, ...rest] });
+      return;
+    }
+    const { data, error } = await client.from('trip_chats')
+      .insert({ trip_id: tripId, title: titleOf(snapshot), messages: snapshot })
+      .select('id, title, updated_at').single();
+    if (error) {
+      if (missingTable(error)) setList(tripId, { canSave: false });
+      else console.warn('[assistant] could not save the chat:', error.message);
+      return;
+    }
+    ids.set(key, data.id);
+    if (read(tripId).key === key) mirror(tripId);
+    setList(tripId, { chats: [data, ...(lists.get(tripId) || NO_LIST).chats.filter((c) => c.id !== data.id)] });
+  };
+  const next = (chains.get(tripId) || Promise.resolve()).then(run, run);
+  chains.set(tripId, next);
+  notify(tripId);
+  return next;
+}
+
+/* --------------------------------------------------------------- asking --- */
 
 /**
  * Ask, and stream the answer into the thread.
@@ -65,26 +194,28 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
  * with it. `again` re-asks the last question in place of its answer.
  */
 async function run(tripId, question, token, { again = false } = {}) {
-  let s = read(tripId);
+  const s = read(tripId);
   if (s.busy) return;
   let messages = s.messages;
   if (again) {
     // Drop the last answer and ask its question again.
     while (messages.length && messages[messages.length - 1].role === 'assistant') messages = messages.slice(0, -1);
   } else {
-    messages = [...messages, { id: uid(), role: 'user', content: question }];
+    messages = [...messages, { id: uid(), role: 'user', content: question, at: new Date().toISOString() }];
   }
   const asked = messages[messages.length - 1];
   if (!asked || asked.role !== 'user') return;
   const history = messages.slice(0, -1).filter((m) => m.content && m.status !== 'error')
     .map(({ role, content }) => ({ role, content }));
   set(tripId, {
+    ...s,
     busy: true,
     messages: [...messages, { id: uid(), role: 'assistant', content: '', sources: [], status: 'writing', searching: false }],
   }, true);
 
   const ctrl = new AbortController();
-  running.set(tripId, ctrl);
+  let finish;
+  running.set(tripId, { ctrl, done: new Promise((r) => { finish = r; }) });
   let got = '';
   try {
     const res = await fetch('/api/trips/ask', {
@@ -127,7 +258,9 @@ async function run(tripId, question, token, { again = false } = {}) {
     take(buf);
     if (failed && !got.trim()) throw new Error(failed);
     if (!got.trim()) throw new Error('No answer came back. Please try again.');
-    patchLast(tripId, (m) => ({ ...m, content: got, searching: false, status: failed || cut ? 'stopped' : 'done', error: failed }), true);
+    patchLast(tripId, (m) => ({
+      ...m, content: got, searching: false, status: failed || cut ? 'stopped' : 'done', error: failed, at: new Date().toISOString(),
+    }), true);
   } catch (e) {
     const stopped = e && e.name === 'AbortError';
     patchLast(tripId, (m) => ({
@@ -143,34 +276,78 @@ async function run(tripId, question, token, { again = false } = {}) {
       set(tripId, { ...st, messages: st.messages.slice(0, -1) }, true);
     }
   } finally {
-    running.delete(tripId);
     set(tripId, { ...read(tripId), busy: false }, true);
+    running.delete(tripId);
+    finish();
+    save(tripId);
   }
 }
 
 function stop(tripId) {
-  const ctrl = running.get(tripId);
-  if (ctrl) ctrl.abort();
+  const r = running.get(tripId);
+  if (r) r.ctrl.abort();
 }
 
-function clear(tripId) {
-  stop(tripId);
-  set(tripId, EMPTY, true);
+/** Stop whatever is being written, and let its save land, before switching. */
+async function settle(tripId) {
+  const r = running.get(tripId);
+  if (r) { r.ctrl.abort(); await r.done; }
+  await (chains.get(tripId) || Promise.resolve());
 }
 
-/** The thread for one trip, and what can be done to it. */
+async function newChat(tripId) {
+  await settle(tripId);
+  set(tripId, fresh(), true);
+}
+
+/** Reopen a saved conversation. Resolves false when it could not be read. */
+async function openChat(tripId, chatId) {
+  await settle(tripId);
+  const client = getClient();
+  if (!client) return false;
+  const { data, error } = await client.from('trip_chats').select('id, messages').eq('id', chatId).maybeSingle();
+  if (error || !data) return false;
+  const key = uid();
+  ids.set(key, data.id);
+  set(tripId, { key, messages: Array.isArray(data.messages) ? data.messages : [], busy: false }, true);
+  return true;
+}
+
+/** Delete a conversation for good. Resolves false when it could not be. */
+async function removeChat(tripId, chatId) {
+  const client = getClient();
+  if (!client) return false;
+  if (ids.get(read(tripId).key) === chatId) await settle(tripId);
+  const { error } = await client.from('trip_chats').delete().eq('id', chatId);
+  if (error) { console.warn('[assistant] could not delete the chat:', error.message); return false; }
+  setList(tripId, { chats: (lists.get(tripId) || NO_LIST).chats.filter((c) => c.id !== chatId) });
+  if (ids.get(read(tripId).key) === chatId) set(tripId, fresh(), true);
+  return true;
+}
+
+/** The open conversation for one trip, the saved ones, and what can be done with them. */
 export function useAskThread(tripId) {
   const subscribe = useCallback((fn) => {
+    watchAuth();
     if (!watchers.has(tripId)) watchers.set(tripId, new Set());
     watchers.get(tripId).add(fn);
     return () => watchers.get(tripId).delete(fn);
   }, [tripId]);
-  const state = useSyncExternalStore(subscribe, () => read(tripId), () => EMPTY);
+  const state = useSyncExternalStore(subscribe, () => read(tripId), () => SERVER_EMPTY);
+  const list = useSyncExternalStore(subscribe, () => lists.get(tripId) || NO_LIST, () => NO_LIST);
   return {
-    ...state,
+    messages: state.messages,
+    busy: state.busy,
+    chatId: ids.get(state.key) || null,
+    chats: list.chats,
+    chatsReady: list.ready,
+    canSave: list.canSave,
+    load: useCallback(() => loadChats(tripId), [tripId]),
     ask: useCallback((q, token) => run(tripId, q, token), [tripId]),
     again: useCallback((token) => run(tripId, '', token, { again: true }), [tripId]),
     stop: useCallback(() => stop(tripId), [tripId]),
-    clear: useCallback(() => clear(tripId), [tripId]),
+    clear: useCallback(() => newChat(tripId), [tripId]),
+    open: useCallback((id) => openChat(tripId, id), [tripId]),
+    remove: useCallback((id) => removeChat(tripId, id), [tripId]),
   };
 }

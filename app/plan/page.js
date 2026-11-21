@@ -15,7 +15,7 @@ import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
 import { planningProgress } from '@/lib/planningProgress';
-import { activityIcon } from '@/lib/icons';
+import { activityIcon, tripHome } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
 import { authHeader } from '@/lib/supabase';
 import {
@@ -440,7 +440,7 @@ function Planner() {
     }
     pendingTripRef.current = null;
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
-    router.replace(`/trips/${trip.id}/itinerary`);
+    router.replace(tripHome(trip.id));
   }, [supabase, user, query, longBrief, shots, router, fail, upsertDay, discardPendingTrip]);
 
   useEffect(() => {

@@ -25,6 +25,7 @@ import {
   readFavourites, setFavourite, withFavourite, noFavourites, favouritesMissing,
 } from '@/lib/favourites';
 import { addDays, fmtRange, money, todayISO, tripStatus, humanError } from '@/lib/util';
+import { tripHome } from '@/lib/icons';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import { keepTripCount, readTripCount } from '@/lib/tripMemory';
 
@@ -303,7 +304,7 @@ export default function TripsHome() {
     if (error) { fail(error); return; }
     setDraft(null);
     pushToast('Trip created.');
-    if (data) router.push(`/trips/${data.id}/itinerary`);
+    if (data) router.push(tripHome(data.id));
   }
 
   const openNew = () => setDraft({
@@ -406,7 +407,7 @@ export default function TripsHome() {
                    holding the left edge so the eye has a column to follow. */
                 if (view === 'list') {
                   return (
-                    <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="triprow">
+                    <Link key={t.id} href={tripHome(t.id)} className="triprow">
                       <PlacePhoto src={cover} category="other" icon={MapPin}
                         size={52} rounded={16} alt="" />
                       <span className="triprow-main">
@@ -446,7 +447,7 @@ export default function TripsHome() {
                 }
 
                 return (
-                  <Link key={t.id} href={`/trips/${t.id}/itinerary`} className="tripcard">
+                  <Link key={t.id} href={tripHome(t.id)} className="tripcard">
                     <div className="tripcard-top">
                       <span className={`statuspill is-${status}`}>{STATUS_LABEL[status]}</span>
                       {shared}

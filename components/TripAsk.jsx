@@ -1,10 +1,13 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Sparkles, Square, SquarePen } from 'lucide-react';
+import { ArrowUp, History, Sparkles, Square, SquarePen, Trash2 } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import { useTrip } from '@/components/TripProvider';
 import GrowArea from '@/components/GrowArea';
+import Popover from '@/components/Popover';
+import ConfirmModal from '@/components/ConfirmModal';
+import useKept from '@/components/useKept';
 import AskAnswer from '@/components/AskAnswer';
 import { useAskThread } from '@/components/askThread';
 import { askSuggestions } from '@/lib/tripAsk';
@@ -12,27 +15,49 @@ import { zonedNow } from '@/lib/util';
 import g from './Guides.module.css';
 import s from './TripAsk.module.css';
 
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** When a chat was last added to: a time today, a date otherwise. */
+function when(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(/\s/g, '');
+  }
+  return `${d.getDate()} ${MON[d.getMonth()]}${d.getFullYear() === now.getFullYear() ? '' : ` ${d.getFullYear()}`}`;
+}
+
 /**
- * Ask: questions about the trip, answered by a model that has read all of it.
+ * The trip Assistant: questions about the trip, answered by a model that has
+ * read all of it. A trip opens here.
  *
  * It reads the plan (days, stops, costs, packing, notes), searches the web for
  * what changes, and writes back in Markdown — tables, lists, links to the
  * trip's own stops, and maps. It cannot change anything; edits stay with the
- * command bar, where every one is shown before it is saved.
+ * command bar, where every one is shown before it is saved. Conversations are
+ * kept for the person who had them, and nobody else on the trip sees them.
  */
 export default function TripAsk({ trip, days, activities }) {
   const router = useRouter();
   const { supabase } = useApp();
   const { request } = useTrip();
-  const { messages, busy, ask, again, stop, clear } = useAskThread(trip.id);
+  const {
+    messages, busy, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load,
+  } = useAskThread(trip.id);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
+  const [menuEl, setMenuEl] = useState(null);
+  const [doomed, setDoomed] = useState(null); // { id, title } waiting on a yes
+  const doomedShown = useKept(doomed);
   const input = useRef(null);
   const end = useRef(null);
   const pinned = useRef(true);
 
   const today = useMemo(() => zonedNow(trip.timezone || undefined).date, [trip.timezone]);
   const suggestions = useMemo(() => askSuggestions(trip, activities, today), [trip, activities, today]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function token() {
     const { data } = supabase ? await supabase.auth.getSession() : { data: null };
@@ -55,6 +80,26 @@ export default function TripAsk({ trip, days, activities }) {
     if (!t) { setError('Sign in again to ask about this trip.'); return; }
     pinned.current = true;
     again(t);
+  }
+
+  async function openChat(id) {
+    setMenuEl(null);
+    setError('');
+    if (id === chatId) return;
+    if (!(await open(id))) setError('That conversation could not be opened. Please try again.');
+    else window.scrollTo(0, 0);
+  }
+
+  function startNew() {
+    clear();
+    setError('');
+    input.current?.focus();
+  }
+
+  async function confirmDelete() {
+    const target = doomed;
+    setDoomed(null);
+    if (target && !(await remove(target.id))) setError('That conversation could not be deleted. Please try again.');
   }
 
   /*
@@ -95,22 +140,49 @@ export default function TripAsk({ trip, days, activities }) {
   }, [request]);
 
   const empty = !messages.length;
+  const current = chats.find((c) => c.id === chatId);
 
   return (
     <div className={s.page}>
       <div className="page-head spread">
         <div>
-          <h2>Ask</h2>
+          <h2>Assistant</h2>
           <div className="small muted">Questions about {trip.name}, answered from the plan and the web.</div>
         </div>
-        {!empty ? (
+        {chats.length || !empty ? (
           <div className="page-head-acts">
-            <button type="button" className="btn ghost sm" onClick={() => { clear(); setError(''); input.current?.focus(); }}>
-              <SquarePen size={15} /> New chat
-            </button>
+            {chats.length ? (
+              <button type="button" className="btn ghost sm" aria-haspopup="menu" aria-expanded={!!menuEl}
+                onClick={(e) => setMenuEl(menuEl ? null : e.currentTarget)}>
+                <History size={15} /> Chats
+              </button>
+            ) : null}
+            {current ? (
+              <button type="button" className="btn ghost sm icon-btn" data-tip="Delete this chat" aria-label="Delete this chat"
+                disabled={busy} onClick={() => setDoomed(current)}>
+                <Trash2 size={15} />
+              </button>
+            ) : null}
+            {!empty ? (
+              <button type="button" className="btn ghost sm" onClick={startNew}>
+                <SquarePen size={15} /> New chat
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
+
+      <Popover anchorEl={menuEl} open={!!menuEl} onClose={() => setMenuEl(null)} width={320}>
+        <div className={`act-menu ${s.chatMenu}`} role="menu">
+          {chats.map((c) => (
+            <button key={c.id} type="button" role="menuitem" aria-current={c.id === chatId || undefined}
+              onClick={() => openChat(c.id)}>
+              <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
+              <span className="menu-tail">{when(c.updated_at)}</span>
+            </button>
+          ))}
+        </div>
+      </Popover>
 
       {empty ? (
         <div className={s.intro}>
@@ -122,6 +194,22 @@ export default function TripAsk({ trip, days, activities }) {
               <button key={q} type="button" className="samplechip" onClick={() => send(q)}>{q}</button>
             ))}
           </div>
+          {chatsReady && chats.length ? (
+            <div className={s.recent}>
+              <div className="small muted">Your recent chats</div>
+              <ul className={s.chatList}>
+                {chats.slice(0, 6).map((c) => (
+                  <li key={c.id}>
+                    <button type="button" className={s.chatRow} onClick={() => openChat(c.id)}>
+                      <span className={s.chatTitle}>{c.title || 'Untitled chat'}</span>
+                      <span className="small muted">{when(c.updated_at)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="small muted">Only you can see your chats.</div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className={s.log} aria-live="polite">
@@ -156,6 +244,13 @@ export default function TripAsk({ trip, days, activities }) {
         </form>
         <p className={`small muted ${s.fine}`}>Answers can be wrong. Check times and prices before you rely on them.</p>
       </div>
+
+      {doomedShown.value ? (
+        <ConfirmModal title="Delete this chat?" confirmLabel="Delete chat" leaving={doomedShown.leaving}
+          onClose={() => setDoomed(null)} onConfirm={confirmDelete}>
+          <p>Delete &ldquo;{doomedShown.value.title || 'Untitled chat'}&rdquo;? This cannot be undone.</p>
+        </ConfirmModal>
+      ) : null}
     </div>
   );
 }

@@ -77,6 +77,19 @@ create table if not exists public.trip_agent_messages (
   created_at timestamptz not null default now()
 );
 
+-- The trip Assistant's conversations, private to the person who had them:
+-- one row per conversation, its turns in `messages`. See
+-- migrations/20261122090000_trip_chats.sql.
+create table if not exists public.trip_chats (
+  id          uuid primary key default gen_random_uuid(),
+  trip_id     uuid not null references public.trips(id) on delete cascade,
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  title       text not null default '',
+  messages    jsonb not null default '[]'::jsonb,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
 -- ------------------------------------------------- v1 -> v2 column adds ----
 alter table public.trip_members add column if not exists display_name text;
 alter table public.trips        add column if not exists share_code   text;
@@ -240,6 +253,7 @@ create index if not exists activities_trip_day_idx on public.activities (trip_id
 create index if not exists packing_trip_idx        on public.packing_items (trip_id);
 create index if not exists members_user_idx        on public.trip_members (user_id);
 create index if not exists agent_messages_trip_idx on public.trip_agent_messages (trip_id, created_at);
+create index if not exists trip_chats_user_trip_idx on public.trip_chats (user_id, trip_id, updated_at desc);
 
 -- ------------------------------------------------------- helper functions ---
 create or replace function public.gen_share_code()
@@ -409,6 +423,8 @@ grant select, insert, update, delete
 grant select, insert, update on public.trips to authenticated;
 revoke delete on public.trips from anon, authenticated;
 grant select, insert on public.trip_agent_messages to authenticated;
+-- A chat is one person's own; deleting it means deleting it.
+grant select, insert, update, delete on public.trip_chats to authenticated;
 
 -- --------------------------------------------------------------- row-level ---
 alter table public.trips         enable row level security;
@@ -416,6 +432,7 @@ alter table public.trip_members  enable row level security;
 alter table public.activities    enable row level security;
 alter table public.packing_items enable row level security;
 alter table public.trip_agent_messages enable row level security;
+alter table public.trip_chats enable row level security;
 
 -- Deleted trips are invisible, and cannot be changed by a plain UPDATE either:
 -- the WITH CHECK is what stops a member deleting a trip by setting deleted_at
@@ -471,6 +488,12 @@ create policy agent_messages_select on public.trip_agent_messages for select to 
 drop policy if exists agent_messages_insert on public.trip_agent_messages;
 create policy agent_messages_insert on public.trip_agent_messages for insert to authenticated
   with check (public.is_trip_member(trip_id) and user_id = auth.uid());
+
+-- Only the person who asked, and only while they are still on the trip.
+drop policy if exists trip_chats_own on public.trip_chats;
+create policy trip_chats_own on public.trip_chats for all to authenticated
+  using (user_id = auth.uid() and public.is_trip_member(trip_id))
+  with check (user_id = auth.uid() and public.is_trip_member(trip_id));
 
 -- ---------------------------------------------------------------- realtime ---
 alter table public.trips         replica identity full;

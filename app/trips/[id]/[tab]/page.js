@@ -218,7 +218,7 @@ export default function TripTabPage({ params }) {
         <Notes trip={trip} activities={activities} onSave={saveNotes} />
       ) : null}
 
-      {tab === 'ask' ? (
+      {tab === 'assistant' ? (
         <TripAsk trip={trip} days={days} activities={activities} />
       ) : null}
 
