@@ -1967,6 +1967,11 @@ body:has(.lp)::before { display: none; }
 .act-t { font-size: var(--fs-sm); font-weight: 600; color: var(--text-1); }
 .act-t.dim { font-weight: 400; color: var(--text-3); }
 .act-t2 { font-size: var(--fs-xs); color: var(--text-3); }
+/* A time on another clock than the trip's — a flight leaving a different zone —
+   is drawn in the accent with that zone's offset under it (beside it on a
+   phone), so 12:55am in Singapore never reads as 12:55am at the destination. */
+.act-t.off-clock, .act-t2.off-clock, .act-tz { color: var(--accent); }
+.act-tz { font-size: var(--fs-xs); }
 
 .act-title { font-weight: 600; font-size: var(--fs-md); line-height: 1.35; }
 .act-meta {

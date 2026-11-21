@@ -17,7 +17,7 @@ import {
   shortPlace, activityGap, fmtDuration, zonedNow, clockMinutes,
 } from '@/lib/util';
 import { transportLine } from '@/lib/transport';
-import { clockAt, tripNow } from '@/public/trip-time';
+import { clockAt, offTripClock, tripNow, zonePlace } from '@/public/trip-time';
 import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
@@ -42,6 +42,18 @@ import { coverPhoto, coverURL, heroCoverURL } from '@/lib/tripCover';
  * the one fact a day is actually pinned to, so that keeps its edge.
  */
 const ANCHORS = new Set(['lodging']);
+
+/*
+ * A time that is not on the trip's clock — a flight leaving from another zone —
+ * carries that zone's offset beside it, and pointing at it gives the time at
+ * the destination. `day` is the date the time is written on, so the
+ * destination's date is mentioned only when it is a different one.
+ */
+function clockTip(mark, tripZone, day) {
+  if (!mark) return {};
+  const date = mark.day !== day ? ` on ${fmtDayTiny(mark.day)},` : '';
+  return { 'data-tip': `${mark.place} time · ${fmtTime(mark.time)}${date} ${zonePlace(tripZone)} time` };
+}
 
 
 export default function Itinerary({
@@ -448,9 +460,11 @@ export default function Itinerary({
         const list = (byDay[d] || []).slice().sort(sortActs);
         const dayTotal = list.reduce((s, a) => s + Number(a.cost || 0), 0);
         const timed = list.filter((a) => a.start_time);
-        const span = timed.length >= 2
-          ? `${fmtTime(timed[0].start_time)} – ${fmtTime(timed[timed.length - 1].start_time)}`
-          : timed.length === 1 ? `from ${fmtTime(timed[0].start_time)}` : '';
+        const [first, last] = (timed.length >= 2 ? [timed[0], timed[timed.length - 1]] : timed)
+          .map((a) => ({ a, mark: offTripClock(a, trip.timezone).start }));
+        const spanMark = ({ a, mark }) => (mark
+          ? <span className="act-tz mono" {...clockTip(mark, trip.timezone, a.day)}>{mark.label}</span>
+          : null);
 
         return (
           <section className="day" key={d} id={`day-${d}`}>
@@ -470,7 +484,11 @@ export default function Itinerary({
               })}
               <span className="grow" />
               <span className="day-facts">
-                {span ? <span><Clock size={12} /> {span}</span> : null}
+                {first ? <span><Clock size={12} /> {last ? '' : 'from '}{fmtTime(first.a.start_time)}
+                  {spanMark(first)}
+                  {last ? ` – ${fmtTime(last.a.start_time)}` : null}
+                  {last ? spanMark(last) : null}
+                </span> : null}
                 {list.length ? <span>{list.length} stop{list.length === 1 ? '' : 's'}</span> : null}
                 {dayTotal > 0 ? <span className="mono">{money(dayTotal, trip.currency)}</span> : null}
               </span>
@@ -487,6 +505,9 @@ export default function Itinerary({
                 // the airport it leaves from.
                 const leg = a.category === 'transport'
                   ? transportLine(a.subtype, a.details) : '';
+                const offClock = offTripClock(a, trip.timezone);
+                const startTip = clockTip(offClock.start, trip.timezone, a.day);
+                const endTip = clockTip(offClock.end, trip.timezone, a.details?.arrival_date || a.day);
 
                 return (
                   <div key={a._entryId || a.id}>
@@ -522,11 +543,17 @@ export default function Itinerary({
                       }}>
                       <div className="act-when">
                         {a.start_time ? (
-                          <span className="act-t mono">{fmtTime(a.start_time)}</span>
+                          <span className={`act-t mono${offClock.start ? ' off-clock' : ''}`} {...startTip}>
+                            {fmtTime(a.start_time)}
+                          </span>
                         ) : <span className="act-t dim">—</span>}
+                        {offClock.start ? <span className="act-tz mono" {...startTip}>{offClock.start.label}</span> : null}
                         {a.end_time ? (
-                          <span className="act-t2 mono">{fmtTime(a.end_time)}</span>
+                          <span className={`act-t2 mono${offClock.end ? ' off-clock' : ''}`} {...endTip}>
+                            {fmtTime(a.end_time)}
+                          </span>
                         ) : null}
+                        {offClock.end ? <span className="act-tz mono" {...endTip}>{offClock.end.label}</span> : null}
                       </div>
 
                       <PlacePhoto photoRef={a.photo_ref} category={cat.id} icon={activityIcon(a)} size={44} alt="" />

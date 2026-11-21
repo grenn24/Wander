@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calendarEvent } from '../lib/calendarEvents.js';
-import { activityTimes, clockAt, instantAt, tripNow, validZone } from '../public/trip-time.js';
+import { activityTimes, clockAt, instantAt, offTripClock, tripNow, validZone, zoneOffset } from '../public/trip-time.js';
 
 const activity = { id: 'a', title: 'Breakfast', day: '2026-09-05', start_time: '09:00:00', end_time: '10:00:00' };
 test('Tokyo calendar export preserves destination wall time regardless of the planner browser zone', () => {
@@ -56,4 +56,30 @@ test('untimed ends keep an activity current until the next start, including a da
   const morning = { ...activity, end_time: null };
   assert.equal(tripNow(trip, [morning], new Date('2026-09-05T03:00Z')).now.id, 'a');
   assert.equal(tripNow(trip, [morning], new Date('2026-09-05T15:00Z')).now, null);
+});
+
+test('flight times on another clock are marked by offset, not by zone name', () => {
+  const flight = { ...activity, day: '2026-12-12', category: 'transport', subtype: 'flight', start_time: '00:55', end_time: '08:40',
+    details: { departure_timezone: 'Asia/Singapore', arrival_timezone: 'Asia/Tokyo', arrival_date: '2026-12-12' } };
+  const marks = offTripClock(flight, 'Asia/Tokyo');
+  assert.deepEqual(marks.start, { zone: 'Asia/Singapore', place: 'Singapore', label: 'GMT+8', day: '2026-12-12', time: '01:55' });
+  assert.equal(marks.end, null);
+  // A different zone on the same clock is not worth a mark.
+  const kl = { ...flight, details: { ...flight.details, departure_timezone: 'Asia/Kuala_Lumpur' } };
+  assert.equal(offTripClock(kl, 'Asia/Singapore').start, null);
+  assert.equal(offTripClock(kl, 'Asia/Singapore').end.label, 'GMT+9');
+  // Phoenix keeps standard time: Denver's clock in winter, an hour behind it in summer.
+  const phx = { ...flight, start_time: '09:00', details: { departure_timezone: 'America/Phoenix' } };
+  assert.equal(offTripClock({ ...phx, day: '2026-01-15' }, 'America/Denver').start, null);
+  const summer = offTripClock({ ...phx, day: '2026-07-15' }, 'America/Denver').start;
+  assert.equal(summer.label, 'GMT-7');
+  assert.equal(summer.time, '10:00');
+  // Half-hour zones, the trip's date when it differs, and only flights.
+  const del = offTripClock({ ...flight, start_time: '23:30', details: { departure_timezone: 'Asia/Kolkata' } }, 'Asia/Tokyo').start;
+  assert.equal(del.label, 'GMT+5:30');
+  assert.deepEqual([del.day, del.time], ['2026-12-13', '03:00']);
+  assert.equal(zoneOffset('America/St_Johns', Date.parse('2026-01-15T12:00Z')), -210);
+  assert.deepEqual(offTripClock({ ...flight, subtype: 'train' }, 'Asia/Tokyo'), { start: null, end: null });
+  assert.deepEqual(offTripClock(flight, ''), { start: null, end: null });
+  assert.equal(offTripClock({ ...flight, details: {} }, 'Asia/Tokyo').start, null);
 });

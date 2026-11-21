@@ -32,6 +32,56 @@ export function instantAt(day, time, zone) {
   return null;
 }
 
+// Minutes a zone's clock is ahead of UTC at an instant.
+export function zoneOffset(zone, ms) {
+  const minute = Math.floor(ms / 60000) * 60000;
+  const c = clockAt(zone, new Date(minute));
+  return Math.round((Date.parse(`${c.day}T00:00:00Z`) + c.minutes * 60000 - minute) / 60000);
+}
+
+function offsetLabel(minutes) {
+  if (!minutes) return 'GMT';
+  const m = Math.abs(minutes);
+  return `GMT${minutes < 0 ? '-' : '+'}${Math.floor(m / 60)}${m % 60 ? `:${String(m % 60).padStart(2, '0')}` : ''}`;
+}
+
+// 'America/Argentina/Buenos_Aires' -> 'Buenos Aires'.
+export function zonePlace(zone) {
+  return String(zone || '').split('/').pop().replaceAll('_', ' ');
+}
+
+/*
+ * The times on a row that are not read off the trip's clock. A flight's
+ * departure and arrival are local to their airports, so a Singapore departure
+ * on a Tokyo trip says 12:55am where the rest of the day is in Tokyo time.
+ * Compared by the offset at that moment rather than by the zone's name: Kuala
+ * Lumpur on a Singapore trip shows the same clock and is not worth a mark.
+ * Returns { start, end }, each null or
+ * { zone, place, label: 'GMT+8', day, time } where day and time are the trip's
+ * clock at that moment ('YYYY-MM-DD', 'HH:MM').
+ */
+export function offTripClock(activity, tripZone) {
+  const a = activity || {};
+  const none = { start: null, end: null };
+  if (!validZone(tripZone) || a.category !== 'transport' || a.subtype !== 'flight') return none;
+  const d = a.details || {};
+  const mark = (day, time, zone) => {
+    if (!time || !validZone(zone)) return null;
+    const at = instantAt(day, time, zone);
+    if (at == null) return null;
+    const offset = zoneOffset(zone, at);
+    if (offset === zoneOffset(tripZone, at)) return null;
+    const there = clockAt(tripZone, new Date(at));
+    const hh = String(Math.floor(there.minutes / 60)).padStart(2, '0');
+    const mm = String(there.minutes % 60).padStart(2, '0');
+    return { zone, place: zonePlace(zone), label: offsetLabel(offset), day: there.day, time: `${hh}:${mm}` };
+  };
+  // Without an arrival date the departure day is near enough to find the
+  // offset, which moves at most twice a year.
+  return { start: mark(a.day, a.start_time, d.departure_timezone),
+    end: mark(d.arrival_date || a.day, a.end_time, d.arrival_timezone) };
+}
+
 export function nextDate(day) {
   return new Date(Date.parse(`${day}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 }
