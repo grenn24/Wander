@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, MapPinOff } from 'lucide-react';
 import GoogleMap, { dayColor, googleMapsAvailable } from '@/components/GoogleMap';
+import { useTrip } from '@/components/TripProvider';
 import { searchPlaces } from '@/lib/geo';
 import { categoryIcon } from '@/lib/icons';
 import { stopFor } from '@/lib/tripAsk';
@@ -68,6 +69,9 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
   const [seen, setSeen] = useState(false);
   const [found, setFound] = useState(null); // { [index]: place | null }
   const [failed, setFailed] = useState('');
+  const { setActivityCoords } = useTrip();
+  const [placing, setPlacing] = useState(false);
+  const placed = useRef(false);
 
   useEffect(() => {
     const el = box.current;
@@ -94,6 +98,36 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
     // Looked up once: the trip changing under an old answer should not search again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen, names]);
+
+  /*
+   * Stops in the plan that have an address but no position yet (typed in
+   * rather than picked from a search): looked up and saved, exactly as
+   * opening the Map tab does, so the pin lands here and stays — the
+   * itinerary's travel times use it too. A stop with no address at all, like
+   * a flight, has nothing to look up and is listed without a pin.
+   */
+  useEffect(() => {
+    if (!seen || placed.current) return;
+    const todo = spec.places.map((p) => (p.stop ? stopFor(activities, p.stop) : null))
+      .filter((a) => a && !located(a) && String(a.location || '').trim());
+    if (!todo.length) return;
+    placed.current = true;
+    setPlacing(true);
+    fetch('/api/places/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: todo.map((a) => ({ id: a.id, query: a.location, title: a.title, category: a.category, day: a.day })),
+        bias: (trip && trip.destination) || '',
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : { results: [] }))
+      .then(({ results }) => Promise.all((results || []).filter((r) => r.found)
+        .map((r) => setActivityCoords(r.id, r.lat, r.lng, r.label, r.place_id, r.photo_ref))))
+      .catch(() => {})
+      .finally(() => setPlacing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seen]);
 
   // Every row of the legend, in the answer's order, whether or not it has a pin.
   const rows = useMemo(() => {
@@ -128,7 +162,10 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
   })), [rows]);
 
   const canDraw = googleMapsAvailable() && (stops.length + places.length) > 0;
-  const waiting = seen && names.length > 0 && !found;
+  const waiting = seen && ((names.length > 0 && !found) || placing);
+  // Nothing to draw because the plan has no positions for these stops, as
+  // opposed to a search that came back empty.
+  const unplaced = rows.some((r) => r.kind === 'stop' && !r.label) && !rows.some((r) => r.kind === 'place' && r.place);
 
   return (
     <figure className={s.map} ref={box}>
@@ -157,7 +194,9 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
           <div className={`${s.mapWait} ${s.mapNote}`}>
             <MapPin size={16} aria-hidden="true" />
             <span className="small muted">
-              {googleMapsAvailable() ? 'None of these places could be found on the map.' : 'The map needs a Google Maps key.'}
+              {!googleMapsAvailable() ? 'The map needs a Google Maps key.'
+                : unplaced ? 'These stops have no location yet. Add one from the itinerary.'
+                  : 'None of these places could be found on the map.'}
             </span>
           </div>
         )}
@@ -173,14 +212,15 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
               <li key={r.key}>
                 <button type="button" className={s.legendRow} onClick={open || undefined} disabled={!open}>
                   {r.kind === 'stop' ? (
-                    <span className={s.pin} style={{ '--pin': r.colour }}>{r.label || '·'}</span>
+                    r.label ? <span className={s.pin} style={{ '--pin': r.colour }}>{r.label}</span>
+                      : <span className={s.pinPlace}><MapPinOff size={13} aria-hidden="true" /></span>
                   ) : (
                     <span className={s.pinPlace}><Icon size={13} aria-hidden="true" /></span>
                   )}
                   <span className={s.legendText}>
                     <span className={s.legendName}>{r.title}</span>
                     <span className="small muted">
-                      {[r.missing ? 'Not found on the map' : r.meta, r.note].filter(Boolean).join(' · ')}
+                      {[r.missing ? 'Not found on the map' : r.meta, r.kind === 'stop' && !r.label ? 'No location' : '', r.note].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                 </button>
