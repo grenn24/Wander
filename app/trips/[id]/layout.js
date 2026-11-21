@@ -93,8 +93,10 @@ function TripChrome({ tripId, children }) {
     );
   }
 
+  // Ask has a prompt box of its own along the bottom, right where the
+  // floating command pill would sit on top of it.
   return (
-    <CommandProvider floating={active !== 'map'}>
+    <CommandProvider floating={active !== 'map' && active !== 'ask'}>
       {/*
         * The map is one tap away from every tab of a trip, and its script and
         * tiles come from Google. Opening those connections while the trip

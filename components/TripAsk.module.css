@@ -1,0 +1,124 @@
+/*
+ * The trip's Ask page. Layout, plus the few things Markdown brings that the
+ * app had no class for (a code block, a stop named in a sentence, a cited
+ * source). Type comes from the six --fs-* steps; the bubble, the prompt box,
+ * the chips and the tables are the app's own (.askMe, .planbox-*, .samplechip,
+ * table.data).
+ */
+
+.page {
+  max-width: 760px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  /* The dock sits on the floor of the window when there is little to read. */
+  min-height: calc(100dvh - var(--topbar-h) - 40px - var(--tabbar-h, 0px));
+}
+
+.intro { flex: 1; }
+.intro > p { margin: 0 0 4px; font-size: var(--fs-md); line-height: 1.55; }
+
+.log { flex: 1; display: grid; align-content: start; gap: 22px; padding-bottom: 8px; }
+.me { max-width: 85%; font-size: var(--fs-md); }
+/* Scrolled to as the answer grows: clear of the prompt box sitting over the
+   bottom of the window, not under it. */
+.end { scroll-margin-bottom: calc(var(--tabbar-h, 0px) + 130px); }
+
+/* --------------------------------------------------------------- answer -- */
+.answer { min-width: 0; }
+.status { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; }
+.acts { display: flex; gap: 2px; margin-top: 6px; margin-left: -6px; }
+
+.md { font-size: var(--fs-md); line-height: 1.65; color: var(--text-1); overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote { margin: 0 0 12px; }
+.md h3 { margin: 22px 0 8px; line-height: 1.3; }
+.md h4 { margin: 18px 0 6px; line-height: 1.35; }
+.md ul, .md ol { padding-left: 22px; }
+.md li { margin: 3px 0; }
+.md li > p { margin: 0; }
+.md li > ul, .md li > ol { margin: 4px 0 0; }
+.md li:has(> input[type="checkbox"]) { list-style: none; margin-left: -20px; }
+.md input[type="checkbox"] { margin: 0 8px 0 0; vertical-align: -1px; accent-color: var(--accent); }
+.md hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+.md blockquote { padding: 2px 0 2px 12px; border-left: 2px solid var(--accent); color: var(--text-2); }
+.md a { color: var(--accent); text-underline-offset: 2px; }
+.md :not(pre) > code {
+  font-family: var(--font-mono), ui-monospace, monospace; font-size: .9em;
+  padding: 1px 5px; border-radius: 5px; background: var(--surface-2);
+}
+.md strong { font-weight: 650; }
+
+/* Tables scroll sideways on a phone rather than pushing the page wider. */
+.tableWrap { overflow-x: auto; margin: 4px 0 14px; }
+.tableWrap td, .tableWrap th { vertical-align: top; line-height: 1.5; }
+.tableWrap th, .tableWrap td.short { white-space: nowrap; }
+.tableWrap td { min-width: 6em; }
+/* Prose in a cell stays readable on a phone; the table scrolls instead. */
+.tableWrap td:not(.short) { min-width: 12em; }
+
+/* A stop in the plan, named in a sentence: it opens that stop. */
+.md a.stop { text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.md a.stop:hover { text-decoration-color: var(--accent); }
+.stop svg { display: inline; vertical-align: -1px; margin-right: 4px; }
+
+.code { margin: 4px 0 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-1); }
+.codeHead { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 2px 12px; border-bottom: 1px solid var(--border); }
+.code pre { margin: 0; padding: 12px; overflow-x: auto; font-size: var(--fs-sm); line-height: 1.55; }
+
+/* A cited source: the site's name, small, beside the claim it supports. */
+.md a.cite, .cite {
+  display: inline-block; vertical-align: 1px; margin: 0 1px; padding: 0 7px;
+  font-size: var(--fs-xs); line-height: 18px; text-decoration: none; white-space: nowrap;
+  color: var(--text-2); background: var(--surface-2); border-radius: 999px;
+}
+.cite:hover { color: var(--text-1); }
+.sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.sources > span { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
+
+/* ------------------------------------------------------------------ map -- */
+.map { margin: 6px 0 16px; }
+.map figcaption { margin: 0 0 6px; }
+.mapFrame { padding: 0; overflow: hidden; }
+/* Tall enough for a place's card (photo, name, Add to trip) to open whole. */
+.mapCanvas { position: relative; height: 400px; }
+/* Waiting holds the map's own height, so nothing below jumps when it draws. */
+.mapWait { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
+.mapNote { height: 120px; }
+.legend { list-style: none; margin: 0; padding: 4px; border-top: 1px solid var(--border); }
+.legendRow {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px;
+  border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.legendRow:hover:not(:disabled) { background: var(--surface-2); }
+.legendRow:disabled { cursor: default; }
+.legendText { display: grid; min-width: 0; }
+.legendName { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin, .pinPlace {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font-size: var(--fs-xs);
+}
+.pin { background: var(--pin); color: #fff; }
+.pinPlace { background: var(--surface-2); color: var(--text-2); }
+
+/* ----------------------------------------------------------------- dock -- */
+.dock {
+  position: sticky; z-index: 5;
+  bottom: calc(var(--tabbar-h, 0px) + 8px);
+  margin-top: 16px; padding-top: 10px;
+  /* The page fades out under the box rather than ending in a hard edge. */
+  background: linear-gradient(to bottom, transparent, var(--surface-0) 14px);
+}
+.dock .input { font-size: var(--fs-md); line-height: 22px; padding-block: calc((var(--row) - 22px) / 2); max-height: 200px; }
+.fine { margin: 6px 0 0; text-align: center; font-size: var(--fs-xs); }
+
+@media (max-width: 860px) {
+  .page { min-height: calc(100dvh - var(--topbar-h) - 32px - var(--tabbar-h, 0px)); }
+  .mapCanvas { height: 340px; }
+  .me { max-width: 92%; }
+  /* Two lines of a phone's height for a disclaimer is too much to pay. */
+  .fine { display: none; }
+}
+
+@media print {
+  .dock, .acts { display: none; }
+}

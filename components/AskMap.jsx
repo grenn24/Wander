@@ -1,0 +1,194 @@
+'use client';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, MapPin } from 'lucide-react';
+import GoogleMap, { dayColor, googleMapsAvailable } from '@/components/GoogleMap';
+import { searchPlaces } from '@/lib/geo';
+import { categoryIcon } from '@/lib/icons';
+import { stopFor } from '@/lib/tripAsk';
+import { fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
+import s from './TripAsk.module.css';
+
+const located = (a) => a && a.lat != null && a.lng != null && Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng));
+
+// Google's types, read as the app's own categories, for the pin's glyph.
+function categoryOf(type) {
+  const t = String(type || '');
+  if (/restaurant|cafe|bakery|bar|food|meal|coffee|tea|dessert|ramen|sushi/.test(t)) return 'food';
+  if (/lodging|hotel|hostel|inn|resort|ryokan/.test(t)) return 'lodging';
+  if (/store|shop|mall|market|supermarket/.test(t)) return 'shopping';
+  if (/station|airport|transit|bus|subway|train|ferry/.test(t)) return 'transport';
+  if (/amusement|zoo|aquarium|spa|stadium|gym|bowling|theater|cinema|casino|park$/.test(t)) return 'activity';
+  return 'sightseeing';
+}
+
+/*
+ * A name, looked up once per browser session. Each search is billed, and the
+ * thread itself survives a reload; without this every reload of a long
+ * conversation paid for all of its maps again.
+ */
+const SEEN = 'wander:askplace:';
+function lookup(q, near) {
+  try {
+    const kept = sessionStorage.getItem(SEEN + q);
+    if (kept) return Promise.resolve(JSON.parse(kept));
+  } catch { /* storage blocked: search */ }
+  return searchPlaces(q, near).then((list) => {
+    const first = (list || [])[0] || null;
+    if (first) {
+      try {
+        const { name, label, lat, lng, place_id: id, primary_type: type, photo_ref: ref, photos } = first;
+        sessionStorage.setItem(SEEN + q, JSON.stringify({ name, label, lat, lng, place_id: id, primary_type: type, photo_ref: ref, photos }));
+      } catch { /* full or blocked */ }
+    }
+    return first;
+  });
+}
+
+/** The middle of what the trip has located, to keep a name search near it. */
+function centreOf(activities) {
+  const pts = activities.filter(located);
+  if (!pts.length) return null;
+  return {
+    lat: pts.reduce((n, a) => n + Number(a.lat), 0) / pts.length,
+    lng: pts.reduce((n, a) => n + Number(a.lng), 0) / pts.length,
+    radius: 30000,
+  };
+}
+
+/**
+ * A map an answer asked for: stops from the trip by their token, other
+ * places looked up by name.
+ *
+ * Nothing is drawn or looked up until it is scrolled to. Each map is a billed
+ * load and each name a billed search, and a long conversation can hold
+ * several maps the reader never scrolls back to.
+ */
+export default function AskMap({ spec, trip, days, activities, onOpenStop, onAddPlace }) {
+  const box = useRef(null);
+  const [seen, setSeen] = useState(false);
+  const [found, setFound] = useState(null); // { [index]: place | null }
+  const [failed, setFailed] = useState('');
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el || seen) return undefined;
+    if (typeof IntersectionObserver === 'undefined') { setSeen(true); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setSeen(true); io.disconnect(); }
+    }, { rootMargin: '200px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seen]);
+
+  // The places the answer named, looked up once each.
+  const names = useMemo(() => spec.places.map((p, i) => (p.name ? { i, q: [p.name, p.near].filter(Boolean).join(', ') } : null)).filter(Boolean), [spec]);
+  useEffect(() => {
+    if (!seen || found) return undefined;
+    let dead = false;
+    const near = centreOf(activities);
+    Promise.all(names.map(({ i, q }) => lookup(q, near)
+      .then((hit) => [i, hit])
+      .catch(() => [i, null])))
+      .then((pairs) => { if (!dead) setFound(Object.fromEntries(pairs)); });
+    return () => { dead = true; };
+    // Looked up once: the trip changing under an old answer should not search again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seen, names]);
+
+  // Every row of the legend, in the answer's order, whether or not it has a pin.
+  const rows = useMemo(() => {
+    let n = 0;
+    return spec.places.map((p, i) => {
+      if (p.stop) {
+        const a = stopFor(activities, p.stop);
+        if (!a) return null;
+        const pinned = located(a);
+        if (pinned) n += 1;
+        return {
+          key: `s${i}`, kind: 'stop', a, label: pinned ? n : null, title: a.title, note: p.note,
+          meta: [fmtDayTiny(a.day), a.start_time ? fmtTime(a.start_time) : '', shortPlace(a.location)].filter(Boolean).join(' · '),
+          colour: dayColor(Math.max(0, days.indexOf(a.day)), days.length),
+        };
+      }
+      const hit = found ? found[i] : undefined;
+      return {
+        // The answer's name, not Google's: a search without a language comes
+        // back in the local one, and the reader just read it in theirs.
+        key: `p${i}`, kind: 'place', place: hit, title: p.name, note: p.note,
+        meta: hit ? shortPlace(hit.label) : p.near, category: hit ? categoryOf(hit.primary_type) : '', missing: found && !hit,
+      };
+    }).filter(Boolean);
+  }, [spec, activities, days, found]);
+
+  const stops = useMemo(() => rows.filter((r) => r.kind === 'stop' && r.label)
+    .map((r) => ({ ...r.a, lat: Number(r.a.lat), lng: Number(r.a.lng), pinLabel: r.label, _colour: r.colour })), [rows]);
+  const places = useMemo(() => rows.filter((r) => r.kind === 'place' && r.place).map((r) => ({
+    ...r.place, id: `ask-${r.key}`, name: r.title, category: r.category, detail: r.meta,
+    location: r.place.label,
+  })), [rows]);
+
+  const canDraw = googleMapsAvailable() && (stops.length + places.length) > 0;
+  const waiting = seen && names.length > 0 && !found;
+
+  return (
+    <figure className={s.map} ref={box}>
+      {spec.title ? <figcaption className="small muted">{spec.title}</figcaption> : null}
+      <div className={`card ${s.mapFrame}`}>
+        {!seen || waiting ? (
+          <div className={`${s.mapCanvas} ${s.mapWait}`}>
+            <Loader2 size={16} className="spin" aria-hidden="true" />
+            <span className="small muted">Finding the places</span>
+          </div>
+        ) : canDraw ? (
+          <div className={s.mapCanvas}>
+            <GoogleMap
+              showAppearance={false}
+              fitPlaces
+              stops={stops}
+              places={places}
+              stopColour={(a) => a._colour}
+              describeStop={(a) => ({ meta: [fmtDayTiny(a.day), a.start_time ? fmtTime(a.start_time) : '', shortPlace(a.location)].filter(Boolean).join(' · ') })}
+              onStopOpen={onOpenStop}
+              onPlaceAdd={onAddPlace}
+              onError={setFailed}
+            />
+          </div>
+        ) : (
+          <div className={`${s.mapWait} ${s.mapNote}`}>
+            <MapPin size={16} aria-hidden="true" />
+            <span className="small muted">
+              {googleMapsAvailable() ? 'None of these places could be found on the map.' : 'The map needs a Google Maps key.'}
+            </span>
+          </div>
+        )}
+        {failed ? <p className="small muted" role="alert">{failed}</p> : null}
+        <ol className={s.legend}>
+          {rows.map((r) => {
+            // A plain pin until the lookup says what kind of place it is.
+            const Icon = r.kind !== 'place' ? null : r.category ? categoryIcon(r.category) : MapPin;
+            const open = r.kind === 'stop' ? () => onOpenStop(r.a)
+              : r.place ? () => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.title)}&query_place_id=${encodeURIComponent(r.place.place_id || '')}`, '_blank', 'noopener')
+                : null;
+            return (
+              <li key={r.key}>
+                <button type="button" className={s.legendRow} onClick={open || undefined} disabled={!open}>
+                  {r.kind === 'stop' ? (
+                    <span className={s.pin} style={{ '--pin': r.colour }}>{r.label || '·'}</span>
+                  ) : (
+                    <span className={s.pinPlace}><Icon size={13} aria-hidden="true" /></span>
+                  )}
+                  <span className={s.legendText}>
+                    <span className={s.legendName}>{r.title}</span>
+                    <span className="small muted">
+                      {[r.missing ? 'Not found on the map' : r.meta, r.note].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </figure>
+  );
+}

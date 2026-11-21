@@ -276,8 +276,25 @@ code. Nothing is removed — rows, covers and members all stay.
 effort through the Responses API with web search.
 
 Every call is **single-shot structured output** — a strict JSON schema, one
-request, deterministic post-processing. There is no tool-use loop anywhere, and
-that is deliberate: it keeps the app streamable, cheap and debuggable.
+request, deterministic post-processing. There is no tool-use loop of our own
+anywhere, and that is deliberate: it keeps the app streamable, cheap and
+debuggable.
+
+**The one exception is the trip's Ask page** (`/trips/<id>/ask`,
+`components/TripAsk.jsx`, `app/api/trips/ask/route.js`, pure parts in
+`lib/tripAsk.js`). It streams free Markdown, not JSON, from the Responses API
+with OpenAI's *hosted* `web_search` tool — OpenAI runs the searches, so there is
+still no loop on our side. The route reads the trip with the asker's own JWT
+(`asUser`), never from the request, and answers NDJSON lines
+(`text`, `status`, `source`, `done`, `error`). It is read-only: no edit tools,
+and the prompt sends edits to ⌘K. Answers point back into the app two ways:
+`[title](#stop-<token>)` links, where the token is a 6+ character prefix of the
+activity id (`stopTokens`, stable when stops are added), and ` ```map ` blocks of
+JSON naming stops by token and other places by name, which the page looks up
+with `/api/places/search` — model coordinates are never read. The renderer is
+`react-markdown` + `remark-gfm` with no raw HTML and no images. The thread lives
+in `components/askThread.js` (module store, copied to `sessionStorage`), so an
+answer keeps streaming across tabs; it is not saved to the database.
 
 **The agreed next step, not yet built:** one bounded tool-use pass after the
 plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
