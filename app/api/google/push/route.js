@@ -2,7 +2,7 @@ import { calendarEvent } from '@/lib/calendarEvents';
 import { validZone } from '@/public/trip-time';
 import { userFromRequest, asUser, notSignedIn } from '@/lib/supabaseServer';
 import {
-  upsertEvent, deleteEvent, findTripEvents, stamp, NeedsReconnect,
+  upsertEvent, deleteEvent, findTripEvents, stamp, accessToken, NeedsReconnect,
 } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
@@ -47,8 +47,19 @@ export async function DELETE(req) {
     .select('id, google_event_id').eq('trip_id', tripId).not('google_event_id', 'is', null);
 
   const ids = new Set((acts || []).map((a) => a.google_event_id).filter(Boolean));
+  let token;
   try {
-    (await findTripEvents(user.id, tripId)).forEach((id) => ids.add(id));
+    // Once for the whole clear-out, not once per event (lib/googleCal).
+    token = await accessToken(user.id);
+  } catch (e) {
+    if (e instanceof NeedsReconnect) {
+      return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
+    }
+    console.error('[gcal] token failed:', e.message);
+    return Response.json({ error: 'Could not reach your calendar just now.' }, { status: 502 });
+  }
+  try {
+    (await findTripEvents(user.id, tripId, token)).forEach((id) => ids.add(id));
   } catch (e) {
     if (e instanceof NeedsReconnect) {
       return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
@@ -61,7 +72,7 @@ export async function DELETE(req) {
   for (const id of ids) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      await deleteEvent(user.id, id);
+      await deleteEvent(user.id, id, token);
       removed += 1;
     } catch (e) {
       if (e instanceof NeedsReconnect) {
@@ -113,6 +124,18 @@ export async function POST(req) {
   const list = (acts || []).filter((a) => a.day && a.title);
   if (!list.length) return Response.json({ written: 0, updated: 0 });
 
+  let token;
+  try {
+    // Once for the whole sync, not once per activity (lib/googleCal).
+    token = await accessToken(user.id);
+  } catch (e) {
+    if (e instanceof NeedsReconnect) {
+      return Response.json({ error: e.message, code: 'reconnect' }, { status: 409 });
+    }
+    console.error('[gcal] token failed:', e.message);
+    return Response.json({ error: 'Could not reach your calendar just now.' }, { status: 502 });
+  }
+
   let written = 0;
   let updated = 0;
   const failures = [];
@@ -120,7 +143,7 @@ export async function POST(req) {
   for (const a of list) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      const out = await upsertEvent(user.id, { ...calendarEvent(a, tz), extendedProperties: stamp(tripId) }, a.google_event_id);
+      const out = await upsertEvent(user.id, { ...calendarEvent(a, tz), extendedProperties: stamp(tripId) }, a.google_event_id, token);
       if (a.google_event_id) updated += 1; else written += 1;
       if (out && out.id && out.id !== a.google_event_id) {
         // eslint-disable-next-line no-await-in-loop
