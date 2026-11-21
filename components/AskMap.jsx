@@ -5,58 +5,11 @@ import { Loader2, MapPin, MapPinOff, Maximize2, X } from 'lucide-react';
 import GoogleMap, { dayColor, googleMapsAvailable } from '@/components/GoogleMap';
 import { useTrip } from '@/components/TripProvider';
 import { useModalChrome } from '@/lib/useModal';
-import { searchPlaces } from '@/lib/geo';
+import { categoryOf, centreOf, located, lookup, mapsLink, useSeen } from '@/components/askLookup';
 import { categoryIcon } from '@/lib/icons';
 import { stopFor } from '@/lib/tripAsk';
 import { fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import s from './TripAsk.module.css';
-
-const located = (a) => a && a.lat != null && a.lng != null && Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng));
-
-// Google's types, read as the app's own categories, for the pin's glyph.
-function categoryOf(type) {
-  const t = String(type || '');
-  if (/restaurant|cafe|bakery|bar|food|meal|coffee|tea|dessert|ramen|sushi/.test(t)) return 'food';
-  if (/lodging|hotel|hostel|inn|resort|ryokan/.test(t)) return 'lodging';
-  if (/store|shop|mall|market|supermarket/.test(t)) return 'shopping';
-  if (/station|airport|transit|bus|subway|train|ferry/.test(t)) return 'transport';
-  if (/amusement|zoo|aquarium|spa|stadium|gym|bowling|theater|cinema|casino|park$/.test(t)) return 'activity';
-  return 'sightseeing';
-}
-
-/*
- * A name, looked up once per browser session. Each search is billed, and the
- * thread itself survives a reload; without this every reload of a long
- * conversation paid for all of its maps again.
- */
-const SEEN = 'wander:askplace:';
-function lookup(q, near) {
-  try {
-    const kept = sessionStorage.getItem(SEEN + q);
-    if (kept) return Promise.resolve(JSON.parse(kept));
-  } catch { /* storage blocked: search */ }
-  return searchPlaces(q, near).then((list) => {
-    const first = (list || [])[0] || null;
-    if (first) {
-      try {
-        const { name, label, lat, lng, place_id: id, primary_type: type, photo_ref: ref, photos } = first;
-        sessionStorage.setItem(SEEN + q, JSON.stringify({ name, label, lat, lng, place_id: id, primary_type: type, photo_ref: ref, photos }));
-      } catch { /* full or blocked */ }
-    }
-    return first;
-  });
-}
-
-/** The middle of what the trip has located, to keep a name search near it. */
-function centreOf(activities) {
-  const pts = activities.filter(located);
-  if (!pts.length) return null;
-  return {
-    lat: pts.reduce((n, a) => n + Number(a.lat), 0) / pts.length,
-    lng: pts.reduce((n, a) => n + Number(a.lng), 0) / pts.length,
-    radius: 30000,
-  };
-}
 
 /**
  * A map an answer asked for: stops from the trip by their token, other
@@ -68,24 +21,13 @@ function centreOf(activities) {
  */
 export default function AskMap({ spec, trip, days, activities, onOpenStop, onAddPlace }) {
   const box = useRef(null);
-  const [seen, setSeen] = useState(false);
+  const seen = useSeen(box);
   const [found, setFound] = useState(null); // { [index]: place | null }
   const [failed, setFailed] = useState('');
   const [full, setFull] = useState(false);
   const { setActivityCoords } = useTrip();
   const [placing, setPlacing] = useState(false);
   const placed = useRef(false);
-
-  useEffect(() => {
-    const el = box.current;
-    if (!el || seen) return undefined;
-    if (typeof IntersectionObserver === 'undefined') { setSeen(true); return undefined; }
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) { setSeen(true); io.disconnect(); }
-    }, { rootMargin: '200px 0px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [seen]);
 
   // The places the answer named, looked up once each.
   const names = useMemo(() => spec.places.map((p, i) => (p.name ? { i, q: [p.name, p.near].filter(Boolean).join(', ') } : null)).filter(Boolean), [spec]);
@@ -188,7 +130,7 @@ export default function AskMap({ spec, trip, days, activities, onOpenStop, onAdd
         // A plain pin until the lookup says what kind of place it is.
         const Icon = r.kind !== 'place' ? null : r.category ? categoryIcon(r.category) : MapPin;
         const open = r.kind === 'stop' ? () => { setFull(false); onOpenStop(r.a); }
-          : r.place ? () => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.title)}&query_place_id=${encodeURIComponent(r.place.place_id || '')}`, '_blank', 'noopener')
+          : r.place ? () => window.open(mapsLink(r.title, r.place.place_id), '_blank', 'noopener')
             : null;
         return (
           <li key={r.key}>

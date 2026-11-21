@@ -7,7 +7,7 @@ import { Check, Copy, Globe, Loader2, RotateCw } from 'lucide-react';
 import { activityIcon } from '@/lib/icons';
 import { retryImport } from '@/lib/chunkRetry';
 import {
-  STOP_HREF, cleanSourceUrl, isCitation, parseMapSpec, sourceSite, stopFor, tidyCitations,
+  STOP_HREF, cleanSourceUrl, isCitation, parseMapSpec, parsePlacesSpec, sourceSite, stopFor, tidyCitations,
 } from '@/lib/tripAsk';
 import s from './TripAsk.module.css';
 
@@ -16,6 +16,12 @@ import s from './TripAsk.module.css';
 const AskMap = dynamic(() => retryImport(() => import('./AskMap')), {
   ssr: false,
   loading: () => <Pending label="Loading the map" />,
+});
+
+// Pictures of places, likewise, with the first answer that has some.
+const AskPlaces = dynamic(() => retryImport(() => import('./AskPlaces')), {
+  ssr: false,
+  loading: () => <PicturesPending />,
 });
 
 const PLUGINS = [remarkGfm];
@@ -30,6 +36,25 @@ function Pending({ label }) {
       </div>
     </div>
   );
+}
+
+/* The shape of a row of cards, held while the pictures are on their way. */
+function PicturesPending() {
+  return (
+    <div className={s.places}>
+      <div className={s.cards} data-n="3">
+        {[0, 1, 2].map((k) => <span key={k} className={`skel ${s.shot}`} aria-hidden="true" />)}
+      </div>
+    </div>
+  );
+}
+
+/* Parsed once per version of its text, like a map. */
+function PlacesBlock({ raw, writing, ctx }) {
+  const spec = useMemo(() => parsePlacesSpec(raw), [raw]);
+  if (!spec) return writing ? <PicturesPending /> : null;
+  const { trip, activities, onOpenStop, inline } = ctx;
+  return <AskPlaces spec={spec} trip={trip} activities={activities} inline={inline} onOpenStop={onOpenStop} />;
 }
 
 const textOf = (node) => (!node ? '' : node.type === 'text' ? node.value
@@ -65,9 +90,11 @@ function MapBlock({ raw, writing, ctx }) {
  *
  * GitHub's flavour (tables, task lists, strikethrough), with the parts that
  * point back into the app drawn as the app draws them: a stop the answer
- * names opens that stop, a ```map block is a map. No raw HTML, and no
- * pictures from anywhere — a search result can put words in an answer, and a
- * picture would be a request to whatever server it named.
+ * names opens that stop, a ```map block is a map, a ```places block is
+ * pictures of places. No raw HTML, and no image from anywhere the answer
+ * names — a search result can put words in an answer, and a picture would be
+ * a request to whatever server it named. The pictures are Google's, through
+ * our own photo route, found by the place's name.
  */
 function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPlace, onAgain }) {
   const writing = message.status === 'writing';
@@ -113,6 +140,7 @@ function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPla
       const lang = String(cls.find((c) => String(c).startsWith('language-')) || '').slice(9);
       const text = textOf(code).replace(/\n$/, '');
       if (lang === 'map') return <MapBlock raw={text} writing={ctx.current.writing} ctx={ctx.current} />;
+      if (lang === 'places') return <PlacesBlock raw={text} writing={ctx.current.writing} ctx={ctx.current} />;
       return (
         <div className={s.code}>
           <div className={s.codeHead}>
@@ -139,6 +167,16 @@ function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPla
     h5: ({ children }) => <h4>{children}</h4>,
     h6: ({ children }) => <h4>{children}</h4>,
   }), []);
+
+  /*
+   * A place's description in a list of pictures is Markdown too — a bold
+   * word, a stop, a cited source — but a sentence, not a block: no paragraph
+   * of its own around it.
+   */
+  const inlineComponents = useMemo(() => ({ ...components, p: ({ children }) => <>{children}</> }), [components]);
+  ctx.current.inline = (text) => (
+    <Markdown remarkPlugins={PLUGINS} rehypePlugins={REHYPE} components={inlineComponents}>{text}</Markdown>
+  );
 
   const sites = [];
   (message.sources || []).forEach((src) => {

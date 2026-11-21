@@ -3,8 +3,34 @@ import assert from 'node:assert/strict';
 import { defaultUrlTransform } from 'react-markdown';
 import {
   stopTokens, stopFor, stopHref, STOP_HREF, parseMapSpec, cleanSourceUrl, isCitation, sourceSite,
-  tripContext, askSuggestions, askGreetings, tidyCitations,
+  tripContext, askSuggestions, askGreetings, tidyCitations, parsePlacesSpec,
 } from '../lib/tripAsk.js';
+
+test('a pictures block is read defensively, never with image addresses', () => {
+  const cards = parsePlacesSpec(JSON.stringify({
+    style: 'cards',
+    places: [
+      { name: 'Sawara', near: 'Katori, Chiba', caption: 'Historic canal town', image: 'https://evil.example/x.jpg' },
+      { stop: '#stop-3f9a2c', caption: 'In your plan' },
+      { name: 'sawara', near: 'again' },
+      { name: 'Shibamata', caption: 'Old Tokyo' },
+      { name: 'Nokogiriyama' },
+      { name: 'One too many' },
+    ],
+  }));
+  assert.equal(cards.style, 'cards');
+  assert.equal(cards.places.length, 4, 'four cards at most');
+  assert.deepEqual(cards.places[0], { name: 'Sawara', near: 'Katori, Chiba', caption: 'Historic canal town', meta: '', text: '' });
+  assert.deepEqual(cards.places[1], { stop: '3f9a2c', caption: 'In your plan', meta: '', text: '' });
+  assert.ok(!JSON.stringify(cards).includes('evil'));
+
+  const list = parsePlacesSpec('{"style": "list", "places": [{"name": "Kiyosumi Gardens", "meta": "20 min", "text": "A **strolling** garden."}]}');
+  assert.equal(list.style, 'list');
+  assert.equal(list.places[0].text, 'A **strolling** garden.');
+  assert.equal(parsePlacesSpec('{"style": "list", "places": [{"name": "Kiyo'), null, 'half a block while it streams');
+  assert.equal(parsePlacesSpec('{"places": []}'), null);
+  assert.equal(parsePlacesSpec('{"style": "weird", "places": [{"name": "A"}]}').style, 'cards');
+});
 
 test('a citation loses the brackets around it', () => {
   const a = (href, text) => ({ type: 'element', tagName: 'a', properties: { href }, children: [{ type: 'text', value: text }] });

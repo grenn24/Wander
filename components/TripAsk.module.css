@@ -113,6 +113,43 @@
 /* Waiting holds the map's own height, so nothing below jumps when it draws. */
 .mapWait { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
 .mapNote { height: 120px; }
+/* ------------------------------------------------------------- pictures -- */
+.places { margin: 6px 0 18px; }
+.placesTitle { margin: 0 0 8px; }
+.shot {
+  display: block; width: 100%; padding: 0; border: 0; overflow: hidden;
+  border-radius: 14px; background: var(--surface-2); cursor: zoom-in;
+}
+.shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.shotNone { display: grid; place-items: center; color: var(--text-3); cursor: default; }
+.placeLink { color: inherit; text-decoration: none; }
+.placeLink:hover { color: var(--accent); }
+
+/* A few highlights side by side; on a phone they scroll sideways. */
+.cards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.cards .shot { aspect-ratio: 3 / 4; }
+.cards[data-n="2"] .shot { aspect-ratio: 4 / 3; }
+.card { margin: 0; min-width: 0; }
+.card figcaption { display: grid; gap: 1px; margin-top: 8px; line-height: 1.4; }
+
+/* Each place described beside its picture. */
+.plist { list-style: none; margin: 0; padding: 0; }
+.pitem { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); }
+.pitem:first-child { border-top: 0; padding-top: 4px; }
+.thumb { flex: none; width: 112px; }
+.thumb .shot { aspect-ratio: 1; border-radius: 12px; }
+.pbody { min-width: 0; flex: 1; }
+.pbody h4 { margin: 0 0 2px; line-height: 1.4; }
+.pcaption { color: var(--text-2); }
+.ptext { margin-top: 6px; line-height: 1.6; }
+
+@media (max-width: 860px) {
+  .cards { grid-auto-columns: 62%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .cards[data-n="2"] { grid-auto-columns: 80%; }
+  .card { scroll-snap-align: start; }
+  .thumb { width: 84px; }
+}
+
 /* The editor's Expand map pill, reduced to the pill: the map under it is live. */
 .mapCanvas .expand { inset: auto; top: 0; right: 0; cursor: pointer; }
 
