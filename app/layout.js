@@ -3,6 +3,7 @@ import ViewportInsets from '@/components/ViewportInsets';
 import Tips from '@/components/Tips';
 import OfflineNotice from '@/components/OfflineNotice';
 import { browserThemeScript } from '@/lib/browserTheme';
+import { stylesheetRescueScript } from '@/lib/chunkRetry';
 import './globals.css';
 import './motion.css';
 
@@ -75,6 +76,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
+        {/* First, so the stylesheets in <head> have all settled when it runs. */}
+        <script dangerouslySetInnerHTML={{ __html: stylesheetRescueScript }} />
         <script dangerouslySetInnerHTML={{ __html: browserThemeScript }} />
         <ViewportInsets />
         <OfflineNotice />
