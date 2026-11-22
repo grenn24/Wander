@@ -191,6 +191,32 @@
 .dock .input { font-size: var(--fs-md); line-height: 22px; padding-block: calc((var(--row) - 22px) / 2); max-height: 200px; }
 .fine { margin: 6px 0 0; text-align: center; font-size: var(--fs-xs); }
 
+/* ----------------------------------------------------------- attaching -- */
+.composer { display: grid; gap: 8px; }
+.attached { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attached :global(.shotstrip) { margin-top: 0; }
+.fileChip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 240px;
+  padding: 5px 6px 5px 10px; border-radius: 10px; font-size: var(--fs-sm);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-1);
+}
+.fileName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fileChip button {
+  display: grid; place-items: center; width: 20px; height: 20px; padding: 0;
+  border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer;
+}
+.fileChip button:hover { color: var(--text-1); background: var(--surface-1); }
+.sent { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.sent + p { margin-top: 0; }
+.sentShot { width: 96px; height: 96px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; cursor: zoom-in; background: var(--surface-2); }
+.sentShot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The microphone, listening: the box says so, with a still dot and the time. */
+.listening { display: flex; align-items: center; gap: 8px; color: var(--text-1); }
+.recDot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; }
+.recCancel { margin-left: auto; }
+.recOn { color: var(--danger); }
+
 @media (max-width: 860px) {
   .page { min-height: calc(100dvh - var(--topbar-h) - 32px - var(--tabbar-h, 0px)); }
   .mapCanvas { height: 340px; }

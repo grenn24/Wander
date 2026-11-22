@@ -1,7 +1,12 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, History, Sparkles, Square, SquarePen, Trash2 } from 'lucide-react';
+import {
+  ArrowUp, FileText, History, Loader2, Mic, Paperclip, Sparkles, Square, SquarePen, Trash2, X,
+} from 'lucide-react';
+import ShotStrip from '@/components/ShotStrip';
+import Lightbox from '@/components/Lightbox';
+import { ACCEPT, attach, canRecord, useRecorder } from '@/components/askAttach';
 import { useApp } from '@/components/AppProvider';
 import { useTrip } from '@/components/TripProvider';
 import GrowArea from '@/components/GrowArea';
@@ -54,6 +59,14 @@ export default function TripAsk({ trip, days, activities }) {
   const input = useRef(null);
   const end = useRef(null);
   const pinned = useRef(true);
+  // What goes with the next question: photos, PDFs, text files.
+  const [files, setFiles] = useState([]);
+  const [over, setOver] = useState(false); // something is being dragged onto the box
+  const [viewing, setViewing] = useState(null); // { photos, index } from a sent message
+  const picker = useRef(null);
+  // The microphone shows only where the browser can record.
+  const [mic, setMic] = useState(false);
+  useEffect(() => { setMic(canRecord()); }, []);
 
   const today = useMemo(() => zonedNow(trip.timezone || undefined).date, [trip.timezone]);
   const suggestions = useMemo(() => askSuggestions(trip, activities, today), [trip, activities, today]);
@@ -72,14 +85,42 @@ export default function TripAsk({ trip, days, activities }) {
 
   async function send(said) {
     const q = String(said || '').trim();
-    if (!q || busy) return;
+    if ((!q && !files.length) || busy || voice.state !== 'idle') return;
     const t = await token();
     if (!t) { setError('Sign in again to ask about this trip.'); return; }
     setError('');
     setText('');
+    const sending = files;
+    setFiles([]);
     pinned.current = true;
-    ask(q, t);
+    ask(q, t, sending);
   }
+
+  async function take(list) {
+    if (!list || !list.length) return;
+    setError('');
+    const { list: next, why } = await attach(list, files);
+    setFiles(next);
+    if (why) setError(why);
+    input.current?.focus();
+  }
+
+  /*
+   * Talking instead of typing: what was said lands in the box, to be read
+   * and sent like anything typed, rather than going straight to the model.
+   */
+  const hint = useMemo(() => [trip.destination, ...activities.slice(0, 20).map((a) => a.title)]
+    .filter(Boolean).join(', '), [trip.destination, activities]);
+  const voice = useRecorder({
+    token,
+    hint,
+    onText: (said) => {
+      setError('');
+      setText((was) => (was.trim() ? `${was.trimEnd()} ${said}` : said));
+      input.current?.focus();
+    },
+    onError: setError,
+  });
 
   async function askAgain() {
     const t = await token();
@@ -164,24 +205,105 @@ export default function TripAsk({ trip, days, activities }) {
     </Popover>
   );
 
+  const photos = files.filter((a) => a.kind === 'image');
+  const docs = files.filter((a) => a.kind !== 'image');
+  const listening = voice.state === 'listening';
   const box = (
-    <form className="planbox-field" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-      <span className="planbox-spark" aria-hidden="true"><Sparkles size={17} /></span>
-      <GrowArea ref={input} className={`planbox-input ${s.input}`} value={text} maxLength={2000}
-        aria-label="Your question" placeholder={empty ? 'Ask about this trip' : 'Ask a follow-up'}
-        enterKeyHint="send"
-        onChange={(e) => setText(e.target.value)} onSubmit={() => send(text)} />
-      {busy ? (
-        <button type="button" className="btn planbox-go" aria-label="Stop" data-tip="Stop" onClick={stop}>
-          <Square size={14} />
+    <div className={s.composer}>
+      <form className={`planbox-field${over ? ' is-over' : ''}`}
+        onSubmit={(e) => { e.preventDefault(); send(text); }}
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer && e.dataTransfer.files); }}>
+        <span className="planbox-spark" aria-hidden="true"><Sparkles size={17} /></span>
+        {listening ? (
+          <div className={`planbox-input ${s.input} ${s.listening}`} role="status">
+            <span className={s.recDot} aria-hidden="true" />
+            Listening {Math.floor(voice.seconds / 60)}:{String(voice.seconds % 60).padStart(2, '0')}
+            <button type="button" className={`btn ghost sm ${s.recCancel}`} onClick={voice.cancel}>Cancel</button>
+          </div>
+        ) : (
+          <GrowArea ref={input} className={`planbox-input ${s.input}`} value={text} maxLength={2000}
+            aria-label="Your question" placeholder={empty ? 'Ask about this trip' : 'Ask a follow-up'}
+            enterKeyHint="send"
+            onChange={(e) => setText(e.target.value)} onSubmit={() => send(text)}
+            onPaste={(e) => {
+              const pasted = e.clipboardData && e.clipboardData.files;
+              if (pasted && pasted.length) { e.preventDefault(); take(pasted); }
+            }} />
+        )}
+        <input ref={picker} type="file" accept={ACCEPT} multiple hidden
+          onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+        <button className="btn ghost planbox-clip" type="button" disabled={listening}
+          data-tip="Add photos or files" aria-label="Add photos or files"
+          onClick={() => picker.current && picker.current.click()}>
+          <Paperclip size={17} />
         </button>
-      ) : (
-        <button type="submit" className="btn primary planbox-go" aria-label="Ask" disabled={!text.trim()}>
-          <ArrowUp size={18} />
-        </button>
-      )}
-    </form>
+        {mic ? (
+          voice.state === 'working' ? (
+            <button className="btn ghost planbox-clip" type="button" disabled aria-label="Working out what was said">
+              <Loader2 size={17} className="spin" />
+            </button>
+          ) : (
+            <button className={`btn ghost planbox-clip${listening ? ` ${s.recOn}` : ''}`} type="button"
+              disabled={busy}
+              data-tip={listening ? 'Done talking' : 'Talk instead of typing'}
+              aria-label={listening ? 'Done talking' : 'Talk instead of typing'}
+              onClick={listening ? voice.stop : voice.start}>
+              {listening ? <Square size={14} /> : <Mic size={17} />}
+            </button>
+          )
+        ) : null}
+        {busy ? (
+          <button type="button" className="btn planbox-go" aria-label="Stop" data-tip="Stop" onClick={stop}>
+            <Square size={14} />
+          </button>
+        ) : (
+          <button type="submit" className="btn primary planbox-go" aria-label="Ask"
+            disabled={(!text.trim() && !files.length) || voice.state !== 'idle'}>
+            <ArrowUp size={18} />
+          </button>
+        )}
+      </form>
+      {files.length ? (
+        <div className={s.attached}>
+          <ShotStrip shots={photos} onRemove={(i) => setFiles((was) => was.filter((a) => a !== photos[i]))} />
+          {docs.map((a) => (
+            <span key={`${a.name}-${files.indexOf(a)}`} className={s.fileChip}>
+              <FileText size={14} aria-hidden="true" />
+              <span className={s.fileName}>{a.name}</span>
+              <button type="button" aria-label={`Remove ${a.name}`} data-tip="Remove"
+                onClick={() => setFiles((was) => was.filter((x) => x !== a))}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
+
+  // What a sent question carried, under its words: thumbnails and file names.
+  const sentWith = (m) => {
+    const had = m.attachments || [];
+    if (!had.length) return null;
+    const shots = had.filter((a) => a.kind === 'image' && a.thumb).map((a) => ({ url: a.thumb, name: a.name }));
+    return (
+      <div className={s.sent}>
+        {shots.map((p, i) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <button key={i} type="button" className={s.sentShot} aria-label={`Attached photo ${i + 1}`}
+            onClick={() => setViewing({ photos: shots, index: i })}>
+            <img src={p.url} alt="" />
+          </button>
+        ))}
+        {had.filter((a) => a.kind !== 'image').map((a, i) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <span key={i} className={s.fileChip}><FileText size={14} aria-hidden="true" /><span className={s.fileName}>{a.name}</span></span>
+        ))}
+      </div>
+    );
+  };
 
   /*
    * Before the first question the page is the question: one line, the box
@@ -262,7 +384,10 @@ export default function TripAsk({ trip, days, activities }) {
 
       <div className={s.log} aria-live="polite">
         {messages.map((m, i) => (m.role === 'user' ? (
-          <div key={m.id} className={`${g.askMe} ${s.me}`}><p>{m.content}</p></div>
+          <div key={m.id} className={`${g.askMe} ${s.me}`}>
+            {sentWith(m)}
+            {m.content ? <p>{m.content}</p> : null}
+          </div>
         ) : (
           <AskAnswer key={m.id} message={m} last={i === messages.length - 1 && !busy}
             trip={trip} days={days} activities={activities}
@@ -276,6 +401,12 @@ export default function TripAsk({ trip, days, activities }) {
         {box}
         <p className={`small muted ${s.fine}`}>Answers can be wrong. Check times and prices before you rely on them.</p>
       </div>
+
+      {viewing ? (
+        <Lightbox photos={viewing.photos} index={viewing.index} alt="Attached photo"
+          onIndex={(i) => setViewing((v) => (v ? { ...v, index: i } : v))}
+          onClose={() => setViewing(null)} />
+      ) : null}
 
       {doomedShown.value ? (
         <ConfirmModal title="Delete this chat?" confirmLabel="Delete chat" leaving={doomedShown.leaving}

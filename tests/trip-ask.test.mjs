@@ -4,7 +4,31 @@ import { defaultUrlTransform } from 'react-markdown';
 import {
   stopTokens, stopFor, stopHref, STOP_HREF, parseMapSpec, cleanSourceUrl, isCitation, sourceSite,
   tripContext, askSuggestions, askGreetings, tidyCitations, parsePlacesSpec,
+  cleanAttachments, attachmentNote, MAX_TEXT_CHARS,
 } from '../lib/tripAsk.js';
+
+test('attachments are only what they claim to be', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  const pdf = `data:application/pdf;base64,${Buffer.from('%PDF-1.4 hello').toString('base64')}`;
+  const fake = `data:application/pdf;base64,${Buffer.from('<html>not a pdf').toString('base64')}`;
+  const out = cleanAttachments([
+    { kind: 'image', name: 'IMG_1.png', url: png },
+    { kind: 'image', url: 'https://evil.example/x.png' },
+    { kind: 'image', url: 'data:image/svg+xml;base64,PHN2Zz4=' },
+    { kind: 'pdf', name: 'booking.pdf', data: pdf },
+    { kind: 'pdf', name: 'fake.pdf', data: fake },
+    { kind: 'text', name: 'notes\n"x".txt', text: 'Bring the JR pass' },
+    { kind: 'exe', name: 'x', data: 'MZ' },
+    null,
+  ]);
+  assert.deepEqual(out.map((a) => [a.kind, a.name]), [['image', 'IMG_1.png'], ['pdf', 'booking.pdf'], ['text', 'notes x .txt']]);
+  assert.equal(cleanAttachments(Array.from({ length: 6 }, () => ({ kind: 'image', url: png }))).length, 4);
+  const long = cleanAttachments([{ kind: 'text', name: 'a', text: 'x'.repeat(MAX_TEXT_CHARS + 50) }, { kind: 'text', name: 'b', text: 'more' }]);
+  assert.equal(long.length, 1, 'the text budget is shared');
+  assert.equal(long[0].text.length, MAX_TEXT_CHARS);
+  assert.equal(attachmentNote([{ kind: 'image' }, { kind: 'pdf', name: 'booking.pdf' }]), '[Attached: a photo, booking.pdf]');
+  assert.equal(attachmentNote([]), '');
+});
 
 test('a pictures block is read defensively, never with image addresses', () => {
   const cards = parsePlacesSpec(JSON.stringify({

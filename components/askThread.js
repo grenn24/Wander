@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useSyncExternalStore } from 'react';
 import { getClient } from '@/lib/supabase';
+import { attachmentNote } from '@/lib/tripAsk';
 
 /*
  * The trip Assistant's conversations, kept outside the page.
@@ -85,7 +86,8 @@ function mirror(tripId) {
   try {
     const { key, messages } = read(tripId);
     if (messages.length) {
-      sessionStorage.setItem(KEY(tripId), JSON.stringify({ key, chatId: ids.get(key) || null, messages: messages.slice(-40) }));
+      // Without the attached files themselves: a few photos would fill the tab's storage.
+      sessionStorage.setItem(KEY(tripId), JSON.stringify({ key, chatId: ids.get(key) || null, messages: keepable(messages).slice(-40) }));
     } else sessionStorage.removeItem(KEY(tripId));
   } catch { /* full or blocked: the thread still lives in memory */ }
 }
@@ -118,14 +120,19 @@ const missingTable = (error) => !!error && (error.code === '42P01' || error.code
 
 const titleOf = (messages) => {
   const first = messages.find((m) => m.role === 'user');
-  const t = String((first && first.content) || '').replace(/\s+/g, ' ').trim();
+  const said = String((first && first.content) || '').replace(/\s+/g, ' ').trim();
+  // A photo sent on its own is titled by what was sent.
+  const sent = ((first && first.attachments) || [])[0];
+  const t = said || (sent ? (sent.kind === 'image' ? 'A photo' : sent.name) : '');
   return t.length > 80 ? `${t.slice(0, 79)}…` : t;
 };
 
-// What is worth keeping of a turn: not whether a search was under way.
+// What is worth keeping of a turn: not whether a search was under way, and
+// not the attached files themselves — their names and thumbnails stay, the
+// photographs and PDFs do not (a database row is no place for megabytes).
 const keepable = (messages) => messages
   .filter((m) => m.role === 'user' || m.content || m.error)
-  .map(({ searching, ...m }) => m);
+  .map(({ searching, files, ...m }) => m);
 
 export async function loadChats(tripId) {
   const client = getClient();
@@ -193,7 +200,7 @@ function save(tripId) {
  * `token` is the asker's Supabase access token; the route reads the trip
  * with it. `again` re-asks the last question in place of its answer.
  */
-async function run(tripId, question, token, { again = false } = {}) {
+async function run(tripId, question, token, { again = false, attachments = [] } = {}) {
   const s = read(tripId);
   if (s.busy) return;
   let messages = s.messages;
@@ -201,12 +208,23 @@ async function run(tripId, question, token, { again = false } = {}) {
     // Drop the last answer and ask its question again.
     while (messages.length && messages[messages.length - 1].role === 'assistant') messages = messages.slice(0, -1);
   } else {
-    messages = [...messages, { id: uid(), role: 'user', content: question, at: new Date().toISOString() }];
+    messages = [...messages, {
+      id: uid(),
+      role: 'user',
+      content: question,
+      at: new Date().toISOString(),
+      // What is shown and kept: kind, name and a small thumbnail.
+      attachments: attachments.map(({ kind, name, thumb }) => ({ kind, name, ...(thumb ? { thumb } : {}) })),
+      // What is sent: the files themselves, for this request (and Ask again) only.
+      files: attachments.map(({ thumb, ...a }) => a),
+    }];
   }
   const asked = messages[messages.length - 1];
   if (!asked || asked.role !== 'user') return;
-  const history = messages.slice(0, -1).filter((m) => m.content && m.status !== 'error')
-    .map(({ role, content }) => ({ role, content }));
+  // Earlier attachments are named, not sent again.
+  const history = messages.slice(0, -1)
+    .filter((m) => (m.content || (m.attachments || []).length) && m.status !== 'error')
+    .map(({ role, content, attachments: had }) => ({ role, content: [content, attachmentNote(had)].filter(Boolean).join('\n') }));
   set(tripId, {
     ...s,
     busy: true,
@@ -222,7 +240,7 @@ async function run(tripId, question, token, { again = false } = {}) {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ tripId, question: asked.content, history }),
+      body: JSON.stringify({ tripId, question: asked.content, history, attachments: asked.files || [] }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -343,7 +361,7 @@ export function useAskThread(tripId) {
     chatsReady: list.ready,
     canSave: list.canSave,
     load: useCallback(() => loadChats(tripId), [tripId]),
-    ask: useCallback((q, token) => run(tripId, q, token), [tripId]),
+    ask: useCallback((q, token, attachments) => run(tripId, q, token, { attachments: attachments || [] }), [tripId]),
     again: useCallback((token) => run(tripId, '', token, { again: true }), [tripId]),
     stop: useCallback(() => stop(tripId), [tripId]),
     clear: useCallback(() => newChat(tripId), [tripId]),

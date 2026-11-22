@@ -302,6 +302,22 @@ with its turns in `messages` jsonb, private to the person who had it (RLS:
 second answer updates the row the first made. A database without the table
 (`42P01` / `PGRST205`) is not an error: chats just are not kept, as before.
 
+Answers can also show places with Google's photos (` ```places ` blocks,
+`parsePlacesSpec`, `components/AskPlaces.jsx`), found by name through
+`components/askLookup.js` — the same once-per-session lookup the maps use.
+(Not `askPlaces.js`: Windows' case-blind file system resolved `./AskPlaces` to
+it and the page crashed.) A question can carry up to 4 photos (shrunk by
+`lib/image.js`), 3 PDFs (2.5 MB each) or text files: `components/askAttach.js`
+reads them, `cleanAttachments` in `lib/tripAsk.js` checks them again on the
+server, and the route sends them as `input_image` / `input_file` /
+`input_text`. Only names and a 240px thumbnail are saved with the chat; later
+turns get `[Attached: …]` instead of the files. Everything together stays
+under Vercel's 4.5 MB request limit (`MAX_ATTACHED_CHARS`). Word files are not
+read yet. The microphone records with `MediaRecorder` and `/api/transcribe`
+sends it to `gpt-4o-mini-transcribe` (60 an hour per person); the words land
+in the box, unsent. The file name must match the audio type, or OpenAI cannot
+decode it.
+
 **The agreed next step, not yet built:** one bounded tool-use pass after the
 plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
 opening hours and closing days, which the planner currently cannot know and
