@@ -209,6 +209,9 @@
 
 /* ----------------------------------------------------------- attaching -- */
 .composer { display: grid; gap: 8px; }
+/* A little slimmer than the planner's box: the same parts, less air. */
+.composer :global(.planbox-field) { --row: 36px; --pad-t: 9px; --pad-r: 10px; border-radius: 18px; }
+.composer :global(.planbox-go), .composer :global(.planbox-clip) { border-radius: 11px; }
 .attached { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .attached :global(.shotstrip) { margin-top: 0; }
 .fileChip {
