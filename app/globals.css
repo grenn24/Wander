@@ -113,6 +113,12 @@ html, body { height: 100%; }
    the rest of the time the page — chrome included — runs to the edge of the
    window rather than stopping short of an empty strip (lib/useModal). */
 html[data-locked] { scrollbar-gutter: stable; }
+/* A page read like a conversation (the trip Assistant) scrolls without
+   showing the window's scrollbar, the way the day strip and the map panel
+   do; it appeared and vanished as answers grew past the window. Wheel,
+   trackpad, touch and keys all still scroll it. */
+html[data-scrollbar="none"] { scrollbar-width: none; -ms-overflow-style: none; }
+html[data-scrollbar="none"]::-webkit-scrollbar { display: none; }
 
 /*
  * No grey-blue wash over whatever a finger lands on.

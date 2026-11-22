@@ -79,6 +79,14 @@ export default function TripAsk({ trip, days, activities }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // No window scrollbar while the Assistant is open (globals.css); the other
+  // tabs keep theirs.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.scrollbar = 'none';
+    return () => { delete root.dataset.scrollbar; };
+  }, []);
+
   async function token() {
     const { data } = supabase ? await supabase.auth.getSession() : { data: null };
     return data && data.session && data.session.access_token;
