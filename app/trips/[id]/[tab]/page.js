@@ -21,6 +21,7 @@ const MapView = dynamic(() => retryImport(() => import('@/components/MapView')))
 const Budget = dynamic(() => retryImport(() => import('@/components/Budget')));
 const Packing = dynamic(() => retryImport(() => import('@/components/Packing')));
 const Notes = dynamic(() => retryImport(() => import('@/components/Notes')));
+const TripAsk = dynamic(() => retryImport(() => import('@/components/TripAsk')));
 const People = dynamic(() => retryImport(() => import('@/components/People')));
 const CalendarLink = dynamic(() => retryImport(() => import('@/components/CalendarLink')));
 const OfflineDownload = dynamic(() => retryImport(() => import('@/components/OfflineDownload')));
@@ -215,6 +216,10 @@ export default function TripTabPage({ params }) {
 
       {tab === 'notes' ? (
         <Notes trip={trip} activities={activities} onSave={saveNotes} />
+      ) : null}
+
+      {tab === 'assistant' ? (
+        <TripAsk trip={trip} days={days} activities={activities} />
       ) : null}
 
       {editingShown.value ? (

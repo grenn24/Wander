@@ -113,6 +113,12 @@ html, body { height: 100%; }
    the rest of the time the page — chrome included — runs to the edge of the
    window rather than stopping short of an empty strip (lib/useModal). */
 html[data-locked] { scrollbar-gutter: stable; }
+/* A page read like a conversation (the trip Assistant) scrolls without
+   showing the window's scrollbar, the way the day strip and the map panel
+   do; it appeared and vanished as answers grew past the window. Wheel,
+   trackpad, touch and keys all still scroll it. */
+html[data-scrollbar="none"] { scrollbar-width: none; -ms-overflow-style: none; }
+html[data-scrollbar="none"]::-webkit-scrollbar { display: none; }
 
 /*
  * No grey-blue wash over whatever a finger lands on.
@@ -314,6 +320,11 @@ a { color: var(--accent); }
    day headers inside it would never actually stick. */
 .main { flex: 1; min-width: 0; padding: 20px; }
 .wrap { max-width: 940px; margin: 0 auto; }
+/* The trip Assistant's conversation runs to the bottom of the window, where
+   its prompt box is pinned: padding under it lifted the box at the end of a
+   scroll. Its own box clears the phone's tab bar. (:has() counts the inner
+   class, so this outranks the phone's 132px below.) */
+.main:has(.ask-page) { padding-bottom: 0; }
 .page-head { margin-bottom: 16px; }
 
 .tabbar { display: none; }

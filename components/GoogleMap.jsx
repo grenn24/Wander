@@ -236,6 +236,13 @@ function GoogleMapCanvas({
    * problem and should just respond, so the caller decides.
    */
   gestures = 'cooperative',
+  /*
+   * Frame the places as well as the stops. Off on the trip map, where places
+   * are suggestions around the plan and the plan is what you came to see; on
+   * for a map in an answer (the Ask page), where the places are the answer.
+   * Set when the map is made: a place arriving later does not move the view.
+   */
+  fitPlaces = false,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -286,7 +293,7 @@ function GoogleMapCanvas({
     stops, places, focused, focusedPlace, stopColour, placeColour, path, here,
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
-    describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow, onTrainOpen,
+    describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow, onTrainOpen, fitPlaces,
   };
 
   useEffect(() => {
@@ -789,22 +796,26 @@ function GoogleMapCanvas({
     const ids = list.map((a) => a.id).join('|');
     const different = ids !== drawnIds.current;
     drawnIds.current = ids;
+    const extra = latest.current.fitPlaces ? (latest.current.places || []) : [];
+    extra.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+    const framed = list.length + extra.length;
+    const only = framed === 1 ? (list[0] || extra[0]) : null;
     if (latest.current.follow) {
       // nothing to aim at: you are the centre until you say otherwise
-    } else if (list.length === 1 && different && fitted.current) {
+    } else if (only && different && fitted.current) {
       /*
        * A different stop to look at — the first one picked from the list, a
        * day with one stop — is gone to as two would be, not just kept on the
        * screen at whatever zoom showed the whole trip.
        */
-      const at = { lat: list[0].lat, lng: list[0].lng };
+      const at = { lat: only.lat, lng: only.lng };
       owedFit.current = { bounds: new L.LatLngBounds(at, at), most: 16 };
-    } else if (list.length === 1) {
-      owedFit.current = { center: { lat: list[0].lat, lng: list[0].lng } };
-    } else if (list.length > 1 && !bounds.isEmpty()) {
+    } else if (only) {
+      owedFit.current = { center: { lat: only.lat, lng: only.lng } };
+    } else if (framed > 1 && !bounds.isEmpty()) {
       // Stops close together are shown with the streets around them, not fitted to the aprons between them.
       owedFit.current = { bounds, most: 16 };
-    } else if (!list.length && latest.current.look) {
+    } else if (!framed && latest.current.look) {
       owedFit.current = { center: latest.current.look };
     }
     applyFit();

@@ -24,6 +24,7 @@ import { inkOn } from '@/components/mapPin';
 import { searchPlaces, placeDetails } from '@/lib/geo';
 import { readWithSessionRecovery } from '@/lib/sessionRecovery';
 import { retryImport } from '@/lib/chunkRetry';
+import { tripHome } from '@/lib/icons';
 import {
   tripPoints, savedPoints, ideaPoints, overviewCamera, focusCamera, groupCamera, globeCounts,
   tripRoute, routeLegs, stopsNear,
@@ -633,7 +634,7 @@ export default function GlobeView() {
         title: trip.name,
         meta: [fmtRange(trip.start_date, trip.end_date), count].filter(Boolean).join(' · '),
         image: coverURL(trip, 680) || (point.photo_ref ? photoURL(point.photo_ref, 680) : null),
-        href: `/trips/${trip.id}/itinerary`,
+        href: tripHome(trip.id),
         open: 'Open trip',
         target: { tripId: trip.id },
         days,

@@ -271,7 +271,8 @@ code. Nothing is removed — rows, covers and members all stay.
 ## 8. Where the AI work stands
 
 `lib/ai.js` routes each task to a model tier and an effort. `plan`, `command`
-and `ask` use `gpt-5.5`; the quick tasks use `gpt-5.4-mini` (`OPENAI_MODEL`
+and `ask` use `gpt-5.5` at low effort, the trip Assistant (`tripAsk`) at medium;
+the quick tasks use `gpt-5.4-mini` (`OPENAI_MODEL`
 overrides it); the packing list uses `gpt-5.4-nano`. Chosen by measurement on
 22 November 2026 — the evidence is in the comments on each task. The least
 effort is "minimal" on gpt-5 / 5-mini / 5-nano and "none" on every later
@@ -280,8 +281,47 @@ whichever model is called, so write `none` in `TASKS`. The guide service (`scrip
 effort through the Responses API with web search.
 
 Every call is **single-shot structured output** — a strict JSON schema, one
-request, deterministic post-processing. There is no tool-use loop anywhere, and
-that is deliberate: it keeps the app streamable, cheap and debuggable.
+request, deterministic post-processing. There is no tool-use loop of our own
+anywhere, and that is deliberate: it keeps the app streamable, cheap and
+debuggable.
+
+**The one exception is the trip Assistant** (`/trips/<id>/assistant`, the tab a
+trip opens on — `TRIP_HOME` / `tripHome()` in `lib/icons.js`, used by the trips
+list, share links, a new plan and the globe; `components/TripAsk.jsx`, `app/api/trips/ask/route.js`, pure parts in
+`lib/tripAsk.js`). It streams free Markdown, not JSON, from the Responses API
+with OpenAI's *hosted* `web_search` tool — OpenAI runs the searches, so there is
+still no loop on our side. The route reads the trip with the asker's own JWT
+(`asUser`), never from the request, and answers NDJSON lines
+(`text`, `status`, `source`, `done`, `error`). It is read-only: no edit tools,
+and the prompt sends edits to ⌘K. Answers point back into the app two ways:
+`[title](#stop-<token>)` links, where the token is a 6+ character prefix of the
+activity id (`stopTokens`, stable when stops are added), and ` ```map ` blocks of
+JSON naming stops by token and other places by name, which the page looks up
+with `/api/places/search` — model coordinates are never read. The renderer is
+`react-markdown` + `remark-gfm` with no raw HTML and no images. The thread lives
+in `components/askThread.js` (a module store, so an answer keeps streaming
+across tabs; mirrored to `sessionStorage` for reloads, cleared on sign-out).
+Every finished answer is saved to `public.trip_chats`, one row per conversation
+with its turns in `messages` jsonb, private to the person who had it (RLS:
+`user_id = auth.uid()` and still a member). Saves are chained per trip so a
+second answer updates the row the first made. A database without the table
+(`42P01` / `PGRST205`) is not an error: chats just are not kept, as before.
+
+Answers can also show places with Google's photos (` ```places ` blocks,
+`parsePlacesSpec`, `components/AskPlaces.jsx`), found by name through
+`components/askLookup.js` — the same once-per-session lookup the maps use.
+(Not `askPlaces.js`: Windows' case-blind file system resolved `./AskPlaces` to
+it and the page crashed.) A question can carry up to 4 photos (shrunk by
+`lib/image.js`), 3 PDFs (2.5 MB each) or text files: `components/askAttach.js`
+reads them, `cleanAttachments` in `lib/tripAsk.js` checks them again on the
+server, and the route sends them as `input_image` / `input_file` /
+`input_text`. Only names and a 240px thumbnail are saved with the chat; later
+turns get `[Attached: …]` instead of the files. Everything together stays
+under Vercel's 4.5 MB request limit (`MAX_ATTACHED_CHARS`). Word files are not
+read yet. The microphone records with `MediaRecorder` and `/api/transcribe`
+sends it to `gpt-4o-mini-transcribe` (60 an hour per person); the words land
+in the box, unsent. The file name must match the audio type, or OpenAI cannot
+decode it.
 
 **The agreed next step, not yet built:** one bounded tool-use pass after the
 plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
@@ -385,6 +425,12 @@ Match the surrounding code — it is consistent and deliberate.
 - `public/promo/wander-promo.mp4` and its poster were recorded before this
   redesign, so the tour's first scene shows the previous landing page.
   Re-record when convenient.
+
+### Assistant chats (22 November 2026)
+
+- Before deploying, apply `supabase/migrations/20261122090000_trip_chats.sql` to the
+  hosted database (also folded into `schema.sql`). Applied locally. Without it the
+  Assistant still answers but keeps no conversations.
 
 ### Destination times, splits and offline access (5 September 2026)
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import { humanError } from '@/lib/util';
+import { tripHome } from '@/lib/icons';
 
 export default function JoinPage({ params }) {
   const { code } = use(params);
@@ -28,7 +29,7 @@ function Joiner({ code }) {
       const { data, error: err } = await supabase.rpc('join_trip_by_code', { p_code: code });
       if (err) { setError(humanError(err)); return; }
       pushToast('You are in — this trip is now on your list.');
-      router.replace(`/trips/${data}/itinerary`);
+      router.replace(tripHome(data));
     })();
   }, [supabase, code, router, pushToast]);
 

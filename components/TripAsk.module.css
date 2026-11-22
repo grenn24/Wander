@@ -1,0 +1,272 @@
+/*
+ * The trip Assistant. Layout, plus the few things Markdown brings that the
+ * app had no class for (a code block, a stop named in a sentence, a cited
+ * source). Type comes from the six --fs-* steps; the bubble, the prompt box,
+ * the chips and the tables are the app's own (.askMe, .planbox-*, .samplechip,
+ * table.data).
+ */
+
+/*
+ * The conversation fills the window to its bottom edge exactly (the trip
+ * page's bottom padding is taken away for it in globals.css: .ask-page). The
+ * prompt box is pinned to that edge; with the page ending 20px short of it,
+ * the box rose by 20px whenever the reader reached the end.
+ */
+.page {
+  max-width: 760px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  min-height: calc(100dvh - var(--topbar-h) - 20px);
+}
+
+/* The chat's name and its buttons, pinned under the top bar. It starts where
+   it is pinned (reaching up over the page's top padding), so it never moves. */
+.page .head {
+  position: sticky; top: var(--topbar-h); z-index: 6;
+  margin: -20px -12px 6px; padding: 20px 12px 12px;
+  background: linear-gradient(to bottom, var(--surface-0) calc(100% - 12px), transparent);
+}
+.head :global(.page-head-acts) { flex: none; }
+
+/* ---------------------------------------------------------- blank page -- */
+/* One column in the upper middle of the window: the question, the box under
+   it, the starters and the last few chats. Anchored a set distance down
+   rather than centred, so the recent chats arriving a moment after the page
+   add to the bottom instead of nudging the box up. */
+/* No floor to reach down to: the page is as tall as what is on it. */
+.page.blank { max-width: 680px; min-height: 0; }
+.corner { display: flex; justify-content: flex-end; min-height: 32px; }
+/* The greeting and the box land a little above the middle of the window. */
+/* minmax(0, 1fr): a long chat title is cut short, not allowed to widen the
+   column past the edge of a phone. */
+.hero {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px;
+  padding-top: max(16px, calc(40vh - 90px)); padding-bottom: 16px;
+}
+.greet { margin: 0 0 4px; text-align: center; }
+.chips { justify-content: center; margin-top: 0; }
+
+/* Earlier conversations: on the blank page, and in the Chats menu. */
+.recent { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 18px; }
+.chatRow > .small { flex: none; white-space: nowrap; }
+.chatList { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.chatList li { border-bottom: 1px solid var(--border); }
+.chatRow {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%;
+  padding: 10px 2px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.chatRow:hover .chatTitle { color: var(--accent); }
+.chatTitle { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.chatMenu { max-height: min(60dvh, 420px); overflow-y: auto; }
+.chatMenu button[aria-current] { background: var(--surface-2); }
+
+/* The chat's name as the page's heading: one line, cut short, renamed in place. */
+.titled { flex: 1; min-width: 0; margin: 0; }
+.titleButton, .titleInput {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; line-height: inherit;
+}
+.titleButton { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.titleInput { outline: none; border-bottom: 1px solid var(--border-strong); }
+.titleInput:focus { border-bottom-color: var(--accent); }
+
+.log { flex: 1; display: grid; align-content: start; gap: 22px; padding-bottom: 8px; }
+.me { max-width: 85%; font-size: var(--fs-md); }
+/* Scrolled to as the answer grows: clear of the prompt box sitting over the
+   bottom of the window, not under it. */
+.end { scroll-margin-bottom: calc(var(--tabbar-h, 0px) + 130px); }
+
+/* --------------------------------------------------------------- answer -- */
+.answer { min-width: 0; }
+.status { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; }
+.acts { display: flex; gap: 2px; margin-top: 6px; margin-left: -6px; }
+
+.md { font-size: var(--fs-md); line-height: 1.65; color: var(--text-1); overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote { margin: 0 0 12px; }
+.md h3 { margin: 22px 0 8px; line-height: 1.3; }
+.md h4 { margin: 18px 0 6px; line-height: 1.35; }
+.md ul, .md ol { padding-left: 22px; }
+.md li { margin: 3px 0; }
+.md li > p { margin: 0; }
+.md li > ul, .md li > ol { margin: 4px 0 0; }
+.md li:has(> input[type="checkbox"]) { list-style: none; margin-left: -20px; }
+.md input[type="checkbox"] { margin: 0 8px 0 0; vertical-align: -1px; accent-color: var(--accent); }
+.md hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+.md blockquote { padding: 2px 0 2px 12px; border-left: 2px solid var(--accent); color: var(--text-2); }
+.md a { color: var(--accent); text-underline-offset: 2px; }
+.md :not(pre) > code {
+  font-family: var(--font-mono), ui-monospace, monospace; font-size: .9em;
+  padding: 1px 5px; border-radius: 5px; background: var(--surface-2);
+}
+.md strong { font-weight: 650; }
+
+/* Tables scroll sideways on a phone rather than pushing the page wider. */
+.tableWrap { overflow-x: auto; margin: 4px 0 14px; }
+.tableWrap td, .tableWrap th { vertical-align: top; line-height: 1.5; }
+.tableWrap th, .tableWrap td.short { white-space: nowrap; }
+.tableWrap td { min-width: 7em; }
+/* Prose in a cell stays readable on a phone; the table scrolls instead. */
+.tableWrap td.long { min-width: 17em; }
+
+/* A stop in the plan, named in a sentence: it opens that stop. */
+.md a.stop { text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.md a.stop:hover { text-decoration-color: var(--accent); }
+.stop svg { display: inline; vertical-align: -1px; margin-right: 4px; }
+
+.code { margin: 4px 0 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-1); }
+.codeHead { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 2px 12px; border-bottom: 1px solid var(--border); }
+.code pre { margin: 0; padding: 12px; overflow-x: auto; font-size: var(--fs-sm); line-height: 1.55; }
+
+/* A cited source: the site's name, small, beside the claim it supports. */
+.md a.cite, .cite {
+  display: inline-block; vertical-align: 1px; margin: 0 1px; padding: 0 7px;
+  font-size: var(--fs-xs); line-height: 18px; text-decoration: none; white-space: nowrap;
+  color: var(--text-2); background: var(--surface-2); border-radius: 999px;
+}
+.cite:hover { color: var(--text-1); }
+.sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.sources > span { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
+
+/* ------------------------------------------------------------------ map -- */
+.map { margin: 6px 0 16px; }
+.map figcaption { margin: 0 0 6px; }
+.mapFrame { padding: 0; overflow: hidden; }
+/* Tall enough for a place's card (photo, name, Add to trip) to open whole. */
+.mapCanvas { position: relative; height: 400px; }
+/* Waiting holds the map's own height, so nothing below jumps when it draws. */
+.mapWait { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
+.mapNote { height: 120px; }
+/* ------------------------------------------------------------- pictures -- */
+.places { margin: 6px 0 18px; }
+.placesTitle { margin: 0 0 8px; }
+.shot {
+  display: block; width: 100%; padding: 0; border: 0; overflow: hidden;
+  border-radius: 14px; background: var(--surface-2); cursor: zoom-in;
+}
+.shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.shotNone { display: grid; place-items: center; color: var(--text-3); cursor: default; }
+.placeLink { color: inherit; text-decoration: none; }
+.placeLink:hover { color: var(--accent); }
+
+/* A few highlights side by side; on a phone they scroll sideways. */
+.cards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.cards .shot { aspect-ratio: 3 / 4; }
+.cards[data-n="2"] .shot { aspect-ratio: 4 / 3; }
+.card { margin: 0; min-width: 0; }
+.card figcaption { display: grid; gap: 1px; margin-top: 8px; line-height: 1.4; }
+
+/* Each place described beside its picture. */
+.plist { list-style: none; margin: 0; padding: 0; }
+.pitem { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); }
+.pitem:first-child { border-top: 0; padding-top: 4px; }
+.thumb { flex: none; width: 112px; }
+.thumb .shot { aspect-ratio: 1; border-radius: 12px; }
+.pbody { min-width: 0; flex: 1; }
+.pbody h4 { margin: 0 0 2px; line-height: 1.4; }
+.pcaption { color: var(--text-2); }
+.ptext { margin-top: 6px; line-height: 1.6; }
+
+@media (max-width: 860px) {
+  .cards { grid-auto-columns: 62%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .cards[data-n="2"] { grid-auto-columns: 80%; }
+  .card { scroll-snap-align: start; }
+  .thumb { width: 84px; }
+}
+
+/* The editor's Expand map pill, reduced to the pill: the map under it is live. */
+.mapCanvas .expand { inset: auto; top: 0; right: 0; cursor: pointer; }
+
+/* Full size: above the top bar and the phone's tab bar, as the other dialogs are. */
+.full { z-index: 60; }
+.fullBody { flex: 1; min-height: 0; display: flex; }
+.fullMap { position: relative; flex: 1; min-width: 0; }
+.fullList { flex: 0 0 300px; overflow-y: auto; border-left: 1px solid var(--border); }
+.fullList .legend { border-top: 0; }
+@media (max-width: 699px) {
+  .fullBody { flex-direction: column; }
+  .fullList { flex: 0 0 auto; max-height: 36%; border-left: 0; border-top: 1px solid var(--border); }
+}
+
+.legend { list-style: none; margin: 0; padding: 4px; border-top: 1px solid var(--border); }
+.legendRow {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px;
+  border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.legendRow:hover:not(:disabled) { background: var(--surface-2); }
+.legendRow:disabled { cursor: default; }
+.legendText { display: grid; min-width: 0; }
+.legendName { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin, .pinPlace {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font-size: var(--fs-xs);
+}
+.pin { background: var(--pin); color: #fff; }
+.pinPlace { background: var(--surface-2); color: var(--text-2); }
+
+/* ----------------------------------------------------------------- dock -- */
+/*
+ * The box and what is under it. Its backing reaches the bottom of the window
+ * (on a phone, behind the tab bar) and a little past the column on each side:
+ * it used to stop 8px short of the bottom, and a card's border sat exactly on
+ * its edge, so the conversation showed underneath and beside the box.
+ */
+.dock {
+  position: sticky; z-index: 5; bottom: 0;
+  margin: 16px -12px 0;
+  padding: 10px 12px calc(var(--tabbar-h, 0px) + 10px);
+  /* The page fades out above the box rather than ending in a hard edge. */
+  background: linear-gradient(to bottom, transparent, var(--surface-0) 14px);
+}
+.dock .input { font-size: var(--fs-md); line-height: 22px; padding-block: calc((var(--row) - 22px) / 2); max-height: 200px; }
+.fine { margin: 6px 0 0; text-align: center; font-size: var(--fs-xs); }
+
+/* ----------------------------------------------------------- attaching -- */
+.composer { display: grid; gap: 8px; }
+/* A little slimmer than the planner's box: the same parts, less air. */
+.composer :global(.planbox-field) { --row: 36px; --pad-t: 9px; --pad-r: 10px; border-radius: 18px; }
+.composer :global(.planbox-go), .composer :global(.planbox-clip) { border-radius: 11px; }
+.attached { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attached :global(.shotstrip) { margin-top: 0; }
+.fileChip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 240px;
+  padding: 5px 6px 5px 10px; border-radius: 10px; font-size: var(--fs-sm);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-1);
+}
+.fileName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fileChip button {
+  display: grid; place-items: center; width: 20px; height: 20px; padding: 0;
+  border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer;
+}
+.fileChip button:hover { color: var(--text-1); background: var(--surface-1); }
+.sent { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.sent + p { margin-top: 0; }
+.sentShot { width: 96px; height: 96px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; cursor: zoom-in; background: var(--surface-2); }
+.sentShot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The microphone, listening: the box says so, with a still dot and the time. */
+.listening { display: flex; align-items: center; gap: 8px; color: var(--text-1); }
+.recDot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; }
+.recCancel { margin-left: auto; }
+.recOn { color: var(--danger); }
+
+@media (max-width: 860px) {
+  /* A phone's page has 14px above it, not 20. The box's own padding clears
+     the tab bar, so the page still runs to the bottom of the screen. */
+  .page { min-height: calc(100dvh - var(--topbar-h) - 14px); }
+  /* One line, not the phone's usual stack of title over buttons: pinned, a
+     second line is a second strip of the conversation hidden. */
+  .page .head { margin-top: -14px; padding-top: 14px; flex-direction: row; align-items: center; gap: 8px; }
+  /* Icons alone, so the name keeps the width it needs on one line. */
+  .btnWord { display: none; }
+  .mapCanvas { height: 340px; }
+  .me { max-width: 92%; }
+  /* Two lines of a phone's height for a disclaimer is too much to pay. */
+  .fine { display: none; }
+  /* The tab bar takes the foot of a phone, so the middle is higher up. */
+  .hero { padding-top: max(16px, calc(32vh - 90px)); }
+}
+
+@media print {
+  .dock, .acts { display: none; }
+}
