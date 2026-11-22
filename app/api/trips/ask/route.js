@@ -192,7 +192,9 @@ export async function POST(req) {
         model: aiModel('tripAsk'),
         stream: true,
         store: false,
-        max_output_tokens: 8000,
+        // Thinking and words share this budget. At medium effort a model can
+        // spend most of it thinking; too tight a ceiling and the answer is empty.
+        max_output_tokens: 14000,
         ...(aiEffort('tripAsk') ? { reasoning: { effort: aiEffort('tripAsk') } } : {}),
         tools: [{ type: 'web_search' }],
         instructions: `${INSTRUCTIONS}\n\n---\n\n${context}`,
