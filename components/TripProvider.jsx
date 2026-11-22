@@ -10,8 +10,27 @@ import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
 import { removeDownload } from '@/public/offline-store';
 import { lodgingPayload, moveStay } from '@/lib/lodging';
+import { openingDesk } from '@/lib/sharedPlanningDesk';
 
 const Ctx = createContext(null);
+
+/*
+ * What a trip's own pages draw besides the trip: the planning desk beside the
+ * itinerary, and the list of chats on the Assistant, which a trip opens on.
+ * Each keeps a store of its own, and each used to be fetched only once its
+ * page had been drawn, so a Chats button, a Recent list and a margin of notes
+ * all arrived a second after everything else. They are read with the trip
+ * now, and waited for a little past it (EXTRA_MS). One slower than that, or
+ * failing, arrives late the way it did before rather than holding the trip.
+ */
+const EXTRA_MS = 600;
+function openingReads(client, tripId, userId) {
+  return Promise.all([
+    openingDesk(client, tripId, `${userId}:${tripId}`).catch(() => {}),
+    // As a module, so the Assistant's code still loads only with the Assistant.
+    import('@/components/askThread').then((m) => m.loadChats(tripId)).catch(() => {}),
+  ]);
+}
 
 export function useTrip() {
   const ctx = useContext(Ctx);
@@ -45,6 +64,8 @@ export default function TripProvider({ tripId, children }) {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState('');
   const failedLoad = useRef(false);
+  // The trip whose opening reads (see openingReads) have been made.
+  const opened = useRef(null);
   /*
    * "Take me to this activity", held here rather than in the address.
    *
@@ -77,6 +98,7 @@ export default function TripProvider({ tripId, children }) {
     token.current = mine;
     failedLoad.current = false;
     setLoadError('');
+    const extras = opened.current !== id && user?.id ? openingReads(supabase, id, user.id) : null;
     try {
       const [t, a, p, m, h] = await readWithSessionRecovery(supabase, () => Promise.all([
         supabase.from('trips').select('*').eq('id', id).maybeSingle(),
@@ -93,6 +115,10 @@ export default function TripProvider({ tripId, children }) {
         || (isSessionTokenError(h.error) ? h.error : null);
       if (error) throw error;
       if (!t.data) { removeDownload(id).catch(() => {}); setNotFound(true); setLoadedId(id); return; }
+      if (extras) {
+        await Promise.race([extras, new Promise((done) => { setTimeout(done, EXTRA_MS); })]);
+        if (mine !== token.current) return;
+      }
       setNotFound(false);
       setTrip(t.data);
       if (!a.error) setActivities((a.data || []).slice().sort(sortActs));
@@ -103,6 +129,7 @@ export default function TripProvider({ tripId, children }) {
         ...[...pendingHistory.current.values()].filter((row) => row.trip_id === id && row.user_id === user?.id),
       ]));
       setLoadedId(id);
+      opened.current = id;
     } catch (error) {
       if (mine !== token.current) return;
       failedLoad.current = true;
@@ -466,8 +493,17 @@ export default function TripProvider({ tripId, children }) {
   }, []);
   const clearIntent = useCallback(() => setIntent(null), []);
 
+  /*
+   * Who is here: whoever the realtime channel last said, and you, whether or
+   * not it has said so yet. It takes a second or so to say anything, and
+   * starting from nobody put the presence pill into the top bar after the
+   * page, pushing the controls beside it along.
+   */
+  const here = useMemo(() => (!userId || online.some((o) => o.id === userId) ? online
+    : [...online, { id: userId, name: displayName || 'Guest' }]), [online, userId, displayName]);
+
   const value = useMemo(() => ({
-    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, loadError, isOwner,
+    tripId, trip, days, activities, packing, members, agentHistory, online: here, ready, notFound, loadError, isOwner,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     reload: () => load(tripId),
@@ -476,7 +512,7 @@ export default function TripProvider({ tripId, children }) {
     setActivityCoords, addLocatedActivity, addActivities, addPackingItems, appendAgentMessage, updateTrip,
     addPacking, updatePacking, deletePacking, saveNotes, removeMember,
   }), [
-    tripId, trip, days, activities, packing, members, agentHistory, online, ready, notFound, loadError, isOwner, load,
+    tripId, trip, days, activities, packing, members, agentHistory, here, ready, notFound, loadError, isOwner, load,
     focusReq, requestFocus, clearFocus,
     intent, request, clearIntent,
     saveActivity, quickAddActivity, moveActivity, duplicateActivity, deleteActivity, setTransitPick,

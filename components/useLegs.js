@@ -114,7 +114,9 @@ function readChoices() {
 
 /** [choices, choose]: this trip's chosen ways by hop ("fromId>toId"), and choose(hop, mode or null). */
 export function useLegChoices(tripId) {
-  const [all, setAll] = useState(NONE);
+  // Read as the first paint is made, so a hop is drawn the way it was chosen
+  // rather than switching a frame later. Its pages are only drawn in the browser.
+  const [all, setAll] = useState(() => (typeof window === 'undefined' ? NONE : readChoices()));
   useEffect(() => {
     const read = () => setAll(readChoices());
     const stored = (event) => { if (!event.key || event.key === CHOICES) read(); };

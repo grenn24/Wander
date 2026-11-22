@@ -1,11 +1,11 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeftRight, Grip, ImagePlus, Maximize2, Plus, RotateCcw, StickyNote, Trash2, Undo2, X } from 'lucide-react';
 import { useApp } from '@/components/AppProvider';
 import Select from '@/components/Select';
 import { clamp, deskAnchor, deskPosition, readDesk, writeDesk } from '@/lib/planningDesk';
-import { deskChanges, sharedDesk } from '@/lib/sharedPlanningDesk';
+import { deskChanges, keepDesk, sharedDesk, shownDesk } from '@/lib/sharedPlanningDesk';
 import { prepareDeskImage } from '@/lib/deskImages';
 import styles from './PlanningDesk.module.css';
 
@@ -29,16 +29,23 @@ export default function PlanningDesk(props) {
 function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   const { supabase, pushToast } = useApp();
   const remote = useMemo(() => sharedDesk(supabase, tripId), [supabase, tripId]);
-  const [items, setItems] = useState([]);
-  const current = useRef([]);
-  const [ready, setReady] = useState(false);
+  /*
+   * Drawn from the desk as it was last seen, or as the trip read it on the way
+   * in (openingDesk), so the notes are there with the itinerary rather than
+   * arriving after it. Empty only when neither has happened.
+   */
+  const [opened] = useState(() => shownDesk(storageKey));
+  const [items, setItems] = useState(() => opened?.items || []);
+  const current = useRef(items);
+  const [ready, setReady] = useState(() => !!opened?.ready);
   const [selected, setSelected] = useState(null);
   const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(() => (opened?.ready ? 'Shared with everyone in this trip' : ''));
   const [preparing, setPreparing] = useState(0);
   const [error, setError] = useState('');
   const [deleted, setDeleted] = useState(null);
   const [bounds, setBounds] = useState({ wide: false, left: 0, width: 0, lane: 0, height: 600, anchors: {} });
+  const anchor = useRef(null);
   const fileInput = useRef(null);
   const uploadTarget = useRef(null);
   const dialogRef = useRef(null);
@@ -54,6 +61,8 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   useEffect(() => {
     alive.current = true;
     let cancelled = false, loaded = false, loading = false, request = 0;
+    // Drawn ready from a desk already read: only fresh rows and its pictures are to come.
+    let seeded = !!opened?.ready;
     async function refresh() {
       if (!loaded || pending.current.length || current.current !== baseline.current) return;
       const version = revision.current, mine = ++request;
@@ -65,10 +74,12 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     }
     async function load() {
       if (loading || cancelled) return;
+      if (seeded) { seeded = false; loaded = true; refresh(); return; }
       loading = true;
       try {
-        // Check trip access before touching the local prototype data.
-        await remote.load();
+        // Check trip access before touching the local prototype data. A desk
+        // the trip has read already has had it checked.
+        if (!opened) await remote.load();
         const local = await readDesk(storageKey);
         if (cancelled) return;
         if (local.length) {
@@ -117,6 +128,8 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     } finally { saving.current = false; }
   }
   function retry() { if (ready) persist(current.current); else reloadRef.current(); }
+  // What the next desk drawn for this trip starts from.
+  useEffect(() => { if (ready) keepDesk(storageKey, items); }, [ready, items, storageKey]);
   function change(next, save = true) {
     revision.current += 1;
     current.current = next; setItems(next);
@@ -126,8 +139,14 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
     change(current.current.map(item => item.id === id ? { ...item, ...values } : item), save);
   }
 
-  useEffect(() => {
-    const itinerary = containerRef.current;
+  /*
+   * Measured before the first paint, so the margins are drawn with the
+   * itinerary instead of a frame after it. The itinerary's ref is not attached
+   * yet at that point — React attaches a parent's refs after its children's
+   * layout effects — so the first measurement finds it from the button.
+   */
+  useLayoutEffect(() => {
+    const itinerary = containerRef.current || anchor.current?.closest('.itin');
     const main = itinerary?.closest('.main');
     if (!itinerary || !main) return;
     let frame;
@@ -310,7 +329,7 @@ function Desk({ containerRef, storageKey, tripId, days, activeDay }) {
   </div>;
 
   return <>
-    <button type="button" className="btn sm" onClick={() => setOpen(true)}><StickyNote size={15} /> Planning desk{items.length ? ` · ${items.length}` : ''}</button>
+    <button ref={anchor} type="button" className="btn sm" onClick={() => setOpen(true)}><StickyNote size={15} /> Planning desk</button>
     <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onChange={event => { images(event.target.files, uploadTarget.current); event.target.value = ''; }} />
     {bounds.wide ? <div className={styles.canvas} style={{ left: bounds.left, width: bounds.width, height: bounds.height }}>
       {['left','right'].map(side => <div key={side} className={styles.lane} style={{ width: bounds.lane, [side]: 0 }}

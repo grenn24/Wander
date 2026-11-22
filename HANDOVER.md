@@ -170,6 +170,14 @@ stupid" reports turned out to be one of them.
    got "Open Wander" 26 seconds after the page loaded. Storage is the truth:
    the SDK removes a session the server rejects and leaves one it could not
    reach.
+   Inside a trip, a tab's own data (the planning desk, the Assistant's list of
+   chats) is read with the trip itself, in `openingReads` in
+   `components/TripProvider.jsx`, into the store each keeps, and the trip
+   waits up to `EXTRA_MS` past its own reads for them. Something new a tab
+   draws from its own fetch belongs there too, not in an effect after mount.
+   The desk also keeps the last desk it drew (`shownDesk` in
+   `lib/sharedPlanningDesk.js`), so going back to the itinerary does not drop
+   the notes in again. Presence includes you from the start.
 
 ---
 

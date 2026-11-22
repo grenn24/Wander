@@ -65,9 +65,10 @@ export default function TripAsk({ trip, days, activities }) {
   const [viewing, setViewing] = useState(null); // { photos, index } from a sent message
   const [naming, setNaming] = useState(null); // the title being typed, while renaming
   const picker = useRef(null);
-  // The microphone shows only where the browser can record.
-  const [mic, setMic] = useState(false);
-  useEffect(() => { setMic(canRecord()); }, []);
+  // The microphone shows only where the browser can record. Known in the
+  // first paint: this page is only ever drawn in the browser, once signed in,
+  // so there is no server render for it to disagree with.
+  const [mic] = useState(canRecord);
 
   const today = useMemo(() => zonedNow(trip.timezone || undefined).date, [trip.timezone]);
   const suggestions = useMemo(() => askSuggestions(trip, activities, today), [trip, activities, today]);

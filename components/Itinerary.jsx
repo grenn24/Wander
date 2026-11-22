@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   MoreHorizontal, MapPin, Printer, Settings, LocateFixed, Copy, Trash2, Clock, BedDouble,
@@ -190,7 +190,8 @@ export default function Itinerary({
       + (stripRef.current ? stripRef.current.getBoundingClientRect().height : 0);
   }
 
-  useEffect(() => {
+  // Before the first paint, so the day strip opens with its day already marked.
+  useLayoutEffect(() => {
     if (!days.length) return undefined;
     let raf = 0;
     const update = () => {

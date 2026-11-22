@@ -42,12 +42,19 @@ const STATUS_LABEL = { current: 'Under way', upcoming: 'Upcoming', past: 'Past',
  * rather than something about the trips.
  */
 const VIEW_KEY = 'wander:trips-view';
+function readView() {
+  try {
+    const saved = typeof window === 'undefined' ? null : localStorage.getItem(VIEW_KEY);
+    return saved === 'cards' ? 'cards' : 'list';
+  } catch (e) { return 'list'; /* storage off; use the default list */ }
+}
 
 export default function TripsHome() {
   const { supabase, user, sessionRevision, fail, pushToast } = useApp();
   const router = useRouter();
   const [trips, setTrips] = useState([]);
-  const [view, setView] = useState('list'); // cards | list
+  // cards | list. Read in the first paint, for the same reason as knownCount below.
+  const [view, setView] = useState(readView);
   /*
    * How many trips there were last time this device looked, so the line under
    * the heading is there in the first paint rather than filling in when they
@@ -186,15 +193,6 @@ export default function TripsHome() {
     return () => { loadToken.current += 1; };
   }, [load]);
   useEffect(() => { if (failedLoad.current) load(); }, [sessionRevision, load]);
-
-  /* Read after mount, not during render: the server has no localStorage and
-     would send markup the first client render then disagreed with. */
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved === 'list' || saved === 'cards') setView(saved);
-    } catch (e) { /* storage off; use the default list */ }
-  }, []);
 
   /* Heart a trip on the spot; if the database refuses, the heart goes back. */
   async function favourite(t, on) {
