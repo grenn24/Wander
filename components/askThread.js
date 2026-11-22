@@ -74,7 +74,7 @@ function read(tripId) {
       const messages = saved.messages.map((m) => (m.role === 'assistant' && m.status === 'writing'
         ? { ...m, status: m.content ? 'stopped' : 'error', error: m.content ? '' : 'This answer did not finish.' }
         : m));
-      state = { key: saved.key || uid(), messages, busy: false };
+      state = { key: saved.key || uid(), messages, busy: false, title: saved.title || '' };
       if (saved.chatId) ids.set(state.key, saved.chatId);
     }
   } catch { /* storage blocked or corrupt: start empty */ }
@@ -84,10 +84,10 @@ function read(tripId) {
 
 function mirror(tripId) {
   try {
-    const { key, messages } = read(tripId);
+    const { key, messages, title } = read(tripId);
     if (messages.length) {
       // Without the attached files themselves: a few photos would fill the tab's storage.
-      sessionStorage.setItem(KEY(tripId), JSON.stringify({ key, chatId: ids.get(key) || null, messages: keepable(messages).slice(-40) }));
+      sessionStorage.setItem(KEY(tripId), JSON.stringify({ key, title: title || '', chatId: ids.get(key) || null, messages: keepable(messages).slice(-40) }));
     } else sessionStorage.removeItem(KEY(tripId));
   } catch { /* full or blocked: the thread still lives in memory */ }
 }
@@ -157,9 +157,11 @@ export async function loadChats(tripId) {
  * the row the first one made rather than making another.
  */
 function save(tripId) {
-  const { key, messages } = read(tripId);
+  const { key, messages, title: named } = read(tripId);
   const snapshot = keepable(messages);
   if (!snapshot.length) return Promise.resolve();
+  // The chat's own name when it has one, its first question until then.
+  const title = named || titleOf(snapshot);
   const run = async () => {
     const list = lists.get(tripId) || NO_LIST;
     const client = getClient();
@@ -167,15 +169,14 @@ function save(tripId) {
     const now = new Date().toISOString();
     const id = ids.get(key);
     if (id) {
-      const { error } = await client.from('trip_chats').update({ messages: snapshot, updated_at: now }).eq('id', id);
+      const { error } = await client.from('trip_chats').update({ messages: snapshot, title, updated_at: now }).eq('id', id);
       if (error) { console.warn('[assistant] could not save the chat:', error.message); return; }
       const rest = (lists.get(tripId) || NO_LIST).chats.filter((c) => c.id !== id);
-      const was = (lists.get(tripId) || NO_LIST).chats.find((c) => c.id === id);
-      setList(tripId, { chats: [{ ...(was || { id, title: titleOf(snapshot) }), updated_at: now }, ...rest] });
+      setList(tripId, { chats: [{ id, title, updated_at: now }, ...rest] });
       return;
     }
     const { data, error } = await client.from('trip_chats')
-      .insert({ trip_id: tripId, title: titleOf(snapshot), messages: snapshot })
+      .insert({ trip_id: tripId, title, messages: snapshot })
       .select('id, title, updated_at').single();
     if (error) {
       if (missingTable(error)) setList(tripId, { canSave: false });
@@ -240,7 +241,10 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ tripId, question: asked.content, history, attachments: asked.files || [] }),
+      // A chat without a name yet is named from its first question.
+      body: JSON.stringify({
+        tripId, question: asked.content, history, attachments: asked.files || [], wantTitle: !history.length && !s.title,
+      }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -260,6 +264,11 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
       else if (ev.type === 'source') patchLast(tripId, (m) => ({ ...m, sources: [...(m.sources || []), { url: ev.url, title: ev.title }] }));
       else if (ev.type === 'error') failed = ev.message || 'Something went wrong. Please try again.';
       else if (ev.type === 'done') cut = !!ev.cut;
+      else if (ev.type === 'title' && ev.title) {
+        const now = read(tripId);
+        // Unless they have named it themselves in the meantime.
+        if (!now.title) set(tripId, { ...now, title: String(ev.title).slice(0, 80) }, true);
+      }
     };
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
@@ -323,11 +332,29 @@ async function openChat(tripId, chatId) {
   await settle(tripId);
   const client = getClient();
   if (!client) return false;
-  const { data, error } = await client.from('trip_chats').select('id, messages').eq('id', chatId).maybeSingle();
+  const { data, error } = await client.from('trip_chats').select('id, title, messages').eq('id', chatId).maybeSingle();
   if (error || !data) return false;
   const key = uid();
   ids.set(key, data.id);
-  set(tripId, { key, messages: Array.isArray(data.messages) ? data.messages : [], busy: false }, true);
+  set(tripId, { key, messages: Array.isArray(data.messages) ? data.messages : [], busy: false, title: data.title || '' }, true);
+  return true;
+}
+
+/**
+ * Name the open conversation. Saved at once when it is already saved;
+ * otherwise it goes with the first save.
+ */
+async function renameChat(tripId, title) {
+  const name = String(title || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const s = read(tripId);
+  if (!name || name === s.title) return true;
+  set(tripId, { ...s, title: name }, true);
+  const id = ids.get(s.key);
+  const client = getClient();
+  if (!id || !client) return true;
+  const { error } = await client.from('trip_chats').update({ title: name }).eq('id', id);
+  if (error) { console.warn('[assistant] could not rename the chat:', error.message); return false; }
+  setList(tripId, { chats: (lists.get(tripId) || NO_LIST).chats.map((c) => (c.id === id ? { ...c, title: name } : c)) });
   return true;
 }
 
@@ -356,6 +383,7 @@ export function useAskThread(tripId) {
   return {
     messages: state.messages,
     busy: state.busy,
+    title: state.title || '',
     chatId: ids.get(state.key) || null,
     chats: list.chats,
     chatsReady: list.ready,
@@ -367,5 +395,6 @@ export function useAskThread(tripId) {
     clear: useCallback(() => newChat(tripId), [tripId]),
     open: useCallback((id) => openChat(tripId, id), [tripId]),
     remove: useCallback((id) => removeChat(tripId, id), [tripId]),
+    rename: useCallback((title) => renameChat(tripId, title), [tripId]),
   };
 }

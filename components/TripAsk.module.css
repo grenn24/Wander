@@ -45,6 +45,16 @@
 .chatMenu { max-height: min(60dvh, 420px); overflow-y: auto; }
 .chatMenu button[aria-current] { background: var(--surface-2); }
 
+/* The chat's name as the page's heading: one line, cut short, renamed in place. */
+.titled { flex: 1; min-width: 0; margin: 0; }
+.titleButton, .titleInput {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; line-height: inherit;
+}
+.titleButton { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.titleInput { outline: none; border-bottom: 1px solid var(--border-strong); }
+.titleInput:focus { border-bottom-color: var(--accent); }
+
 .log { flex: 1; display: grid; align-content: start; gap: 22px; padding-bottom: 8px; }
 .me { max-width: 85%; font-size: var(--fs-md); }
 /* Scrolled to as the answer grows: clear of the prompt box sitting over the

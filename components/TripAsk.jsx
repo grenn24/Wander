@@ -48,7 +48,7 @@ export default function TripAsk({ trip, days, activities }) {
   const { supabase } = useApp();
   const { request } = useTrip();
   const {
-    messages, busy, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load,
+    messages, busy, title, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load, rename,
   } = useAskThread(trip.id);
   const empty = !messages.length;
   const [text, setText] = useState('');
@@ -63,6 +63,7 @@ export default function TripAsk({ trip, days, activities }) {
   const [files, setFiles] = useState([]);
   const [over, setOver] = useState(false); // something is being dragged onto the box
   const [viewing, setViewing] = useState(null); // { photos, index } from a sent message
+  const [naming, setNaming] = useState(null); // the title being typed, while renaming
   const picker = useRef(null);
   // The microphone shows only where the browser can record.
   const [mic, setMic] = useState(false);
@@ -356,7 +357,25 @@ export default function TripAsk({ trip, days, activities }) {
   return (
     <div className={s.page}>
       <div className="page-head spread">
-        <h2>Assistant</h2>
+        {/* The chat's name, written for it from its first question; clicking
+            it renames it. "Assistant" only until it has one. */}
+        <h2 className={s.titled}>
+          {naming !== null ? (
+            <input className={s.titleInput} value={naming} maxLength={80} autoFocus
+              aria-label="Chat name"
+              onChange={(e) => setNaming(e.target.value)}
+              onBlur={() => { if (naming.trim()) rename(naming); setNaming(null); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                if (e.key === 'Escape') { e.preventDefault(); setNaming(null); }
+              }} />
+          ) : (
+            <button type="button" className={s.titleButton} data-tip="Rename this chat"
+              onClick={() => setNaming(title || '')}>
+              {title || 'Assistant'}
+            </button>
+          )}
+        </h2>
         {chats.length || !empty ? (
           <div className="page-head-acts">
             {chats.length ? (
