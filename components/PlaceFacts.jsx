@@ -30,7 +30,7 @@ function host(url) {
 }
 
 /** Five stars with the average poured into them. */
-function Stars({ value, size = 13 }) {
+export function Stars({ value, size = 13 }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
   const row = (fill) => (
     <span className="stars-row" aria-hidden="true">
@@ -47,7 +47,14 @@ function Stars({ value, size = 13 }) {
   );
 }
 
-export default function PlaceFacts({ details }) {
+/*
+ * The place panel beside a map (components/PlacePanel) says the score and the
+ * contacts in its own head, so it can leave either out here; and it is on a
+ * map already, so it has no use for the way out to Google's.
+ */
+export default function PlaceFacts({
+  details, score = true, contact = true, link = true,
+}) {
   const [all, setAll] = useState(false);
   if (!details) return null;
 
@@ -55,20 +62,20 @@ export default function PlaceFacts({ details }) {
     rating, ratings, reviews = [], mapsUri, phone, dial, website,
   } = details;
   // A place with a phone number and no reviews still has something to say.
-  if (rating == null && !reviews.length && !phone && !website) return null;
+  if ((!score || rating == null) && !reviews.length && (!contact || (!phone && !website))) return null;
 
   const list = all ? reviews : reviews.slice(0, SHOWN);
 
   return (
     <div className="facts">
-      {rating != null ? (
+      {score && rating != null ? (
         <div className="facts-score">
           <span className="facts-num">{rating.toFixed(1)}</span>
           <Stars value={rating} />
           <span className="tiny dim">
             {ratings ? `${ratings.toLocaleString()} review${ratings === 1 ? '' : 's'}` : ''}
           </span>
-          {mapsUri ? (
+          {link && mapsUri ? (
             <a className="facts-link" href={mapsUri} target="_blank" rel="noreferrer"
               data-tip="Open in Google Maps">
               <ExternalLink size={13} aria-hidden="true" />
@@ -87,7 +94,7 @@ export default function PlaceFacts({ details }) {
         * way to an address would be to go and read the site, which is not
         * something this app should be doing on anyone's behalf.
         */}
-      {phone || website ? (
+      {contact && (phone || website) ? (
         <div className="facts-contact">
           {phone ? (
             <a className="btn sm" href={`tel:${dial || phone}`} data-tip="Call">

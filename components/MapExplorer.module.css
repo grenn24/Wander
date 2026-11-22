@@ -1,0 +1,74 @@
+/*
+ * The map explorer (MapExplorer.jsx) and its place panel (PlacePanel.jsx).
+ * Layout only: the shell is the editor's expanded map, and type, buttons,
+ * rows and reviews are the app's own classes.
+ */
+/* Above the top bar and the phone's tab bar, as the other dialogs are. */
+.full { z-index: 60; }
+.body { flex: 1; min-height: 0; display: flex; }
+.map { position: relative; flex: 1; min-width: 0; }
+.side {
+  flex: 0 0 384px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  border-left: 1px solid var(--border);
+}
+
+/* On a phone the column sits under the map, taller while a place is open. */
+@media (max-width: 699px) {
+  .body { flex-direction: column; }
+  .side { flex: 0 0 auto; max-height: 40%; border-left: 0; border-top: 1px solid var(--border); }
+  .body:not([data-view="list"]) .side { max-height: 58%; }
+}
+
+/* ---------------------------------------------------------------- list -- */
+.list { padding: 10px 0 4px; }
+.search { margin: 0 10px 10px; }
+.listHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 6px; }
+.hint { margin: 6px 14px 12px; }
+.foundList { display: grid; gap: 6px; }
+.list .foundList { padding: 0 10px 10px; }
+.found { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.foundText { display: grid; min-width: 0; flex: 1; }
+
+/* --------------------------------------------------------------- place -- */
+.panel { display: grid; gap: 12px; align-content: start; padding: 10px 16px 20px; }
+.back { justify-self: start; margin-left: -8px; max-width: 100%; }
+.head { display: grid; gap: 3px; min-width: 0; }
+.head h3 { margin: 0; line-height: 1.3; }
+.head :global(.facts-score) { margin: 0; }
+.nameWait { height: 22px; width: 62%; }
+
+/* One large photo, and up to four under it. */
+.gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: 184px; grid-auto-rows: 62px; gap: 4px; margin: 0 -6px; }
+.gallery[data-n="1"] { grid-template-rows: 200px; }
+.shot {
+  display: block; padding: 0; border: 0; overflow: hidden; min-width: 0;
+  border-radius: 10px; background: var(--surface-2); cursor: zoom-in;
+}
+.shot:first-child { grid-column: 1 / -1; }
+.shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.galleryWait { height: 184px; border-radius: 10px; margin: 0 -6px; }
+
+.open { color: var(--good); }
+.closed { color: var(--danger); display: inline-flex; align-items: center; gap: 5px; }
+.actions { gap: 6px; }
+.summary { margin: 0; color: var(--text-2); line-height: 1.55; }
+
+/* Address, hours and contacts: one row each, as a map app lists them. */
+.rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.rows li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.rows li > svg { flex: none; margin-top: 2px; color: var(--text-3); }
+.rows li > :global(.btn) { flex: none; margin: -4px 0; }
+.rowText { flex: 1; min-width: 0; display: grid; gap: 4px; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.hoursToggle { justify-self: start; color: inherit; }
+.flip { transform: rotate(180deg); }
+.week { display: grid; gap: 3px; margin-top: 4px; }
+.weekRow { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); }
+.weekRow[aria-current] { color: var(--text-1); }
+.reviews h4 { margin: 0; }
+.reviews :global(.facts) { margin-top: 6px; }
+
+/* ---------------------------------------------------- directions, near -- */
+.field { display: grid; }
+.field :global(.label) { margin-bottom: 5px; }
+.ways, .kinds { gap: 6px; }
+.result { display: grid; gap: 6px; min-height: 28px; }

@@ -1,10 +1,17 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Lightbox from '@/components/Lightbox';
-import { centreOf, categoryOf, lookup, mapsLink, useSeen } from '@/components/askLookup';
+import { centreOf, categoryOf, located, lookup, useSeen } from '@/components/askLookup';
+import { dayColor, googleMapsAvailable } from '@/components/GoogleMap';
 import { activityIcon, categoryIcon } from '@/lib/icons';
+import { retryImport } from '@/lib/chunkRetry';
 import { stopFor } from '@/lib/tripAsk';
+import { fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import s from './TripAsk.module.css';
+
+// The map a name opens on, fetched only when one is clicked.
+const MapExplorer = dynamic(() => retryImport(() => import('./MapExplorer')), { ssr: false });
 
 const photoUrl = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w=${w}`;
 
@@ -17,11 +24,14 @@ const photoUrl = (ref, w) => `/api/places/photo?ref=${encodeURIComponent(ref)}&w
  * per session and only when the block is scrolled to. Tapping one opens the
  * app's photo viewer, which credits the photographer.
  */
-export default function AskPlaces({ spec, trip, activities, inline, onOpenStop }) {
+export default function AskPlaces({
+  spec, trip, days = [], activities, inline, onOpenStop, onAddPlace,
+}) {
   const box = useRef(null);
   const seen = useSeen(box);
   const [found, setFound] = useState(null); // { [key]: place | null }
   const [shots, setShots] = useState(null);
+  const [mapAt, setMapAt] = useState(null); // the place a name opened the map on
 
   const items = useMemo(() => spec.places.map((p, i) => {
     if (p.stop) {
@@ -79,20 +89,63 @@ export default function AskPlaces({ spec, trip, activities, inline, onOpenStop }
     return <span className={`${s.shot} ${s.shotNone}`} aria-hidden="true"><Icon size={22} /></span>;
   }
 
-  // A stop opens itself in the itinerary; anything else, its page on Google Maps.
+  /*
+   * The same places as a map, for a name to open on: stops pinned with their
+   * number in their day's colour, anything else where the search found it.
+   * The rows are the map card's (components/AskLegend).
+   */
+  const atlas = useMemo(() => {
+    let n = 0;
+    const rows = items.map((it) => {
+      const hit = found && found[it.key];
+      if (it.stop) {
+        const a = it.stop;
+        const pinned = located(a);
+        if (pinned) n += 1;
+        return {
+          key: it.key, kind: 'stop', title: a.title, label: pinned ? n : null,
+          colour: dayColor(Math.max(0, days.indexOf(a.day)), days.length),
+          meta: [fmtDayTiny(a.day), a.start_time ? fmtTime(a.start_time) : '', shortPlace(a.location), pinned ? '' : 'No location'].filter(Boolean).join(' · '),
+          target: {
+            id: a.id, kind: 'stop', name: a.title, lat: pinned ? Number(a.lat) : null, lng: pinned ? Number(a.lng) : null,
+            place_id: a.place_id || (hit && hit.place_id) || null, photo_ref: it.ref || (hit && hit.photo_ref) || '',
+            category: a.category, address: a.location || '', stop: a,
+          },
+        };
+      }
+      const category = hit ? categoryOf(hit.primary_type) : '';
+      return {
+        key: it.key, kind: 'place', title: it.title, category,
+        meta: hit ? shortPlace(hit.label) : found ? 'Not found on the map' : '',
+        target: hit ? {
+          id: `pic-${it.key}`, kind: 'place', name: it.title, lat: hit.lat, lng: hit.lng, place_id: hit.place_id,
+          photo_ref: hit.photo_ref, photos: hit.photos, category, address: hit.label,
+        } : null,
+      };
+    });
+    const stops = rows.filter((r) => r.kind === 'stop' && r.label).map((r) => ({
+      ...r.target.stop, lat: r.target.lat, lng: r.target.lng, pinLabel: r.label, _colour: r.colour,
+    }));
+    const places = rows.filter((r) => r.kind === 'place' && r.target).map((r) => ({
+      ...r.target, detail: shortPlace(r.target.address), location: r.target.address,
+    }));
+    return { rows, stops, places, byKey: Object.fromEntries(rows.map((r) => [r.key, r.target])) };
+  }, [items, found, days]);
+
+  /*
+   * A name opens its place on the map, described in full, as the map card's
+   * list does; nothing here leaves for Google Maps. A stop with no position
+   * and no key to draw a map still opens itself in the itinerary.
+   */
   function named(it, children) {
-    if (it.stop) {
-      return (
-        <a className={s.placeLink} href={`/trips/${trip.id}/itinerary?focus=${encodeURIComponent(it.stop.id)}`}
-          onClick={(e) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-            e.preventDefault();
-            onOpenStop(it.stop);
-          }}>{children}</a>
-      );
+    const target = atlas.byKey[it.key];
+    if (target && googleMapsAvailable()) {
+      return <button type="button" className={s.placeLink} onClick={() => setMapAt(target)}>{children}</button>;
     }
-    const hit = found && found[it.key];
-    return <a className={s.placeLink} href={mapsLink(it.title, hit && hit.place_id)} target="_blank" rel="noopener noreferrer">{children}</a>;
+    if (it.stop) {
+      return <button type="button" className={s.placeLink} onClick={() => onOpenStop(it.stop)}>{children}</button>;
+    }
+    return children;
   }
 
   return (
@@ -131,6 +184,11 @@ export default function AskPlaces({ spec, trip, activities, inline, onOpenStop }
         <Lightbox photos={shots.photos} index={shots.index} alt={shots.title}
           onIndex={(i) => setShots((v) => (v ? { ...v, index: i } : v))}
           onClose={() => setShots(null)} />
+      ) : null}
+      {mapAt ? (
+        <MapExplorer title={spec.title} stops={atlas.stops} places={atlas.places} rows={atlas.rows} start={mapAt}
+          days={days} activities={activities} onOpenStop={onOpenStop} onAddPlace={onAddPlace}
+          onClose={() => setMapAt(null)} />
       ) : null}
     </div>
   );

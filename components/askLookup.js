@@ -74,6 +74,3 @@ export function useSeen(ref) {
   }, [ref, seen]);
   return seen;
 }
-
-/** A Google Maps page for a place, for a name to link to. */
-export const mapsLink = (name, placeId) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}${placeId ? `&query_place_id=${encodeURIComponent(placeId)}` : ''}`;

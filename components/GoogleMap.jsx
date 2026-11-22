@@ -243,6 +243,26 @@ function GoogleMapCanvas({
    * Set when the map is made: a place arriving later does not move the view.
    */
   fitPlaces = false,
+  /*
+   * For a map with a place panel beside it (components/MapExplorer), all off
+   * unless asked for, so every other map behaves as it did:
+   *   cards         false: a marker click only selects (onFocus/onPlaceFocus);
+   *                 the panel says what the callout would have
+   *   onPoiClick    Google's own points of interest become clickable:
+   *                 ({ placeId, lat, lng }) instead of Google's callout
+   *   streetView    { lat, lng }: Street View looking at that point, in the map
+   *   onStreetView  'open' | 'none' (no imagery there) | 'closed'
+   *   fitTo         { key, points }: framed once per key (results to look at)
+   *   placeActionLabel, stopActionLabel   the callouts' button, when it is not
+   *                 "Add to trip" or "Open activity"
+   */
+  cards = true,
+  onPoiClick,
+  streetView = null,
+  onStreetView,
+  fitTo = null,
+  placeActionLabel,
+  stopActionLabel,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -294,6 +314,7 @@ function GoogleMapCanvas({
     look, follow, onFollowBreak, onRotatable,
     onFocus, onPlaceFocus, onPlaceAdd, onViewport, onDropPin,
     describeStop, onStopOpen, onPhoto, routeLines, covered, onTrainShow, onTrainOpen, fitPlaces,
+    cards, onPoiClick, onStreetView, placeActionLabel, stopActionLabel,
   };
 
   useEffect(() => {
@@ -315,7 +336,8 @@ function GoogleMapCanvas({
         // full-bleed map is a widget sitting on a photograph.
         disableDefaultUI: true,
         zoomControl: false,
-        clickableIcons: false,
+        // Google's own shops and sights, only where something answers a click on them.
+        clickableIcons: !!latest.current.onPoiClick,
         gestureHandling: gestures,
       });
       /*
@@ -324,7 +346,15 @@ function GoogleMapCanvas({
        * take the focus off a field, or by simply missing a marker — and every
        * one of those used to leave a new point behind.
        */
-      mapRef.current.addListener('click', () => {
+      mapRef.current.addListener('click', (e) => {
+        // One of Google's places: ours to describe, not Google's callout.
+        const poi = latest.current.onPoiClick;
+        if (e && e.placeId && poi) {
+          e.stop();
+          if (shownFor.current) closeInfo();
+          poi({ placeId: e.placeId, lat: e.latLng ? e.latLng.lat() : null, lng: e.latLng ? e.latLng.lng() : null });
+          return;
+        }
         if (shownFor.current) closeInfo();
       });
       /*
@@ -491,9 +521,71 @@ function GoogleMapCanvas({
     mapRef.current.panTo({ lat: at.lat, lng: at.lng });
     if (mapRef.current.getZoom() < 15) mapRef.current.setZoom(15);
     const mark = placeMarks.current.find((m) => m.__id === at.id);
-    if (mark) openPlaceInfo(at, mark);
+    if (mark && latest.current.cards !== false) openPlaceInfo(at, mark);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusedPlace]);
+
+  /*
+   * Results to look at, framed once each: a search, or what is nearby. The
+   * key says when it is a new set, so a re-render does not pull the view back.
+   */
+  useEffect(() => {
+    if (!ready || !fitTo || !(fitTo.points || []).length) return;
+    const bounds = new libs.current.LatLngBounds();
+    fitTo.points.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+    owedFit.current = { bounds, most: 16 };
+    applyFit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, fitTo && fitTo.key]);
+
+  /*
+   * Street View, in the map's own frame, from the nearest panorama outdoors
+   * and turned to face the place. Google's close button on it hands the map
+   * back, and says so.
+   */
+  useEffect(() => {
+    if (!ready) return undefined;
+    const map = mapRef.current;
+    const pano = map.getStreetView();
+    if (!streetView) {
+      if (pano.getVisible()) pano.setVisible(false);
+      return undefined;
+    }
+    let alive = true;
+    const shut = pano.addListener('visible_changed', () => {
+      if (!pano.getVisible()) latest.current.onStreetView?.('closed');
+    });
+    /*
+     * Google's own imagery, nearest first: anyone's "outdoor" panorama lets a
+     * business's 360° photo of its dining room win — next door's, at a
+     * ramen shop in Harajuku — where Google's is the street outside. (A
+     * museum's nearest can still be Google's walk through its galleries.)
+     * Anyone's outdoor panorama only where Google has none.
+     */
+    window.google.maps.importLibrary('streetView').then(({ StreetViewService, StreetViewSource, StreetViewPreference }) => {
+      const svc = new StreetViewService();
+      const ask = (source) => svc.getPanorama({
+        location: streetView, radius: 100, preference: StreetViewPreference.NEAREST, sources: [source],
+      });
+      return ask(StreetViewSource.GOOGLE).catch(() => ask(StreetViewSource.OUTDOOR));
+    }).then(({ data }) => {
+      if (!alive) return;
+      const at = data.location.latLng;
+      pano.setOptions({
+        addressControl: false, fullscreenControl: false, motionTrackingControl: false,
+        enableCloseButton: true, zoomControl: false, panControl: false,
+      });
+      // By its id: given a position, the panorama searches again on its own
+      // and lands back on the dining room.
+      pano.setPano(data.location.pano);
+      pano.setPov({ heading: bearing({ lat: at.lat(), lng: at.lng() }, streetView), pitch: 4 });
+      pano.setVisible(true);
+      latest.current.onStreetView?.('open');
+    }).catch(() => {
+      if (alive) latest.current.onStreetView?.('none');
+    });
+    return () => { alive = false; shut.remove(); };
+  }, [ready, streetView]);
 
   // Pan to a stop chosen from the list beside the map.
   useEffect(() => {
@@ -757,6 +849,8 @@ function GoogleMapCanvas({
       mark.__colour = colour(a);
       mark.__at = { lat: a.lat, lng: a.lng };
       mark.addListener('click', () => {
+        // Beside a place panel, the panel is the card.
+        if (latest.current.cards === false) { if (focus) focus(a.id); return; }
         // Clicking the marker whose card is already up closes it, the same way
         // clicking the map does.
         if (shownFor.current === mark) { closeInfo(); return; }
@@ -768,7 +862,7 @@ function GoogleMapCanvas({
           photoRef: a.photo_ref,
           photos: said.photos,
           placeId: a.place_id,
-          action: 'Open activity',
+          action: latest.current.stopActionLabel || 'Open activity',
           onAction: () => {
             info.current.close();
             if (latest.current.onStopOpen) latest.current.onStopOpen(a);
@@ -1084,7 +1178,7 @@ function GoogleMapCanvas({
       photoRef: p.photo_ref,
       photos: p.photos,
       placeId: (p.place_id || String(p.id || '').replace(/^g-/, '')) || null,
-      action: latest.current.onPlaceAdd ? 'Add to trip' : null,
+      action: latest.current.onPlaceAdd ? (latest.current.placeActionLabel || 'Add to trip') : null,
       onAction: latest.current.onPlaceAdd
         ? () => { info.current.close(); latest.current.onPlaceAdd(p); }
         : null,
@@ -1122,6 +1216,7 @@ function GoogleMapCanvas({
       mark.__id = p.id;
       mark.__el = el;
       mark.addListener('click', () => {
+        if (latest.current.cards === false) { latest.current.onPlaceFocus?.(p.id); return; }
         if (shownFor.current === mark) { closeInfo(); return; }
         openPlaceInfo(p, mark);
         if (latest.current.onPlaceFocus) latest.current.onPlaceFocus(p.id);
@@ -1162,6 +1257,15 @@ const FOOTPRINTS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" 
 
 // After the next layout, when markers just added have their places on screen.
 const soon = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
+
+/** The compass bearing from one point to another, for Street View to face it. */
+function bearing(a, b) {
+  const r = Math.PI / 180;
+  const y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r)
+    - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
+  return ((Math.atan2(y, x) / r) + 360) % 360;
+}
 
 function trainMark(mk) {
   const el = document.createElement('div');

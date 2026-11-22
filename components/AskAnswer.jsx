@@ -53,8 +53,11 @@ function PicturesPending() {
 function PlacesBlock({ raw, writing, ctx }) {
   const spec = useMemo(() => parsePlacesSpec(raw), [raw]);
   if (!spec) return writing ? <PicturesPending /> : null;
-  const { trip, activities, onOpenStop, inline } = ctx;
-  return <AskPlaces spec={spec} trip={trip} activities={activities} inline={inline} onOpenStop={onOpenStop} />;
+  const { trip, days, activities, onOpenStop, onAddPlace, inline } = ctx;
+  return (
+    <AskPlaces spec={spec} trip={trip} days={days} activities={activities} inline={inline}
+      onOpenStop={onOpenStop} onAddPlace={onAddPlace} />
+  );
 }
 
 const textOf = (node) => (!node ? '' : node.type === 'text' ? node.value
