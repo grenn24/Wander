@@ -204,7 +204,7 @@ guest sessions, and Realtime drives the live collaboration.
 
 ```
 OPENAI_API_KEY   = sk-...
-OPENAI_MODEL     = gpt-5-mini      # optional
+OPENAI_MODEL     = gpt-5.4-mini    # optional; the fast tier, default gpt-5.4-mini
 OPENAI_IMAGE_MODEL = gpt-image-2   # optional; drawn trip covers, default gpt-image-1
 OPENAI_IMAGE_SIZE  = 2304x1536     # optional; WIDTHxHEIGHT, default follows the model
 OPENAI_IMAGE_QUALITY = high        # optional; low, medium, high or auto — default high

@@ -270,9 +270,13 @@ code. Nothing is removed — rows, covers and members all stay.
 
 ## 8. Where the AI work stands
 
-`lib/ai.js` routes seven tasks across two model tiers and three effort levels.
-`plan` and `command` use `gpt-5.5`, named in the code; everything else uses
-`OPENAI_MODEL`. The guide service (`scripts/guides`) uses `gpt-5.5` at high
+`lib/ai.js` routes each task to a model tier and an effort. `plan`, `command`
+and `ask` use `gpt-5.5`; the quick tasks use `gpt-5.4-mini` (`OPENAI_MODEL`
+overrides it); the packing list uses `gpt-5.4-nano`. Chosen by measurement on
+22 November 2026 — the evidence is in the comments on each task. The least
+effort is "minimal" on gpt-5 / 5-mini / 5-nano and "none" on every later
+model, and each refuses the other's word; `effortFor` picks the right one for
+whichever model is called, so write `none` in `TASKS`. The guide service (`scripts/guides`) uses `gpt-5.5` at high
 effort through the Responses API with web search.
 
 Every call is **single-shot structured output** — a strict JSON schema, one
