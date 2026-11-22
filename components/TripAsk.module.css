@@ -6,12 +6,26 @@
  * table.data).
  */
 
+/*
+ * The conversation fills the window to its bottom edge exactly (the trip
+ * page's bottom padding is taken away for it in globals.css: .ask-page). The
+ * prompt box is pinned to that edge; with the page ending 20px short of it,
+ * the box rose by 20px whenever the reader reached the end.
+ */
 .page {
   max-width: 760px; margin: 0 auto;
   display: flex; flex-direction: column;
-  /* The dock sits on the floor of the window when there is little to read. */
-  min-height: calc(100dvh - var(--topbar-h) - 40px - var(--tabbar-h, 0px));
+  min-height: calc(100dvh - var(--topbar-h) - 20px);
 }
+
+/* The chat's name and its buttons, pinned under the top bar. It starts where
+   it is pinned (reaching up over the page's top padding), so it never moves. */
+.page .head {
+  position: sticky; top: var(--topbar-h); z-index: 6;
+  margin: -20px -12px 6px; padding: 20px 12px 12px;
+  background: linear-gradient(to bottom, var(--surface-0) calc(100% - 12px), transparent);
+}
+.head :global(.page-head-acts) { flex: none; }
 
 /* ---------------------------------------------------------- blank page -- */
 /* One column in the upper middle of the window: the question, the box under
@@ -237,7 +251,14 @@
 .recOn { color: var(--danger); }
 
 @media (max-width: 860px) {
-  .page { min-height: calc(100dvh - var(--topbar-h) - 32px - var(--tabbar-h, 0px)); }
+  /* A phone's page has 14px above it, not 20. The box's own padding clears
+     the tab bar, so the page still runs to the bottom of the screen. */
+  .page { min-height: calc(100dvh - var(--topbar-h) - 14px); }
+  /* One line, not the phone's usual stack of title over buttons: pinned, a
+     second line is a second strip of the conversation hidden. */
+  .page .head { margin-top: -14px; padding-top: 14px; flex-direction: row; align-items: center; gap: 8px; }
+  /* Icons alone, so the name keeps the width it needs on one line. */
+  .btnWord { display: none; }
   .mapCanvas { height: 340px; }
   .me { max-width: 92%; }
   /* Two lines of a phone's height for a disclaimer is too much to pay. */

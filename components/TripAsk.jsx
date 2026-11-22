@@ -362,11 +362,14 @@ export default function TripAsk({ trip, days, activities }) {
     );
   }
 
+  // `ask-page` is global on purpose: globals.css takes the trip page's bottom
+  // padding away for it, so the prompt box has one place to sit.
   return (
-    <div className={s.page}>
-      <div className="page-head spread">
+    <div className={`${s.page} ask-page`}>
+      <div className={`page-head spread ${s.head}`}>
         {/* The chat's name, written for it from its first question; clicking
-            it renames it. "Assistant" only until it has one. */}
+            it renames it. "Assistant" only until it has one. Pinned under the
+            top bar, with Chats and New chat, however far down the reader is. */}
         <h2 className={s.titled}>
           {naming !== null ? (
             <input className={s.titleInput} value={naming} maxLength={80} autoFocus
@@ -388,8 +391,9 @@ export default function TripAsk({ trip, days, activities }) {
           <div className="page-head-acts">
             {chats.length ? (
               <button type="button" className="btn ghost sm" aria-haspopup="menu" aria-expanded={!!menuEl}
+                aria-label="Chats" data-tip="Your chats. Only you can see them."
                 onClick={(e) => setMenuEl(menuEl ? null : e.currentTarget)}>
-                <History size={15} /> Chats
+                <History size={15} /> <span className={s.btnWord}>Chats</span>
               </button>
             ) : null}
             {current ? (
@@ -399,8 +403,8 @@ export default function TripAsk({ trip, days, activities }) {
               </button>
             ) : null}
             {!empty ? (
-              <button type="button" className="btn ghost sm" onClick={startNew}>
-                <SquarePen size={15} /> New chat
+              <button type="button" className="btn ghost sm" aria-label="New chat" data-tip="New chat" onClick={startNew}>
+                <SquarePen size={15} /> <span className={s.btnWord}>New chat</span>
               </button>
             ) : null}
           </div>

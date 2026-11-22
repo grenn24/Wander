@@ -320,6 +320,11 @@ a { color: var(--accent); }
    day headers inside it would never actually stick. */
 .main { flex: 1; min-width: 0; padding: 20px; }
 .wrap { max-width: 940px; margin: 0 auto; }
+/* The trip Assistant's conversation runs to the bottom of the window, where
+   its prompt box is pinned: padding under it lifted the box at the end of a
+   scroll. Its own box clears the phone's tab bar. (:has() counts the inner
+   class, so this outranks the phone's 132px below.) */
+.main:has(.ask-page) { padding-bottom: 0; }
 .page-head { margin-bottom: 16px; }
 
 .tabbar { display: none; }
