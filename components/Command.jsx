@@ -474,6 +474,9 @@ function CommandBar({ onClose }) {
             id: a.id,
             day: a.day,
             start_time: a.start_time,
+            // Without it "30 minutes longer" has nothing to add the half-hour
+            // to, and the model reads the 30 minutes as the stop's length.
+            end_time: a.end_time,
             title: a.title,
             category: a.category,
             // "Asakusa, Tokyo" rather than the full postal address Google

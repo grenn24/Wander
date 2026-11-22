@@ -10,6 +10,7 @@ import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
 import { commandCalendar } from '@/lib/googleCal';
 import { calendarContext, explicitlyNeedsCalendar } from '@/lib/commandCalendar';
 import { requestTiming } from '@/lib/requestTiming';
+import { activityListing } from '@/lib/commandListing';
 
 /*
  * The kinds of guide and the fields each one has, from the app's own table.
@@ -283,6 +284,14 @@ Rules:
   would leave activities outside the range, move them too.
 - Flight start_time and end_time are local to details.departure_timezone and details.arrival_timezone (IANA zones). Include details.arrival_date as YYYY-MM-DD, including date-line and overnight guides. Preserve unspecified zones; never substitute the browser zone.
 - Times are 24-hour HH:MM. Costs are plain numbers in the trip currency.
+- start_time and end_time are clock times, never durations. Each activity is
+  listed with its current times as start–end. To make one stop N minutes
+  longer or shorter, set only its end_time, to the listed end plus or minus N,
+  and leave start_time null. To start one stop earlier or later, or move it to
+  a new time, set both start_time and end_time so it keeps its length. One
+  stop is an update_activity, never shift_times, which moves a whole day.
+  "minutes" is only read by shift_times. If a stop has no end time and the
+  change needs one, ask how long it should be rather than guessing.
 - "location" must be a real place name a map search would find, or null.
 - If the instruction is ambiguous in a way that changes which activities are
   touched, set understood false and ask ONE question instead of guessing.
@@ -362,17 +371,7 @@ async function handleCommand(req, timing) {
     content: String((m && m.content) || '').trim().slice(0, 700),
   })).filter((m) => m.content);
 
-  const listing = activities.map((a) => [
-    `id=${a.id}`,
-    a.day,
-    a.start_time || '--:--',
-    a.title,
-    a.category,
-    a.location ? `at ${a.location}` : '',
-    a.details ? `details=${JSON.stringify(a.details)}` : '',
-    a.notes ? `notes=${String(a.notes).slice(0, 1000)}` : '',
-    a.cost ? `${a.cost}` : '',
-  ].filter(Boolean).join(' | ')).join('\n');
+  const listing = activityListing(activities);
 
   /*
    * Which date is "day 4".
@@ -402,7 +401,7 @@ async function handleCommand(req, timing) {
     `Budget: ${trip.budget == null ? 'none' : trip.budget}`,
     dayNames.length ? `Days: ${dayNames.join(', ')}` : '',
     '',
-    'Activities:',
+    'Activities (id | day | start–end | title | category | …):',
     listing || '(none yet)',
     '',
     calendarContext(booked, calendarStatus),
