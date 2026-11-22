@@ -191,11 +191,17 @@
 .pinPlace { background: var(--surface-2); color: var(--text-2); }
 
 /* ----------------------------------------------------------------- dock -- */
+/*
+ * The box and what is under it. Its backing reaches the bottom of the window
+ * (on a phone, behind the tab bar) and a little past the column on each side:
+ * it used to stop 8px short of the bottom, and a card's border sat exactly on
+ * its edge, so the conversation showed underneath and beside the box.
+ */
 .dock {
-  position: sticky; z-index: 5;
-  bottom: calc(var(--tabbar-h, 0px) + 8px);
-  margin-top: 16px; padding-top: 10px;
-  /* The page fades out under the box rather than ending in a hard edge. */
+  position: sticky; z-index: 5; bottom: 0;
+  margin: 16px -12px 0;
+  padding: 10px 12px calc(var(--tabbar-h, 0px) + 10px);
+  /* The page fades out above the box rather than ending in a hard edge. */
   background: linear-gradient(to bottom, transparent, var(--surface-0) 14px);
 }
 .dock .input { font-size: var(--fs-md); line-height: 22px; padding-block: calc((var(--row) - 22px) / 2); max-height: 200px; }
