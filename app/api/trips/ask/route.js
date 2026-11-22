@@ -99,7 +99,7 @@ async function nameChat(question, attached) {
   return String((out && out.title) || '')
     .replace(/^["“”'‘’]+|["“”'‘’]+$/g, '')
     .replace(/[.!?。]+$/, '')
-    .replace(/s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);
 }
