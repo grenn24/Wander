@@ -16,6 +16,7 @@ import useKept from '@/components/useKept';
 import AskAnswer from '@/components/AskAnswer';
 import { useAskThread } from '@/components/askThread';
 import { askGreetings, askSuggestions } from '@/lib/tripAsk';
+import { dismissMobileKeyboard, isMobileComposer } from '@/lib/messageKeyboard';
 import { zonedNow } from '@/lib/util';
 import g from './Guides.module.css';
 import s from './TripAsk.module.css';
@@ -95,6 +96,8 @@ export default function TripAsk({ trip, days, activities }) {
   async function send(said) {
     const q = String(said || '').trim();
     if ((!q && !files.length) || busy || voice.state !== 'idle') return;
+    // Before the await, while this is still the tap or keypress that sent it.
+    dismissMobileKeyboard();
     const t = await token();
     if (!t) { setError('Sign in again to ask about this trip.'); return; }
     setError('');
@@ -178,8 +181,13 @@ export default function TripAsk({ trip, days, activities }) {
   }, [messages.length, last && last.content, last && last.searching]);
 
   // The box is a different element on the blank page and under a
-  // conversation, so the cursor follows it across.
-  useEffect(() => { if (input.current) input.current.focus({ preventScroll: true }); }, [empty]);
+  // conversation, so the cursor follows it across. Not on a phone once there
+  // is a conversation: that is the first question going, or an old chat
+  // opening, and either way the keyboard would cover the answer.
+  useEffect(() => {
+    if (!empty && isMobileComposer()) return;
+    if (input.current) input.current.focus({ preventScroll: true });
+  }, [empty]);
 
   const openStop = useCallback((a) => {
     if (a && a.id) router.push(`/trips/${trip.id}/itinerary?focus=${encodeURIComponent(a.id)}`);

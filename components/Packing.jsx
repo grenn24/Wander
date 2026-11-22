@@ -5,6 +5,7 @@ import Select from '@/components/Select';
 import TravelArt from '@/components/TravelArt';
 import { cap } from '@/lib/util';
 import { authHeader } from '@/lib/supabase';
+import { dismissMobileKeyboard } from '@/lib/messageKeyboard';
 
 const GROUPS = ['general', 'clothes', 'tech', 'documents', 'toiletries', 'meds'];
 
@@ -99,7 +100,7 @@ export default function Packing({
       </div>
 
       {onAddMany ? (
-        <form className="pack-ask" onSubmit={(e) => { e.preventDefault(); generate(); }}>
+        <form className="pack-ask" onSubmit={(e) => { e.preventDefault(); dismissMobileKeyboard(); generate(); }}>
           <input
             className="input" value={note} disabled={aiBusy}
             aria-label="Anything the list should account for"

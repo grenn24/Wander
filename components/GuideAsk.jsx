@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowUp, Square, X } from 'lucide-react';
 import { getClient } from '@/lib/supabase';
 import { paragraphs } from '@/lib/guideFormat';
+import { dismissMobileKeyboard, isMobileComposer } from '@/lib/messageKeyboard';
 import s from './Guides.module.css';
 
 const SUGGESTIONS = [
@@ -38,14 +39,24 @@ export default function GuideAsk({ doc, reading, quote, onClearQuote, messages, 
     if (!client) { setSignedIn(false); return; }
     client.auth.getSession().then(({ data }) => setSignedIn(!!(data && data.session)));
   }, []);
-  // After the drawer has taken focus for itself.
-  useEffect(() => { const t = setTimeout(() => input.current && input.current.focus(), 60); return () => clearTimeout(t); }, [quote]);
+  // After the drawer has taken focus for itself, and when a passage is picked.
+  // Sending clears the passage too, and on a phone that must not bring back
+  // the keyboard sending just put away.
+  const lastQuote = useRef(quote);
+  useEffect(() => {
+    const cleared = !!lastQuote.current && !quote;
+    lastQuote.current = quote;
+    if (cleared && isMobileComposer()) return undefined;
+    const t = setTimeout(() => input.current && input.current.focus(), 60);
+    return () => clearTimeout(t);
+  }, [quote]);
   useEffect(() => { if (end.current) end.current.scrollIntoView({ block: 'end' }); }, [messages]);
   useEffect(() => () => { if (stop.current) stop.current.abort(); }, []);
 
   async function ask(said) {
     const question = String(said || '').trim();
     if (!question || busy) return;
+    dismissMobileKeyboard();
     setError('');
     setText('');
     const history = messages.slice(-8).map(({ role, content }) => ({ role, content }));

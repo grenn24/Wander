@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, X } from 'lucide-react';
 import { parseQuickAdd } from '@/lib/util';
+import { dismissMobileKeyboard, isMobileComposer } from '@/lib/messageKeyboard';
 import { authHeader } from '@/lib/supabase';
 
 /**
@@ -37,7 +38,9 @@ export default function QuickAdd({
   function reset() {
     setText(''); setQuestion(''); setAnswer(''); setError('');
     pending.current = '';
-    if (inputRef.current) inputRef.current.focus();
+    // Ready for the next one on a computer. On a phone the keyboard would
+    // cover the stop that was just added.
+    if (inputRef.current && !isMobileComposer()) inputRef.current.focus();
   }
 
   /** Locate the place before writing, so the pin and photo arrive with it. */
@@ -73,6 +76,7 @@ export default function QuickAdd({
     if (e) e.preventDefault();
     const raw = clarification ? pending.current : text.trim();
     if (!raw) return;
+    dismissMobileKeyboard();
 
     setBusy(true); setError('');
     try {
@@ -105,7 +109,7 @@ export default function QuickAdd({
       if (!body.understood && body.question) {
         pending.current = raw;
         setQuestion(body.question);
-        setTimeout(() => answerRef.current && answerRef.current.focus(), 0);
+        if (!isMobileComposer()) setTimeout(() => answerRef.current && answerRef.current.focus(), 0);
         return;
       }
 

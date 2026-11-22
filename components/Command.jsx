@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { focusCommandField, holdCommandPage } from '@/lib/commandFocus';
+import { dismissMobileKeyboard, isMobileComposer } from '@/lib/messageKeyboard';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import ShotStrip from '@/components/ShotStrip';
 import { useTrip } from '@/components/TripProvider';
@@ -395,6 +396,7 @@ function CommandBar({ onClose }) {
     const first = reply == null;
     let instruction = first ? text.trim() : pending.current;
     if (!instruction && !(first && shots.length)) return;
+    dismissMobileKeyboard();
     const said = first ? [] : [...answers, reply];
     setAnswers(said);
     setBusy(true); setError(''); clearAsk();
@@ -499,7 +501,8 @@ function CommandBar({ onClose }) {
         });
         setQuestion(body.question);
         setTyping(body.question.kind === 'text');
-        setTimeout(() => focusCommandField(askRef.current), 0);
+        // On a phone the keyboard would hide the question; a tap brings it back.
+        if (!isMobileComposer()) setTimeout(() => focusCommandField(askRef.current), 0);
         return;
       }
       if (!body.ops.length) {

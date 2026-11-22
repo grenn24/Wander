@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowUp, Shuffle, ImagePlus } from 'lucide-react';
 import { shrinkAll, pickImages, MAX_SHOTS } from '@/lib/image';
 import ShotStrip from '@/components/ShotStrip';
-import { handleMessageEnter } from '@/lib/messageKeyboard';
+import { dismissMobileKeyboard, handleMessageEnter } from '@/lib/messageKeyboard';
 
 /*
  * Where the pictures wait between the two pages.
@@ -111,6 +111,8 @@ export default function PlanPrompt({ autoFocus = false, compact = false, rotate 
     } else {
       try { sessionStorage.removeItem(SHOT_KEY); } catch (err) { /* nothing to clear */ }
     }
+    // Now, rather than whenever the planner page replaces this one.
+    dismissMobileKeyboard();
     router.push(`/plan?q=${encodeURIComponent(q)}${shots.length ? '&shots=1' : ''}`);
   }
 

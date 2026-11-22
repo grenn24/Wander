@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isMobileComposer, handleMessageEnter } from '../lib/messageKeyboard.js';
+import { isMobileComposer, handleMessageEnter, dismissMobileKeyboard } from '../lib/messageKeyboard.js';
 
 const desktop = { navigator: { userAgent: 'Windows', maxTouchPoints: 0 }, matchMedia: () => ({ matches: false }) };
 const android = { ...desktop, navigator: { userAgent: 'Mozilla Android Mobile' } };
@@ -60,4 +60,45 @@ test('both composers and planner follow-up answers use the shared keyboard polic
   const command = readFileSync(new URL('../components/Command.jsx', import.meta.url), 'utf8');
   assert.equal((command.match(/<GrowArea/g) || []).length, 2);
   assert.doesNotMatch(command, /Ask Wander  Ctrl\+Enter/);
+});
+
+function focused(browser) {
+  const field = { blurred: 0, blur() { this.blurred += 1; } };
+  const body = { blurred: 0, blur() { this.blurred += 1; } };
+  return { field, body, browser: { ...browser, document: { body, activeElement: field } } };
+}
+
+test('sending puts the keyboard away on a phone and leaves the cursor alone on a computer', () => {
+  for (const phone of [android, iphone]) {
+    const { field, browser } = focused(phone);
+    assert.equal(dismissMobileKeyboard(browser), true);
+    assert.equal(field.blurred, 1);
+  }
+  const { field, browser } = focused(desktop);
+  assert.equal(dismissMobileKeyboard(browser), false);
+  assert.equal(field.blurred, 0);
+});
+
+test('dismissing with nothing focused is harmless', () => {
+  const { body, browser } = focused(iphone);
+  browser.document.activeElement = body;
+  assert.equal(dismissMobileKeyboard(browser), true);
+  assert.equal(body.blurred, 0);
+  assert.equal(dismissMobileKeyboard({ ...iphone }), true);
+  assert.equal(dismissMobileKeyboard({ ...iphone, document: { body, activeElement: null } }), true);
+});
+
+test('every message to the model puts the keyboard away when it is sent', () => {
+  for (const path of ['components/TripAsk.jsx', 'components/GuideAsk.jsx', 'components/Command.jsx',
+    'components/PlanPrompt.jsx', 'components/QuickAdd.jsx', 'components/AiSuggest.jsx', 'components/Packing.jsx']) {
+    const source = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+    assert.match(source, /dismissMobileKeyboard\(\)/, path);
+  }
+  // Focus that would bring the keyboard straight back is skipped on phones.
+  const ask = readFileSync(new URL('../components/TripAsk.jsx', import.meta.url), 'utf8');
+  assert.match(ask, /if \(!empty && isMobileComposer\(\)\) return;/);
+  const guide = readFileSync(new URL('../components/GuideAsk.jsx', import.meta.url), 'utf8');
+  assert.match(guide, /if \(cleared && isMobileComposer\(\)\) return undefined;/);
+  const command = readFileSync(new URL('../components/Command.jsx', import.meta.url), 'utf8');
+  assert.match(command, /if \(!isMobileComposer\(\)\) setTimeout\(\(\) => focusCommandField\(askRef\.current\), 0\);/);
 });
