@@ -59,3 +59,18 @@ test('only expanded activity maps mount GoogleMap; failures do not auto-load it'
   assert.match(read('app/api/maps/static/route.js'), /private, no-store/);
   assert.match(read('app/globals.css'), /\.amap-static img[^}]*object-fit: contain/);
 });
+
+test('a preview cannot spin forever', () => {
+  const source = readFileSync(new URL('../components/StaticActivityMap.jsx', import.meta.url), 'utf8');
+  // The token the app already holds comes first; the SDK's lock is only asked
+  // after a rejection, and then with a time limit.
+  assert.match(source, /const \{ supabase, session \} = useApp\(\)/);
+  assert.match(source, /within\(supabase\.auth\.getSession\(\), SESSION_PATIENCE\)/);
+  // The whole attempt has a deadline that turns into the failure state.
+  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), PATIENCE\)/);
+  assert.match(source, /if \(!gone\) setResult\(\{ query, error: true \}\)/);
+  // And the failure offers another go, above the overlay that opens the map.
+  assert.match(source, /setAttempt\(\(n\) => n \+ 1\)/);
+  assert.match(readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8'),
+    /\.amap-static-retry \{ position: relative; z-index: 3; \}/);
+});

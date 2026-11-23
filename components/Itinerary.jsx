@@ -607,7 +607,7 @@ export default function Itinerary({
               label={`Day ${i + 1}, ${fmtDay(d)}`}
               trip={trip}
               existing={list}
-              onCreate={(draft) => onAddMany([draft])}
+              onCreate={(drafts) => onAddMany(drafts)}
               onManual={onAdd}
               onSuggest={(seed) => {
                 setSuggestSeed(seed || '');

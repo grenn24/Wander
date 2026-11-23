@@ -16,12 +16,22 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'start_time', 'category', 'location', 'cost', 'notes'],
+        required: ['title', 'start_time', 'end_time', 'category', 'location', 'cost', 'notes'],
         properties: {
-          title: { type: 'string' },
+          title: {
+            type: 'string',
+            description: 'One named venue, by its own name and branch: "Itoya Ginza", '
+              + 'not "Stationery shopping in Ginza".',
+          },
           start_time: { type: ['string', 'null'], description: '24h HH:MM, or null' },
+          end_time: { type: ['string', 'null'], description: '24h HH:MM, or null' },
           category: { type: 'string', enum: AI_CATEGORIES },
-          location: { type: 'string', description: 'Real, searchable place name, or blank' },
+          location: {
+            type: 'string',
+            description: 'What to type into Google Maps to land on this exact venue: its '
+              + 'name, the building it is in, the district and the city. '
+              + 'Never only a district or a city. Blank rather than invented.',
+          },
           cost: { type: 'number' },
           notes: { type: 'string', description: 'Why it is worth doing, briefly' },
         },
@@ -39,9 +49,16 @@ Rules:
   without repeating anything already there.
 - Stay near the day's existing stops. If the day is empty, stay near the trip's
   destination.
-- "location" must be a real place name a map search would find, or blank.
-- Times in 24-hour HH:MM, and only where the timing genuinely matters. Do not
-  collide with the times already taken.
+- Each suggestion is one specific, named venue — a particular shop, restaurant,
+  temple or museum — never a neighbourhood, a street to wander or a bundle of
+  places. "Explore Ginza" is not a suggestion; "Itoya Ginza" is.
+- "location" is what you would type into Google Maps to land at that venue's
+  door: its name, the building it is inside, the district and the city —
+  "Itoya, Ginza, Chuo City, Tokyo". The app looks up the street address from
+  it. Blank rather than invented.
+- Times in 24-hour HH:MM, and only where the timing genuinely matters. Give an
+  end time whenever the length is reasonably known. Do not collide with the
+  times already taken.
 - Costs are per person in the trip currency, 0 when free.
 - Some of the day may already be spoken for by things outside this trip —
   meetings, calls, a flight somebody else booked. Plan around them: do not put
@@ -94,6 +111,7 @@ export async function POST(req) {
     const activities = (Array.isArray(out.activities) ? out.activities : []).slice(0, 6).map((a) => ({
       title: String(a.title || '').trim().slice(0, 200) || 'Untitled',
       start_time: cleanTime(a.start_time),
+      end_time: cleanTime(a.end_time),
       category: cleanCategory(a.category),
       location: String(a.location || '').trim().slice(0, 300),
       cost: Number.isFinite(Number(a.cost)) ? Math.max(0, Number(a.cost)) : 0,

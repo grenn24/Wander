@@ -4,6 +4,7 @@ import { Sparkles, Loader2, Plus, X, RotateCw } from 'lucide-react';
 import { categoryOf, fmtTime } from '@/lib/util';
 import { activityIcon } from '@/lib/icons';
 import { authHeader } from '@/lib/supabase';
+import { pinPlaces } from '@/lib/pinPlaces';
 
 /**
  * Asks for ideas for one day and shows them as a reviewable list. Nothing is
@@ -64,9 +65,13 @@ export default function AiSuggest({
     ask(seed);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* An idea names a place; what is saved is that place's address and pin. */
+  const pinned = (list) => pinPlaces(list.map((idea) => ({ ...idea, day })),
+    trip.destination || '');
+
   async function take(idea, i) {
     setTaken((t) => ({ ...t, [i]: 'busy' }));
-    await onAdd([{ ...idea, day }]);
+    await onAdd(await pinned([idea]));
     setTaken((t) => ({ ...t, [i]: 'done' }));
   }
 
@@ -74,7 +79,7 @@ export default function AiSuggest({
     const left = ideas.filter((_, i) => taken[i] !== 'done');
     if (!left.length) return;
     setBusy(true);
-    await onAdd(left.map((idea) => ({ ...idea, day })));
+    await onAdd(await pinned(left));
     const all = {};
     ideas.forEach((_, i) => { all[i] = 'done'; });
     setTaken(all);

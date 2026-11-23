@@ -367,6 +367,21 @@ to copy.
   a click-to-open fallback, never silently loads an interactive map. Do not
   persist images or crop out Google's attribution. As of this change the local
   fallback key returned 403 for Static Maps; Cloud/key setup is still required.
+  The preview takes its token from AppProvider's `session`, not `getSession()`
+  — the SDK's lock can be held by another tab and the spinner then never
+  stopped — and gives up after 12s into the fallback, which has Try again.
+
+- **One place, one activity.** Every generator (`parse`, `plan`, `command`,
+  `suggest`) is told that a stop naming two places has nowhere to be: "add
+  Ralph Lauren and the MoMA Design Store" is two activities, each titled by
+  the venue and branch. `location` is a Google Maps search for that exact door
+  (name, building, district, city), never only a district; the street address
+  comes from Google, not the model. Quick add and Suggest pin through
+  `lib/pinPlaces.js` (`pinQueries` / `applyPins` in `lib/geo.js`), which sends
+  name, kind and day to `/api/places/resolve` with the ranking second opinion
+  and saves Google's formatted address; a `low` verdict stays unpinned.
+  `/api/parse` answers `activities: []` (plus `activity` for tabs on the old
+  build). Covered by `tests/atomic-activities.test.mjs`.
 
 Match the surrounding code — it is consistent and deliberate.
 

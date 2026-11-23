@@ -49,6 +49,7 @@ test('the pages that call those routes send the token', () => {
     ['app/plan/page.js', '/api/vision'],
     ['app/plan/page.js', '/api/plan'],
     ['app/plan/page.js', '/api/places/resolve'],
+    ['lib/pinPlaces.js', '/api/places/resolve'],
   ];
   for (const [file, route] of calls) {
     const src = read(file);

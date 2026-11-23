@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, X } from 'lucide-react';
 import { parseQuickAdd } from '@/lib/util';
 import { authHeader } from '@/lib/supabase';
+import { pinPlaces } from '@/lib/pinPlaces';
 
 /**
  * The line at the foot of each day. You write what you mean — "dinner at that
- * ramen place around 7, maybe 2000 yen" — and it becomes an entry. When one
- * short question would genuinely change the result it asks instead of guessing.
+ * ramen place around 7, maybe 2000 yen" — and it becomes an entry, or one entry
+ * per place when the line names several. When one short question would
+ * genuinely change the result it asks instead of guessing.
  *
  * Falls back to the local time-prefix parser when the planner is unconfigured,
  * so the field always does something useful.
@@ -40,35 +42,6 @@ export default function QuickAdd({
     if (inputRef.current) inputRef.current.focus();
   }
 
-  /** Locate the place before writing, so the pin and photo arrive with it. */
-  async function withPlace(draft) {
-    if (!draft.location) return draft;
-    try {
-      const res = await fetch('/api/places/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [{ id: 'x', query: draft.location }],
-          bias: trip.destination || '',
-        }),
-      });
-      if (!res.ok) return draft;
-      const { results } = await res.json();
-      const hit = (results || [])[0];
-      if (!hit || !hit.found) return draft;
-      return {
-        ...draft,
-        location: hit.label || draft.location,
-        lat: hit.lat,
-        lng: hit.lng,
-        place_id: hit.place_id || null,
-        photo_ref: hit.photo_ref || null,
-      };
-    } catch (e) {
-      return draft;
-    }
-  }
-
   async function submit(e, clarification) {
     if (e) e.preventDefault();
     const raw = clarification ? pending.current : text.trim();
@@ -85,7 +58,9 @@ export default function QuickAdd({
           destination: trip.destination || trip.name,
           currency: trip.currency,
           dayLabel: label,
-          existing: existing.map((a) => ({ title: a.title, start_time: a.start_time })),
+          existing: existing.map((a) => ({
+            title: a.title, start_time: a.start_time, end_time: a.end_time, location: a.location,
+          })),
         }),
       });
       const body = await res.json();
@@ -94,7 +69,7 @@ export default function QuickAdd({
         // No planner configured: the local parser still understands "9am Ramen".
         if (body.code === 'no_key') {
           const { title, start_time } = parseQuickAdd(raw);
-          await onCreate({ day, title: title || raw, start_time, category: 'sightseeing', cost: 0 });
+          await onCreate([{ day, title: title || raw, start_time, category: 'sightseeing', cost: 0 }]);
           reset();
           return;
         }
@@ -109,7 +84,12 @@ export default function QuickAdd({
         return;
       }
 
-      await onCreate({ ...(await withPlace(body.activity)), day });
+      // One line can name several places; each becomes its own stop, pinned
+      // to its own address.
+      const drafts = (body.activities || (body.activity ? [body.activity] : []))
+        .map((a) => ({ ...a, day }));
+      if (!drafts.length) { setError('Could not read that.'); return; }
+      await onCreate(await pinPlaces(drafts, trip.destination || ''));
       reset();
     } catch (err) {
       setError('Something went wrong. Please try again later.');

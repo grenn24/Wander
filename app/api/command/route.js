@@ -82,7 +82,12 @@ const OP = {
         + 'airport pick-up is "transfer". Null to leave it as it is.',
     },
     details: DETAILS,
-    location: { type: ['string', 'null'], description: 'Real, searchable place name' },
+    location: {
+      type: ['string', 'null'],
+      description: 'What to type into Google Maps to land on this exact venue: its name, '
+        + 'the building it is in, the district and the city. Never only a district or a '
+        + 'city for a specific venue.',
+    },
     cost: { type: ['number', 'null'] },
     notes: { type: ['string', 'null'] },
     trip_name: { type: ['string', 'null'] },
@@ -292,7 +297,17 @@ Rules:
   stop is an update_activity, never shift_times, which moves a whole day.
   "minutes" is only read by shift_times. If a stop has no end time and the
   change needs one, ask how long it should be rather than guessing.
-- "location" must be a real place name a map search would find, or null.
+- One place, one activity. Adding several places is one add_activity each,
+  never one activity that names them all: "add Ralph Lauren and the MoMA Design
+  Store to my Ginza shopping" is two add_activity, titled "Ralph Lauren Ginza"
+  and "MoMA Design Store", each at its own venue and timed one after the other
+  inside the stretch the Ginza stop already takes. The title is the place's own
+  name and branch, not "Shopping at …".
+- "location" is what you would type into Google Maps to land at that venue's
+  door: its name, the building or store it is inside, the district and the
+  city — "MoMA Design Store, Ginza Loft, Ginza, Tokyo". Never only a district
+  or a city for a specific venue; the app looks up the exact street address
+  from it. Write a street address only when you were given one. Otherwise null.
 - If the instruction is ambiguous in a way that changes which activities are
   touched, set understood false and ask ONE question instead of guessing.
   Offer answers rather than a blank box. Use kind "choice" when one reading out

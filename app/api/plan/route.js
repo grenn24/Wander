@@ -83,7 +83,8 @@ const SCHEMA = {
                 title: {
                   type: 'string',
                   description: 'A plain name for the thing, as a person would say it: '
-                    + '"Flight to Kuala Lumpur", "Dinner at Jalan Alor". Never a place to '
+                    + '"Flight to Kuala Lumpur", "Dinner at Jalan Alor", "Ralph Lauren Ginza". '
+                    + 'One place per activity, never two joined by "and". Never a place to '
                     + 'put facts that have their own field below, and never an annotation '
                     + 'in brackets.',
                 },
@@ -102,7 +103,10 @@ const SCHEMA = {
                 },
                 location: {
                   type: 'string',
-                  description: 'A real, searchable place name. Blank if there is no specific place.',
+                  description: 'What to type into Google Maps to land on this exact venue: its '
+                    + 'name, the building it is in, the district and the city — "Ralph Lauren '
+                    + 'Ginza, Ginza, Chuo City, Tokyo". Never only a district or a city for a '
+                    + 'specific venue. Blank if there is no specific place.',
                 },
                 notes: {
                   type: 'string',
@@ -149,8 +153,20 @@ Rules:
   nearby, or normally necessary activities are not requested.
 - When there is no exclusive constraint, keep each day realistic: 3 to 5
   activities, geographically sensible, no zig-zagging across a city and back.
-- "location" must be a real place name that a map search would find — "Senso-ji,
-  Asakusa, Tokyo", not "a nice temple". Leave it blank rather than invent one.
+- One place, one activity. Every activity is a stop on the map, and a stop
+  that names several places has nowhere to be. "Shopping at Ralph Lauren and
+  the MoMA Design Store" is two activities, each at its own venue with its own
+  time. Prefer the specific venue to the area: "Itoya Ginza" and "Ginza Six",
+  not "Shopping in Ginza". An area is an activity only when the area itself is
+  the point — a street to walk, a park — and then name where it starts. An
+  area the traveller named themselves stays as they said it; places they named
+  inside it are each an activity of their own.
+- "location" is what you would type into Google Maps to land at that venue's
+  door: its name, the building or store it is inside, the district and the city
+  — "Senso-ji, Asakusa, Taito City, Tokyo", not "a nice temple" and not
+  "Asakusa". The app looks up the exact street address from it, so an exact
+  name and branch matter more than a street number; write a street address only
+  when you were given one. Leave it blank rather than invent one.
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
   (opening hours, transport, bookings) and leave others null.
 - For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line guides. Never guess a missing booking time.
