@@ -2049,7 +2049,12 @@ body:has(.lp)::before { display: none; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
 }
 .qa-send:hover { background: var(--accent-ink); }
-.qa-spin { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--accent); }
+/*
+ * Spinners inside a field are centred with margins, never transform: .spin
+ * animates transform, and its rotate() replaced the translateY(-50%), which
+ * left the spinner hanging from the field's middle line.
+ */
+.qa-spin { position: absolute; right: 12px; top: 0; bottom: 0; margin: auto 0; color: var(--accent); }
 .qa-row .btn { flex: none; }
 .qa-err { margin-top: 7px; }
 
@@ -2299,7 +2304,7 @@ body:has(.lp)::before { display: none; }
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .mapfind-busy {
-  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 11px; top: 0; bottom: 0; margin: auto 0;
   color: var(--accent);
 }
 
@@ -2362,7 +2367,7 @@ body:has(.lp)::before { display: none; }
   background: var(--surface-1); box-shadow: var(--lift);
 }
 .ac-busy {
-  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 11px; top: 0; bottom: 0; margin: auto 0;
   color: var(--accent); pointer-events: none;
 }
 
