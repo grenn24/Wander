@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   canRoute, canAsk, gapCountry, whyEstimate, realRoute, estimateMinutes, suggestMode, travelOptions, lineNames,
-  drawnMode, travelNote,
+  drawnMode,
 } from '../lib/travel.js';
 
 const JAPAN = 392;
@@ -109,15 +109,6 @@ test('the lines a route rides, each once even where the train runs on as the sam
     ['Hanzomon Line', 'Den-en-toshi Line']);
   assert.deepEqual(lineNames(null), []);
   assert.deepEqual(lineNames({ found: true }), []);
-});
-
-test('the note under the hops says where the times came from', () => {
-  assert.equal(travelNote({ gaps: [], timetable: false }),
-    "Distances are straight-line. Travel times are Google's. ~ marks an estimate.");
-  assert.equal(travelNote({ gaps: ['South Korea'], timetable: true, modelled: true }),
-    "Distances are straight-line. Travel times are Google's, and trains in Japan are from the operators' timetables where they publish them. "
-    + "~ marks an estimate: trains elsewhere in Japan are worked out from how often they run; "
-    + "Google can't route that way in South Korea.");
 });
 
 test('trains in Japan bring the other ways along', () => {

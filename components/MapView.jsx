@@ -24,7 +24,7 @@ import LegLine from '@/components/LegLine';
 import TrainPanel from '@/components/TrainPanel';
 import { hopLines } from '@/lib/trainMap';
 import useLegs, { useLegChoices } from '@/components/useLegs';
-import { travelNote, savedLines } from '@/lib/travel';
+import { savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import { inkOn } from '@/components/mapPin';
 import useKept from '@/components/useKept';
@@ -1053,11 +1053,9 @@ export default function MapView({
                   </section>
                 );
               })}
-              {Object.keys(legs).length ? (
+              {!travel.on && Object.keys(legs).length ? (
                 <p className={m.note}>
-                  {travel.on
-                    ? travelNote(travel)
-                    : 'Straight-line distances. Walking times are estimates; actual routes may take longer. Turn on Routes in Map appearance for real travel times.'}
+                  Straight-line distances. Walking times are estimates; actual routes may take longer. Turn on Routes in Map appearance for real travel times.
                 </p>
               ) : null}
             </div>

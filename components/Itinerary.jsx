@@ -26,7 +26,7 @@ import { activityDistance, fmtKm } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
 import TrainSheet from '@/components/TrainSheet';
 import useLegs, { useLegChoices } from '@/components/useLegs';
-import { travelNote, savedLines } from '@/lib/travel';
+import { savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
@@ -594,11 +594,9 @@ export default function Itinerary({
               })}
             </div>
 
-            {list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
+            {!travel.on && list.some((a, k) => activityDistance(list[k - 1], a) != null) ? (
               <p className="itinerary-distance-note">
-                {travel.on
-                  ? travelNote(travel)
-                  : 'Straight-line distances. Walking times are estimates; actual routes may take longer.'}
+                Straight-line distances. Walking times are estimates; actual routes may take longer.
               </p>
             ) : null}
 
