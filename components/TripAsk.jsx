@@ -175,7 +175,7 @@ export default function TripAsk({ trip, days, activities }) {
   const last = messages[messages.length - 1];
   useEffect(() => {
     if (pinned.current && end.current) end.current.scrollIntoView({ block: 'end' });
-  }, [messages.length, last && last.content, last && last.searching]);
+  }, [messages.length, last && last.content, last && last.searching, last && last.steps]);
 
   // The box is a different element on the blank page and under a
   // conversation, so the cursor follows it across.

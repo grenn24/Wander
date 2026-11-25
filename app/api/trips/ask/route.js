@@ -1,6 +1,6 @@
 import { aiConfigured, notConfigured, aiFailure, aiModel, aiEffort, askJson } from '@/lib/ai';
 import { userFromRequest, notSignedIn, asUser } from '@/lib/supabaseServer';
-import { tripContext, cleanSourceUrl, cleanAttachments } from '@/lib/tripAsk';
+import { tripContext, cleanSourceUrl, cleanAttachments, searchStep } from '@/lib/tripAsk';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -180,40 +180,61 @@ export async function POST(req) {
     return room > 0 && content ? { role: m.role === 'assistant' ? 'assistant' : 'user', content } : null;
   }).filter(Boolean).reverse();
 
+  /*
+   * `include` asks for the sites each search turned up, so the page can show
+   * them while the answer is on its way. Should a model ever refuse the
+   * parameter, the question is asked again without it: the answer matters
+   * more than the view of the search.
+   */
+  const call = (sources) => fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    // Stop on the page closes this request, which is what stops the model
+    // writing (and billing) an answer nobody will read.
+    signal: req.signal,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: aiModel('tripAsk'),
+      stream: true,
+      store: false,
+      // Thinking and words share this budget. At medium effort a model can
+      // spend most of it thinking; too tight a ceiling and the answer is empty.
+      max_output_tokens: 14000,
+      ...(aiEffort('tripAsk') ? { reasoning: { effort: aiEffort('tripAsk') } } : {}),
+      tools: [{ type: 'web_search' }],
+      ...(sources ? { include: ['web_search_call.action.sources'] } : {}),
+      instructions: `${INSTRUCTIONS}\n\n---\n\n${context}`,
+      input: [...history, { role: 'user', content: attached.length ? turnWith(question, attached) : question }],
+    }),
+  });
+  const refusal = async (res) => {
+    try { return ((await res.json()).error || {}).message || ''; } catch { return ''; /* non-JSON body */ }
+  };
+
   let upstream;
+  let detail = '';
   try {
-    upstream = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      // Stop on the page closes this request, which is what stops the model
-      // writing (and billing) an answer nobody will read.
-      signal: req.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: aiModel('tripAsk'),
-        stream: true,
-        store: false,
-        // Thinking and words share this budget. At medium effort a model can
-        // spend most of it thinking; too tight a ceiling and the answer is empty.
-        max_output_tokens: 14000,
-        ...(aiEffort('tripAsk') ? { reasoning: { effort: aiEffort('tripAsk') } } : {}),
-        tools: [{ type: 'web_search' }],
-        instructions: `${INSTRUCTIONS}\n\n---\n\n${context}`,
-        input: [...history, { role: 'user', content: attached.length ? turnWith(question, attached) : question }],
-      }),
-    });
+    upstream = await call(true);
+    if (upstream.status === 400) {
+      detail = await refusal(upstream);
+      if (/include|sources/i.test(detail)) {
+        console.warn('[ai] tripAsk: search sources refused, asking without them:', detail);
+        upstream = await call(false);
+        detail = '';
+      }
+    }
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 });
     return aiFailure(e, 'tripAsk');
   }
   if (!upstream.ok) {
-    let detail = '';
-    try { detail = ((await upstream.json()).error || {}).message || ''; } catch { /* non-JSON body */ }
+    if (!detail) detail = await refusal(upstream);
     return aiFailure(new Error(`${upstream.status} ${detail || 'no detail'} (model ${aiModel('tripAsk')})`), 'tripAsk');
   }
 
   /*
    * One JSON object per line, so the page can tell words from what is
-   * happening around them: a web search under way, a source cited, the end.
+   * happening around them: a web search under way and what it found, a
+   * source cited, the end.
    */
   // The first question of a chat also gets the chat its name.
   const naming = body.wantTitle === true
@@ -243,13 +264,15 @@ export async function POST(req) {
           case 'response.output_text.delta':
             if (typeof ev.delta === 'string' && ev.delta) send({ type: 'text', delta: ev.delta });
             break;
+          // A search starting, then what it did: the query and the sites it
+          // turned up, a page it opened, or a phrase it looked for on one.
           case 'response.output_item.added':
-            if (ev.item && ev.item.type === 'web_search_call') send({ type: 'status', status: 'searching' });
+            if (ev.item && ev.item.type === 'web_search_call') send({ type: 'status', status: 'searching', id: clean(ev.item.id, 80) });
             break;
           case 'response.output_item.done':
             if (ev.item && ev.item.type === 'web_search_call') {
-              const q = ev.item.action && (ev.item.action.query || (ev.item.action.queries || [])[0]);
-              send({ type: 'status', status: 'searched', query: clean(q, 200) });
+              const step = searchStep(ev.item);
+              send({ type: 'status', status: 'searched', ...step, query: step.query || '' });
             }
             break;
           case 'response.output_text.annotation.added': {

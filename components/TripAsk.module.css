@@ -128,6 +128,54 @@
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
 .sources > span { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
 
+/* ------------------------------------------------------- web search -- */
+/* What the search did on the way to an answer: a line that opens into the
+   searches, the sites each turned up, and the pages read. */
+.trail { margin: 0 0 12px; }
+.trailHead {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  margin-left: -4px; padding: 2px 4px; border: 0; border-radius: 6px; background: none;
+  font: inherit; font-size: var(--fs-sm); line-height: 20px; text-align: left;
+  color: var(--text-2); cursor: pointer;
+}
+.trailHead:hover { color: var(--text-1); }
+.trailHead:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.trailHead > svg { flex: none; }
+.trailHead > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trailCount { color: var(--text-3); }
+.chev { transition: transform .15s ease; }
+.trailHead[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+.steps {
+  display: grid; gap: 10px; list-style: none;
+  margin: 8px 0 0 3px; padding: 2px 0 2px 14px; border-left: 1px solid var(--border);
+}
+.step {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; align-items: start;
+  font-size: var(--fs-sm); line-height: 20px; color: var(--text-2); overflow-wrap: anywhere;
+  animation: stepIn .25s ease-out both;
+}
+.step > svg { margin-top: 3px; color: var(--text-3); }
+.stepText { color: var(--text-1); }
+.stepSites { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
+.stepSites .cite { margin: 0; animation: stepIn .25s ease-out both; }
+.more {
+  padding: 0 2px; border: 0; background: none;
+  font: inherit; font-size: var(--fs-xs); line-height: 18px; color: var(--text-3);
+}
+button.more { cursor: pointer; }
+button.more:hover { color: var(--text-1); }
+.readLink { color: var(--text-1); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 2px; }
+.readLink:hover { text-decoration-color: currentColor; }
+/* A step begun and not yet described: the shape of a line, not a second
+   "Searching the web" under the one above. */
+.stepWait { display: block; width: min(260px, 70%); height: 12px; margin-top: 4px; border-radius: 6px; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .step, .stepSites .cite { animation: none; }
+  .chev { transition: none; }
+}
+
 /* ------------------------------------------------------------------ map -- */
 .map { margin: 6px 0 16px; }
 .map figcaption { margin: 0 0 6px; }

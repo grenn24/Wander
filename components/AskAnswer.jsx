@@ -9,6 +9,7 @@ import { retryImport } from '@/lib/chunkRetry';
 import {
   STOP_HREF, cleanSourceUrl, isCitation, parseMapSpec, parsePlacesSpec, sourceSite, stopFor, tidyCitations,
 } from '@/lib/tripAsk';
+import AskSearch from './AskSearch';
 import s from './TripAsk.module.css';
 
 // The map and everything under it (Google's loader, the pins) arrive only
@@ -25,6 +26,7 @@ const AskPlaces = dynamic(() => retryImport(() => import('./AskPlaces')), {
 });
 
 const PLUGINS = [remarkGfm];
+const NO_STEPS = Object.freeze([]);
 const REHYPE = [tidyCitations];
 
 function Pending({ label }) {
@@ -187,15 +189,20 @@ function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPla
   });
 
   const waiting = writing && !message.content;
+  const steps = Array.isArray(message.steps) ? message.steps : NO_STEPS;
   return (
     <div className={s.answer}>
+      {steps.length ? <AskSearch steps={steps} writing={writing} gathering={waiting} /> : null}
+
       {message.content ? (
         <div className={s.md}>
           <Markdown remarkPlugins={PLUGINS} rehypePlugins={REHYPE} components={components}>{message.content}</Markdown>
         </div>
       ) : null}
 
-      {writing && (waiting || message.searching) ? (
+      {/* Until the first search starts, or when there is none: what the steps
+          above would otherwise say. */}
+      {waiting && !steps.length ? (
         <p className={`small muted ${s.status}`}>
           <Loader2 size={14} className="spin" aria-hidden="true" />
           {message.searching ? 'Searching the web' : 'Thinking'}
