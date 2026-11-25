@@ -275,6 +275,20 @@ button.more:hover { color: var(--text-1); }
   /* The page fades out above the box rather than ending in a hard edge. */
   background: linear-gradient(to bottom, transparent, var(--surface-0) 14px);
 }
+/*
+ * With the on-screen keyboard up, the box rides on top of it. Phones shrink
+ * only the visible part of the window for a keyboard, and the bottom edge the
+ * box is pinned to stays down behind it, so it is pinned the keyboard's height
+ * (--kb, from useKeyboardInset) higher. The same height is added under it, so
+ * the end of the conversation can still be scrolled clear of the box. The tab
+ * bar is behind the keyboard, so there is no room to leave for it.
+ */
+.page[data-keyboard] .dock {
+  bottom: var(--kb);
+  margin-bottom: var(--kb);
+  padding-bottom: 10px;
+}
+.page[data-keyboard] .end { scroll-margin-bottom: calc(var(--kb) + 130px); }
 .dock .input { font-size: var(--fs-md); line-height: 22px; padding-block: calc((var(--row) - 22px) / 2); max-height: 200px; }
 .fine { margin: 6px 0 0; text-align: center; font-size: var(--fs-xs); }
 

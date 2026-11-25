@@ -13,6 +13,7 @@ import GrowArea from '@/components/GrowArea';
 import Popover from '@/components/Popover';
 import ConfirmModal from '@/components/ConfirmModal';
 import useKept from '@/components/useKept';
+import useKeyboardInset from '@/components/useKeyboardInset';
 import AskAnswer from '@/components/AskAnswer';
 import { useAskThread } from '@/components/askThread';
 import { askGreetings, askSuggestions } from '@/lib/tripAsk';
@@ -60,6 +61,8 @@ export default function TripAsk({ trip, days, activities }) {
   const input = useRef(null);
   const end = useRef(null);
   const pinned = useRef(true);
+  // The on-screen keyboard's height while it is up: the box rides above it.
+  const keyboard = useKeyboardInset();
   // What goes with the next question: photos, PDFs, text files.
   const [files, setFiles] = useState([]);
   const [over, setOver] = useState(false); // something is being dragged onto the box
@@ -182,6 +185,12 @@ export default function TripAsk({ trip, days, activities }) {
   useEffect(() => {
     if (pinned.current && end.current) end.current.scrollIntoView({ block: 'end' });
   }, [messages.length, last && last.content, last && last.searching, last && last.steps]);
+
+  // The keyboard coming up takes the bottom of the window, so a reader who
+  // was at the end is kept at the end, above it.
+  useEffect(() => {
+    if (keyboard && pinned.current && end.current) end.current.scrollIntoView({ block: 'end' });
+  }, [keyboard]);
 
   // The box is a different element on the blank page and under a
   // conversation, so the cursor follows it across.
@@ -371,7 +380,8 @@ export default function TripAsk({ trip, days, activities }) {
   // `ask-page` is global on purpose: globals.css takes the trip page's bottom
   // padding away for it, so the prompt box has one place to sit.
   return (
-    <div className={`${s.page} ask-page`}>
+    <div className={`${s.page} ask-page`} data-keyboard={keyboard ? '' : undefined}
+      style={keyboard ? { '--kb': `${keyboard}px` } : undefined}>
       <div className={`page-head spread ${s.head}`}>
         {/* The chat's name, written for it from its first question; clicking
             it renames it. "Assistant" only until it has one. Pinned under the
