@@ -5,6 +5,7 @@ import {
   stopTokens, stopFor, stopHref, STOP_HREF, parseMapSpec, cleanSourceUrl, isCitation, sourceSite,
   tripContext, askSuggestions, askGreetings, tidyCitations, parsePlacesSpec,
   cleanAttachments, attachmentNote, MAX_TEXT_CHARS,
+  searchStep, withStep, settledSteps, stepsSummary, STEP_SITES, MAX_STEPS,
 } from '../lib/tripAsk.js';
 
 test('attachments are only what they claim to be', () => {
@@ -201,4 +202,99 @@ test('the blank page greets in a few ways, all short', () => {
   assert.ok(askGreetings(trip, '2026-12-15').includes('What do you need today?'));
   assert.deepEqual(askGreetings({}, ''), ['Ask anything about the trip', 'What would you like to know?']);
   for (const line of before) assert.ok(line.length <= 40, line);
+});
+
+test('a web search call becomes a step the page can show', () => {
+  const search = searchStep({
+    type: 'web_search_call',
+    id: 'ws_1',
+    status: 'completed',
+    action: {
+      type: 'search',
+      query: '  Tokyo National Museum   opening hours ',
+      sources: [
+        { type: 'url', url: 'https://www.tnm.jp/?utm_source=openai' },
+        { type: 'url', url: 'https://www.tnm.jp/' },
+        { type: 'url', url: 'javascript:alert(1)' },
+        { type: 'url', url: 'oai-weather' },
+        { type: 'url', url: 'https://www.japan-guide.com/e/e3056.html' },
+      ],
+    },
+  });
+  assert.deepEqual(search, {
+    id: 'ws_1',
+    kind: 'search',
+    query: 'Tokyo National Museum opening hours',
+    sites: ['https://www.tnm.jp/', 'https://www.japan-guide.com/e/e3056.html'],
+    found: 2,
+  });
+
+  // Only the first few sites are kept; how many there were is kept as a number.
+  const many = searchStep({
+    id: 'ws_2',
+    action: { type: 'search', queries: ['ramen ueno'], sources: Array.from({ length: 30 }, (_, i) => ({ type: 'url', url: `https://e${i}.com/` })) },
+  });
+  assert.equal(many.query, 'ramen ueno');
+  assert.equal(many.sites.length, STEP_SITES);
+  assert.equal(many.found, 30);
+
+  assert.deepEqual(searchStep({ id: 'ws_3', action: { type: 'open_page', url: 'https://example.com/a?utm_source=openai' } }),
+    { id: 'ws_3', kind: 'open', url: 'https://example.com/a' });
+  assert.deepEqual(searchStep({ id: 'ws_4', action: { type: 'find_in_page', url: 'https://example.com/a', pattern: 'closed on' } }),
+    { id: 'ws_4', kind: 'find', url: 'https://example.com/a', pattern: 'closed on' });
+  assert.deepEqual(searchStep({ id: 'ws_5', action: { type: 'open_page', url: 'file:///etc/passwd' } }), { id: 'ws_5', kind: 'open' });
+  // A call with no action yet (or no sources asked for) is a search with nothing to show.
+  assert.deepEqual(searchStep({ id: 'ws_6' }), { id: 'ws_6', kind: 'search' });
+  assert.deepEqual(searchStep(null), { id: '', kind: 'search' });
+});
+
+test('stream events build the steps of an answer', () => {
+  let steps = [];
+  steps = withStep(steps, { type: 'status', status: 'searching', id: 'ws_1' });
+  assert.deepEqual(steps, [{ id: 'ws_1', kind: '', pending: true }]);
+  // The same start twice is still one step.
+  assert.equal(withStep(steps, { type: 'status', status: 'searching', id: 'ws_1' }), steps);
+
+  steps = withStep(steps, { type: 'status', status: 'searching', id: 'ws_2' });
+  steps = withStep(steps, {
+    type: 'status', status: 'searched', id: 'ws_1', kind: 'search', query: 'ueno zoo', sites: ['https://a.com/', 'nope', 'https://a.com/'], found: 9,
+  });
+  assert.deepEqual(steps[0], { id: 'ws_1', kind: 'search', query: 'ueno zoo', sites: ['https://a.com/'], found: 9 });
+  assert.equal(steps[1].pending, true);
+
+  steps = withStep(steps, { type: 'status', status: 'searched', id: 'ws_2', kind: 'open', url: 'https://a.com/page', query: '' });
+  assert.deepEqual(steps[1], { id: 'ws_2', kind: 'open', url: 'https://a.com/page' });
+
+  // A finish whose start was missed is added, not lost.
+  steps = withStep(steps, { type: 'status', status: 'searched', id: 'ws_3', kind: 'find', url: 'https://a.com/page', pattern: 'Monday' });
+  assert.equal(steps.length, 3);
+  assert.equal(steps[2].pattern, 'Monday');
+
+  // An unknown kind reads as a search; other events change nothing.
+  assert.equal(withStep([], { type: 'status', status: 'searched', kind: 'hack' })[0].kind, 'search');
+  assert.equal(withStep(steps, { type: 'text', delta: 'hi' }), steps);
+  assert.deepEqual(withStep(undefined, { type: 'done' }), []);
+
+  // Long research does not grow without end.
+  let long = [];
+  for (let i = 0; i < MAX_STEPS + 5; i += 1) long = withStep(long, { type: 'status', status: 'searching', id: `ws_${i}` });
+  assert.equal(long.length, MAX_STEPS);
+  assert.equal(long[long.length - 1].id, `ws_${MAX_STEPS + 4}`);
+});
+
+test('steps settle and summarise once the answer is over', () => {
+  const steps = [
+    { id: '1', kind: 'search', query: 'a' },
+    { id: '2', kind: 'search', query: 'b' },
+    { id: '3', kind: 'open', url: 'https://a.com/x' },
+    { id: '4', kind: 'find', url: 'https://a.com/x', pattern: 'p' },
+    { id: '5', kind: '', pending: true },
+  ];
+  assert.deepEqual(settledSteps(steps).map((x) => x.id), ['1', '2', '3', '4']);
+  assert.deepEqual(settledSteps(null), []);
+  // A page opened then searched within is one page read.
+  assert.equal(stepsSummary(steps), '2 searches · 1 page read');
+  assert.equal(stepsSummary([{ id: '1', kind: 'search' }]), '1 search');
+  assert.equal(stepsSummary([{ id: '1', kind: 'open', url: 'https://a.com' }, { id: '2', kind: 'open', url: 'https://b.com' }]), '2 pages read');
+  assert.equal(stepsSummary([{ id: '1', kind: '', pending: true }]), '');
 });

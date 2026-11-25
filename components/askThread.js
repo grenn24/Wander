@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useSyncExternalStore } from 'react';
 import { getClient } from '@/lib/supabase';
-import { attachmentNote, changeNote } from '@/lib/tripAsk';
+import { attachmentNote, changeNote, settledSteps, withStep } from '@/lib/tripAsk';
 
 /*
  * The trip Assistant's conversations, kept outside the page.
@@ -136,13 +136,14 @@ const titleOf = (messages) => {
 // What is worth keeping of a turn: not whether a search (or a proposal) was
 // under way, and not the attached files themselves — their names and
 // thumbnails stay, the photographs and PDFs do not (a database row is no
-// place for megabytes).
+// place for megabytes). What the search did is kept, so a chat reopened later
+// still shows it.
 const changed = (m) => !!(m.proposal || m.editQuestion || m.proposalError);
 const keepable = (messages) => messages
   .filter((m) => m.role === 'user' || m.content || m.error || changed(m))
   .map(({
     searching, proposing, files, ...m
-  }) => m);
+  }) => (Array.isArray(m.steps) ? { ...m, steps: settledSteps(m.steps) } : m));
 
 export async function loadChats(tripId) {
   const client = getClient();
@@ -243,7 +244,7 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
   set(tripId, {
     ...s,
     busy: true,
-    messages: [...messages, { id: uid(), role: 'assistant', content: '', sources: [], status: 'writing', searching: false }],
+    messages: [...messages, { id: uid(), role: 'assistant', content: '', sources: [], steps: [], status: 'writing', searching: false }],
   }, true);
 
   const ctrl = new AbortController();
@@ -280,6 +281,7 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
           ...m,
           searching: ev.status === 'searching',
           searched: ev.query || m.searched,
+          steps: withStep(m.steps, ev),
           proposing: ev.status === 'proposing' || m.proposing,
         }));
       } else if (ev.type === 'proposal') {
@@ -320,7 +322,14 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
     if (failed && !got.trim() && !proposed) throw new Error(failed);
     if (!got.trim() && !proposed) throw new Error('No answer came back. Please try again.');
     patchLast(tripId, (m) => ({
-      ...m, content: got, searching: false, proposing: false, status: failed || cut ? 'stopped' : 'done', error: failed, at: new Date().toISOString(),
+      ...m,
+      content: got,
+      searching: false,
+      proposing: false,
+      steps: settledSteps(m.steps),
+      status: failed || cut ? 'stopped' : 'done',
+      error: failed,
+      at: new Date().toISOString(),
     }), true);
   } catch (e) {
     const stopped = e && e.name === 'AbortError';
@@ -329,6 +338,7 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
       content: got,
       searching: false,
       proposing: false,
+      steps: settledSteps(m.steps),
       status: stopped && got ? 'stopped' : stopped ? 'cancelled' : 'error',
       error: stopped ? '' : (e && e.message) || 'Something went wrong. Please try again.',
     }), true);

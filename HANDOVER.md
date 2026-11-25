@@ -293,7 +293,15 @@ with OpenAI's *hosted* `web_search` tool — OpenAI runs the searches, so there 
 still no loop on our side. The route reads the trip with the asker's own JWT
 (`asUser`), never from the request, and answers NDJSON lines
 (`text`, `status`, `source`, `done`, `error`, and `proposal` / `question` /
-`proposal_error` for changes — below). Answers point back into the app two ways:
+`proposal_error` for changes — below). While it works the page shows
+what the search is doing (`components/AskSearch.jsx`): each query with the
+sites it turned up, each page opened, each phrase looked for on one, folded
+into "Searched the web · 2 searches" once the words start. The route asks for
+`include: ['web_search_call.action.sources']` (asked again without it if a model
+refuses it), `searchStep` turns each finished `web_search_call` into a
+`status: 'searched'` line with `id`, `kind` (`search` / `open` / `find`),
+`query`, `sites`, `found`, `url`, `pattern`, and `withStep` folds those into
+the answer's `steps`, which are saved with the chat. Answers point back into the app two ways:
 `[title](#stop-<token>)` links, where the token is a 6+ character prefix of the
 activity id (`stopTokens`, stable when stops are added), and ` ```map ` blocks of
 JSON naming stops by token and other places by name, which the page looks up
