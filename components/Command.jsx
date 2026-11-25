@@ -5,8 +5,8 @@ import {
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Sparkles, Loader2, X, Check, Trash2, CalendarDays, Pencil, Plus, Settings, Clock,
-  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, MapPin, Image as ImageIcon,
+  Sparkles, Loader2, X, Check, Plus, Settings,
+  Search, ArrowLeft, ArrowUp, RotateCcw, Backpack, Printer, ImagePlus, Image as ImageIcon,
 } from 'lucide-react';
 import GrowArea from '@/components/GrowArea';
 import { focusCommandField, holdCommandPage } from '@/lib/commandFocus';
@@ -17,7 +17,10 @@ import { useApp } from '@/components/AppProvider';
 import { authHeader } from '@/lib/supabase';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import { activityIcon, categoryIcon } from '@/lib/icons';
-import { LODGING_KEYS, cleanLodging, moveStay } from '@/lib/lodging';
+import { expandAll } from '@/lib/tripChanges';
+import useTripChanges from '@/components/useTripChanges';
+import PlaceReview from '@/components/PlaceReview';
+import ChangeList from '@/components/ChangeList';
 
 /**
  * One box for everything you might type at this trip.
@@ -39,20 +42,6 @@ import { LODGING_KEYS, cleanLodging, moveStay } from '@/lib/lodging';
  * or two is a lookup, so matches lead; a sentence is an instruction, so the
  * actions do. Nothing is hidden either way.
  */
-
-const ICONS = {
-  add_activity: Plus,
-  update_activity: Pencil,
-  move_activity: CalendarDays,
-  delete_activity: Trash2,
-  update_trip: Settings,
-  shift_times: Clock,
-  clear_day: Trash2,
-  move_day: CalendarDays,
-  edit_many: Pencil,
-};
-
-const DESTRUCTIVE = new Set(['delete_activity', 'clear_day']);
 
 /** Past this many words it is a sentence, and a sentence is an instruction. */
 const SENTENCE = 4;
@@ -83,98 +72,6 @@ const EXAMPLES = [
   'Add a hotel each night in Kyoto',
   'Nothing before 10am',
 ];
-
-/** Nudge a HH:MM by some minutes, staying inside the day. */
-/**
- * The keys that were actually set, out of a shape that always carries all.
- *
- * Strict schemas require every property, so a request to set one gate arrives
- * with eleven nulls beside it. Writing those through would blank fields nobody
- * asked about.
- */
-function onlySet(details) {
-  if (!details || typeof details !== 'object') return {};
-  return Object.entries(details).reduce((o, [k, v]) => {
-    const val = String(v == null ? '' : v).trim();
-    return val || (LODGING_KEYS.includes(k) && v === '') ? { ...o, [k]: val } : o;
-  }, {});
-}
-
-function shiftTime(t, minutes) {
-  if (!t) return null;
-  const [h, m] = String(t).split(':').map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  // Clamped rather than rolled over: a stop that silently moves to tomorrow is
-  // a worse surprise than one pinned to the end of today.
-  const total = Math.max(0, Math.min(23 * 60 + 59, (h * 60) + m + minutes));
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
-}
-
-/**
- * Bulk operations name an intent; this turns one into the edits that carry it
- * out. Doing the expansion here rather than asking the model to enumerate it
- * is the difference between one operation and fifty — and fifty was what kept
- * running long requests out of room.
- */
-function expand(op, activities) {
-  const onDay = (day) => activities.filter((a) => a.day === day);
-
-  if (op.kind === 'shift_times') {
-    const scope = op.day ? onDay(op.day) : activities;
-    const by = op.minutes || 0;
-    if (!by) return [];
-    return scope
-      .filter((a) => a.start_time || a.end_time)
-      .map((a) => ({
-        kind: 'update_activity',
-        activity_id: a.id,
-        start_time: shiftTime(a.start_time, by),
-        end_time: shiftTime(a.end_time, by),
-      }));
-  }
-
-  if (op.kind === 'clear_day') {
-    return onDay(op.day).map((a) => ({ kind: 'delete_activity', activity_id: a.id }));
-  }
-
-  if (op.kind === 'edit_many') {
-    return (op.items || []).map((it) => {
-      const target = activities.find((a) => String(a.id) === String(it.activity_id));
-      if (!target) return null;
-      let notes = null;
-      if (it.note_add) {
-        /*
-         * Appended, never substituted. The model is not told what an activity
-         * already says, so letting it write the notes field outright would
-         * quietly replace whatever was there — and "add the train line" is not
-         * a request to delete the booking reference someone typed last week.
-         */
-        const had = (target.notes || '').trim();
-        const line = it.note_add.trim();
-        notes = !had ? line : had.includes(line) ? had : [had, line].join('\n');
-      }
-      return {
-        kind: 'update_activity',
-        activity_id: it.activity_id,
-        notes,
-        start_time: it.start_time || null,
-        end_time: it.end_time || null,
-        cost: it.cost == null ? null : it.cost,
-        subtype: it.subtype || null,
-        details: it.details || null,
-      };
-    }).filter(Boolean);
-  }
-
-  if (op.kind === 'move_day') {
-    if (!op.to_day) return [];
-    return onDay(op.day)
-      .map((a) => ({ kind: 'move_activity', activity_id: a.id, day: op.to_day }));
-  }
-
-  return [op];
-}
 
 /** Everything about an activity that someone might reasonably type. */
 function haystack(a) {
@@ -251,16 +148,16 @@ function CommandBar({ onClose }) {
   const pathname = usePathname();
   const { supabase, pushToast, fail } = useApp();
   const {
-    tripId, trip, activities, agentHistory, appendAgentMessage, requestFocus, request,
-    addActivities, addPacking, saveActivity, moveActivity, deleteActivity, updateTrip,
+    tripId, trip, activities, agentHistory, appendAgentMessage, requestFocus, request, addPacking,
   } = useTrip();
+  // Applying an approved plan, with the place check: shared with the Assistant.
+  const changes = useTripChanges();
 
   const [text, setText] = useState('');
   const [active, setActive] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const busy = asking || changes.busy;
   const [plan, setPlan] = useState(null); // { summary, ops }
-  const [placeReview, setPlaceReview] = useState(null);
-  const [pendingApply, setPendingApply] = useState(null);
   const [question, setQuestion] = useState(null); // { ask, header, kind, options }
   const [answers, setAnswers] = useState([]); // every reply so far, in order
   const [picked, setPicked] = useState([]); // multi-select, before Continue
@@ -285,13 +182,14 @@ function CommandBar({ onClose }) {
     setQuestion(null); setPicked([]); setAnswer(''); setTyping(false);
   }, []);
 
+  const resetChanges = changes.reset;
   const startOver = useCallback(() => {
-    setText(''); setPlan(null); setPlaceReview(null); setPendingApply(null);
+    setText(''); setPlan(null); resetChanges();
     setAnswers([]); setError(''); setActive(0);
     clearAsk();
     pending.current = '';
     focusCommandField(inputRef.current);
-  }, [clearAsk]);
+  }, [clearAsk, resetChanges]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -397,7 +295,7 @@ function CommandBar({ onClose }) {
     if (!instruction && !(first && shots.length)) return;
     const said = first ? [] : [...answers, reply];
     setAnswers(said);
-    setBusy(true); setError(''); clearAsk();
+    setAsking(true); setError(''); clearAsk();
 
     /*
      * Pictures become words before anything else happens, so a picture nobody
@@ -414,7 +312,7 @@ function CommandBar({ onClose }) {
         const seen = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(seen.error || 'Those pictures could not be read.');
-          setBusy(false);
+          setAsking(false);
           return;
         }
         const from = shots.length === 1 ? 'From an attached picture:' : 'From attached pictures:';
@@ -424,7 +322,7 @@ function CommandBar({ onClose }) {
         pending.current = instruction;
       } catch (e) {
         setError('The connection dropped while reading. Try again.');
-        setBusy(false);
+        setAsking(false);
         return;
       }
     }
@@ -521,7 +419,7 @@ function CommandBar({ onClose }) {
         : 'Something went wrong. Please try again later.');
     } finally {
       clearTimeout(gaveUp);
-      setBusy(false);
+      setAsking(false);
     }
   }
 
@@ -536,7 +434,7 @@ function CommandBar({ onClose }) {
     if (!said || busy) return;
     const m = said.match(/^(\d{1,3})\s*x?\s+(.+)$/);
     const label = ((m ? m[2] : said)).trim().slice(0, 120);
-    setBusy(true);
+    setAsking(true);
     try {
       await addPacking({ label, category: 'general', qty: m ? Number(m[1]) : 1 });
       pushToast(`Added “${label}” to the packing list.`);
@@ -545,7 +443,7 @@ function CommandBar({ onClose }) {
     } catch (e) {
       fail(e);
     } finally {
-      setBusy(false);
+      setAsking(false);
     }
   }
 
@@ -556,222 +454,14 @@ function CommandBar({ onClose }) {
     request(kind);
   }
 
-  /** Write a fully reviewed proposal. No trip mutation happens before this. */
-  async function commitChanges(expanded, resolved = {}) {
-    if (!plan) return;
-    setBusy(true); setError('');
-    const byId = new Map(activities.map((a) => [String(a.id), a]));
-    const additions = [];
-    let done = 0;
-
-    try {
-      for (let opIndex = 0; opIndex < expanded.length; opIndex += 1) {
-        const op = expanded[opIndex];
-        const place = resolved[`op-${opIndex}`];
-        if (op.kind === 'add_activity') {
-          additions.push({
-            day: op.day || trip.start_date,
-            title: op.title || 'Untitled',
-            start_time: op.start_time,
-            end_time: op.end_time,
-            category: op.category || 'sightseeing',
-            subtype: op.category === 'transport' ? op.subtype || null : null,
-            details: op.category === 'lodging' ? cleanLodging({ check_in_date: '', ...onlySet(op.details) })
-              : op.category === 'transport' ? onlySet(op.details) : {},
-            location: (place && place.label) || op.location || '',
-            lat: place ? place.lat : null,
-            lng: place ? place.lng : null,
-            place_id: place ? place.place_id : null,
-            photo_ref: place ? place.photo_ref : null,
-            cost: op.cost || 0,
-            notes: op.notes || '',
-          });
-          done += 1;
-        } else if (op.kind === 'update_trip') {
-          const patch = {};
-          if (op.trip_name) patch.name = op.trip_name;
-          if (op.destination != null) patch.destination = op.destination;
-          if (op.start_date) patch.start_date = op.start_date;
-          if (op.end_date) patch.end_date = op.end_date;
-          if (op.currency) patch.currency = op.currency;
-          if (op.timezone) patch.timezone = op.timezone;
-          if (op.budget != null) patch.budget = op.budget;
-          if (Object.keys(patch).length) {
-            await updateTrip(patch); // eslint-disable-line no-await-in-loop
-            done += 1;
-          }
-        } else {
-          const target = byId.get(String(op.activity_id));
-          if (!target) continue;
-          if (op.kind === 'delete_activity') {
-            await deleteActivity(target); // eslint-disable-line no-await-in-loop
-          } else if (op.kind === 'move_activity') {
-            await moveActivity(target, op.day); // eslint-disable-line no-await-in-loop
-          } else {
-            const patch = { ...target };
-            if (op.title != null) patch.title = op.title;
-            if (op.start_time !== null) patch.start_time = op.start_time;
-            if (op.end_time !== null) patch.end_time = op.end_time;
-            if (op.category != null) patch.category = op.category;
-            if (op.subtype != null) patch.subtype = op.subtype;
-            /*
-             * Merged, not replaced. Setting the gate on a flight should not
-             * wipe the seat number somebody typed last week, and the model is
-             * only ever told to send what it means to change.
-             */
-            if (op.details) {
-              patch.details = { ...(target.details || {}), ...onlySet(op.details) };
-            }
-            if (op.location != null) {
-              const changed = String(op.location || '').trim().toLowerCase()
-                !== String(target.location || '').trim().toLowerCase();
-              patch.location = op.location;
-              if (changed) {
-                // An address and its pin are one fact. Keeping the old pin
-                // after changing only the text makes the map confidently wrong.
-                patch.lat = null;
-                patch.lng = null;
-                patch.place_id = null;
-                patch.photo_ref = null;
-                if (place) {
-                  patch.lat = place.lat;
-                  patch.lng = place.lng;
-                  patch.place_id = place.place_id || null;
-                  patch.photo_ref = place.photo_ref || null;
-                  patch.location = place.label || op.location;
-                }
-              }
-            }
-            if (op.cost != null) patch.cost = op.cost;
-            if (op.notes != null) patch.notes = op.notes;
-            if (op.day) {
-              patch.day = op.day;
-              if (!op.details) Object.assign(patch, moveStay(target, op.day));
-            }
-            await saveActivity(patch); // eslint-disable-line no-await-in-loop
-          }
-          done += 1;
-        }
-      }
-
-      if (additions.length) await addActivities(additions);
-      await appendAgentMessage({
-        role: 'assistant', kind: 'applied',
-        content: `${done} change${done === 1 ? '' : 's'} applied.`,
-        meta: { summary: plan.summary, ops: plan.ops },
-      });
-      pushToast(`${done} change${done === 1 ? '' : 's'} applied.`);
-      onClose();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /**
-   * Resolve every new or changed place before saving. Certain matches proceed
-   * automatically; plausible alternatives stop here for a human decision.
-   */
+  /** Save the plan, once any place with several matches has been chosen. */
   async function apply() {
     if (!plan) return;
-    const expanded = plan.ops.flatMap((o) => expand(o, activities));
-    const byId = new Map(activities.map((a) => [String(a.id), a]));
-    let destination = trip.destination || '';
-    expanded.forEach((op) => {
-      if (op.kind === 'update_trip' && op.destination != null) destination = op.destination;
-    });
-
-    const targets = [];
-    expanded.forEach((op, opIndex) => {
-      let target;
-      if (op.kind === 'add_activity') {
-        target = {
-          id: `op-${opIndex}`, query: op.location, title: op.title,
-          category: op.category, day: op.day || trip.start_date,
-        };
-      } else if (op.kind === 'update_activity' && op.location != null) {
-        const current = byId.get(String(op.activity_id));
-        const changed = current && String(op.location || '').trim().toLowerCase()
-          !== String(current.location || '').trim().toLowerCase();
-        if (changed) {
-          target = {
-            id: `op-${opIndex}`, query: op.location, title: op.title || current.title,
-            category: op.category || current.category, day: op.day || current.day,
-          };
-        }
-      }
-      if (target && String(target.query || '').trim()) targets.push(target);
-    });
-
-    if (!targets.length) {
-      await commitChanges(expanded);
-      return;
-    }
-
-    setBusy(true); setError('');
-    try {
-      const res = await fetch('/api/places/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-        body: JSON.stringify({
-          items: targets, bias: destination, reviewAmbiguous: true,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Could not verify those locations.');
-
-      const resolved = {};
-      const uncertain = [];
-      (body.results || []).forEach((result) => {
-        if (!result.found) {
-          resolved[result.id] = null;
-          return;
-        }
-        const request = targets.find((item) => item.id === result.id);
-        if (result.ambiguous && Array.isArray(result.candidates) && result.candidates.length) {
-          uncertain.push({
-            id: result.id,
-            title: request ? request.title : 'Activity',
-            query: request ? request.query : '',
-            reason: result.resolution_reason || '',
-            candidates: result.candidates,
-          });
-        } else {
-          resolved[result.id] = result;
-        }
-      });
-
-      if (uncertain.length) {
-        setPendingApply({ expanded, resolved });
-        setPlaceReview({ items: uncertain, selected: {} });
-        return;
-      }
-      await commitChanges(expanded, resolved);
-    } catch (e) {
-      setError(e.message || 'Could not verify those locations. Nothing was saved.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function chooseResolvedPlace(id, placeId) {
-    setPlaceReview((review) => (review ? {
-      ...review, selected: { ...review.selected, [id]: placeId },
-    } : review));
+    if ((await changes.apply(plan)) != null) onClose();
   }
 
   async function continueAfterPlaceReview() {
-    if (!placeReview || !pendingApply) return;
-    const resolved = { ...pendingApply.resolved };
-    placeReview.items.forEach((item) => {
-      const choice = placeReview.selected[item.id];
-      resolved[item.id] = choice === '__none__'
-        ? null : item.candidates.find((candidate) => candidate.place_id === choice) || null;
-    });
-    const expanded = pendingApply.expanded;
-    setPlaceReview(null); setPendingApply(null);
-    await commitChanges(expanded, resolved);
+    if ((await changes.continueReview()) != null) onClose();
   }
 
   function choose(row) {
@@ -786,9 +476,7 @@ function CommandBar({ onClose }) {
   if (!trip || !ready) return null;
 
   // The preview lists intents; this is how many activities they land on.
-  const edits = plan ? plan.ops.flatMap((o) => expand(o, activities)).length : 0;
-  const reviewedPlaces = placeReview
-    ? placeReview.items.every((item) => !!placeReview.selected[item.id]) : false;
+  const edits = plan ? expandAll(plan.ops, activities).length : 0;
   const answered = !!question || !!plan;
   const showList = !answered && !busy;
 
@@ -854,7 +542,7 @@ function CommandBar({ onClose }) {
             onSubmit={() => run()}
             onChange={(e) => {
               setText(e.target.value); setError(''); setPlan(null);
-              setPlaceReview(null); setPendingApply(null);
+              changes.reset();
               // A new sentence is a new conversation; the old answers were
               // about a question nobody is being asked any more.
               setAnswers([]); clearAsk(); pending.current = '';
@@ -889,7 +577,7 @@ function CommandBar({ onClose }) {
         <ShotStrip className="ck-shots" shots={shots} disabled={busy}
           onRemove={(i) => setShots((was) => was.filter((_, at) => at !== i))} />
 
-        {error ? <div className="err ck-err">{error}</div> : null}
+        {error || changes.error ? <div className="err ck-err">{error || changes.error}</div> : null}
 
         {busy ? (
           <p className="ck-empty">Working it out — a whole-trip change can take a minute.</p>
@@ -1000,76 +688,14 @@ function CommandBar({ onClose }) {
           </div>
         ) : null}
 
-        {plan && placeReview ? (
-          <form className="cmd-plan ck-pad cmd-place-review"
-            onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
-            <p className="small muted cmd-summary">
-              I found more than one plausible match. Choose the right place before I apply anything.
-            </p>
-            {placeReview.items.map((item, i) => (
-              <fieldset className="planq" key={item.id}>
-                <legend><span>{i + 1}</span>{item.title}</legend>
-                <p className="tiny dim place-review-query">Requested location: {item.query}</p>
-                <div className="place-review-options">
-                  {item.candidates.map((candidate) => {
-                    const selected = placeReview.selected[item.id] === candidate.place_id;
-                    return (
-                      <button type="button"
-                        className={`place-review-option${selected ? ' is-on' : ''}`}
-                        key={candidate.place_id} aria-pressed={selected}
-                        onClick={() => chooseResolvedPlace(item.id, candidate.place_id)}>
-                        <MapPin size={15} aria-hidden="true" />
-                        <span>
-                          <strong>{candidate.name || candidate.label}</strong>
-                          <small>{candidate.label}</small>
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <button type="button"
-                    className={`place-review-option${placeReview.selected[item.id] === '__none__' ? ' is-on' : ''}`}
-                    aria-pressed={placeReview.selected[item.id] === '__none__'}
-                    onClick={() => chooseResolvedPlace(item.id, '__none__')}>
-                    <MapPin size={15} aria-hidden="true" />
-                    <span>
-                      <strong>None of these</strong>
-                      <small>Keep the location text without placing a pin.</small>
-                    </span>
-                  </button>
-                </div>
-              </fieldset>
-            ))}
-            <div className="cmd-actions">
-              <span className="tiny dim">Nothing saved yet</span>
-              <button className="btn sm" type="button" disabled={busy}
-                onClick={() => { setPlaceReview(null); setPendingApply(null); }}>
-                Back
-              </button>
-              <button className="btn sm primary" type="submit" disabled={busy || !reviewedPlaces}>
-                {busy ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Apply changes
-              </button>
-            </div>
-          </form>
+        {plan && changes.placeReview ? (
+          <PlaceReview className="ck-pad" review={changes.placeReview} busy={busy}
+            onChoose={changes.choosePlace} onBack={changes.cancelReview}
+            onContinue={continueAfterPlaceReview} />
         ) : plan ? (
           <div className="cmd-plan ck-pad">
             {plan.summary ? <p className="small muted cmd-summary">{plan.summary}</p> : null}
-            <ul className="cmd-ops">
-              {plan.ops.map((op, i) => {
-                const Icon = ICONS[op.kind] || Pencil;
-                const touches = expand(op, activities).length;
-                return (
-                  <li key={`${op.kind}-${i}`}
-                    className={DESTRUCTIVE.has(op.kind) ? 'is-destructive' : ''}>
-                    <Icon size={14} />
-                    <span>{op.describe}</span>
-                    {/* A bulk line stands for many edits — say how many, or
-                        "clear day 4" reads like a single small change. */}
-                    {touches > 1 ? <span className="cmd-day">{touches} stops</span>
-                      : op.day ? <span className="cmd-day">{fmtDayTiny(op.day)}</span> : null}
-                  </li>
-                );
-              })}
-            </ul>
+            <ChangeList ops={plan.ops} activities={activities} />
             <div className="cmd-actions">
               <span className="tiny dim">
                 {edits} change{edits === 1 ? '' : 's'} · nothing saved yet

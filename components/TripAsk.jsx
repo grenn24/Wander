@@ -39,8 +39,9 @@ function when(iso) {
  *
  * It reads the plan (days, stops, costs, packing, notes), searches the web for
  * what changes, and writes back in Markdown — tables, lists, links to the
- * trip's own stops, and maps. It cannot change anything; edits stay with the
- * command bar, where every one is shown before it is saved. Conversations are
+ * trip's own stops, and maps. Asked to change the plan, it proposes the edits
+ * itself — the command bar's editor writes them — and they sit under its
+ * answer to apply or discard; nothing is saved before Apply. Conversations are
  * kept for the person who had them, and nobody else on the trip sees them.
  */
 export default function TripAsk({ trip, days, activities }) {
@@ -48,7 +49,7 @@ export default function TripAsk({ trip, days, activities }) {
   const { supabase } = useApp();
   const { request } = useTrip();
   const {
-    messages, busy, title, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load, rename,
+    messages, busy, title, chatId, chats, chatsReady, ask, again, stop, clear, open, remove, load, rename, mark,
   } = useAskThread(trip.id);
   const empty = !messages.length;
   const [text, setText] = useState('');
@@ -104,6 +105,11 @@ export default function TripAsk({ trip, days, activities }) {
     pinned.current = true;
     ask(q, t, sending);
   }
+
+  // A tapped answer to a question the editor asked, sent as the next message.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const reply = useCallback((said) => sendRef.current(said), []);
 
   async function take(list) {
     if (!list || !list.length) return;
@@ -422,7 +428,7 @@ export default function TripAsk({ trip, days, activities }) {
         ) : (
           <AskAnswer key={m.id} message={m} last={i === messages.length - 1 && !busy}
             trip={trip} days={days} activities={activities}
-            onOpenStop={openStop} onAddPlace={addPlace} onAgain={askAgain} />
+            onOpenStop={openStop} onAddPlace={addPlace} onAgain={askAgain} onMark={mark} onReply={reply} />
         )))}
       </div>
       <div ref={end} className={s.end} />

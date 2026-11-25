@@ -79,12 +79,12 @@ test('the quick-add line can answer with one entry per place', () => {
 });
 
 test('every planner keeps one place per activity, located to the venue', () => {
-  for (const path of ['app/api/plan/route.js', 'app/api/command/route.js', 'app/api/suggest/route.js']) {
+  for (const path of ['app/api/plan/route.js', 'lib/tripEdits.js', 'app/api/suggest/route.js']) {
     const src = read(path);
     assert.match(src, /Google Maps to land/, `${path} asks for a venue-level search`);
     assert.match(src, /[Nn]ever only a\s+district/, `${path} rules out a district for a venue`);
   }
   assert.match(read('app/api/plan/route.js'), /One place, one activity/);
-  assert.match(read('app/api/command/route.js'), /One place, one activity/);
+  assert.match(read('lib/tripEdits.js'), /One place, one activity/);
   assert.match(read('components/AiSuggest.jsx'), /pinPlaces\(/);
 });

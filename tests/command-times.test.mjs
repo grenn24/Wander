@@ -49,7 +49,8 @@ test('the sanitiser keeps a time the model answers with seconds', () => {
 
 test('the command bar sends end times, and the route lists them and says how to change one stop', () => {
   assert.match(read('components/Command.jsx'), /end_time: a\.end_time,/);
-  const route = read('app/api/command/route.js');
+  // The editor the command bar and the Assistant share.
+  const route = read('lib/tripEdits.js');
   assert.match(route, /const listing = activityListing\(activities\)/);
   assert.match(route, /start_time and end_time are clock times, never durations/);
   assert.match(route, /set only its end_time, to the listed end plus or minus N/);

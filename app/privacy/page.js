@@ -96,7 +96,7 @@ export default function Privacy() {
       <p>
         <b>Calendar entries are sent to our planning provider</b> (OpenAI) when you use a
         feature that plans around them — creating a trip, asking for suggestions for a day, or
-        asking the command bar to change something. That is how the wedding in your calendar
+        asking the command bar or the trip Assistant to change something. That is how the wedding in your calendar
         ends up in your itinerary with its real address. If you would rather that did not
         happen, do not connect a calendar.
       </p>

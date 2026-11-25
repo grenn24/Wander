@@ -99,5 +99,6 @@ test('command authenticates and awaits calendar before AI, with no client diary 
   assert.doesNotMatch(route, /body\.calendar/);
   assert.doesNotMatch(client, /useCommitments|Object\.values\(booked\)/);
   assert.match(client, /Authorization: `Bearer \$\{token\}`/);
-  assert.match(route, /If one booking clearly matches, propose adding it without asking/);
+  const editor = readFileSync(new URL('../lib/tripEdits.js', import.meta.url), 'utf8');
+  assert.match(editor, /If one booking clearly matches, propose adding it without asking/);
 });

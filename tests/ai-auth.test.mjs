@@ -16,7 +16,8 @@ function routesCallingOpenAI(dir = 'app/api') {
     if (statSync(new URL(`../${path}`, import.meta.url)).isDirectory()) out.push(...routesCallingOpenAI(path));
     else if (name === 'route.js') {
       const src = read(path);
-      if (/askJson\(|api\.openai\.com/.test(src)) out.push(path);
+      // proposeEdits is the trip editor's model call (lib/tripEdits.js).
+      if (/askJson\(|proposeEdits\(|api\.openai\.com/.test(src)) out.push(path);
     }
   }
   return out;
@@ -45,7 +46,7 @@ test('the pages that call those routes send the token', () => {
     ['components/AiSuggest.jsx', '/api/suggest'],
     ['components/Packing.jsx', '/api/packing'],
     ['components/Command.jsx', '/api/vision'],
-    ['components/Command.jsx', '/api/places/resolve'],
+    ['components/useTripChanges.js', '/api/places/resolve'],
     ['app/plan/page.js', '/api/vision'],
     ['app/plan/page.js', '/api/plan'],
     ['app/plan/page.js', '/api/places/resolve'],

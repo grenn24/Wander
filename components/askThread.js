@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useSyncExternalStore } from 'react';
 import { getClient } from '@/lib/supabase';
-import { attachmentNote } from '@/lib/tripAsk';
+import { attachmentNote, changeNote } from '@/lib/tripAsk';
 
 /*
  * The trip Assistant's conversations, kept outside the page.
@@ -16,6 +16,12 @@ import { attachmentNote } from '@/lib/tripAsk';
  * reload lands back in it before the database has answered — and a
  * conversation that was never saved (one from before saving existed, or from
  * a database without the table yet) is saved as soon as it can be.
+ *
+ * An answer can also carry a change to the trip: the edits the Assistant
+ * proposed (`proposal`, with its `state` — pending, applied or discarded), a
+ * question the editor needs answered first (`editQuestion`), or why the edits
+ * could not be worked out (`proposalError`). They are kept with the chat, so
+ * reopening it shows what was proposed and what became of it.
  */
 
 const EMPTY_LIST = Object.freeze([]);
@@ -127,12 +133,16 @@ const titleOf = (messages) => {
   return t.length > 80 ? `${t.slice(0, 79)}…` : t;
 };
 
-// What is worth keeping of a turn: not whether a search was under way, and
-// not the attached files themselves — their names and thumbnails stay, the
-// photographs and PDFs do not (a database row is no place for megabytes).
+// What is worth keeping of a turn: not whether a search (or a proposal) was
+// under way, and not the attached files themselves — their names and
+// thumbnails stay, the photographs and PDFs do not (a database row is no
+// place for megabytes).
+const changed = (m) => !!(m.proposal || m.editQuestion || m.proposalError);
 const keepable = (messages) => messages
-  .filter((m) => m.role === 'user' || m.content || m.error)
-  .map(({ searching, files, ...m }) => m);
+  .filter((m) => m.role === 'user' || m.content || m.error || changed(m))
+  .map(({
+    searching, proposing, files, ...m
+  }) => m);
 
 export async function loadChats(tripId) {
   const client = getClient();
@@ -222,10 +232,14 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
   }
   const asked = messages[messages.length - 1];
   if (!asked || asked.role !== 'user') return;
-  // Earlier attachments are named, not sent again.
+  // Earlier attachments are named, not sent again; earlier changes say what
+  // became of them.
   const history = messages.slice(0, -1)
-    .filter((m) => (m.content || (m.attachments || []).length) && m.status !== 'error')
-    .map(({ role, content, attachments: had }) => ({ role, content: [content, attachmentNote(had)].filter(Boolean).join('\n') }));
+    .filter((m) => (m.content || (m.attachments || []).length || changed(m)) && m.status !== 'error')
+    .map((m) => ({
+      role: m.role,
+      content: [m.content, attachmentNote(m.attachments), changeNote(m)].filter(Boolean).join('\n'),
+    }));
   set(tripId, {
     ...s,
     busy: true,
@@ -255,12 +269,32 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
     let buf = '';
     let failed = '';
     let cut = false;
+    let proposed = false; // a change came back, so an answer with no words is still an answer
     const take = (line) => {
       if (!line.trim()) return;
       let ev;
       try { ev = JSON.parse(line); } catch { return; }
       if (ev.type === 'text') got += ev.delta;
-      else if (ev.type === 'status') patchLast(tripId, (m) => ({ ...m, searching: ev.status === 'searching', searched: ev.query || m.searched }));
+      else if (ev.type === 'status') {
+        patchLast(tripId, (m) => ({
+          ...m,
+          searching: ev.status === 'searching',
+          searched: ev.query || m.searched,
+          proposing: ev.status === 'proposing' || m.proposing,
+        }));
+      } else if (ev.type === 'proposal') {
+        proposed = true;
+        const ops = Array.isArray(ev.ops) ? ev.ops : [];
+        patchLast(tripId, (m) => ({
+          ...m, proposing: false, proposal: { summary: String(ev.summary || ''), ops, state: 'pending' },
+        }));
+      } else if (ev.type === 'question' && ev.question) {
+        proposed = true;
+        patchLast(tripId, (m) => ({ ...m, proposing: false, editQuestion: ev.question }));
+      } else if (ev.type === 'proposal_error') {
+        proposed = true;
+        patchLast(tripId, (m) => ({ ...m, proposing: false, proposalError: ev.message || 'The changes could not be worked out.' }));
+      }
       else if (ev.type === 'source') patchLast(tripId, (m) => ({ ...m, sources: [...(m.sources || []), { url: ev.url, title: ev.title }] }));
       else if (ev.type === 'error') failed = ev.message || 'Something went wrong. Please try again.';
       else if (ev.type === 'done') cut = !!ev.cut;
@@ -283,10 +317,10 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
       patchLast(tripId, (m) => ({ ...m, content: now, searching: now ? false : m.searching }));
     }
     take(buf);
-    if (failed && !got.trim()) throw new Error(failed);
-    if (!got.trim()) throw new Error('No answer came back. Please try again.');
+    if (failed && !got.trim() && !proposed) throw new Error(failed);
+    if (!got.trim() && !proposed) throw new Error('No answer came back. Please try again.');
     patchLast(tripId, (m) => ({
-      ...m, content: got, searching: false, status: failed || cut ? 'stopped' : 'done', error: failed, at: new Date().toISOString(),
+      ...m, content: got, searching: false, proposing: false, status: failed || cut ? 'stopped' : 'done', error: failed, at: new Date().toISOString(),
     }), true);
   } catch (e) {
     const stopped = e && e.name === 'AbortError';
@@ -294,6 +328,7 @@ async function run(tripId, question, token, { again = false, attachments = [] } 
       ...m,
       content: got,
       searching: false,
+      proposing: false,
       status: stopped && got ? 'stopped' : stopped ? 'cancelled' : 'error',
       error: stopped ? '' : (e && e.message) || 'Something went wrong. Please try again.',
     }), true);
@@ -358,6 +393,24 @@ async function renameChat(tripId, title) {
   return true;
 }
 
+/**
+ * What became of a proposed change: applied (with how many edits) or
+ * discarded. Kept with the chat, so the card never offers to apply twice.
+ */
+function markProposal(tripId, messageId, patch) {
+  const s = read(tripId);
+  let hit = false;
+  const messages = s.messages.map((m) => {
+    if (m.id !== messageId || !m.proposal) return m;
+    hit = true;
+    return { ...m, proposal: { ...m.proposal, ...patch } };
+  });
+  if (!hit) return;
+  set(tripId, { ...s, messages }, true);
+  // An answer still being written is saved, with this, when it finishes.
+  if (!s.busy) save(tripId);
+}
+
 /** Delete a conversation for good. Resolves false when it could not be. */
 async function removeChat(tripId, chatId) {
   const client = getClient();
@@ -396,5 +449,6 @@ export function useAskThread(tripId) {
     open: useCallback((id) => openChat(tripId, id), [tripId]),
     remove: useCallback((id) => removeChat(tripId, id), [tripId]),
     rename: useCallback((title) => renameChat(tripId, title), [tripId]),
+    mark: useCallback((id, patch) => markProposal(tripId, id, patch), [tripId]),
   };
 }

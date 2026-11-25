@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { Check, Copy, Globe, Loader2, RotateCw } from 'lucide-react';
 import { activityIcon } from '@/lib/icons';
 import { retryImport } from '@/lib/chunkRetry';
+import AskChanges from '@/components/AskChanges';
 import {
   STOP_HREF, cleanSourceUrl, isCitation, parseMapSpec, parsePlacesSpec, sourceSite, stopFor, tidyCitations,
 } from '@/lib/tripAsk';
@@ -94,12 +95,15 @@ function MapBlock({ raw, writing, ctx }) {
  * GitHub's flavour (tables, task lists, strikethrough), with the parts that
  * point back into the app drawn as the app draws them: a stop the answer
  * names opens that stop, a ```map block is a map, a ```places block is
- * pictures of places. No raw HTML, and no image from anywhere the answer
+ * pictures of places. A change it proposed to the trip sits under the words,
+ * to apply or discard (AskChanges). No raw HTML, and no image from anywhere the answer
  * names — a search result can put words in an answer, and a picture would be
  * a request to whatever server it named. The pictures are Google's, through
  * our own photo route, found by the place's name.
  */
-function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPlace, onAgain }) {
+function AskAnswer({
+  message, last, trip, days, activities, onOpenStop, onAddPlace, onAgain, onMark, onReply,
+}) {
   const writing = message.status === 'writing';
   // What the renderers read. A ref rather than a dependency, so the renderers
   // keep one identity for the life of the answer: a new one would remount
@@ -195,7 +199,11 @@ function AskAnswer({ message, last, trip, days, activities, onOpenStop, onAddPla
         </div>
       ) : null}
 
-      {writing && (waiting || message.searching) ? (
+      {message.proposing || message.proposal || message.editQuestion || message.proposalError ? (
+        <AskChanges message={message} writing={writing} last={last} onMark={onMark} onReply={onReply} />
+      ) : null}
+
+      {writing && (waiting || message.searching) && !message.proposing ? (
         <p className={`small muted ${s.status}`}>
           <Loader2 size={14} className="spin" aria-hidden="true" />
           {message.searching ? 'Searching the web' : 'Thinking'}

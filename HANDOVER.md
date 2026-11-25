@@ -292,8 +292,8 @@ list, share links, a new plan and the globe; `components/TripAsk.jsx`, `app/api/
 with OpenAI's *hosted* `web_search` tool — OpenAI runs the searches, so there is
 still no loop on our side. The route reads the trip with the asker's own JWT
 (`asUser`), never from the request, and answers NDJSON lines
-(`text`, `status`, `source`, `done`, `error`). It is read-only: no edit tools,
-and the prompt sends edits to ⌘K. Answers point back into the app two ways:
+(`text`, `status`, `source`, `done`, `error`, and `proposal` / `question` /
+`proposal_error` for changes — below). Answers point back into the app two ways:
 `[title](#stop-<token>)` links, where the token is a 6+ character prefix of the
 activity id (`stopTokens`, stable when stops are added), and ` ```map ` blocks of
 JSON naming stops by token and other places by name, which the page looks up
@@ -322,6 +322,25 @@ read yet. The microphone records with `MediaRecorder` and `/api/transcribe`
 sends it to `gpt-4o-mini-transcribe` (60 an hour per person); the words land
 in the box, unsent. The file name must match the audio type, or OpenAI cannot
 decode it.
+
+**The Assistant changes the trip, through the command bar's editor.** It has
+one function tool of our own, `change_trip({ instruction })`, beside the hosted
+web search. The model calls it with one self-contained instruction (stops by
+title and day, never by token), and after the answer finishes the route runs
+that instruction through `proposeEdits` in `lib/tripEdits.js` — the same
+schema, rules and sanitiser `/api/command` uses, on the trip just read with the
+asker's JWT, with their calendar — and streams the result as a `proposal`
+(summary + ops), a `question` the editor needs answered, or a
+`proposal_error`. The tool's result is never sent back to the model, so there
+is still no loop: one answer, then at most one proposal. Nothing on the server
+writes. `components/AskChanges.jsx` shows the edits under the answer with
+Apply / Discard; Apply goes through `useTripChanges` (place check, then
+`applyChanges` in `lib/tripChanges.js`), the same path the command bar uses.
+The outcome (`proposal.state`: pending / applied / discarded) is kept in the
+saved chat, and `changeNote` tells the model on later turns what became of it.
+An editor question's options are tapped as the next message. Change the edit
+rules in `lib/tripEdits.js` and both surfaces get them; the tests that pin
+those rules read that file.
 
 **The agreed next step, not yet built:** one bounded tool-use pass after the
 plan lands — `find_place` and `place_details`, hard cap of ~8 calls — to fill in
