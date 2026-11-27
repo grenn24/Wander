@@ -544,6 +544,11 @@ Match the surrounding code — it is consistent and deliberate.
   to the map and itinerary. Itinerary transfers sit beside time gaps and appear
   even for back-to-back activities; missing coordinates do not create a route.
   `activityDistance` validates coordinates and same-day boundaries.
+- A transport activity is pinned where it departs. The way on from it starts
+  at its arrival pin, `details._arrive = { q, lat, lng }`, which TripProvider
+  looks up from `details.to` and which counts only while `q` still equals
+  `details.to`. With no matching pin the distance after it is hidden, never
+  measured from the departure (`activityEnd` in `lib/geo.js`).
 - The small-screen tab bar shares the floating controls' glass treatment and
   solid reduced-transparency fallback. Mobile photo tiles stay inline-grid:
   changing them to flex loses horizontal centring for fallback activity icons.

@@ -22,7 +22,7 @@ import useCommitments from '@/lib/useCommitments';
 import { useApp } from '@/components/AppProvider';
 import { activityIcon } from '@/lib/icons';
 import { hasStayDates, itineraryEntries, stayOnDay } from '@/lib/lodging';
-import { activityDistance, fmtKm } from '@/lib/geo';
+import { activityDistance, activityEnd, fmtKm } from '@/lib/geo';
 import LegLine from '@/components/LegLine';
 import TrainSheet from '@/components/TrainSheet';
 import useLegs, { useLegChoices } from '@/components/useLegs';
@@ -95,7 +95,8 @@ export default function Itinerary({
           key: `${prev._entryId || prev.id}>${a._entryId || a.id}`,
           // The same pair of stops the trip map keeps a chosen way under.
           hop: `${(prev._source || prev).id}>${(a._source || a).id}`,
-          from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          // A flight is left where it lands, not where it took off.
+          from: activityEnd(prev), to: { lat: a.lat, lng: a.lng }, km,
           fromTitle: prev.title, toTitle: a.title, day: a.day, fromEnd: prev.end_time, toStart: a.start_time,
           fromId: (prev._source || prev).id, toId: (a._source || a).id,
           prefer: savedLines(prev._source || prev, a._source || a),

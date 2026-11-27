@@ -30,6 +30,13 @@ test('the editor sees database rows the way the command bar sends them', () => {
   assert.equal(editActivities(Array.from({ length: 90 }, (_, i) => ({ id: String(i) }))).length, 80);
 });
 
+test('the editor is not shown the app\'s own pins inside details', () => {
+  const flight = { id: 'f', day: '2026-12-12', title: 'NH804', category: 'transport',
+    details: { to: 'NRT', gate: 'B7', _arrive: { q: 'NRT', lat: 35.77, lng: 140.39 } } };
+  assert.deepEqual(editActivities([flight])[0].details, { to: 'NRT', gate: 'B7' });
+  assert.equal(editActivities([{ id: 'x', details: null }])[0].details, null);
+});
+
 test('the editor is told the trip, its days, the conversation and the instruction', () => {
   const prompt = editPrompt({
     trip,

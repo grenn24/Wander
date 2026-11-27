@@ -9,7 +9,7 @@ import {
 } from '@/lib/util';
 import { categoryIcon } from '@/lib/icons';
 import {
-  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, placeDetails,
+  reverseGeocode, nearby, searchPlaces, haversine, fmtKm, activityDistance, activityEnd, placeDetails,
   NEARBY_KINDS,
 } from '@/lib/geo';
 import GoogleMap, {
@@ -205,7 +205,7 @@ export default function MapView({
       if (km != null) {
         out.push({
           key: a.id, hop: `${prev.id}>${a.id}`, day: a.day,
-          from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng }, km,
+          from: activityEnd(prev), to: { lat: a.lat, lng: a.lng }, km,
           fromTitle: prev.title, toTitle: a.title, fromEnd: prev.end_time, toStart: a.start_time,
           fromId: prev.id, prefer: savedLines(prev, a),
         });
@@ -279,14 +279,18 @@ export default function MapView({
   const pickedStops = useMemo(() => stops.filter((a) => picked.has(a.id)), [stops, picked]);
   const pickHops = useMemo(() => pickedStops.slice(1).map((a, i) => {
     const prev = pickedStops[i];
+    // From where the stop before leaves you: a flight's arrival, and nothing
+    // while that has not been found.
+    const from = activityEnd(prev);
+    if (!from) return null;
     return {
       key: `pick:${prev.id}>${a.id}`, hop: `${prev.id}>${a.id}`, day: a.day,
       fromId: prev.id, toId: a.id, fromTitle: prev.title, toTitle: a.title,
       fromEnd: prev.end_time, toStart: a.start_time, prefer: savedLines(prev, a),
-      from: { lat: prev.lat, lng: prev.lng }, to: { lat: a.lat, lng: a.lng },
-      km: haversine(prev.lat, prev.lng, a.lat, a.lng),
+      from, to: { lat: a.lat, lng: a.lng },
+      km: haversine(from.lat, from.lng, a.lat, a.lng),
     };
-  }), [pickedStops]);
+  }).filter(Boolean), [pickedStops]);
   const showingPicks = picking && pickedStops.length > 0;
   const pickTravel = useLegs(pickHops, showingPicks && pickHops.length
     ? (mapPrefs.routes === 'off' ? 'auto' : mapPrefs.routes) : 'off', choices);

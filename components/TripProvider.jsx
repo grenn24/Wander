@@ -10,6 +10,8 @@ import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
 import { removeDownload } from '@/public/offline-store';
 import { lodgingPayload, moveStay } from '@/lib/lodging';
+import { arrivalQueries, arrivalPins } from '@/lib/geo';
+import { authHeader } from '@/lib/supabase';
 
 const Ctx = createContext(null);
 
@@ -248,6 +250,50 @@ export default function TripProvider({ tripId, children }) {
     const { error } = await supabase.from('activities').update(patch).eq('id', id);
     if (error) fail(error);
   }, [supabase, fail]);
+
+  /*
+   * Where each journey arrives.
+   *
+   * A flight or train is pinned where it departs, and its "To" is only words,
+   * so the way to whatever came next was measured from the wrong end of it:
+   * Changi to Ginza rather than Narita to Ginza. Each "To" with no pin is
+   * looked up once a visit and kept in details._arrive, beside the words it was
+   * found for, so changing "To" anywhere (editor, Assistant, a collaborator)
+   * retires it. What cannot be found stays unknown, and the itinerary shows no
+   * distance after it rather than a wrong one.
+   */
+  const activitiesNow = useRef(activities);
+  activitiesNow.current = activities;
+  const arrivalsAsked = useRef(new Set());
+  useEffect(() => {
+    if (!supabase || !ready || !trip) return;
+    const todo = arrivalQueries(activities.filter((a) => a.trip_id === tripId))
+      .filter((q) => !arrivalsAsked.current.has(`${q.id}>${q.to}`));
+    if (!todo.length) return;
+    todo.forEach((q) => arrivalsAsked.current.add(`${q.id}>${q.to}`));
+    (async () => {
+      try {
+        const res = await fetch('/api/places/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+          body: JSON.stringify({ items: todo, bias: trip.destination || '', reviewAmbiguous: true }),
+        });
+        if (!res.ok) return;
+        const { results } = await res.json();
+        await Promise.all(arrivalPins(todo, results).map(async ({ id, pin }) => {
+          const now = activitiesNow.current.find((a) => String(a.id) === id);
+          // "To" changed while this was being looked up: the answer is for words no longer there.
+          if (!now || String(now.details?.to || '').trim() !== pin.q) return;
+          const details = { ...now.details, _arrive: pin };
+          setActivities((prev) => prev.map((a) => (String(a.id) === id ? { ...a, details } : a)));
+          // Kept on this screen even if it cannot be saved: it is still where the journey ends.
+          await supabase.from('activities').update({ details }).eq('id', now.id);
+        }));
+      } catch {
+        // Offline or no place search: the arrival stays unknown, as before it was asked.
+      }
+    })();
+  }, [supabase, ready, trip, tripId, activities]);
 
   /*
    * The train route chosen for the way to a stop: { after, lines } — the stop
