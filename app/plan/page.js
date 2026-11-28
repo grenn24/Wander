@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Sparkles, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays,
-  ImageOff, X, Check,
+  ImageOff, X, Check, Loader2,
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
@@ -79,20 +79,41 @@ function Planner() {
   const abortRef = useRef(null);
   const cancelledRef = useRef(false);
   const pendingTripRef = useRef(null);
+  // The trip being written, while it is: a cancel waits for it, to delete it.
+  const savingRef = useRef(null);
+  const leavingRef = useRef(false);
+  const [leaving, setLeaving] = useState(false);
   const placeReviewResolveRef = useRef(null);
 
-  const discardPendingTrip = useCallback(async () => {
+  // Cancel and the save it interrupts both ask for this; they share one delete.
+  const discardingRef = useRef(null);
+  const discardPendingTrip = useCallback(() => {
+    if (discardingRef.current) return discardingRef.current;
     const tripId = pendingTripRef.current;
-    if (!tripId || !supabase) return;
-    const { error: discardErr } = await supabase.rpc('delete_trip', { p_trip: tripId });
-    if (discardErr) {
-      console.error('[planner] could not discard cancelled trip:', discardErr.message);
-      return;
-    }
-    if (pendingTripRef.current === tripId) pendingTripRef.current = null;
+    if (!tripId || !supabase) return Promise.resolve();
+    discardingRef.current = (async () => {
+      const { error: discardErr } = await supabase.rpc('delete_trip', { p_trip: tripId });
+      if (discardErr) {
+        console.error('[planner] could not discard cancelled trip:', discardErr.message);
+        return;
+      }
+      if (pendingTripRef.current === tripId) pendingTripRef.current = null;
+    })().finally(() => { discardingRef.current = null; });
+    return discardingRef.current;
   }, [supabase]);
 
-  const cancelPlanning = useCallback(() => {
+  /*
+   * Cancel ends on the trips page, without the trip.
+   *
+   * A trip that is already written, or being written, is deleted before the
+   * page changes, so the list it lands on cannot still show it. That wait is
+   * capped: a delete that never answers must not keep anyone here. Nothing
+   * needs deleting before the save starts, so Cancel leaves at once.
+   */
+  const cancelPlanning = useCallback(async () => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
     cancelledRef.current = true;
     if (abortRef.current) abortRef.current.abort();
     if (placeReviewResolveRef.current) {
@@ -100,7 +121,13 @@ function Planner() {
       placeReviewResolveRef.current = null;
     }
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
-    discardPendingTrip();
+    if (savingRef.current || pendingTripRef.current) {
+      const discard = async () => {
+        if (savingRef.current) await savingRef.current.catch(() => {});
+        await discardPendingTrip();
+      };
+      await Promise.race([discard(), new Promise((done) => { setTimeout(done, 4000); })]);
+    }
     router.replace('/trips');
   }, [discardPendingTrip, router]);
 
@@ -198,6 +225,8 @@ function Planner() {
       }
     }
 
+    // A check whose answer was cut off by Cancel reads as "no questions".
+    if (cancelledRef.current) return;
     lastBrief.current = brief;
     setPhase('streaming');
 
@@ -372,7 +401,9 @@ function Planner() {
     setPhase('saving');
 
     // Nothing is written until the itinerary and its locations are ready.
-    const { data: trip, error: tripErr } = await supabase.from('trips').insert({
+    // Promise.resolve runs the insert once: the query is a thenable that
+    // would insert again for every `await` on it, and a cancel awaits it too.
+    const saving = Promise.resolve(supabase.from('trips').insert({
       owner_id: user.id,
       name: plan.name,
       destination: plan.destination,
@@ -381,7 +412,12 @@ function Planner() {
       currency: plan.currency,
       timezone: plan.timezone || null,
       notes: '',
-    }).select().single();
+    }).select().single()).then((out) => {
+      if (out.data) pendingTripRef.current = out.data.id;
+      return out;
+    });
+    savingRef.current = saving;
+    const { data: trip, error: tripErr } = await saving;
 
     if (tripErr || !trip) {
       if (cancelledRef.current) return;
@@ -391,7 +427,6 @@ function Planner() {
       return;
     }
 
-    pendingTripRef.current = trip.id;
     if (cancelledRef.current) {
       await discardPendingTrip();
       return;
@@ -439,7 +474,12 @@ function Planner() {
       await discardPendingTrip();
       return;
     }
-    pendingTripRef.current = null;
+    /*
+     * The trip stays pending until this page is gone. Opening it takes a
+     * moment, and this screen and its Cancel are still up for that moment;
+     * clearing it here meant a Cancel then went to the trips page and left
+     * the trip in the list.
+     */
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     router.replace(tripHome(trip.id));
   }, [supabase, user, query, longBrief, shots, router, fail, upsertDay, discardPendingTrip]);
@@ -577,8 +617,11 @@ function Planner() {
               </p>
             </div>
             <button className="btn ghost plan-cancel" type="button" onClick={cancelPlanning}
-              aria-label="Cancel planning and discard this trip">
-              <X size={15} /> <span>Cancel</span>
+              disabled={leaving} aria-busy={leaving}
+              aria-label={leaving ? 'Cancelling' : 'Cancel planning and discard this trip'}>
+              {leaving
+                ? <><Loader2 size={15} className="spin" /> <span>Cancelling</span></>
+                : <><X size={15} /> <span>Cancel</span></>}
             </button>
           </div>
 
