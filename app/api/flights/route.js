@@ -26,7 +26,7 @@ export const maxDuration = 60;
  *
  * Every search is a SerpApi search, and those are counted, so the route is
  * signed in and each person's searches share one budget an hour
- * (spendFlightSearches). Without SERPAPI_API_KEY the trip still gets its flights —
+ * (spendSearches, lib/serpApi.js). Without SERPAPI_API_KEY the trip still gets its flights —
  * the airports, the days and the clocks, with the times left for the
  * traveller — and nothing here fails a plan.
  */

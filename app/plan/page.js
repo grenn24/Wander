@@ -28,7 +28,7 @@ import { authHeader } from '@/lib/supabase';
 import { transportLine } from '@/lib/transport';
 import { cleanHome, homeName } from '@/lib/home';
 import { dayIndexOf, fixedFlights } from '@/lib/flightPlan';
-import { fetchRealFlights } from '@/lib/entryChecks';
+import { fetchRealFlights, fetchRealStays } from '@/lib/entryChecks';
 import { splitPlaceMatches, withChosenPlaces } from '@/lib/tripChanges';
 import { pinFields } from '@/lib/geo';
 import {
@@ -500,20 +500,44 @@ function Planner() {
         return null;
       }
     };
-    const [legsByFlight, places] = await Promise.all([findFlights(), findPlaces()]);
+    // Hotels with their nights, to the stay check as well (lib/realStays.js).
+    const stayRows = rows.map((r, i) => (r.category === 'lodging' ? i : -1)).filter((i) => i >= 0);
+    const findStays = async () => {
+      if (!stayRows.length) return null;
+      try {
+        return await fetchRealStays(stayRows.map((i) => rows[i]), {
+          currency: plan.currency, signal: controller.signal,
+        });
+      } catch (e) {
+        return null;
+      }
+    };
+    const [legsByFlight, places, stays] = await Promise.all([findFlights(), findPlaces(), findStays()]);
     if (cancelledRef.current || abortRef.current !== controller) return;
+
+    // A hotel found on Google Hotels is its own answer: pinned, timed and priced.
+    const stayed = new Set();
+    if (stays) {
+      stayRows.forEach((i, k) => {
+        if (!stays.found[k]) return;
+        rows[i] = { ...stays.entries[k], sort_order: rows[i].sort_order };
+        stayed.add(String(i));
+      });
+    }
 
     if (places) {
       let { resolved } = places;
-      if (places.uncertain.length) {
+      // Nobody is asked which hotel they meant when its own name found it.
+      const uncertain = places.uncertain.filter((u) => !stayed.has(String(u.id)));
+      if (uncertain.length) {
         setPhase('reviewing');
-        const selected = await askPlace(places.uncertain);
+        const selected = await askPlace(uncertain);
         if (!selected || cancelledRef.current) return;
-        resolved = withChosenPlaces(resolved, places.uncertain, selected);
+        resolved = withChosenPlaces(resolved, uncertain, selected);
       }
       Object.entries(resolved).forEach(([id, place]) => {
         const row = rows[Number(id)];
-        if (row && place) Object.assign(row, pinFields(place, row.location));
+        if (row && place && !stayed.has(id)) Object.assign(row, pinFields(place, row.location));
       });
     }
 

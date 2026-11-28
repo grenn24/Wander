@@ -498,7 +498,8 @@ test('an edit already pinned at its airport is not looked up again, and keeps it
 test('every way of making entries goes through the same two checks', () => {
   // Server: the editor matches flights before it proposes, for both its callers.
   const edits = read('lib/tripEdits.js');
-  assert.match(edits, /ops: await findRealFlightsForEdits\(clean\.ops/);
+  assert.match(edits, /findRealFlightsForEdits\(clean\.ops/);
+  assert.match(edits, /findRealStaysForEdits\(clean\.ops/);
   assert.match(read('app/api/command/route.js'), /home: homeOf\(user\), userId: user\.id/);
   const ask = read('app/api/trips/ask/route.js');
   assert.match(ask, /home: homeOf\(user\), userId: user\.id, said/);
@@ -517,9 +518,9 @@ test('every way of making entries goes through the same two checks', () => {
   // The planner: the same flight step and the same place sorting as the editor.
   const page = read('app/plan/page.js');
   assert.match(page, /fetchRealFlights\(flightRows\.map/);
-  assert.match(page, /await Promise\.all\(\[findFlights\(\), findPlaces\(\)\]\)/, 'both checks at once');
+  assert.match(page, /await Promise\.all\(\[findFlights\(\), findPlaces\(\), findStays\(\)\]\)/, 'every check at once');
   assert.match(page, /splitPlaceMatches\(results, targets\)/);
-  assert.match(page, /withChosenPlaces\(resolved, places\.uncertain, selected\)/);
+  assert.match(page, /withChosenPlaces\(resolved, uncertain, selected\)/);
 });
 
 test('the planner finds the flights before it plans, and keeps the home it was told', () => {

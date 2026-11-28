@@ -132,7 +132,7 @@ test('going back, or a newer question, answers null', async () => {
 
 test('the planner and the apply step wait on the same pause', () => {
   const page = read('app/plan/page.js');
-  assert.match(page, /const selected = await askPlace\(places\.uncertain\)/);
+  assert.match(page, /const selected = await askPlace\(uncertain\)/);
   assert.doesNotMatch(page, /placeReviewResolveRef/);
   const apply = read('components/useApplyChanges.js');
   assert.match(apply, /const selected = await choice\.ask\(places\.uncertain\)/);

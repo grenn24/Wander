@@ -194,6 +194,15 @@ Rules:
   MH 616". Put nothing in brackets after a title.
 - details is for lodging dates (below) or transport, and only the keys that kind of transport has:
   a bus has no gate and a flight has no pier. Leave the rest null.
+- Unless the traveller says where they are staying, or that it is sorted,
+  suggest one hotel for each place they sleep: one lodging activity on the
+  first night there, titled with the hotel's own name as Google lists it
+  ("Hotel Gracery Shinjuku"), with details.check_in_date and
+  details.check_out_date set to the nights you plan there and the times left
+  null. These are your plan, not a booking: the app looks up that hotel, its
+  check-in and check-out times and its rate for those nights. A hotel you
+  cannot name exactly is worse than none. Nights that end on a flight home
+  need no hotel.
 - Include travel between cities as a transport activity on the day it happens,
   and say which kind it is in "subtype". A Grab, a taxi or an airport pick-up
   is "transfer" — it is not a flight. Leave it null if you genuinely cannot
