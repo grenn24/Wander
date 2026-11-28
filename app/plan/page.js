@@ -19,6 +19,7 @@ import { planningProgress } from '@/lib/planningProgress';
 import {
   readPlan, resumePoint, resumeBrief, mergeResumed, RESUME_LIMIT,
 } from '@/lib/planResume';
+import { followDraft } from '@/lib/planDraft';
 import { activityIcon, tripHome } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
 import { authHeader } from '@/lib/supabase';
@@ -82,6 +83,8 @@ function Planner() {
   const abortRef = useRef(null);
   const cancelledRef = useRef(false);
   const pendingTripRef = useRef(null);
+  // The server's copy of the plan being written (lib/planDraft.js).
+  const draftRef = useRef(null);
   // The trip being written, while it is: a cancel waits for it, to delete it.
   const savingRef = useRef(null);
   const leavingRef = useRef(false);
@@ -119,6 +122,18 @@ function Planner() {
     setLeaving(true);
     cancelledRef.current = true;
     if (abortRef.current) abortRef.current.abort();
+    /*
+     * The server goes on writing a plan when the connection to it closes,
+     * because that is usually a tab gone to sleep. Cancel is the one time it
+     * should stop, and this is how it hears: its next save finds the draft no
+     * longer running and stops the model.
+     */
+    if (draftRef.current && supabase) {
+      supabase.from('plan_drafts').update({ status: 'cancelled' })
+        .eq('id', draftRef.current).eq('status', 'running')
+        .then(() => {}, () => {});
+      draftRef.current = null;
+    }
     if (placeReviewResolveRef.current) {
       placeReviewResolveRef.current(null);
       placeReviewResolveRef.current = null;
@@ -237,7 +252,10 @@ function Planner() {
     };
     let resume = null; // { from, kept } while picking up a plan that stopped
     const onEvent = (evt) => {
-      if (evt.t === 'meta') {
+      if (evt.t === 'job') {
+        // Where this answer is being kept, should the connection to it be lost.
+        draftRef.current = evt.id;
+      } else if (evt.t === 'meta') {
         // The trip as first described stays put while later days are asked for.
         if (!resume || !firstMeta || !firstMeta.name) { firstMeta = evt; setMeta(evt); }
       } else if (evt.t === 'day') {
@@ -255,6 +273,7 @@ function Planner() {
     let stuck = 0;
     for (;;) {
       attempts += 1;
+      draftRef.current = null;
       let out;
       try {
         /*
@@ -297,6 +316,43 @@ function Planner() {
       }
 
       if (out.error) { setError(out.error); setPhase('error'); return; }
+
+      /*
+       * The connection was lost, but the server goes on writing the plan and
+       * keeping it, so it is read from there — usually finished by the time a
+       * tab that fell asleep is looked at again — rather than paid for twice.
+       */
+      const job = draftRef.current;
+      if (!out.plan && job) {
+        const from = resume ? resume.from : 1;
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const kept = await followDraft({
+            read: async () => {
+              const { data, error: readErr } = await supabase.from('plan_drafts')
+                .select('status, plan, updated_at, created_at').eq('id', job).maybeSingle();
+              if (readErr) throw readErr;
+              return data;
+            },
+            onDraft: (saved) => {
+              if (!firstMeta && saved.name) { firstMeta = saved; setMeta(saved); }
+              (saved.days || []).forEach((d) => {
+                if (Number(d.day_index) < from) return;
+                drafted.set(d.day_index, {
+                  index: d.day_index, theme: d.theme || '', activities: (d.activities || []).slice(),
+                });
+              });
+              show();
+            },
+            signal: controller.signal,
+          });
+          if (kept.plan) out = { plan: kept.plan };
+          else console.warn(`[planner] the kept plan cannot be used (${kept.fallback})`);
+        } catch (e) {
+          if (cancelledRef.current || abortRef.current !== controller) return;
+        }
+      }
+
       if (out.plan) {
         plan = resume ? mergeResumed(firstMeta, resume.kept, out.plan, resume.from) : out.plan;
         break;

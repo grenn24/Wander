@@ -11,7 +11,9 @@ import { publicAgentText } from '@/lib/agentText';
 import { validZone } from '@/public/trip-time';
 import { TRANSPORT } from '@/lib/transport';
 import { LODGING_KEYS, cleanLodging } from '@/lib/lodging';
-import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
+import { after } from 'next/server';
+import { userFromRequest, notSignedIn, asUser } from '@/lib/supabaseServer';
+import { openDraft, draftWriter } from '@/lib/planDraft';
 import { listEvents, connection } from '@/lib/googleCal';
 
 export const runtime = 'nodejs';
@@ -517,13 +519,27 @@ The traveller asked for only the activities or guides they named. Do not fill
 unused time. Every activity not explicitly requested must have requested=false
 and will be removed before the traveller sees it.` : '';
 
+  /*
+   * The plan is kept on the server as it is written, so a tab that falls
+   * asleep part way — Edge drops its connections — finds it when it wakes
+   * (lib/planDraft.js). Null until the plan_drafts table exists, and then
+   * everything below behaves as it did without it.
+   */
+  const db = asUser(req);
+  const draftId = await openDraft(db);
+
   let upstream;
   try {
     upstream = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      // A traveller who gives up while the model is still thinking takes the
-      // request with them, rather than leaving it to run and be billed.
-      signal: req.signal,
+      /*
+       * Without a draft, a traveller who leaves while the model is still
+       * thinking takes the request with them, rather than leaving it to run
+       * and be billed. With one, leaving is usually a tab gone to sleep, and
+       * the plan is finished for when it wakes; Cancel stops it through the
+       * draft instead.
+       */
+      ...(draftId ? {} : { signal: req.signal }),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -575,8 +591,12 @@ and will be removed before the traveller sees it.` : '';
   // A pick-up writes only the days after the ones the page already has.
   const fromDay = resume ? resume.from : 1;
 
+  // Settles when the answer has been read to its end and the draft written.
+  let settle;
+  const finished = new Promise((resolve) => { settle = resolve; });
+
   const stream = relayStream(upstream, async ({
-    text: chunks, send: write, gone, progress, stopped,
+    text: chunks, send: write, gone, progress, stop, stopped,
   }) => {
     const send = (obj) => write(`${JSON.stringify(obj)}\n`);
 
@@ -588,6 +608,26 @@ and will be removed before the traveller sees it.` : '';
     // How much of the answer has closed, so the watchdog knows it is moving.
     let written = 0;
     let lastDay = 0;
+
+    // The same events, kept as a plan for the draft.
+    const draft = draftId
+      ? draftWriter(db, draftId, { onCancelled: () => stop('cancelled') })
+      : null;
+    let keptMeta = {};
+    const keptDays = new Map();
+    let savedDay = 0;
+    const keptDay = (idx) => {
+      if (!keptDays.has(idx)) keptDays.set(idx, { day_index: idx, theme: '', activities: [] });
+      return keptDays.get(idx);
+    };
+    const snapshot = () => ({
+      ...keptMeta,
+      days: [...keptDays.values()]
+        .sort((a, b) => a.day_index - b.day_index)
+        .map((d) => ({ ...d, activities: d.activities.slice() })),
+    });
+    // Said first, so the page knows where to look if this connection is lost.
+    if (draftId) send({ t: 'job', id: draftId });
 
     const flush = () => {
       const partial = parsePartial(text);
@@ -608,7 +648,7 @@ and will be removed before the traveller sees it.` : '';
           : (typeof partial.summary === 'string' ? partial.summary : ''),
       };
       const metaKey = JSON.stringify(meta);
-      if (metaKey !== sentMeta) { sentMeta = metaKey; send({ t: 'meta', ...meta }); }
+      if (metaKey !== sentMeta) { sentMeta = metaKey; keptMeta = meta; send({ t: 'meta', ...meta }); }
 
       parsedDays.forEach((d) => {
         if (!d || typeof d !== 'object') return;
@@ -620,6 +660,7 @@ and will be removed before the traveller sees it.` : '';
         const theme = typeof d.theme === 'string' ? d.theme : '';
         if ((!strictOnly || acts.some(includeActivity)) && sentThemes.get(idx) !== theme) {
           sentThemes.set(idx, theme);
+          keptDay(idx).theme = theme;
           send({ t: 'day', i: idx, theme });
         }
 
@@ -627,11 +668,16 @@ and will be removed before the traveller sees it.` : '';
         for (let k = already; k < acts.length; k += 1) {
           // parsePartial only ever yields complete objects, so this is whole.
           if (includeActivity(acts[k])) {
-            send({ t: 'act', d: idx, a: cleanActivity(acts[k], fix) });
+            const a = cleanActivity(acts[k], fix);
+            keptDay(idx).activities.push(a);
+            send({ t: 'act', d: idx, a });
           }
         }
         if (acts.length > already) sentCounts.set(idx, acts.length);
       });
+
+      // Saved once a day, as the next one starts and the last is whole.
+      if (draft && lastDay > savedDay) { savedDay = lastDay; draft.save(snapshot()); }
     };
 
     let reading = true;
@@ -647,8 +693,8 @@ and will be removed before the traveller sees it.` : '';
         if (/[}\]]/.test(chunk)) flush();
       }
       reading = false;
-      // Cancelled: nobody is reading, and what arrived is not a plan.
-      if (gone()) return;
+      // Cancelled: nobody is reading, nothing keeps it, and what arrived is not a plan.
+      if (gone() && !draft) return;
 
       /*
        * Stopped part way — the answer went quiet, or the host's time limit is
@@ -656,8 +702,14 @@ and will be removed before the traveller sees it.` : '';
        * it has instead of waiting on a stream that has nothing more to say.
        */
       const why = stopped();
+      // Cancel: the draft already says so, and nobody wants the rest.
+      if (why === 'cancelled') {
+        console.warn(`[plan] cancelled at day ${lastDay || '-'}; the model is stopped`);
+        return;
+      }
       if (why) {
         console.warn(`[plan] answer stopped (${why}) at day ${lastDay || '-'}; the page picks it up`);
+        if (draft) await draft.finish('stopped', snapshot());
         send({ t: 'cut', why });
         return;
       }
@@ -675,6 +727,7 @@ and will be removed before the traveller sees it.` : '';
         // Ended without finishing: a dropped connection or a length limit.
         // What arrived is good, and the rest can be asked for.
         console.warn(`[plan] answer ended unfinished at day ${lastDay || '-'}; the page picks it up`);
+        if (draft) await draft.finish('stopped', snapshot());
         send({ t: 'cut', why: 'unfinished' });
         return;
       }
@@ -689,23 +742,25 @@ and will be removed before the traveller sees it.` : '';
         }))
         .filter((d) => !strictOnly || d.activities.length > 0);
 
-      send({
-        t: 'done',
-        plan: {
-          name: String(final.name || '').trim().slice(0, 120) || 'New trip',
-          destination: String(final.destination || '').trim().slice(0, 200),
-          timezone: validZone(final.timezone) ? final.timezone : null,
-          currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
-          start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
-          duration_days: duration,
-          summary: strictOnly
-            ? exclusiveSummary
-            : String(final.summary || '').trim().slice(0, 500),
-          days,
-        },
-      });
+      const plan = {
+        name: String(final.name || '').trim().slice(0, 120) || 'New trip',
+        destination: String(final.destination || '').trim().slice(0, 200),
+        timezone: validZone(final.timezone) ? final.timezone : null,
+        currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
+        start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
+        duration_days: duration,
+        summary: strictOnly
+          ? exclusiveSummary
+          : String(final.summary || '').trim().slice(0, 500),
+        days,
+      };
+      // Kept before it is sent, so a page that missed the send finds it there.
+      if (draft) await draft.finish('done', plan);
+      send({ t: 'done', plan });
     } catch (e) {
-      if (gone() || (e && e.name === 'AbortError')) return;
+      // Whatever went wrong, a page waiting on the draft must not wait on it.
+      if (draft) await draft.finish('stopped', snapshot());
+      if (!draft && (gone() || (e && e.name === 'AbortError'))) return;
       if (reading) {
         // The connection to the model broke; the days that arrived still stand.
         console.warn(`[plan] answer broke off at day ${lastDay || '-'} (${(e && e.message) || e}); the page picks it up`);
@@ -714,6 +769,8 @@ and will be removed before the traveller sees it.` : '';
       }
       console.error('[ai] plan stream failed:', (e && e.message) || e);
       send({ t: 'error', error: 'Something went wrong on our end. Please try again.' });
+    } finally {
+      settle();
     }
   }, {
     beat: `${JSON.stringify({ t: 'wait' })}\n`,
@@ -721,7 +778,13 @@ and will be removed before the traveller sees it.` : '';
     firstMs: PLAN_FIRST_MS,
     quietMs: PLAN_QUIET_MS,
     deadline,
+    // With a draft, the answer is finished and kept even after the tab has gone.
+    detached: !!draftId,
   });
+
+  // And the host is asked to keep this request alive until it is, not just
+  // until the browser stops listening.
+  if (draftId) after(() => finished);
 
   return new Response(stream, {
     headers: {

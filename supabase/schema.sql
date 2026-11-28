@@ -90,6 +90,20 @@ create table if not exists public.trip_chats (
   updated_at  timestamptz not null default now()
 );
 
+-- A trip plan while the server writes it, so it outlives a sleeping browser
+-- tab: private to the person who asked, scratch that is cleared after a day.
+-- See migrations/20261128090000_plan_drafts.sql.
+create table if not exists public.plan_drafts (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  status      text not null default 'running'
+              check (status in ('running', 'done', 'stopped', 'cancelled')),
+  plan        jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists plan_drafts_user_idx on public.plan_drafts (user_id, created_at);
+
 -- ------------------------------------------------- v1 -> v2 column adds ----
 alter table public.trip_members add column if not exists display_name text;
 alter table public.trips        add column if not exists share_code   text;
@@ -425,6 +439,7 @@ revoke delete on public.trips from anon, authenticated;
 grant select, insert on public.trip_agent_messages to authenticated;
 -- A chat is one person's own; deleting it means deleting it.
 grant select, insert, update, delete on public.trip_chats to authenticated;
+grant select, insert, update, delete on public.plan_drafts to authenticated;
 
 -- --------------------------------------------------------------- row-level ---
 alter table public.trips         enable row level security;
@@ -433,6 +448,7 @@ alter table public.activities    enable row level security;
 alter table public.packing_items enable row level security;
 alter table public.trip_agent_messages enable row level security;
 alter table public.trip_chats enable row level security;
+alter table public.plan_drafts enable row level security;
 
 -- Deleted trips are invisible, and cannot be changed by a plain UPDATE either:
 -- the WITH CHECK is what stops a member deleting a trip by setting deleted_at
@@ -494,6 +510,11 @@ drop policy if exists trip_chats_own on public.trip_chats;
 create policy trip_chats_own on public.trip_chats for all to authenticated
   using (user_id = auth.uid() and public.is_trip_member(trip_id))
   with check (user_id = auth.uid() and public.is_trip_member(trip_id));
+
+drop policy if exists plan_drafts_own on public.plan_drafts;
+create policy plan_drafts_own on public.plan_drafts for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- ---------------------------------------------------------------- realtime ---
 alter table public.trips         replica identity full;
