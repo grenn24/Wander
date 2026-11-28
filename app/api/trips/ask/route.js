@@ -4,6 +4,7 @@ import { tripContext, cleanSourceUrl, cleanAttachments, searchStep } from '@/lib
 import { commandCalendar } from '@/lib/googleCal';
 import { editCalendar } from '@/lib/commandCalendar';
 import { proposeEdits, editActivities, editHistory } from '@/lib/tripEdits';
+import { homeOf } from '@/lib/home';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -115,12 +116,16 @@ const CHANGE_TOOL = {
  * could not be worked out. The trip is the one read for the answer, with the
  * asker's own session.
  */
-async function proposeChange({ instruction, trip, activities, history, calendar }) {
+async function proposeChange({
+  instruction, trip, activities, history, calendar, user, said,
+}) {
   const cal = await editCalendar(() => calendar, instruction);
   if (cal.error) return { type: 'proposal_error', message: cal.error.message };
   try {
     const out = await proposeEdits({
       instruction, trip, activities: editActivities(activities), history, calendar: cal,
+      // The same editor, the same flight matching, as the command bar.
+      home: homeOf(user), userId: user.id, said,
     });
     if (!out.understood) return { type: 'question', question: out.question };
     return { type: 'proposal', summary: out.summary, ops: out.ops };
@@ -420,6 +425,9 @@ export async function POST(req) {
             // The last few turns and this question, for "the same day".
             history: editHistory([...history.slice(-6), { role: 'user', content: question }]),
             calendar: calendar || commandCalendar(user.id, trip.data),
+            user,
+            // Their words, not the instruction the model wrote from them.
+            said: question,
           }));
         }
         if (finished) send(finished);

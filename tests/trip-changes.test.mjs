@@ -22,7 +22,9 @@ const activities = [ginza, moma, hotel];
 
 test('the editor sees database rows the way the command bar sends them', () => {
   const rows = editActivities([{ ...ginza, lat: 35.6, lng: 139.7, sort_order: 3, trip_id: 't1' }, hotel]);
-  assert.deepEqual(Object.keys(rows[0]).sort(), ['category', 'cost', 'day', 'details', 'end_time', 'id', 'location', 'notes', 'start_time', 'title'].sort());
+  assert.deepEqual(Object.keys(rows[0]).sort(), ['category', 'cost', 'day', 'details', 'end_time', 'id', 'location', 'notes', 'start_time', 'subtype', 'title'].sort());
+  // Which kind of journey, so the flight matcher knows a flight (lib/flightMatch.js).
+  assert.match(read('components/Command.jsx'), /subtype: a\.category === 'transport' \? a\.subtype \|\| null : null/);
   assert.equal(rows[0].location, shortPlace(ginza.location), 'a short place, as the command bar sends it');
   assert.equal(rows[0].location, 'Chuo City, Tokyo');
   assert.equal(rows[0].notes, undefined, 'only lodging notes go to the editor');

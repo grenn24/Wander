@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, X } from 'lucide-react';
 import { parseQuickAdd } from '@/lib/util';
 import { authHeader } from '@/lib/supabase';
-import { pinPlaces } from '@/lib/pinPlaces';
+import { settleDrafts } from '@/lib/pinPlaces';
 
 /**
  * The line at the foot of each day. You write what you mean — "dinner at that
@@ -89,7 +89,10 @@ export default function QuickAdd({
       const drafts = (body.activities || (body.activity ? [body.activity] : []))
         .map((a) => ({ ...a, day }));
       if (!drafts.length) { setError('Could not read that.'); return; }
-      await onCreate(await pinPlaces(drafts, trip.destination || ''));
+      // Its flight made real and its place pinned, as every new entry is.
+      await onCreate(await settleDrafts(drafts, {
+        bias: trip.destination || '', said: raw, currency: trip.currency || '',
+      }));
       reset();
     } catch (err) {
       setError('Something went wrong. Please try again later.');

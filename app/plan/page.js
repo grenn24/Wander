@@ -15,7 +15,7 @@ import { tickAnswer, isAnswered, answerText } from '@/lib/briefAnswers';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
-import { PlaceChoices, NO_PLACE } from '@/components/PlaceReview';
+import { PlaceChoices } from '@/components/PlaceReview';
 import { planningProgress } from '@/lib/planningProgress';
 import {
   readPlan, resumePoint, resumeBrief, mergeResumed, RESUME_LIMIT,
@@ -26,7 +26,10 @@ import { lodgingPayload } from '@/lib/lodging';
 import { authHeader } from '@/lib/supabase';
 import { transportLine } from '@/lib/transport';
 import { cleanHome, homeName } from '@/lib/home';
-import { dayIndexOf, fixedFlights, flightTargets } from '@/lib/flightPlan';
+import { dayIndexOf, fixedFlights } from '@/lib/flightPlan';
+import { flightGroups } from '@/lib/pinPlaces';
+import { sortPlaces, withChosenPlaces } from '@/lib/tripChanges';
+import { pinFields } from '@/lib/geo';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money, sortActs,
 } from '@/lib/util';
@@ -460,42 +463,26 @@ function Planner() {
     });
 
     /*
-     * The flights the planner put inside the trip, each swapped for the real
-     * flight nearest the time it planned around — or, for one the traveller
-     * named, that flight's real times. One the search cannot match stays as
-     * the planner wrote it.
+     * The flights the planner put inside the trip (Tokyo to Sapporo) made
+     * real, by the service every way of making entries shares
+     * (lib/flightMatch.js): the real flight nearest the time it planned
+     * around, or the one the traveller named. One that cannot be matched
+     * stays as the planner wrote it.
      */
-    const hops = flightTargets(rows, brief);
-    if (hops.length) {
+    if (rows.some((r) => r.category === 'transport' && r.subtype === 'flight')) {
       setPhase('matching');
       try {
-        const res = await fetch('/api/flights', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-          body: JSON.stringify({ mode: 'legs', items: hops, currency: plan.currency }),
-          signal: controller.signal,
+        const groups = await flightGroups(rows, {
+          said: brief, currency: plan.currency, signal: controller.signal,
         });
-        const { results } = res.ok ? await res.json().catch(() => ({})) : {};
-        const swap = new Map((results || []).filter((r) => Array.isArray(r.legs) && r.legs.length)
-          .map((r) => [Number(r.id), r.legs]));
-        if (swap.size) {
-          const nextRows = [];
-          const nextNamed = [];
-          rows.forEach((row, i) => {
-            const legs = swap.get(i);
-            if (!legs) { nextRows.push(row); nextNamed.push(named[i]); return; }
-            legs.forEach((leg, k) => {
-              nextRows.push({
-                ...leg,
-                booking_ref: k === 0 ? row.booking_ref : '',
-                sort_order: nextSortOrder(nextRows, leg.day),
-              });
-              nextNamed.push(false);
-            });
-          });
-          rows = nextRows;
-          named = nextNamed;
-        }
+        const nextRows = [];
+        const nextNamed = [];
+        groups.forEach((legs, i) => legs.forEach((leg, k) => {
+          nextRows.push({ ...leg, sort_order: nextSortOrder(nextRows, leg.day) });
+          nextNamed.push(k === 0 ? named[i] : false);
+        }));
+        rows = nextRows;
+        named = nextNamed;
       } catch (e) {
         if (cancelledRef.current || abortRef.current !== controller) return;
         // The planner's flights stand as written.
@@ -518,6 +505,7 @@ function Planner() {
       const targets = rows
         .map((r, i) => ({
           id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
+          named: named[i],
         }))
         .filter((t, i) => t.query && !Number.isFinite(rows[i].lat));
       if (targets.length) {
@@ -532,59 +520,29 @@ function Planner() {
           });
           if (res.ok) {
             const { results } = await res.json();
-            const uncertain = [];
-            (results || []).forEach((r) => {
-              if (!r.found) return;
-              const row = rows[Number(r.id)];
-              if (!row) return;
-              const several = r.ambiguous && Array.isArray(r.candidates) && r.candidates.length;
-              /*
-               * Which branch is a question only for a place the traveller named:
-               * they know which one they meant. A venue the planner picked is
-               * the planner's to settle, so it takes the match the lookup ranked
-               * first, or, when the ranking trusted none of them, keeps its words
-               * without a pin, as "None of these" would have.
-               */
-              if (several && named[Number(r.id)]) {
-                uncertain.push({
-                  id: r.id,
-                  rowIndex: Number(r.id),
-                  title: row.title,
-                  category: row.category,
-                  query: row.location,
-                  reason: r.resolution_reason || '',
-                  candidates: r.candidates,
-                });
-                return;
-              }
-              if (several && r.confidence === 'low') return;
-              row.lat = r.lat;
-              row.lng = r.lng;
-              if (r.place_id) row.place_id = r.place_id;
-              if (r.photo_ref) row.photo_ref = r.photo_ref;
-              if (r.label) row.location = r.label;
-            });
-
-            if (uncertain.length) {
-              const choices = await new Promise((resolve) => {
+            /*
+             * Sorted as the command bar and the Assistant sort theirs
+             * (lib/tripChanges.js): which branch is a question only for a
+             * place the traveller named; the planner's own picks take the
+             * best-ranked match, or keep their words when none was trusted.
+             */
+            const sorted = sortPlaces(results, targets);
+            let { resolved } = sorted;
+            if (sorted.uncertain.length) {
+              const selected = await new Promise((resolve) => {
                 placeReviewResolveRef.current = resolve;
-                setPlaceReview({ items: uncertain, selected: {} });
+                setPlaceReview({ items: sorted.uncertain, selected: {} });
                 setPhase('reviewing');
               });
               placeReviewResolveRef.current = null;
-              if (!choices || cancelledRef.current) return;
-              choices.forEach(({ rowIndex, candidate }) => {
-                if (!candidate) return;
-                const row = rows[rowIndex];
-                if (!row) return;
-                row.lat = candidate.lat;
-                row.lng = candidate.lng;
-                row.place_id = candidate.place_id || null;
-                row.photo_ref = candidate.photo_ref || null;
-                row.location = candidate.label || row.location;
-              });
+              if (!selected || cancelledRef.current) return;
+              resolved = withChosenPlaces(resolved, sorted.uncertain, selected);
               setPlaceReview(null);
             }
+            Object.entries(resolved).forEach(([id, place]) => {
+              const row = rows[Number(id)];
+              if (row && place) Object.assign(row, pinFields(place, row.location));
+            });
           }
         } catch (e) {
           if (cancelledRef.current || abortRef.current !== controller) return;
@@ -728,18 +686,9 @@ function Planner() {
 
   function continueAfterPlaceReview() {
     if (!placeReview || !placeReviewResolveRef.current) return;
-    const choices = placeReview.items.map((item) => {
-      const placeId = placeReview.selected[item.id];
-      return {
-        rowIndex: item.rowIndex,
-        candidate: placeId === NO_PLACE
-          ? null
-          : item.candidates.find((candidate) => candidate.place_id === placeId) || null,
-      };
-    });
     const resume = placeReviewResolveRef.current;
     placeReviewResolveRef.current = null;
-    resume(choices);
+    resume(placeReview.selected);
   }
 
   if (!query && !shots.length) {

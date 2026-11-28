@@ -56,3 +56,9 @@ test('the command bar sends end times, and the route lists them and says how to 
   assert.match(route, /set only its end_time, to the listed end plus or minus N/);
   assert.match(route, /set both start_time and end_time so it keeps its length/);
 });
+
+test('a journey is listed with its kind, so a flight is known as one', () => {
+  const flight = { id: 'f', day: '2026-12-05', start_time: '07:00', end_time: '08:35', title: 'Flight to Sapporo', category: 'transport', subtype: 'flight' };
+  assert.match(activityLine(flight), /\| transport\/flight( \||$)/);
+  assert.match(activityLine({ ...flight, subtype: null }), /\| transport$/);
+});

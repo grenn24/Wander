@@ -377,6 +377,8 @@ function CommandBar({ onClose }) {
             end_time: a.end_time,
             title: a.title,
             category: a.category,
+            // A flight is known as one, so a moved flight is re-timed.
+            subtype: a.category === 'transport' ? a.subtype || null : null,
             // "Asakusa, Tokyo" rather than the full postal address Google
             // returned: enough to reason about, a third of the tokens, and
             // every token in the question is time before the answer starts.

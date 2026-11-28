@@ -8,8 +8,11 @@ import {
   readOffers, pickOffer, offerActivities, placeholderActivity, normaliseCode, searchOffers, duration,
 } from '../lib/flights.js';
 import {
-  cleanFixed, fixedBlock, isHomeFlight, flightTargets, dayIndexOf, fixedFlights,
+  cleanFixed, fixedBlock, isHomeFlight, dayIndexOf, fixedFlights,
 } from '../lib/flightPlan.js';
+import { flightTargets, matchFlights, flightOps } from '../lib/flightMatch.js';
+import { placeTargets, applyChanges, expandAll } from '../lib/tripChanges.js';
+import { proposeEdits } from '../lib/tripEdits.js';
 import { cleanHome, homeOf, homeName } from '../lib/home.js';
 import { validZone, activityTimes } from '../public/trip-time.js';
 
@@ -311,8 +314,8 @@ test('only flights between airports are searched, and a named one is trusted', (
   ];
   const targets = flightTargets(rows, 'We are on nh776 from Sapporo');
   assert.deepEqual(targets, [
-    { id: '0', from: 'HND', to: 'CTS', date: '2026-12-05', near: '10:30', code: '', trusted: false },
-    { id: '1', from: 'CTS', to: 'ITM', date: '2026-12-06', near: null, code: 'NH776', trusted: true },
+    { index: 0, from: 'HND', to: 'CTS', date: '2026-12-05', near: '10:30', kind: 'hop', code: '', trusted: false },
+    { index: 1, from: 'CTS', to: 'ITM', date: '2026-12-06', near: null, kind: 'hop', code: 'NH776', trusted: true },
   ]);
   assert.equal(flightTargets(rows, '')[1].trusted, false, 'a number the planner wrote is only a hint');
 });
@@ -332,12 +335,192 @@ test('a home is a place and the airports it flies from', () => {
 
 /* ------------------------------------------------------------ the wiring --- */
 
+/* ------------------------------------------------ the shared service --- */
+
+// Japan's domestic day: a search that answers for HND to CTS, and a
+// connection for HND to OKA by way of Fukuoka.
+const DOMESTIC = {
+  'HND>CTS': {
+    best_flights: [
+      { flights: [leg('ANA', 'NH 59', 'HND', 'CTS', '2026-12-05 07:00', '2026-12-05 08:35', 95)], total_duration: 95, price: 20000 },
+      { flights: [leg('JAL', 'JL 513', 'HND', 'CTS', '2026-12-05 11:00', '2026-12-05 12:35', 95)], total_duration: 95, price: 21000 },
+      { flights: [leg('ANA', 'NH 73', 'HND', 'CTS', '2026-12-05 17:00', '2026-12-05 18:35', 95)], total_duration: 95, price: 19000 },
+    ],
+  },
+  'HND>OKA': {
+    best_flights: [{
+      flights: [
+        leg('JAL', 'JL 305', 'HND', 'FUK', '2026-12-05 08:00', '2026-12-05 10:00', 120),
+        leg('JAL', 'JL 3561', 'FUK', 'OKA', '2026-12-05 11:30', '2026-12-05 13:15', 105),
+      ],
+      layovers: [{ duration: 90, name: 'Fukuoka Airport', id: 'FUK' }],
+      total_duration: 315,
+      price: 30000,
+    }],
+  },
+};
+function fakeSearch(asked = []) {
+  return async ({ from, to, date }) => {
+    asked.push(`${from.join(',')}>${to.join(',')} ${date}`);
+    return readOffers(DOMESTIC[`${from[0]}>${to[0]}`] || {}, 'JPY');
+  };
+}
+const flightDraft = (extra = {}) => ({
+  day: '2026-12-05', title: 'Flight to Sapporo', start_time: '10:30', end_time: '12:00',
+  category: 'transport', subtype: 'flight', details: { from: 'HND', to: 'CTS' }, notes: 'A guess.', cost: 0,
+  ...extra,
+});
+
+test('one service makes any entry\'s flight real, leaving everything else alone', async () => {
+  const asked = [];
+  const dinner = { day: '2026-12-05', title: 'Dinner', category: 'food' };
+  const { groups, found, matched } = await matchFlights([dinner, flightDraft()], {
+    search: fakeSearch(asked), index, currency: 'JPY',
+  });
+  assert.equal(matched, 1);
+  assert.deepEqual(found, [false, true]);
+  assert.deepEqual(groups[0], [dinner]);
+  const [real] = groups[1];
+  assert.equal(real.details.code, 'JL513', 'the real flight nearest 10:30');
+  assert.equal(real.start_time, '11:00');
+  assert.equal(real.details.arrival_timezone, 'Asia/Tokyo');
+  assert.equal(real.title, 'Flight to Sapporo', 'the title they had stays on the leg that gets there');
+  assert.equal(real.cost, 21000);
+  assert.deepEqual(asked, ['HND>CTS 2026-12-05'], 'one search, and none for dinner');
+  // Nothing to search for asks nothing.
+  const none = await matchFlights([dinner], { search: async () => { throw new Error('asked'); }, index });
+  assert.deepEqual(none.groups, [[dinner]]);
+});
+
+test('a connection is every leg, and a named flight that does not fly is kept as written', async () => {
+  const { groups } = await matchFlights([flightDraft({ title: 'Flight to Okinawa', details: { from: 'HND', to: 'OKA' } })], {
+    search: fakeSearch(), index,
+  });
+  assert.deepEqual(groups[0].map((l) => [l.title, l.details.code]),
+    [['Flight to Fukuoka', 'JL305'], ['Flight to Okinawa', 'JL3561']]);
+  assert.deepEqual(groups[0].map((l) => l.cost), [30000, 0]);
+
+  const theirs = flightDraft({ details: { from: 'HND', to: 'CTS', code: 'NH 999' } });
+  const kept = await matchFlights([theirs], { search: fakeSearch(), index, said: 'we fly NH999 to Sapporo' });
+  assert.deepEqual(kept.found, [false]);
+  assert.deepEqual(kept.groups, [[theirs]], 'never another flight in place of theirs');
+
+  // The planner's hints steer the search and are never saved.
+  const asked = [];
+  const way = await matchFlights([flightDraft({ _from: ['HND', 'NRT'], _to: ['CTS'], _kind: 'outbound' })], {
+    search: fakeSearch(asked), index,
+  });
+  assert.deepEqual(asked, ['HND,NRT>CTS 2026-12-05']);
+  assert.ok(!Object.keys(way.groups[0][0]).some((k) => k.startsWith('_') && k !== '_arrive'));
+});
+
+test('the editor proposes the real flight: a new one, a moved one, a connection', async () => {
+  const blank = Object.fromEntries(['kind', 'describe', 'activity_id', 'day', 'title', 'start_time',
+    'end_time', 'category', 'subtype', 'details', 'location', 'named_place', 'cost', 'notes', 'items']
+    .map((k) => [k, null]));
+  const trip = { start_date: '2026-12-03', end_date: '2026-12-08', currency: 'JPY' };
+  const booked = {
+    id: 'f1', day: '2026-12-05', title: 'Flight to Sapporo', start_time: '07:00', end_time: '08:35',
+    category: 'transport', subtype: 'flight', notes: 'Seat 3A, booked.',
+    details: { from: 'HND', to: 'CTS', code: 'NH59', carrier: 'ANA', seat: '3A' },
+  };
+  const match = (drafts, opts) => matchFlights(drafts, { ...opts, search: fakeSearch(), index });
+  const ops = await flightOps([
+    { ...blank, kind: 'add_activity', describe: 'Add a flight to Sapporo at 10:30', day: '2026-12-05', title: 'Flight to Sapporo', start_time: '10:30', category: 'transport', subtype: 'flight', details: { from: 'HND', to: 'OKA' } },
+    { ...blank, kind: 'update_activity', describe: 'Move the Sapporo flight to the evening', activity_id: 'f1', start_time: '17:30' },
+    { ...blank, kind: 'delete_activity', describe: 'Delete dinner', activity_id: 'd1' },
+  ], { activities: [booked], trip, said: 'add a flight to okinawa and move my sapporo flight to the evening', match });
+
+  assert.deepEqual(ops.map((o) => [o.kind, o.describe]), [
+    ['add_activity', 'Add JL305, HND 8am to FUK 10am'],
+    ['add_activity', 'Add JL3561, FUK 11:30am to OKA 1:15pm'],
+    ['update_activity', 'Change to NH73, HND 5pm to CTS 6:35pm'],
+    ['delete_activity', 'Delete dinner'],
+  ]);
+  const [first, , moved] = ops;
+  assert.equal(first.lat, airportOf(index, 'HND').lat, 'pinned at its airport');
+  assert.equal(first.details.departure_timezone, 'Asia/Tokyo');
+  assert.equal(first.details._arrive, undefined, 'the trip page finds the arrival pin');
+  assert.equal(moved.notes, null, 'their notes are theirs');
+  assert.equal(moved.details.code, 'NH73', 'a new time is another flight');
+
+  // Moving only the day keeps their flight: that number on the new day.
+  const dayOnly = await flightOps([{ ...blank, kind: 'update_activity', describe: 'Move it', activity_id: 'f1', day: '2026-12-05' }],
+    { activities: [booked], trip, said: 'move my flight', match });
+  assert.equal(dayOnly[0].details.code, 'NH59');
+  assert.equal(dayOnly[0].start_time, '07:00');
+});
+
+test('the shared editor hands both the command bar and the Assistant real flights', async () => {
+  let told = '';
+  const out = await proposeEdits({
+    instruction: 'Add a flight to Sapporo on the 5th around 10:30',
+    trip: { name: 'Japan', start_date: '2026-12-03', end_date: '2026-12-08', currency: 'JPY' },
+    home: { label: 'Singapore', airports: ['SIN'] },
+    ask: async (req) => {
+      told = req.user;
+      return {
+        understood: true,
+        question: null,
+        summary: 'Add a flight',
+        ops: [{ kind: 'add_activity', describe: 'Add a flight to Sapporo', day: '2026-12-05', title: 'Flight to Sapporo', start_time: '10:30', category: 'transport', subtype: 'flight', details: { from: 'HND', to: 'CTS' } }],
+      };
+    },
+    match: (drafts, opts) => matchFlights(drafts, { ...opts, search: fakeSearch(), index }),
+  });
+  assert.match(told, /Their home: Singapore, flying from SIN/);
+  assert.equal(out.ops[0].details.code, 'JL513');
+  assert.equal(out.ops[0].describe, 'Add JL513, HND 11am to CTS 12:35pm');
+});
+
+test('an edit already pinned at its airport is not looked up again, and keeps its pin', async () => {
+  const trip = { start_date: '2026-12-03', destination: 'Japan' };
+  const op = {
+    kind: 'add_activity', day: '2026-12-05', title: 'Flight to Sapporo', category: 'transport', subtype: 'flight',
+    location: 'Tokyo Haneda International Airport', lat: 35.5497, lng: 139.787, details: { from: 'HND', to: 'CTS', code: 'JL513' },
+  };
+  const expanded = expandAll([op, { ...op, lat: null, lng: null, title: 'Elsewhere', location: 'Somewhere, Tokyo' }], []);
+  assert.deepEqual(placeTargets(expanded, [], trip).targets.map((t) => t.title), ['Elsewhere']);
+  let added = [];
+  await applyChanges({
+    expanded: [op], activities: [], trip, api: { addActivities: async (rows) => { added = rows; } },
+  });
+  assert.equal(added[0].lat, 35.5497);
+  assert.equal(added[0].location, 'Tokyo Haneda International Airport');
+  assert.equal(added[0].details.code, 'JL513');
+});
+
+test('every way of making entries goes through the same two checks', () => {
+  // Server: the editor matches flights before it proposes, for both its callers.
+  const edits = read('lib/tripEdits.js');
+  assert.match(edits, /ops: await flightOps\(clean\.ops/);
+  assert.match(read('app/api/command/route.js'), /home: homeOf\(user\), userId: user\.id/);
+  const ask = read('app/api/trips/ask/route.js');
+  assert.match(ask, /home: homeOf\(user\), userId: user\.id, said/);
+  assert.match(ask, /said: question/, 'only the traveller\'s own flight numbers are trusted');
+  // The browser: one helper, flights then places, for quick add and suggestions.
+  assert.match(read('lib/pinPlaces.js'), /mode: 'legs', rows: list/);
+  assert.match(read('components/QuickAdd.jsx'), /settleDrafts\(drafts/);
+  assert.match(read('components/AiSuggest.jsx'), /settleDrafts\(/);
+  const parse = read('app/api/parse/route.js');
+  assert.match(parse, /'subtype', 'details'/, 'quick add can say what a flight is');
+  // The route is the service's door, not a second copy of it.
+  const route = read('app/api/flights/route.js');
+  assert.match(route, /await matchFlights\(rows/);
+  assert.match(route, /await matchFlights\(ways/);
+  assert.doesNotMatch(route, /searchOffers|pickOffer/);
+  // The planner: the same flight step and the same place sorting as the editor.
+  const page = read('app/plan/page.js');
+  assert.match(page, /await flightGroups\(rows/);
+  assert.match(page, /sortPlaces\(results, targets\)/);
+  assert.match(page, /withChosenPlaces\(resolved, sorted\.uncertain, selected\)/);
+});
+
 test('the planner finds the flights before it plans, and keeps the home it was told', () => {
   const page = read('app/plan/page.js');
   assert.match(page, /mode: 'trip', prompt: brief/);
   assert.match(page, /\.\.\.\(fixed \? \{ fixed \} : \{\}\)/, 'every request for the plan, resumes too');
   assert.match(page, /supabase\.auth\.updateUser\(\{ data: \{ home \} \}\)/);
-  assert.match(page, /mode: 'legs', items: hops/);
   assert.match(page, /if \(leg\.day > end\) end = leg\.day/, 'a connection home the next day is inside the trip');
   const route = read('app/api/plan/route.js');
   assert.match(route, /fixed = cleanFixed\(body\.fixed\)/);

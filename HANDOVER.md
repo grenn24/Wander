@@ -482,6 +482,40 @@ Match the surrounding code — it is consistent and deliberate.
   redesign, so the tour's first scene shows the previous landing page.
   Re-record when convenient.
 
+### How an entry gets into a trip (28 November 2026)
+
+Five ways make entries; each has its own generator, because each asks a model
+something different, and they share the checks that run before anything is
+saved. **A new check goes into a shared service, never into one page.**
+
+| way in | generator | flights made real | places pinned |
+|---|---|---|---|
+| Planner | `/api/plan` (own schema) | `/api/flights` `trip` (there and home, before the plan), then `flightGroups` | `/api/places/resolve`, sorted by `sortPlaces` |
+| Command bar | `/api/command` → `proposeEdits` | `flightOps` inside `proposeEdits`, before the proposal is shown | `useTripChanges` on Apply |
+| Assistant | `/api/trips/ask` → `change_trip` → `proposeEdits` | the same | the same (`AskChanges`) |
+| Quick add | `/api/parse` | `settleDrafts` | `settleDrafts` |
+| Suggest | `/api/suggest` | `settleDrafts` | `settleDrafts` |
+
+- The services: places are `resolveMany` / `settlePlace` (`lib/places.js`)
+  behind `/api/places/resolve`; flights are `matchFlights`
+  (`lib/flightMatch.js`) behind `/api/flights` mode `legs`, and called
+  directly in the server by the editor. Both are "drafts in, drafts out" and
+  never throw: what cannot be checked is saved as written.
+- The browser side is `lib/pinPlaces.js`: `pinPlaces`, `flightGroups`, and
+  `settleDrafts` (flights, then places) for any page that makes entries.
+  Command bar and Assistant share `useTripChanges` → `lib/tripChanges.js`
+  (`placeTargets`, `sortPlaces`, `withChosenPlaces`, `applyChanges`); the
+  planner uses the same `sortPlaces` / `withChosenPlaces`.
+- An edit the editor already pinned (a matched flight carries its airport's
+  `lat`/`lng`) is not looked up again: `pinnedPlace` in `lib/tripChanges.js`.
+- The editor sees each activity's `subtype` (both surfaces send it, and the
+  listing says `transport/flight`), which is how a moved flight is known as
+  one. A flight whose day only moves keeps its number (`_trusted`); a new time
+  or new airports is another flight.
+- Still separate, on purpose: the generators. `/api/plan` streams a whole trip,
+  `/api/parse` answers while someone types, `proposeEdits` edits a trip that
+  exists. One schema for all three would be slower and worse at each.
+
 ### Flights on planned trips (28 November 2026)
 
 - Owner action: set `SERPAPI_API_KEY` in `.env.local` and on Vercel
@@ -507,9 +541,10 @@ Match the surrounding code — it is consistent and deliberate.
   same country within 50 km of the nearest; Singapore is SIN, not Seletar,
   Batam or Johor Bahru). City names follow `cityFor` and `METRO` in the build
   script: Taipei for TPE, not Taoyuan.
-- Not done yet: the command bar and Assistant do not look flights up when they
-  add one, and the activity editor has no "look up this flight number".
-  `searchOffers` + `pickOffer({ code })` is what either would call.
+- Flights are made real by one service for every path (next section):
+  `matchFlights` in `lib/flightMatch.js`. Not done yet: the activity editor
+  has no "look up this flight number" button; it would call `/api/flights`
+  mode `legs` with the one row, like quick add does.
 - Verified: `tests/flights.test.mjs`, a production build, and the real route
   handlers run in Node with OpenAI, SerpApi and Supabase mocked. **Not
   verified against live SerpApi** (no key in the session that built it): the

@@ -4,9 +4,8 @@ import { placesKey, searchPlaces } from '@/lib/places';
 import {
   airports, airportOf, knownCodes, nearestAirports, airportsNamed,
 } from '@/lib/airports';
-import {
-  flightsConfigured, searchOffers, pickOffer, offerActivities, placeholderActivity, cityName,
-} from '@/lib/flights';
+import { matchFlights } from '@/lib/flightMatch';
+import { flightsConfigured, placeholderActivity, cityName } from '@/lib/flights';
 import { homeOf, homeName } from '@/lib/home';
 import { hasExclusiveScope } from '@/lib/planScope';
 
@@ -20,31 +19,17 @@ export const maxDuration = 60;
  *   trip — before the plan is written: when the trip is, where it starts and
  *          ends, and the real flights there and home, so the first and last
  *          days are planned around when they actually land and leave.
- *   legs — after: the flights the planner put inside the trip (Tokyo to
- *          Sapporo), each matched to a real one near the time it chose.
+ *   legs — new entries from any page, with their flights made real: the
+ *          shared service (matchFlights, lib/flightMatch.js) the trip editor
+ *          calls in the server, for the pages that make entries in the
+ *          browser (settleDrafts, lib/pinPlaces.js).
  *
  * Every search is a SerpApi search, and those are counted, so the route is
- * signed in and each person gets a budget an hour. Without SERPAPI_API_KEY
- * the trip still gets its flights — the airports, the days and the clocks,
- * with the times left for the traveller — and nothing here fails a plan.
+ * signed in and each person's searches share one budget an hour
+ * (flightBudget). Without SERPAPI_API_KEY the trip still gets its flights —
+ * the airports, the days and the clocks, with the times left for the
+ * traveller — and nothing here fails a plan.
  */
-
-const WINDOW = 3600 * 1000;
-const LIMIT = 40;
-const searched = new Map();
-function allow(id, n) {
-  const now = Date.now();
-  if (searched.size > 1000) {
-    searched.forEach((times, who) => {
-      if (!times.length || now - times[times.length - 1] >= WINDOW) searched.delete(who);
-    });
-  }
-  const recent = (searched.get(id) || []).filter((t) => now - t < WINDOW);
-  const ok = recent.length + n <= LIMIT;
-  if (ok) for (let i = 0; i < n; i += 1) recent.push(now);
-  searched.set(id, recent);
-  return ok;
-}
 
 const TRIP = {
   type: 'object',
@@ -139,25 +124,25 @@ function namesFor(index, codes, city) {
   return Object.fromEntries(codes.map((c) => [c, name || cityName(airportOf(index, c))]));
 }
 
-async function findFlight(index, { from, to, day, code, kind, currency, names, country }) {
+/**
+ * The way there or home as a draft for the shared matcher: the airports, the
+ * day and the clocks, which is also what is kept if no flight is found.
+ */
+function wayDraft(index, {
+  from, to, day, code, kind, names,
+}) {
   const homeward = kind === 'return';
-  const fallback = () => {
-    const leg = placeholderActivity(index, { from: from[0], to: to[0], day, names, homeward });
-    return leg ? { kind, found: false, legs: [leg] } : null;
+  const draft = placeholderActivity(index, {
+    from: from[0], to: to[0], day, names, homeward,
+  });
+  if (!draft) return null;
+  return {
+    ...draft,
+    ...(code ? { details: { ...draft.details, code }, _trusted: true } : {}),
+    _from: from,
+    _to: to,
+    _kind: kind,
   };
-  if (!flightsConfigured()) return fallback();
-  let offers;
-  try {
-    offers = await searchOffers({ from, to, date: day, currency, country });
-  } catch (e) {
-    console.error(`[flights] ${kind} search failed:`, e.message);
-    return fallback();
-  }
-  const offer = pickOffer(offers, { kind, code });
-  // A flight they named that does not fly that day is theirs to sort out,
-  // and the planner writes it from their words, as it always has.
-  if (!offer) return code ? null : fallback();
-  return { kind, found: true, named: !!code, legs: offerActivities(offer, index, { names, homeward, booked: !!code }) };
 }
 
 async function tripFlights(user, body) {
@@ -210,66 +195,53 @@ async function tripFlights(user, body) {
   // Already there: home is one of the destination's own airports.
   if (!from.length || !arrive.length || arrive.some((c) => from.includes(c))) return none('not_flying', extra);
 
-  const searches = (outCode || !trip.own_flights ? 1 : 0) + (backCode || !trip.own_flights ? 1 : 0);
-  if (flightsConfigured() && !allow(user.id, searches)) {
-    return none('busy', extra);
-  }
   const homeWord = homeName(origin);
-  // Fares as they are sold where the traveller lives, both ways.
-  const country = (airportOf(index, from[0]) || {}).country || '';
   const homeNames = /\d/.test(origin.label) ? {} : Object.fromEntries(from.map((c) => [c, homeWord]));
-  const [out, back] = await Promise.all([
-    outCode || !trip.own_flights ? findFlight(index, {
-      from, to: arrive, day: start, code: outCode, kind: 'outbound', currency: currency || 'USD',
-      names: namesFor(index, arrive, trip.first_city), country,
+  const ways = [
+    outCode || !trip.own_flights ? wayDraft(index, {
+      from, to: arrive, day: start, code: outCode, kind: 'outbound',
+      names: namesFor(index, arrive, trip.first_city),
     }) : null,
-    (backCode || !trip.own_flights) && days > 1 ? findFlight(index, {
+    (backCode || !trip.own_flights) && days > 1 ? wayDraft(index, {
       from: leave.length ? leave : arrive, to: from, day: addDays(start, days - 1), code: backCode,
-      kind: 'return', currency: currency || 'USD', names: homeNames, country,
+      kind: 'return', names: homeNames,
     }) : null,
-  ]);
+  ].filter(Boolean);
+
+  // Made real by the service every way of making entries shares.
+  const { groups, found, why } = await matchFlights(ways, {
+    said: prompt,
+    currency: currency || 'USD',
+    userId: user.id,
+    // Fares as they are sold where the traveller lives, both ways.
+    country: (airportOf(index, from[0]) || {}).country || '',
+  });
+  const flights = ways.map((way, i) => {
+    /*
+     * A flight they named that does not fly that day is theirs to sort out,
+     * and the planner writes it from their words, as it always has. Any
+     * other way not found is still added, with its airports and clocks.
+     */
+    if (!found[i] && way._trusted) return null;
+    return { kind: way._kind, found: found[i], legs: groups[i] };
+  }).filter(Boolean);
   return Response.json({
     ...extra,
-    flights: [out, back].filter(Boolean),
-    why: null,
+    flights,
+    why: why === 'busy' ? 'busy' : null,
     searched: flightsConfigured(),
   });
 }
 
 async function legFlights(user, body) {
-  const items = (Array.isArray(body.items) ? body.items : []).slice(0, 6);
-  if (!items.length) return Response.json({ results: [] });
-  if (!flightsConfigured()) return Response.json({ results: [], why: 'no_key' });
-  if (!allow(user.id, items.length)) return Response.json({ results: [], why: 'busy' });
-  const index = await airports();
-  const currency = /^[A-Z]{3}$/.test(body.currency || '') ? body.currency : 'USD';
-  const ends = async (v) => {
-    const known = knownCodes(index, [v], 1);
-    if (known.length) return known;
-    return (airportsNamed(index, v)).map((a) => a.code);
-  };
-  const results = await Promise.all(items.map(async (it) => {
-    const id = String(it.id || '').slice(0, 12);
-    const day = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : '';
-    const [from, to] = await Promise.all([ends(it.from), ends(it.to)]);
-    if (!day || !from.length || !to.length) return { id, legs: null };
-    try {
-      const fromAirport = airportOf(index, from[0]);
-      const offers = await searchOffers({
-        from, to, date: day, currency, country: fromAirport ? fromAirport.country : '',
-      });
-      const near = /^\d{2}:\d{2}$/.test(it.near || '') ? it.near : null;
-      // The flight it was given, where that flies; for a booking, only that one.
-      const named = it.code ? pickOffer(offers, { code: it.code }) : null;
-      const offer = named || (it.trusted ? null : pickOffer(offers, { kind: 'hop', near }));
-      if (!offer) return { id, legs: null };
-      return { id, legs: offerActivities(offer, index, { booked: !!(named && it.trusted) }) };
-    } catch (e) {
-      console.error('[flights] leg search failed:', e.message);
-      return { id, legs: null };
-    }
-  }));
-  return Response.json({ results });
+  const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 300)
+    .map((r) => (r && typeof r === 'object' ? r : {}));
+  const { groups, matched, why } = await matchFlights(rows, {
+    said: String(body.said || '').slice(0, 6000),
+    currency: String(body.currency || ''),
+    userId: user.id,
+  });
+  return Response.json({ groups, matched, why });
 }
 
 export async function POST(req) {

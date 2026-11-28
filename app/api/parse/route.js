@@ -3,16 +3,29 @@ import {
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
+import { TRANSPORT } from '@/lib/transport';
 
 export const runtime = 'nodejs';
 
 /** Most a single line can sensibly name. */
 const MAX_ENTRIES = 8;
 
+/*
+ * A journey's kind and the four things that name it: who runs it, its number
+ * and its two ends. Without them "SQ638 SIN to HND 9am" had nowhere to go but
+ * the title, and nothing could make it a real flight (lib/flightMatch.js).
+ * Only four, not every field the editor has: this answers while someone
+ * types, and seats and gates are not typed into one line.
+ */
+const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
+const JOURNEY = ['carrier', 'code', 'from', 'to'];
+
 const ACTIVITY = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'start_time', 'end_time', 'category', 'location', 'cost', 'notes'],
+  required: [
+    'title', 'start_time', 'end_time', 'category', 'subtype', 'details', 'location', 'cost', 'notes',
+  ],
   properties: {
     title: {
       type: 'string',
@@ -23,6 +36,23 @@ const ACTIVITY = {
     start_time: { type: ['string', 'null'], description: '24h HH:MM, or null' },
     end_time: { type: ['string', 'null'], description: '24h HH:MM, or null' },
     category: { type: 'string', enum: AI_CATEGORIES },
+    subtype: {
+      type: ['string', 'null'],
+      enum: [...TRANSPORT_IDS, null],
+      description: 'Transport only, and only when you know which. A taxi or a Grab is "transfer". Null otherwise.',
+    },
+    details: {
+      type: 'object',
+      additionalProperties: false,
+      required: JOURNEY,
+      description: 'Transport only; all null otherwise.',
+      properties: {
+        carrier: { type: ['string', 'null'], description: 'The airline, railway or operator' },
+        code: { type: ['string', 'null'], description: 'The flight or service number, e.g. SQ638' },
+        from: { type: ['string', 'null'], description: "Where it leaves from; for a flight, the airport's IATA code" },
+        to: { type: ['string', 'null'], description: "Where it arrives; for a flight, the airport's IATA code" },
+      },
+    },
     location: {
       type: 'string',
       description: 'What to type into Google Maps to land on this exact venue: its name, '
@@ -97,6 +127,13 @@ When:
   realistic length and in an order that makes sense on foot.
 - "2h" or "for a couple of hours" sets an end time relative to the start.
 
+Journeys:
+- A flight, train, bus or ferry is category "transport" with its subtype. Its
+  number goes in details.code and its two ends in details.from and details.to
+  (a flight's as IATA airport codes: "SQ638 to Tokyo" from Singapore is SIN to
+  HND), never in the title: "Flight to Tokyo", not "SQ638 SIN-HND". A flight's
+  "location" is the airport it leaves from. The app looks up the real flight.
+
 Everything else:
 - Prices like "about 30 quid" or "2000 yen" become the number alone.
 - Notes hold only what they said that fits no other field. "Add to the Ginza
@@ -112,12 +149,27 @@ function clock(value) {
   return cleanTime(value) || '';
 }
 
+/** A journey's own fields, only for transport, only the ones its kind has. */
+function journey(a) {
+  const mode = cleanCategory(a.category) === 'transport'
+    ? TRANSPORT.find((t) => t.id === a.subtype) : null;
+  if (!mode) return { subtype: null, details: {} };
+  const has = new Set(mode.fields.map((f) => f.k));
+  const src = a.details && typeof a.details === 'object' ? a.details : {};
+  const details = JOURNEY.reduce((o, k) => {
+    const v = String(src[k] == null ? '' : src[k]).trim().slice(0, 80);
+    return has.has(k) && v ? { ...o, [k]: v } : o;
+  }, {});
+  return { subtype: mode.id, details };
+}
+
 function entry(a, fallback) {
   return {
     title: String(a.title || '').trim().slice(0, 200) || fallback,
     start_time: cleanTime(a.start_time),
     end_time: cleanTime(a.end_time),
     category: cleanCategory(a.category),
+    ...journey(a),
     location: String(a.location || '').trim().slice(0, 300),
     cost: Number.isFinite(Number(a.cost)) ? Math.max(0, Number(a.cost)) : 0,
     notes: String(a.notes || '').trim().slice(0, 1000),

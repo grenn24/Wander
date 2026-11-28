@@ -4,6 +4,7 @@ import { commandCalendar } from '@/lib/googleCal';
 import { editCalendar } from '@/lib/commandCalendar';
 import { requestTiming } from '@/lib/requestTiming';
 import { proposeEdits, editHistory } from '@/lib/tripEdits';
+import { homeOf } from '@/lib/home';
 
 /*
  * The command bar's edits. The editor itself — its schema, its rules and the
@@ -61,6 +62,7 @@ async function handleCommand(req, timing) {
   try {
     const out = await timing.measure('ai', () => proposeEdits({
       instruction, answers, trip, activities, history: editHistory(body.history), calendar,
+      home: homeOf(user), userId: user.id,
     }));
     return Response.json(out);
   } catch (e) {
