@@ -178,7 +178,7 @@ export default function Budget({ trip, days, activities, members = [], onSplitCh
               {activities.filter((a) => Number(a.cost || 0) > 0).map((a) => (
                 <tr key={a.id}>
                   <td>{a.title}</td>
-                  <td className="muted">{fmtDay(a.day)}</td>
+                  <td className="muted day">{fmtDay(a.day)}</td>
                   <td className="muted">{categoryOf(a.category).label}</td>
                   <td className="num">{money(a.cost, currency)}</td>
                 </tr>

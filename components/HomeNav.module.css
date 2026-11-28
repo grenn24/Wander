@@ -1,11 +1,14 @@
 .nav {
-  display: inline-flex; align-items: center; gap: 2px; padding: 3px; margin-left: 4px;
+  /* 30 + 2 × 2 + 2 × 1 = 36px, the height the top bar holds for its content.
+     At 40px it made the bar on Trips, Globe and Guides 4px taller than on a
+     trip, so the page under it moved when you went from one to the other. */
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px; margin-left: 4px;
   border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2);
   min-width: 0;
 }
 .item {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
-  border-radius: 11px; color: var(--text-2); font-size: 13.5px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px;
+  border-radius: 12px; color: var(--text-2); font-size: 13.5px; font-weight: 600;
   text-decoration: none; white-space: nowrap;
   transition: color .14s var(--ease), background .14s var(--ease);
 }
@@ -20,7 +23,7 @@
    a globe icon and a book icon are guesses and "Guides" is not. */
 @media (max-width: 560px) {
   .item svg { display: none; }
-  .item { padding: 0 10px; font-size: 13px; min-height: 30px; }
+  .item { padding: 0 10px; font-size: 13px; }
 }
 @media (max-width: 360px) {
   .item { padding: 0 7px; font-size: 12.5px; }

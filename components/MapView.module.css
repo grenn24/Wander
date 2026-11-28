@@ -199,9 +199,13 @@
 @keyframes sweep { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 
 /* The way to the next stop, hung on a dotted line from one number to the next. */
+/* Tall enough for a row of travel chips (24px) from the start: holding only
+   the distance it was 6px shorter, and the stops below jumped when the times
+   arrived. */
 .leg {
   position: relative; display: flex; align-items: center; gap: 8px;
   padding: 4px 8px 4px 45px; color: var(--text-2); font-size: var(--fs-xs);
+  min-height: 32px;
 }
 .leg::before {
   content: ''; position: absolute; left: 20px; top: 0; bottom: 0;

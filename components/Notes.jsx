@@ -60,7 +60,7 @@ export default function Notes({ trip, activities, onSave }) {
               {refs.map((a) => (
                 <tr key={a.id}>
                   <td>{a.title}</td>
-                  <td className="muted">{fmtDay(a.day)}</td>
+                  <td className="muted day">{fmtDay(a.day)}</td>
                   <td className="mono">{a.booking_ref}</td>
                 </tr>
               ))}

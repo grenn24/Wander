@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowUp, FileText, History, Loader2, Mic, Paperclip, Sparkles, Square, SquarePen, Trash2, X,
@@ -69,9 +69,11 @@ export default function TripAsk({ trip, days, activities }) {
   const [viewing, setViewing] = useState(null); // { photos, index } from a sent message
   const [naming, setNaming] = useState(null); // the title being typed, while renaming
   const picker = useRef(null);
-  // The microphone shows only where the browser can record.
+  // The microphone shows only where the browser can record. Decided before the
+  // first paint: in an effect the box drew without it for a frame, and the
+  // paperclip and the field jumped 46px sideways when it arrived.
   const [mic, setMic] = useState(false);
-  useEffect(() => { setMic(canRecord()); }, []);
+  useLayoutEffect(() => { setMic(canRecord()); }, []);
 
   const today = useMemo(() => zonedNow(trip.timezone || undefined).date, [trip.timezone]);
   const suggestions = useMemo(() => askSuggestions(trip, activities, today), [trip, activities, today]);

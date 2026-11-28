@@ -138,7 +138,10 @@
 .mini .body { gap: 3px; padding: 10px 12px 12px; }
 .mini .title { font-size: 19px; }
 .mini .cardFoot { padding-top: 6px; }
-.skelCard { height: 218px; border-radius: 22px; }
+/* The height of a mini card with a two-line title, which a row of eight nearly
+   always has (the row takes its tallest). At 218px the trip list below jumped
+   30px when the guides arrived. */
+.skelCard { height: 248px; border-radius: 22px; }
 
 /* =============================================================== journal */
 .back {
