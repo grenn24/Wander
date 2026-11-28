@@ -193,8 +193,14 @@ export default function TripAsk({ trip, days, activities }) {
   }, [keyboard]);
 
   // The box is a different element on the blank page and under a
-  // conversation, so the cursor follows it across.
-  useEffect(() => { if (input.current) input.current.focus({ preventScroll: true }); }, [empty]);
+  // conversation, so the cursor follows it across. Not on first load,
+  // though: focusing then pops the keyboard open on a phone unasked.
+  const wasEmpty = useRef(empty);
+  useEffect(() => {
+    if (wasEmpty.current === empty) return;
+    wasEmpty.current = empty;
+    if (input.current) input.current.focus({ preventScroll: true });
+  }, [empty]);
 
   const openStop = useCallback((a) => {
     if (a && a.id) router.push(`/trips/${trip.id}/itinerary?focus=${encodeURIComponent(a.id)}`);
