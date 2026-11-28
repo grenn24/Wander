@@ -3872,8 +3872,8 @@ body::before {
 .place-review-query { margin: -4px 0 10px 32px; overflow-wrap: anywhere; }
 .place-review-options { display: grid; gap: 8px; }
 .place-review-option {
-  display: flex; align-items: flex-start; gap: 10px;
-  width: 100%; padding: 11px 12px; text-align: left;
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 8px 12px 8px 8px; text-align: left;
   border: 1px solid var(--border); border-radius: 12px;
   background: var(--surface-1); color: var(--text-1); cursor: pointer;
 }
@@ -3882,8 +3882,7 @@ body::before {
   border-color: var(--accent); background: var(--accent-soft);
   box-shadow: 0 0 0 1px var(--accent);
 }
-.place-review-option > svg { flex: none; margin-top: 2px; color: var(--accent); }
-.place-review-option > span { min-width: 0; }
+.place-review-option > span:not(.photo) { min-width: 0; }
 .place-review-option strong, .place-review-option small { display: block; }
 .place-review-option strong { font-size: var(--fs-sm); }
 .place-review-option small {

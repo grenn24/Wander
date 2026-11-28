@@ -15,6 +15,7 @@ import { tickAnswer, isAnswered, answerText } from '@/lib/briefAnswers';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
+import { PlaceChoices, NO_PLACE } from '@/components/PlaceReview';
 import { planningProgress } from '@/lib/planningProgress';
 import {
   readPlan, resumePoint, resumeBrief, mergeResumed, RESUME_LIMIT,
@@ -382,10 +383,14 @@ function Planner() {
     const end = addDays(start, Math.max(0, plan.duration_days - 1));
 
     const rows = [];
+    // Beside the rows, not on them: they are inserted as they are. Whether the
+    // traveller named each venue, or the planner picked it.
+    const named = [];
     plan.days.forEach((d) => {
       const day = addDays(start, d.day_index - 1);
       if (day > end) return;
       d.activities.forEach((a) => {
+        named.push(a.named_place === true);
         rows.push({
           day,
           title: a.title,
@@ -430,17 +435,27 @@ function Planner() {
               if (!r.found) return;
               const row = rows[Number(r.id)];
               if (!row) return;
-              if (r.ambiguous && Array.isArray(r.candidates) && r.candidates.length) {
+              const several = r.ambiguous && Array.isArray(r.candidates) && r.candidates.length;
+              /*
+               * Which branch is a question only for a place the traveller named:
+               * they know which one they meant. A venue the planner picked is
+               * the planner's to settle, so it takes the match the lookup ranked
+               * first, or, when the ranking trusted none of them, keeps its words
+               * without a pin, as "None of these" would have.
+               */
+              if (several && named[Number(r.id)]) {
                 uncertain.push({
                   id: r.id,
                   rowIndex: Number(r.id),
                   title: row.title,
+                  category: row.category,
                   query: row.location,
                   reason: r.resolution_reason || '',
                   candidates: r.candidates,
                 });
                 return;
               }
+              if (several && r.confidence === 'low') return;
               row.lat = r.lat;
               row.lng = r.lng;
               if (r.place_id) row.place_id = r.place_id;
@@ -615,7 +630,7 @@ function Planner() {
       const placeId = placeReview.selected[item.id];
       return {
         rowIndex: item.rowIndex,
-        candidate: placeId === '__none'
+        candidate: placeId === NO_PLACE
           ? null
           : item.candidates.find((candidate) => candidate.place_id === placeId) || null,
       };
@@ -762,40 +777,11 @@ function Planner() {
             <form className="card planquestions place-review"
               onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
               <p className="small muted planquestions-intro">
-                I found more than one plausible match. Choose the right branch before I save the trip.
+                You named {placeReview.items.length === 1 ? 'a place' : 'places'} I found in
+                more than one spot. Choose the one you meant before I save the trip.
               </p>
-              {placeReview.items.map((item, i) => (
-                <fieldset className="planq" key={item.id}>
-                  <legend><span>{i + 1}</span>{item.title}</legend>
-                  <p className="tiny dim place-review-query">Requested location: {item.query}</p>
-                  <div className="place-review-options">
-                    {item.candidates.map((candidate) => {
-                      const selected = placeReview.selected[item.id] === candidate.place_id;
-                      return (
-                        <button type="button" className={`place-review-option${selected ? ' is-on' : ''}`}
-                          key={candidate.place_id} aria-pressed={selected}
-                          onClick={() => chooseResolvedPlace(item.id, candidate.place_id)}>
-                          <MapPin size={15} aria-hidden="true" />
-                          <span>
-                            <strong>{candidate.name || candidate.label}</strong>
-                            <small>{candidate.label}</small>
-                          </span>
-                        </button>
-                      );
-                    })}
-                    <button type="button"
-                      className={`place-review-option${placeReview.selected[item.id] === '__none' ? ' is-on' : ''}`}
-                      aria-pressed={placeReview.selected[item.id] === '__none'}
-                      onClick={() => chooseResolvedPlace(item.id, '__none')}>
-                      <MapPin size={15} aria-hidden="true" />
-                      <span>
-                        <strong>None of these</strong>
-                        <small>Keep the location text without placing a pin.</small>
-                      </span>
-                    </button>
-                  </div>
-                </fieldset>
-              ))}
+              <PlaceChoices items={placeReview.items} selected={placeReview.selected}
+                onChoose={chooseResolvedPlace} />
               <div className="planquestions-actions">
                 <button className="btn primary" type="submit" disabled={!reviewedPlaces}>
                   Continue planning

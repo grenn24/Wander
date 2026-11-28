@@ -83,6 +83,7 @@ const SCHEMA = {
               required: [
                 'title', 'start_time', 'end_time', 'category', 'subtype',
                 'location', 'notes', 'cost', 'booking_ref', 'details', 'requested',
+                'named_place',
               ],
               properties: {
                 title: {
@@ -134,6 +135,13 @@ const SCHEMA = {
                     + 'False for suggested meals, nearby attractions, rest, check-ins, transfers, '
                     + 'and other filler that the traveller did not name.',
                 },
+                named_place: {
+                  type: 'boolean',
+                  description: 'True only when the traveller named this venue themselves: in '
+                    + 'their words, their answers, a picture, a requested guide or a calendar '
+                    + 'entry. False when you chose the venue, even for something they asked '
+                    + 'for: "see the aurora" names no camp, "ramen in Tokyo" names no shop.',
+                },
                 details: DETAILS,
               },
             },
@@ -156,6 +164,11 @@ Rules:
 - Set requested true only for an activity explicitly named in the request, an
   explicitly requested guide, or an existing calendar commitment. Similar,
   nearby, or normally necessary activities are not requested.
+- Set named_place true only when the traveller named the venue itself. An
+  activity they asked for at a venue you picked ("see the northern lights",
+  so you chose a camp) is requested but not a named place. The app asks the
+  traveller which branch they meant only for the places they named, and
+  trusts your choice for the rest.
 - When there is no exclusive constraint, keep each day realistic: 3 to 5
   activities, geographically sensible, no zig-zagging across a city and back.
 - One place, one activity. Every activity is a stop on the map, and a stop
@@ -301,6 +314,9 @@ function cleanActivity(a, fix) {
        in — a jsonb full of nulls is a row that looks answered and is not. */
     details: cleanDetails(it),
     location: String(it.location || '').trim().slice(0, 300),
+    // Whether the traveller chose this venue. Only theirs is asked about
+    // when the lookup finds it in more than one spot; the planner's own pick stands.
+    named_place: it.named_place === true,
     cost: Number.isFinite(Number(it.cost)) ? Math.max(0, Number(it.cost)) : 0,
     notes: String(it.notes || '').trim().slice(0, 1000),
   };
