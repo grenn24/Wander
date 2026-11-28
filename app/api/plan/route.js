@@ -4,6 +4,9 @@ import {
 } from '@/lib/ai';
 import { parsePartial } from '@/lib/partialJson';
 import { relayStream } from '@/lib/aiStream';
+import {
+  readResume, resumeInstruction, BEAT_MS, PLAN_FIRST_MS, PLAN_QUIET_MS,
+} from '@/lib/planResume';
 import { publicAgentText } from '@/lib/agentText';
 import { validZone } from '@/public/trip-time';
 import { TRANSPORT } from '@/lib/transport';
@@ -423,6 +426,9 @@ async function theirCalendar(user, prompt, today) {
 }
 
 export async function POST(req) {
+  // The host cuts the request off at maxDuration; the stream is closed by us
+  // a little before that, so the page hears "cut" and picks the plan up.
+  const deadline = Date.now() + (maxDuration - 15) * 1000;
   if (!aiConfigured()) return notConfigured();
   /*
    * Signed in, like every other route that pays for a model. A whole plan on
@@ -437,11 +443,14 @@ export async function POST(req) {
   let prompt = '';
   let today = '';
   let mode = '';
+  // Set when the page is picking up a plan whose stream stopped part way.
+  let resume = null;
   try {
     const body = (await req.json()) || {};
     prompt = String(body.prompt || '').trim().slice(0, 6000);
     today = String(body.today || '').slice(0, 10);
     mode = String(body.mode || '');
+    resume = readResume(body.resume);
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
@@ -529,7 +538,8 @@ and will be removed before the traveller sees it.` : '';
           {
             role: 'user',
             content: `Today is ${today || 'unknown'}. Plan this trip:`
-              + `\n\n${prompt}${scopeBlock}${calendarBlock}`,
+              + `\n\n${prompt}${scopeBlock}${calendarBlock}`
+              + `${resume ? resumeInstruction(resume) : ''}`,
           },
         ],
         response_format: {
@@ -562,7 +572,12 @@ and will be removed before the traveller sees it.` : '';
   const exclusiveSummary = 'Only the places and guides you requested are included. '
     + 'The remaining time is left open.';
 
-  const stream = relayStream(upstream, async ({ text: chunks, send: write, gone }) => {
+  // A pick-up writes only the days after the ones the page already has.
+  const fromDay = resume ? resume.from : 1;
+
+  const stream = relayStream(upstream, async ({
+    text: chunks, send: write, gone, progress, stopped,
+  }) => {
     const send = (obj) => write(`${JSON.stringify(obj)}\n`);
 
     // What the client already knows, so each event carries only what is new.
@@ -570,10 +585,18 @@ and will be removed before the traveller sees it.` : '';
     const sentThemes = new Map();
     const sentCounts = new Map();
     let text = '';
+    // How much of the answer has closed, so the watchdog knows it is moving.
+    let written = 0;
+    let lastDay = 0;
 
     const flush = () => {
       const partial = parsePartial(text);
       if (!partial || typeof partial !== 'object') return;
+
+      const parsedDays = Array.isArray(partial.days) ? partial.days : [];
+      const size = Object.keys(partial).length + parsedDays.reduce((n, d) => n + 1
+        + (d && Array.isArray(d.activities) ? d.activities.length : 0), 0);
+      if (size > written) { written = size; progress(); }
 
       const meta = {
         name: typeof partial.name === 'string' ? partial.name : '',
@@ -587,10 +610,11 @@ and will be removed before the traveller sees it.` : '';
       const metaKey = JSON.stringify(meta);
       if (metaKey !== sentMeta) { sentMeta = metaKey; send({ t: 'meta', ...meta }); }
 
-      (Array.isArray(partial.days) ? partial.days : []).forEach((d) => {
+      parsedDays.forEach((d) => {
         if (!d || typeof d !== 'object') return;
         const idx = Number(d.day_index);
-        if (!Number.isInteger(idx) || idx < 1) return;
+        if (!Number.isInteger(idx) || idx < fromDay) return;
+        lastDay = Math.max(lastDay, idx);
 
         const acts = Array.isArray(d.activities) ? d.activities : [];
         const theme = typeof d.theme === 'string' ? d.theme : '';
@@ -610,6 +634,7 @@ and will be removed before the traveller sees it.` : '';
       });
     };
 
+    let reading = true;
     try {
       for await (const chunk of chunks) {
         text += chunk;
@@ -621,8 +646,21 @@ and will be removed before the traveller sees it.` : '';
          */
         if (/[}\]]/.test(chunk)) flush();
       }
+      reading = false;
       // Cancelled: nobody is reading, and what arrived is not a plan.
       if (gone()) return;
+
+      /*
+       * Stopped part way — the answer went quiet, or the host's time limit is
+       * close. Said out loud, so the page picks the plan up from the last day
+       * it has instead of waiting on a stream that has nothing more to say.
+       */
+      const why = stopped();
+      if (why) {
+        console.warn(`[plan] answer stopped (${why}) at day ${lastDay || '-'}; the page picks it up`);
+        send({ t: 'cut', why });
+        return;
+      }
 
       if (!text.trim()) {
         // Same trap as the blocking routes: the budget can be spent entirely
@@ -630,10 +668,19 @@ and will be removed before the traveller sees it.` : '';
         throw new Error('The model produced no itinerary — it may have spent its '
           + 'budget reasoning. Try again, or lower the plan effort in TASKS.');
       }
-      const final = JSON.parse(text);
+      let final;
+      try {
+        final = JSON.parse(text);
+      } catch (e) {
+        // Ended without finishing: a dropped connection or a length limit.
+        // What arrived is good, and the rest can be asked for.
+        console.warn(`[plan] answer ended unfinished at day ${lastDay || '-'}; the page picks it up`);
+        send({ t: 'cut', why: 'unfinished' });
+        return;
+      }
       const duration = Math.min(30, Math.max(1, Number(final.duration_days) || 1));
       const days = (Array.isArray(final.days) ? final.days : [])
-        .filter((d) => Number(d.day_index) >= 1 && Number(d.day_index) <= duration)
+        .filter((d) => Number(d.day_index) >= fromDay && Number(d.day_index) <= duration)
         .map((d) => ({
           day_index: Number(d.day_index),
           theme: String(d.theme || ''),
@@ -659,9 +706,21 @@ and will be removed before the traveller sees it.` : '';
       });
     } catch (e) {
       if (gone() || (e && e.name === 'AbortError')) return;
+      if (reading) {
+        // The connection to the model broke; the days that arrived still stand.
+        console.warn(`[plan] answer broke off at day ${lastDay || '-'} (${(e && e.message) || e}); the page picks it up`);
+        send({ t: 'cut', why: 'broken' });
+        return;
+      }
       console.error('[ai] plan stream failed:', (e && e.message) || e);
       send({ t: 'error', error: 'Something went wrong on our end. Please try again.' });
     }
+  }, {
+    beat: `${JSON.stringify({ t: 'wait' })}\n`,
+    beatMs: BEAT_MS,
+    firstMs: PLAN_FIRST_MS,
+    quietMs: PLAN_QUIET_MS,
+    deadline,
   });
 
   return new Response(stream, {

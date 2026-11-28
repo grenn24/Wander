@@ -16,6 +16,9 @@ import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
 import { planningProgress } from '@/lib/planningProgress';
+import {
+  readPlan, resumePoint, resumeBrief, mergeResumed, RESUME_LIMIT,
+} from '@/lib/planResume';
 import { activityIcon, tripHome } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
 import { authHeader } from '@/lib/supabase';
@@ -131,17 +134,6 @@ function Planner() {
     router.replace('/trips');
   }, [discardPendingTrip, router]);
 
-  const upsertDay = useCallback((i, patch) => {
-    setDays((prev) => {
-      const next = prev.slice();
-      const at = next.findIndex((d) => d.index === i);
-      if (at === -1) next.push({ index: i, theme: '', activities: [], ...patch });
-      else next[at] = { ...next[at], ...patch };
-      next.sort((a, b) => a.index - b.index);
-      return next;
-    });
-  }, []);
-
   const run = useCallback(async (preparedBrief = '') => {
     if (!supabase || !user || (!query && !shots.length)) return;
     cancelledRef.current = false;
@@ -182,7 +174,7 @@ function Planner() {
           return;
         }
       } catch (e) {
-        if (cancelledRef.current || e.name === 'AbortError') return;
+        if (cancelledRef.current || abortRef.current !== controller) return;
         setError('The connection dropped while reading. Try again.');
         setPhase('error');
         return;
@@ -218,7 +210,7 @@ function Planner() {
           return;
         }
       } catch (e) {
-        if (cancelledRef.current || e.name === 'AbortError') return;
+        if (cancelledRef.current || abortRef.current !== controller) return;
         setError('The connection dropped while checking the trip details. Try again.');
         setPhase('error');
         return;
@@ -230,74 +222,105 @@ function Planner() {
     lastBrief.current = brief;
     setPhase('streaming');
 
+    /*
+     * What has arrived, held here as well as in state, because picking a plan
+     * up is built from it and state cannot be read from inside this function.
+     */
+    const drafted = new Map(); // index -> { index, theme, activities }
+    let firstMeta = null;
+    const show = () => setDays([...drafted.values()]
+      .sort((a, b) => a.index - b.index)
+      .map((d) => ({ ...d, activities: d.activities.slice() })));
+    const dayOf = (i) => {
+      if (!drafted.has(i)) drafted.set(i, { index: i, theme: '', activities: [] });
+      return drafted.get(i);
+    };
+    let resume = null; // { from, kept } while picking up a plan that stopped
+    const onEvent = (evt) => {
+      if (evt.t === 'meta') {
+        // The trip as first described stays put while later days are asked for.
+        if (!resume || !firstMeta || !firstMeta.name) { firstMeta = evt; setMeta(evt); }
+      } else if (evt.t === 'day') {
+        dayOf(evt.i).theme = evt.theme;
+        show();
+      } else if (evt.t === 'act') {
+        dayOf(evt.d).activities.push(evt.a);
+        show();
+      }
+    };
+
     let plan = null;
-    try {
+    let attempts = 0;
+    let lastFrom = 0;
+    let stuck = 0;
+    for (;;) {
+      attempts += 1;
+      let out;
+      try {
+        /*
+         * Signed, so the planner can look at the calendar.
+         *
+         * Without this the route has no idea who is asking and cannot fetch
+         * anything on their behalf — which is exactly why the first version of
+         * this planned around a calendar it had never seen.
+         */
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess && sess.session ? sess.session.access_token : '';
+
+        const res = await fetch('/api/plan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            prompt: brief,
+            today: todayISO(),
+            ...(resume ? { resume: resumeBrief(firstMeta, resume.kept, resume.from) } : {}),
+          }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (body.code === 'no_key') setNoKey(true);
+          setError(body.error || 'Planning failed.');
+          setPhase('error');
+          return;
+        }
+        out = await readPlan(res.body, { onEvent, signal: controller.signal });
+      } catch (e) {
+        // Only Cancel, or a newer run, stops this one quietly. Anything else
+        // that ends the stream is the connection, and the plan is picked up.
+        if (cancelledRef.current || abortRef.current !== controller) return;
+        out = { cut: 'dropped' };
+      }
+
+      if (out.error) { setError(out.error); setPhase('error'); return; }
+      if (out.plan) {
+        plan = resume ? mergeResumed(firstMeta, resume.kept, out.plan, resume.from) : out.plan;
+        break;
+      }
+
       /*
-       * Signed, so the planner can look at the calendar.
-       *
-       * Without this the route has no idea who is asking and cannot fetch
-       * anything on their behalf — which is exactly why the first version of
-       * this planned around a calendar it had never seen.
+       * The stream stopped before the plan was finished: on production a
+       * connection carrying a fourteen-day plan was lost at day 5, and at day
+       * 12. Keep what arrived, and ask for the rest from the last day — which
+       * is drafted again, since it may have been cut off half way.
        */
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess && sess.session ? sess.session.access_token : '';
-
-      const res = await fetch('/api/plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ prompt: brief, today: todayISO() }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.code === 'no_key') setNoKey(true);
-        setError(body.error || 'Planning failed.');
+      const point = resumePoint([...drafted.values()]);
+      stuck = point.from > lastFrom ? 0 : stuck + 1;
+      lastFrom = point.from;
+      if (attempts >= RESUME_LIMIT || stuck >= 2) {
+        setError('The plan kept stopping part way through. Try again.');
         setPhase('error');
         return;
       }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-
-      for (;;) {
-        // eslint-disable-next-line no-await-in-loop
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let evt;
-          try { evt = JSON.parse(line); } catch (e) { continue; }
-          if (evt.t === 'meta') setMeta(evt);
-          else if (evt.t === 'day') upsertDay(evt.i, { theme: evt.theme });
-          else if (evt.t === 'act') {
-            setDays((prev) => {
-              const next = prev.slice();
-              const at = next.findIndex((d) => d.index === evt.d);
-              if (at === -1) next.push({ index: evt.d, theme: '', activities: [evt.a] });
-              else next[at] = { ...next[at], activities: [...next[at].activities, evt.a] };
-              next.sort((a, b) => a.index - b.index);
-              return next;
-            });
-          } else if (evt.t === 'error') { setError(evt.error); setPhase('error'); return; }
-          else if (evt.t === 'done') plan = evt.plan;
-        }
-      }
-    } catch (e) {
-      if (cancelledRef.current || e.name === 'AbortError') return;
-      setError('The connection dropped while planning. Try again.');
-      setPhase('error');
-      return;
+      console.warn(`[planner] the plan stopped (${out.cut}); picking it up at day ${point.from}`);
+      for (const i of [...drafted.keys()]) if (i >= point.from) drafted.delete(i);
+      show();
+      resume = point;
     }
-
-    if (!plan) { setError('The plan did not finish. Try again.'); setPhase('error'); return; }
 
     const start = plan.start_date || addDays(todayISO(), 21);
     const end = addDays(start, Math.max(0, plan.duration_days - 1));
@@ -391,7 +414,7 @@ function Planner() {
             }
           }
         } catch (e) {
-          if (cancelledRef.current || e.name === 'AbortError') return;
+          if (cancelledRef.current || abortRef.current !== controller) return;
           // The map can still resolve these later.
         }
       }
@@ -482,7 +505,7 @@ function Planner() {
      */
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     router.replace(tripHome(trip.id));
-  }, [supabase, user, query, longBrief, shots, router, fail, upsertDay, discardPendingTrip]);
+  }, [supabase, user, query, longBrief, shots, router, fail, discardPendingTrip]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
