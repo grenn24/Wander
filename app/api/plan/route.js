@@ -337,10 +337,14 @@ const BRIEF_CHECK = {
         properties: {
           id: { type: 'string', description: 'Short stable key such as dates or pace' },
           ask: { type: 'string', description: 'One direct question under sixteen words' },
-          kind: { type: 'string', enum: ['choice', 'text'] },
+          kind: {
+            type: 'string',
+            enum: ['choice', 'multi', 'text'],
+            description: 'choice: one answer. multi: several can apply. text: nothing listable.',
+          },
           options: {
             type: 'array',
-            description: 'Two to four short answers for choice, empty for text',
+            description: 'Two to four short answers for choice, two to six for multi, empty for text',
             items: { type: 'string' },
           },
         },
@@ -364,8 +368,15 @@ Rules:
 - Treat "only", "exclusively", "nothing else", and equivalent wording as a
   complete instruction. Do not ask how to fill the remaining time.
 - Do not ask generic preference questions just to make conversation.
-- Use a choice when two to four useful defaults cover the likely answers.
-- Include "No preference" when it is a sensible choice.
+- Use "choice" when exactly one of two to four useful defaults is the answer
+  (pace, budget level).
+- Use "multi" when the traveller could want several at once: which countries
+  or cities, which interests, which kinds of activity. Each option is one thing
+  that stands on its own, because they are ticked independently: "Norway",
+  "Sweden", "Denmark", never "Norway only" or "Norway and Sweden"; combinations
+  are what ticking two is for. If the answers are combinations of each other,
+  it is a "choice".
+- Include "No preference" when it is a sensible choice, as the last option.
 - Use text only for an exact date, place, budget, booking, or constraint that
   cannot be represented honestly as a short choice.
 - Set ready true and return no questions when the request already has enough
@@ -451,13 +462,14 @@ ${prompt}`,
       });
       const questions = (Array.isArray(out.questions) ? out.questions : []).slice(0, 3)
         .map((q, i) => {
+          const multi = q.kind === 'multi';
           const options = (Array.isArray(q.options) ? q.options : [])
-            .map((o) => publicAgentText(o).slice(0, 80)).filter(Boolean).slice(0, 4);
+            .map((o) => publicAgentText(o).slice(0, 80)).filter(Boolean).slice(0, multi ? 6 : 4);
           return {
             id: String(q.id || `question-${i + 1}`).replace(/[^a-z0-9_-]/gi, '').slice(0, 32)
               || `question-${i + 1}`,
             ask: publicAgentText(q.ask).slice(0, 180),
-            kind: q.kind === 'text' || options.length < 2 ? 'text' : 'choice',
+            kind: q.kind === 'text' || options.length < 2 ? 'text' : (multi ? 'multi' : 'choice'),
             options,
           };
         }).filter((q) => q.ask);

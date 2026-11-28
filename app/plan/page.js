@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Sparkles, TriangleAlert, RotateCw, MapPin, Wallet, CalendarDays,
-  ImageOff, X,
+  ImageOff, X, Check,
 } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import { SHOT_KEY } from '@/components/PlanPrompt';
 import { BRIEF_KEY } from '@/lib/planBrief';
+import { tickAnswer, isAnswered, answerText } from '@/lib/briefAnswers';
 import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
@@ -463,10 +464,17 @@ function Planner() {
     } : current));
   }
 
+  function tickBrief(id, option) {
+    setBriefCheck((current) => (current ? {
+      ...current,
+      answers: { ...current.answers, [id]: tickAnswer(current.answers[id], option) },
+    } : current));
+  }
+
   function continuePlanning(skip = false) {
     if (!briefCheck) return;
     const details = skip ? [] : briefCheck.questions.map((q) => {
-      const answer = String(briefCheck.answers[q.id] || '').trim();
+      const answer = answerText(briefCheck.answers[q.id]);
       return answer ? `${q.ask}\n${answer}` : '';
     }).filter(Boolean);
     const full = details.length
@@ -520,7 +528,7 @@ function Planner() {
   const expected = meta && meta.duration_days ? meta.duration_days : 0;
   const progress = planningProgress({ phase, awaitingAnswers: !!briefCheck, pictureCount: shots.length, days, expected });
   const answeredBrief = briefCheck
-    ? briefCheck.questions.every((q) => String(briefCheck.answers[q.id] || '').trim())
+    ? briefCheck.questions.every((q) => isAnswered(briefCheck.answers[q.id]))
     : false;
   const reviewedPlaces = placeReview
     ? placeReview.items.every((item) => !!placeReview.selected[item.id])
@@ -586,15 +594,24 @@ function Planner() {
                 {briefCheck.questions.map((q, i) => (
                   <fieldset className="planq" key={q.id}>
                     <legend><span>{i + 1}</span>{q.ask}</legend>
-                    {q.kind === 'choice' ? (
+                    {q.kind === 'choice' || q.kind === 'multi' ? (
                       <div className="cmdq-opts">
                         {q.options.map((option) => {
-                          const selected = briefCheck.answers[q.id] === option;
+                          const multi = q.kind === 'multi';
+                          const answer = briefCheck.answers[q.id];
+                          const selected = multi
+                            ? Array.isArray(answer) && answer.includes(option)
+                            : answer === option;
                           return (
                             <button type="button" key={option}
                               className={`cmdq-opt${selected ? ' is-on' : ''}`}
                               aria-pressed={selected}
-                              onClick={() => answerBrief(q.id, option)}>
+                              onClick={() => (multi ? tickBrief(q.id, option) : answerBrief(q.id, option))}>
+                              {multi ? (
+                                <span className="cmdq-box" aria-hidden="true">
+                                  {selected ? <Check size={12} /> : null}
+                                </span>
+                              ) : null}
                               <span className="cmdq-opt-label">{option}</span>
                             </button>
                           );
