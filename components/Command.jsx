@@ -18,7 +18,7 @@ import { authHeader } from '@/lib/supabase';
 import { categoryOf, fmtDayTiny, fmtTime, shortPlace } from '@/lib/util';
 import { activityIcon, categoryIcon } from '@/lib/icons';
 import { expandAll } from '@/lib/tripChanges';
-import useTripChanges from '@/components/useTripChanges';
+import useApplyChanges from '@/components/useApplyChanges';
 import PlaceReview from '@/components/PlaceReview';
 import ChangeList from '@/components/ChangeList';
 
@@ -151,7 +151,7 @@ function CommandBar({ onClose }) {
     tripId, trip, activities, agentHistory, appendAgentMessage, requestFocus, request, addPacking,
   } = useTrip();
   // Applying an approved plan, with the place check: shared with the Assistant.
-  const changes = useTripChanges();
+  const changes = useApplyChanges();
 
   const [text, setText] = useState('');
   const [active, setActive] = useState(0);

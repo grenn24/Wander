@@ -13,7 +13,7 @@ const MAX_ENTRIES = 8;
 /*
  * A journey's kind and the four things that name it: who runs it, its number
  * and its two ends. Without them "SQ638 SIN to HND 9am" had nowhere to go but
- * the title, and nothing could make it a real flight (lib/flightMatch.js).
+ * the title, and nothing could make it a real flight (lib/realFlights.js).
  * Only four, not every field the editor has: this answers while someone
  * types, and seats and gates are not typed into one line.
  */

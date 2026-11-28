@@ -343,7 +343,7 @@ asker's JWT, with their calendar — and streams the result as a `proposal`
 `proposal_error`. The tool's result is never sent back to the model, so there
 is still no loop: one answer, then at most one proposal. Nothing on the server
 writes. `components/AskChanges.jsx` shows the edits under the answer with
-Apply / Discard; Apply goes through `useTripChanges` (place check, then
+Apply / Discard; Apply goes through `useApplyChanges` (place check, then
 `applyChanges` in `lib/tripChanges.js`), the same path the command bar uses.
 The outcome (`proposal.state`: pending / applied / discarded) is kept in the
 saved chat, and `changeNote` tells the model on later turns what became of it.
@@ -405,7 +405,7 @@ to copy.
   the venue and branch. `location` is a Google Maps search for that exact door
   (name, building, district, city), never only a district; the street address
   comes from Google, not the model. Quick add and Suggest pin through
-  `lib/pinPlaces.js` (`pinQueries` / `applyPins` in `lib/geo.js`), which sends
+  `lib/entryChecks.js` (`pinQueries` / `applyPins` in `lib/geo.js`), which sends
   name, kind and day to `/api/places/resolve` with the ranking second opinion
   and saves Google's formatted address; a `low` verdict stays unpinned.
   `/api/parse` answers `activities: []` (plus `activity` for tabs on the old
@@ -484,37 +484,53 @@ Match the surrounding code — it is consistent and deliberate.
 
 ### How an entry gets into a trip (28 November 2026)
 
-Five ways make entries; each has its own generator, because each asks a model
-something different, and they share the checks that run before anything is
-saved. **A new check goes into a shared service, never into one page.**
+Five ways make entries; each has its own writer (a model call), because each
+asks something different, and they share the two checks that run before
+anything is saved: **real flights** and **exact places**. **A new check goes
+into a shared service, never into one page.**
 
-| way in | generator | flights made real | places pinned |
-|---|---|---|---|
-| Planner | `/api/plan` (own schema) | `/api/flights` `trip` (there and home, before the plan), then `flightGroups` | `/api/places/resolve`, sorted by `sortPlaces` |
-| Command bar | `/api/command` → `proposeEdits` | `flightOps` inside `proposeEdits`, before the proposal is shown | `useTripChanges` on Apply |
-| Assistant | `/api/trips/ask` → `change_trip` → `proposeEdits` | the same | the same (`AskChanges`) |
-| Quick add | `/api/parse` | `settleDrafts` | `settleDrafts` |
-| Suggest | `/api/suggest` | `settleDrafts` | `settleDrafts` |
+| task | ways in | writer | real flights | exact places |
+|---|---|---|---|---|
+| New trip | Planner | `/api/plan` | `/api/flights` `trip` before the plan (there and back); `fetchRealFlights` after (inside the trip) | at the same time as the flights after the plan; `splitPlaceMatches` |
+| Change a trip | Command bar, Assistant | `proposeEdits` (one editor) | `findRealFlightsForEdits`, in the server, before you see the proposal | on Apply, `useApplyChanges` |
+| Add to a day | Quick add, Suggest | `/api/parse`, `/api/suggest` | `checkNewEntries`, both at once | `checkNewEntries`, both at once |
 
-- The services: places are `resolveMany` / `settlePlace` (`lib/places.js`)
-  behind `/api/places/resolve`; flights are `matchFlights`
-  (`lib/flightMatch.js`) behind `/api/flights` mode `legs`, and called
-  directly in the server by the editor. Both are "drafts in, drafts out" and
+- **The two services.** Real flights: `findRealFlights` (`lib/realFlights.js`)
+  behind `/api/flights` mode `legs`, called directly in the server by the
+  editor. Exact places: `resolveMany` / `settlePlace` (`lib/places.js`) behind
+  `/api/places/resolve`. Both take entries and give them back checked, and
   never throw: what cannot be checked is saved as written.
-- The browser side is `lib/pinPlaces.js`: `pinPlaces`, `flightGroups`, and
-  `settleDrafts` (flights, then places) for any page that makes entries.
-  Command bar and Assistant share `useTripChanges` → `lib/tripChanges.js`
-  (`placeTargets`, `sortPlaces`, `withChosenPlaces`, `applyChanges`); the
-  planner uses the same `sortPlaces` / `withChosenPlaces`.
-- An edit the editor already pinned (a matched flight carries its airport's
-  `lat`/`lng`) is not looked up again: `pinnedPlace` in `lib/tripChanges.js`.
+- **They run at the same time.** The flight check pins every flight at its
+  departure airport itself (`atAirport`, from the airport table), matched or
+  not, with both airports' time zones. So the two checks never touch the same
+  entry and neither waits for the other: `checkNewEntries` and the planner
+  send flights to one and everything else to the other with `Promise.all`. A
+  flight whose airports cannot be read at all comes back unpinned, and only
+  those are then looked up as places.
+- **Two things stay in order, for a reason.** The planner finds the flights
+  there and back before it writes the plan, because the plan is built around
+  when they land and leave. The editor matches flights before it shows a
+  proposal (so you approve the real times) and looks up places on Apply
+  (which may ask which branch you meant); an edit already pinned at its
+  airport is not looked up again (`alreadyPinned` in `lib/tripChanges.js`).
+- **The browser side** is `lib/entryChecks.js`: `fetchRealFlights`,
+  `fetchExactPlaces`, and `checkNewEntries` for both. Command bar and
+  Assistant share `useApplyChanges` → `lib/tripChanges.js` (`placesToLookUp`,
+  `splitPlaceMatches`, `withChosenPlaces`, `applyChanges`); the planner uses
+  the same `splitPlaceMatches` / `withChosenPlaces`.
 - The editor sees each activity's `subtype` (both surfaces send it, and the
   listing says `transport/flight`), which is how a moved flight is known as
   one. A flight whose day only moves keeps its number (`_trusted`); a new time
   or new airports is another flight.
-- Still separate, on purpose: the generators. `/api/plan` streams a whole trip,
+- Still separate, on purpose: the writers. `/api/plan` streams a whole trip,
   `/api/parse` answers while someone types, `proposeEdits` edits a trip that
   exists. One schema for all three would be slower and worse at each.
+- Renamed on 28 November 2026, for anyone reading older notes: `matchFlights`
+  is `findRealFlights`, `flightOps` `findRealFlightsForEdits`, `settleDrafts`
+  `checkNewEntries`, `flightGroups` `fetchRealFlights`, `pinPlaces`
+  `fetchExactPlaces`, `sortPlaces` `splitPlaceMatches`, `placeTargets`
+  `placesToLookUp`, `useTripChanges` `useApplyChanges`; `lib/pinPlaces.js` is
+  `lib/entryChecks.js` and `lib/flightMatch.js` is `lib/realFlights.js`.
 
 ### Flights on planned trips (28 November 2026)
 
@@ -529,7 +545,7 @@ saved. **A new check goes into a shared service, never into one page.**
   sends them to `/api/plan` as `fixed` (`cleanFixed`, `fixedBlock` in
   `lib/flightPlan.js`), which holds the plan to those dates and currency and
   drops any copy of the flights the model writes (`isHomeFlight`). After the
-  plan, flights inside the trip go through mode `legs` (`flightTargets`).
+  plan, flights inside the trip go through mode `legs` (`flightsToLookUp`).
   A flight the traveller named is that flight or nothing (`pickOffer` with
   `code`); a booked one keeps no fare and no "Not booked" note.
 - The clarify step adds "Where are you travelling from?" (`ORIGIN_QUESTION`
@@ -542,7 +558,7 @@ saved. **A new check goes into a shared service, never into one page.**
   Batam or Johor Bahru). City names follow `cityFor` and `METRO` in the build
   script: Taipei for TPE, not Taoyuan.
 - Flights are made real by one service for every path (next section):
-  `matchFlights` in `lib/flightMatch.js`. Not done yet: the activity editor
+  `findRealFlights` in `lib/realFlights.js`. Not done yet: the activity editor
   has no "look up this flight number" button; it would call `/api/flights`
   mode `legs` with the one row, like quick add does.
 - Verified: `tests/flights.test.mjs`, a production build, and the real route

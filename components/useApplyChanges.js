@@ -4,7 +4,7 @@ import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { authHeader } from '@/lib/supabase';
 import {
-  applyChanges, expandAll, placeTargets, sortPlaces, withChosenPlaces,
+  applyChanges, expandAll, placesToLookUp, splitPlaceMatches, withChosenPlaces,
 } from '@/lib/tripChanges';
 
 /**
@@ -16,7 +16,7 @@ import {
  * and nothing is saved until they have. `apply` and `continueReview` resolve
  * to the number of changes made, or null when nothing was saved (yet).
  */
-export default function useTripChanges() {
+export default function useApplyChanges() {
   const {
     trip, activities, addActivities, saveActivity, moveActivity, deleteActivity, updateTrip,
     appendAgentMessage,
@@ -60,7 +60,7 @@ export default function useTripChanges() {
   async function apply(plan) {
     if (!plan || busy) return null;
     const expanded = expandAll(plan.ops, activities);
-    const { targets, destination } = placeTargets(expanded, activities, trip);
+    const { targets, destination } = placesToLookUp(expanded, activities, trip);
     if (!targets.length) return commit(plan, expanded, {});
 
     setBusy(true); setError('');
@@ -75,7 +75,7 @@ export default function useTripChanges() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not verify those locations.');
 
-      const { resolved, uncertain } = sortPlaces(body.results, targets);
+      const { resolved, uncertain } = splitPlaceMatches(body.results, targets);
       if (uncertain.length) {
         setPlaceReview({
           plan, expanded, resolved, items: uncertain, selected: {},

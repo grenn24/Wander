@@ -4,7 +4,7 @@ import { placesKey, searchPlaces } from '@/lib/places';
 import {
   airports, airportOf, knownCodes, nearestAirports, airportsNamed,
 } from '@/lib/airports';
-import { matchFlights } from '@/lib/flightMatch';
+import { findRealFlights } from '@/lib/realFlights';
 import { flightsConfigured, placeholderActivity, cityName } from '@/lib/flights';
 import { homeOf, homeName } from '@/lib/home';
 import { hasExclusiveScope } from '@/lib/planScope';
@@ -20,13 +20,13 @@ export const maxDuration = 60;
  *          ends, and the real flights there and home, so the first and last
  *          days are planned around when they actually land and leave.
  *   legs — new entries from any page, with their flights made real: the
- *          shared service (matchFlights, lib/flightMatch.js) the trip editor
+ *          shared service (findRealFlights, lib/realFlights.js) the trip editor
  *          calls in the server, for the pages that make entries in the
- *          browser (settleDrafts, lib/pinPlaces.js).
+ *          browser (checkNewEntries, lib/entryChecks.js).
  *
  * Every search is a SerpApi search, and those are counted, so the route is
  * signed in and each person's searches share one budget an hour
- * (flightBudget). Without SERPAPI_API_KEY the trip still gets its flights —
+ * (spendFlightSearches). Without SERPAPI_API_KEY the trip still gets its flights —
  * the airports, the days and the clocks, with the times left for the
  * traveller — and nothing here fails a plan.
  */
@@ -209,7 +209,7 @@ async function tripFlights(user, body) {
   ].filter(Boolean);
 
   // Made real by the service every way of making entries shares.
-  const { groups, found, why } = await matchFlights(ways, {
+  const { groups, found, why } = await findRealFlights(ways, {
     said: prompt,
     currency: currency || 'USD',
     userId: user.id,
@@ -236,7 +236,7 @@ async function tripFlights(user, body) {
 async function legFlights(user, body) {
   const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 300)
     .map((r) => (r && typeof r === 'object' ? r : {}));
-  const { groups, matched, why } = await matchFlights(rows, {
+  const { groups, matched, why } = await findRealFlights(rows, {
     said: String(body.said || '').slice(0, 6000),
     currency: String(body.currency || ''),
     userId: user.id,

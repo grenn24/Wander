@@ -46,11 +46,11 @@ test('the pages that call those routes send the token', () => {
     ['components/AiSuggest.jsx', '/api/suggest'],
     ['components/Packing.jsx', '/api/packing'],
     ['components/Command.jsx', '/api/vision'],
-    ['components/useTripChanges.js', '/api/places/resolve'],
+    ['components/useApplyChanges.js', '/api/places/resolve'],
     ['app/plan/page.js', '/api/vision'],
     ['app/plan/page.js', '/api/plan'],
     ['app/plan/page.js', '/api/places/resolve'],
-    ['lib/pinPlaces.js', '/api/places/resolve'],
+    ['lib/entryChecks.js', '/api/places/resolve'],
   ];
   for (const [file, route] of calls) {
     const src = read(file);

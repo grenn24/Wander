@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  expand, expandAll, placeTargets, sortPlaces, withChosenPlaces, applyChanges, onlySet, shiftTime,
+  expand, expandAll, placesToLookUp, splitPlaceMatches, withChosenPlaces, applyChanges, onlySet, shiftTime,
 } from '../lib/tripChanges.js';
 import {
   cleanEdits, editActivities, editHistory, editPrompt, proposeEdits,
@@ -23,7 +23,7 @@ const activities = [ginza, moma, hotel];
 test('the editor sees database rows the way the command bar sends them', () => {
   const rows = editActivities([{ ...ginza, lat: 35.6, lng: 139.7, sort_order: 3, trip_id: 't1' }, hotel]);
   assert.deepEqual(Object.keys(rows[0]).sort(), ['category', 'cost', 'day', 'details', 'end_time', 'id', 'location', 'notes', 'start_time', 'subtype', 'title'].sort());
-  // Which kind of journey, so the flight matcher knows a flight (lib/flightMatch.js).
+  // Which kind of journey, so the flight matcher knows a flight (lib/realFlights.js).
   assert.match(read('components/Command.jsx'), /subtype: a\.category === 'transport' \? a\.subtype \|\| null : null/);
   assert.equal(rows[0].location, shortPlace(ginza.location), 'a short place, as the command bar sends it');
   assert.equal(rows[0].location, 'Chuo City, Tokyo');
@@ -116,12 +116,12 @@ test('new and moved places are looked up before saving; ambiguous ones wait for 
     { kind: 'update_activity', activity_id: 'a-moma', location: 'MoMA Design Store, Ginza Loft, Ginza, Tokyo' },
     { kind: 'update_activity', activity_id: 'a-ginza', location: 'Ginza Six, Tokyo' },
   ];
-  const { targets, destination } = placeTargets(expanded, activities, trip);
+  const { targets, destination } = placesToLookUp(expanded, activities, trip);
   assert.equal(destination, 'Tokyo, Japan');
   assert.deepEqual(targets.map((t) => t.id), ['op-0', 'op-2'], 'an unchanged location is not looked up again');
 
   const candidates = [{ place_id: 'p1', label: 'JINS, Ginza 2-4-6' }, { place_id: 'p2', label: 'JINS, Ginza 5' }];
-  const { resolved, uncertain } = sortPlaces([
+  const { resolved, uncertain } = splitPlaceMatches([
     { id: 'op-0', found: true, ambiguous: true, candidates },
     { id: 'op-2', found: true, label: 'Ginza Six', lat: 35.67, lng: 139.76, place_id: 'g6' },
   ], targets);
@@ -137,13 +137,13 @@ test('a venue the editor chose is never a question: its ranked match stands', ()
     { kind: 'add_activity', title: 'Ramen lunch', location: 'Ichiran, Ginza, Tokyo', category: 'food', day: '2026-12-12', named_place: false },
     { kind: 'add_activity', title: 'Coffee', location: 'Blue Bottle, Tokyo', category: 'food', day: '2026-12-12' },
   ];
-  const { targets } = placeTargets(expanded, activities, trip);
+  const { targets } = placesToLookUp(expanded, activities, trip);
   assert.deepEqual(targets.map((t) => t.named), [false, false], 'a missing flag is the editor\'s pick');
   const two = [
     { place_id: 'i1', label: 'Ichiran Ginza', lat: 35.67, lng: 139.76 },
     { place_id: 'i2', label: 'Ichiran Shibuya', lat: 35.66, lng: 139.70 },
   ];
-  const { resolved, uncertain } = sortPlaces([
+  const { resolved, uncertain } = splitPlaceMatches([
     { id: 'op-0', found: true, ambiguous: true, confidence: 'medium', ...two[0], candidates: two },
     { id: 'op-1', found: true, ambiguous: true, confidence: 'low', place_id: 'b1', candidates: [{ place_id: 'b1' }, { place_id: 'b2' }] },
   ], targets);
@@ -215,6 +215,6 @@ test('the Assistant can change the trip, through the command bar\'s editor, and 
   const command = read('app/api/command/route.js');
   assert.match(command, /proposeEdits\(/);
   // Both surfaces apply through the same hook.
-  assert.match(read('components/Command.jsx'), /useTripChanges\(\)/);
-  assert.match(read('components/AskChanges.jsx'), /useTripChanges\(\)/);
+  assert.match(read('components/Command.jsx'), /useApplyChanges\(\)/);
+  assert.match(read('components/AskChanges.jsx'), /useApplyChanges\(\)/);
 });

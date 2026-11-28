@@ -27,8 +27,8 @@ import { authHeader } from '@/lib/supabase';
 import { transportLine } from '@/lib/transport';
 import { cleanHome, homeName } from '@/lib/home';
 import { dayIndexOf, fixedFlights } from '@/lib/flightPlan';
-import { flightGroups } from '@/lib/pinPlaces';
-import { sortPlaces, withChosenPlaces } from '@/lib/tripChanges';
+import { fetchRealFlights } from '@/lib/entryChecks';
+import { splitPlaceMatches, withChosenPlaces } from '@/lib/tripChanges';
 import { pinFields } from '@/lib/geo';
 import {
   addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money, sortActs,
@@ -79,7 +79,7 @@ function Planner() {
    * legs as activities, and the day the trip starts, which places them.
    */
   const [travel, setTravel] = useState(null); // { start, legs: [] }
-  // start | reading | clarifying | flights | streaming | matching | locating | reviewing | saving | error
+  // start | reading | clarifying | flights | streaming | locating | reviewing | saving | error
   const [phase, setPhase] = useState('start');
   const [briefCheck, setBriefCheck] = useState(null);
   const [placeReview, setPlaceReview] = useState(null);
@@ -463,93 +463,99 @@ function Planner() {
     });
 
     /*
-     * The flights the planner put inside the trip (Tokyo to Sapporo) made
-     * real, by the service every way of making entries shares
-     * (lib/flightMatch.js): the real flight nearest the time it planned
-     * around, or the one the traveller named. One that cannot be matched
-     * stays as the planner wrote it.
+     * Both checks at once, as every way of making entries runs them
+     * (lib/entryChecks.js): the flights the planner put inside the trip
+     * (Tokyo to Sapporo) made real, and every other stop found on the map.
+     * They never touch the same row, because a flight comes back pinned at
+     * its airport, so neither waits for the other. A flight that cannot be
+     * matched stays as the planner wrote it.
      */
-    if (rows.some((r) => r.category === 'transport' && r.subtype === 'flight')) {
-      setPhase('matching');
+    const isFlight = (r) => r.category === 'transport' && r.subtype === 'flight';
+    const flightRows = rows.map((r, i) => (isFlight(r) ? i : -1)).filter((i) => i >= 0);
+    const targets = rows
+      .map((r, i) => ({
+        id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
+        named: named[i],
+      }))
+      .filter((t, i) => t.query && !isFlight(rows[i]) && !Number.isFinite(rows[i].lat));
+    if (flightRows.length || targets.length) setPhase('locating');
+
+    const findFlights = async () => {
+      if (!flightRows.length) return null;
       try {
-        const groups = await flightGroups(rows, {
+        return await fetchRealFlights(flightRows.map((i) => rows[i]), {
           said: brief, currency: plan.currency, signal: controller.signal,
         });
-        const nextRows = [];
-        const nextNamed = [];
-        groups.forEach((legs, i) => legs.forEach((leg, k) => {
-          nextRows.push({ ...leg, sort_order: nextSortOrder(nextRows, leg.day) });
-          nextNamed.push(k === 0 ? named[i] : false);
-        }));
-        rows = nextRows;
-        named = nextNamed;
       } catch (e) {
-        if (cancelledRef.current || abortRef.current !== controller) return;
-        // The planner's flights stand as written.
+        return null;
       }
+    };
+    const findPlaces = async () => {
+      if (!targets.length) return null;
+      try {
+        const res = await fetch('/api/places/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+          body: JSON.stringify({ items: targets, bias: plan.destination, reviewAmbiguous: true }),
+          signal: controller.signal,
+        });
+        if (!res.ok) return null;
+        const { results } = await res.json();
+        /*
+         * Split as the command bar and the Assistant split theirs
+         * (lib/tripChanges.js): which branch is a question only for a place
+         * the traveller named; the planner's own picks take the best-ranked
+         * match, or keep their words when none was trusted.
+         */
+        return splitPlaceMatches(results, targets);
+      } catch (e) {
+        // The map can still find these later.
+        return null;
+      }
+    };
+    const [legsByFlight, places] = await Promise.all([findFlights(), findPlaces()]);
+    if (cancelledRef.current || abortRef.current !== controller) return;
+
+    if (places) {
+      let { resolved } = places;
+      if (places.uncertain.length) {
+        const selected = await new Promise((resolve) => {
+          placeReviewResolveRef.current = resolve;
+          setPlaceReview({ items: places.uncertain, selected: {} });
+          setPhase('reviewing');
+        });
+        placeReviewResolveRef.current = null;
+        if (!selected || cancelledRef.current) return;
+        resolved = withChosenPlaces(resolved, places.uncertain, selected);
+        setPlaceReview(null);
+      }
+      Object.entries(resolved).forEach(([id, place]) => {
+        const row = rows[Number(id)];
+        if (row && place) Object.assign(row, pinFields(place, row.location));
+      });
     }
 
-    // The way there and home, as the real legs. A connection home can leave
-    // the day after the last one, and the trip runs until it does.
+    // Each flight with its real legs in its place: a connection is several.
+    if (legsByFlight) {
+      const legsOf = new Map(flightRows.map((i, k) => [i, legsByFlight[k]]));
+      const nextRows = [];
+      const nextNamed = [];
+      rows.forEach((row, i) => (legsOf.get(i) || [row]).forEach((leg, k) => {
+        nextRows.push({ ...leg, sort_order: nextSortOrder(nextRows, leg.day) });
+        nextNamed.push(k === 0 ? named[i] : false);
+      }));
+      rows = nextRows;
+      named = nextNamed;
+    }
+
+    // The way there and home, found before the plan, as the real legs. A
+    // connection home can leave the day after the last one, and the trip
+    // runs until it does.
     homeLegs.forEach((leg) => {
       rows.push({ ...leg, sort_order: nextSortOrder(rows, leg.day) });
       named.push(false);
       if (leg.day > end) end = leg.day;
     });
-
-    // Resolve every stop in one batch before writing, so the map is already
-    // populated the first time it is opened rather than filling in stop by stop.
-    // A flight is already pinned at its airport.
-    if (rows.length) {
-      setPhase('locating');
-      const targets = rows
-        .map((r, i) => ({
-          id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
-          named: named[i],
-        }))
-        .filter((t, i) => t.query && !Number.isFinite(rows[i].lat));
-      if (targets.length) {
-        try {
-          const res = await fetch('/api/places/resolve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-            body: JSON.stringify({
-              items: targets, bias: plan.destination, reviewAmbiguous: true,
-            }),
-            signal: controller.signal,
-          });
-          if (res.ok) {
-            const { results } = await res.json();
-            /*
-             * Sorted as the command bar and the Assistant sort theirs
-             * (lib/tripChanges.js): which branch is a question only for a
-             * place the traveller named; the planner's own picks take the
-             * best-ranked match, or keep their words when none was trusted.
-             */
-            const sorted = sortPlaces(results, targets);
-            let { resolved } = sorted;
-            if (sorted.uncertain.length) {
-              const selected = await new Promise((resolve) => {
-                placeReviewResolveRef.current = resolve;
-                setPlaceReview({ items: sorted.uncertain, selected: {} });
-                setPhase('reviewing');
-              });
-              placeReviewResolveRef.current = null;
-              if (!selected || cancelledRef.current) return;
-              resolved = withChosenPlaces(resolved, sorted.uncertain, selected);
-              setPlaceReview(null);
-            }
-            Object.entries(resolved).forEach(([id, place]) => {
-              const row = rows[Number(id)];
-              if (row && place) Object.assign(row, pinFields(place, row.location));
-            });
-          }
-        } catch (e) {
-          if (cancelledRef.current || abortRef.current !== controller) return;
-          // The map can still resolve these later.
-        }
-      }
-    }
 
     if (cancelledRef.current) return;
     setPhase('saving');

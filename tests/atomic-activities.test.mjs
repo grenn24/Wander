@@ -72,9 +72,9 @@ test('the quick-add line can answer with one entry per place', () => {
   assert.match(route, / @ \$\{where\}/);
 
   const quick = read('components/QuickAdd.jsx');
-  // Pinned through the one check every new entry goes through (lib/pinPlaces.js).
-  assert.match(quick, /settleDrafts\(drafts, \{\s*bias: trip\.destination/);
-  assert.match(read('lib/pinPlaces.js'), /return pinPlaces\(groups\.flat\(\), bias\)/);
+  // Pinned through the one check every new entry goes through (lib/entryChecks.js).
+  assert.match(quick, /checkNewEntries\(drafts, \{\s*bias: trip\.destination/);
+  assert.match(read('lib/entryChecks.js'), /fetchExactPlaces\(others\.map\(\(i\) => list\[i\]\), bias\)/);
   assert.match(quick, /end_time: a\.end_time, location: a\.location/);
   assert.doesNotMatch(quick, /onCreate\(\{/, 'every create is a list');
   assert.match(read('components/Itinerary.jsx'), /onCreate=\{\(drafts\) => onAddMany\(drafts\)\}/);
@@ -88,5 +88,5 @@ test('every planner keeps one place per activity, located to the venue', () => {
   }
   assert.match(read('app/api/plan/route.js'), /One place, one activity/);
   assert.match(read('lib/tripEdits.js'), /One place, one activity/);
-  assert.match(read('components/AiSuggest.jsx'), /settleDrafts\(/);
+  assert.match(read('components/AiSuggest.jsx'), /checkNewEntries\(/);
 });

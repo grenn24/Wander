@@ -5,7 +5,7 @@ import {
   ArrowRight, Check, Loader2, Sparkles, X,
 } from 'lucide-react';
 import { useTrip } from '@/components/TripProvider';
-import useTripChanges from '@/components/useTripChanges';
+import useApplyChanges from '@/components/useApplyChanges';
 import PlaceReview from '@/components/PlaceReview';
 import ChangeList from '@/components/ChangeList';
 import { expandAll } from '@/lib/tripChanges';
@@ -25,7 +25,7 @@ export default function AskChanges({
   message, writing, last, onMark, onReply,
 }) {
   const { tripId, activities } = useTrip();
-  const changes = useTripChanges();
+  const changes = useApplyChanges();
   const [picked, setPicked] = useState([]);
   const p = message.proposal;
   const q = message.editQuestion;

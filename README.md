@@ -59,13 +59,17 @@ airport with its arrival already found.
   held to them, so day 1 starts after the landing and the last day ends before
   the airport. A flight the traveller names ("we're on SQ638") is that flight
   or nothing.
-- **Every other way in uses the same service** (`matchFlights` in
-  `lib/flightMatch.js`): a flight the planner puts inside the trip (Tokyo to
+- **Every other way in uses the same service** (`findRealFlights` in
+  `lib/realFlights.js`): a flight the planner puts inside the trip (Tokyo to
   Sapporo), one the command bar or the Assistant adds or moves, and one typed
   into quick add ("SQ638 SIN to HND 9am") is swapped for the real flight
   nearest the time given, a leg each for a connection. The command bar and
   the Assistant show the real flight in the proposal, before Apply. A booked
   flight moved to another day keeps its number.
+- **Flights and places are checked at the same time.** The flight check pins
+  every flight at its departure airport itself (from the airport table, with
+  both time zones), so the place lookup never waits for it
+  (`checkNewEntries` in `lib/entryChecks.js`, and the planner).
 - **Choosing** (`pickOffer` in `lib/flights.js`) starts from Google's own
   "best" order and adds what Google cannot know: the way there should leave in
   the day and land the same day, the way home should leave the last day some

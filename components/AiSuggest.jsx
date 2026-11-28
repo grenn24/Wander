@@ -4,7 +4,7 @@ import { Sparkles, Loader2, Plus, X, RotateCw } from 'lucide-react';
 import { categoryOf, fmtTime } from '@/lib/util';
 import { activityIcon } from '@/lib/icons';
 import { authHeader } from '@/lib/supabase';
-import { settleDrafts } from '@/lib/pinPlaces';
+import { checkNewEntries } from '@/lib/entryChecks';
 
 /**
  * Asks for ideas for one day and shows them as a reviewable list. Nothing is
@@ -66,7 +66,7 @@ export default function AiSuggest({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* An idea names a place; what is saved is that place's address and pin. */
-  const pinned = (list) => settleDrafts(list.map((idea) => ({ ...idea, day })), {
+  const pinned = (list) => checkNewEntries(list.map((idea) => ({ ...idea, day })), {
     bias: trip.destination || '', currency: trip.currency || '',
   });
 
