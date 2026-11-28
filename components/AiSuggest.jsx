@@ -67,7 +67,7 @@ export default function AiSuggest({
 
   /* An idea names a place; what is saved is that place's address and pin. */
   const pinned = (list) => checkNewEntries(list.map((idea) => ({ ...idea, day })), {
-    bias: trip.destination || '', currency: trip.currency || '',
+    bias: trip.destination || '', currency: trip.currency || '', zone: trip.timezone || '',
   });
 
   async function take(idea, i) {

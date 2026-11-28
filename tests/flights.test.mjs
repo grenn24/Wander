@@ -518,7 +518,7 @@ test('every way of making entries goes through the same two checks', () => {
   // The planner: the same flight step and the same place sorting as the editor.
   const page = read('app/plan/page.js');
   assert.match(page, /fetchRealFlights\(flightRows\.map/);
-  assert.match(page, /await Promise\.all\(\[findFlights\(\), findPlaces\(\), findStays\(\)\]\)/, 'every check at once');
+  assert.match(page, /await Promise\.all\(\[\s*findFlights\(\), findPlaces\(\), findStays\(\), findJourneys\(\),\s*\]\)/, 'every check at once');
   assert.match(page, /splitPlaceMatches\(results, targets\)/);
   assert.match(page, /withChosenPlaces\(resolved, uncertain, selected\)/);
 });

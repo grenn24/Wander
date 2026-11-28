@@ -86,6 +86,31 @@ with scheduled service (OurAirports, public domain, and mwgg/Airports, MIT;
 `data/LICENSE-airports`), rebuilt with `scripts/flights/build-airports.mjs`.
 Gates and terminals are left to the traveller rather than guessed.
 
+## Hotels, trains and buses on planned trips
+
+The same idea as flights, as two more shared checks that run at the same time
+as the others:
+
+- **Hotels** (`findRealStays` in `lib/realStays.js`, `lib/hotels.js`): a stay
+  with its nights is found on Google Hotels through SerpApi, by its name and
+  city. It gets the hotel's pin, its own check-in and check-out times where it
+  had none, and, unless it has a booking reference, the rate for those nights
+  for one guest, the cheapest seller and free cancellation. A hotel not found
+  by its name is kept as written; another is never swapped in. The planner
+  now suggests one hotel per place the traveller sleeps, with the nights set,
+  unless they say they have it covered.
+- **Trains, buses and ferries** (`findRealJourneys` in `lib/realJourneys.js`):
+  both ends are found as places, so the journey is pinned at its station.
+  Outside Japan, Google's route service is asked for the planned departure
+  (`transitAt` in `lib/routes.js`) and gives the line, the service number, the
+  stops, the timetabled departure and arrival, and the fare where it has one.
+  In Japan, where Google's API has no transit, the app's own timetables give
+  the real lines and a typical journey time; the exact train is Traveller
+  mode's on the day. A booked journey, one in the past, or one beyond the
+  published timetable keeps its times, pinned at its stations.
+- Not possible without business agreements: booking, guaranteed
+  availability, seats, or rail fares across Europe. Rates are as at planning.
+
 ## Train times in Japan
 
 Google's Routes API has no transit in Japan (the Google Maps app does; the API
@@ -325,14 +350,16 @@ and stores each place's id and photo handle to avoid looking it up twice.
 ### Flights (optional)
 
 ```
-SERPAPI_API_KEY = ...   # serpapi.com, Google Flights engine   (server)
+SERPAPI_API_KEY = ...   # serpapi.com: Google Flights and Google Hotels   (server)
 ```
 
 A real secret, server only, no `NEXT_PUBLIC_`. The free plan has 250 searches a
-month; a planned trip costs two (one each way) plus one per flight inside it,
-and a search repeated within an hour is SerpApi's cache and free. Each person
-gets 40 an hour (`/api/flights`). Without it, planned trips get their flights
-with no times.
+month; a planned trip costs two (one each way), plus one per flight inside it
+and one per hotel, and a search repeated within an hour is SerpApi's cache and
+free. Each person gets 40 an hour across flights and hotels (`lib/serpApi.js`).
+Without it, planned trips get their flights with no times and hotels with no
+rates. Trains, buses and ferries use the Google keys above instead (Places to
+find the stations, Routes for the timetable).
 
 ### If server-side lookups fail locally
 

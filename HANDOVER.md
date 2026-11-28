@@ -489,28 +489,39 @@ Match the surrounding code — it is consistent and deliberate.
 ### How an entry gets into a trip (28 November 2026)
 
 Five ways make entries; each has its own writer (a model call), because each
-asks something different, and they share the two checks that run before
-anything is saved: **real flights** and **exact places**. **A new check goes
-into a shared service, never into one page.**
+asks something different, and they share the checks that run before anything
+is saved: **real flights**, **real journeys** (trains, buses, ferries), **real
+stays** (hotels) and **exact places**. **A new check goes into a shared
+service, never into one page.**
 
-| task | ways in | writer | real flights | exact places |
+| task | ways in | writer | flights, journeys, stays | exact places |
 |---|---|---|---|---|
-| New trip | Planner | `/api/plan` | `/api/flights` `trip` before the plan (there and back); `fetchRealFlights` after (inside the trip) | at the same time as the flights after the plan; `splitPlaceMatches` |
-| Change a trip | Command bar, Assistant | `proposeEdits` (one editor) | `findRealFlightsForEdits`, in the server, before you see the proposal | on Apply, `useApplyChanges` |
-| Add to a day | Quick add, Suggest | `/api/parse`, `/api/suggest` | `checkNewEntries`, both at once | `checkNewEntries`, both at once |
+| New trip | Planner | `/api/plan` | flights there and back before the plan (`/api/flights` `trip`); after it, `fetchRealFlights`, `fetchRealJourneys`, `fetchRealStays` | at the same time as those; `splitPlaceMatches`, then `usePlaceChoice` |
+| Change a trip | Command bar, Assistant | `proposeEdits` (one editor) | `findRealFlightsForEdits`, `findRealJourneysForEdits`, `findRealStaysForEdits`, at once, in the server, before you see the proposal | on Apply, `useApplyChanges` |
+| Add to a day | Quick add, Suggest | `/api/parse`, `/api/suggest` | `checkNewEntries`, all at once | `checkNewEntries`, all at once |
 
-- **The two services.** Real flights: `findRealFlights` (`lib/realFlights.js`)
-  behind `/api/flights` mode `legs`, called directly in the server by the
-  editor. Exact places: `resolveMany` / `settlePlace` (`lib/places.js`) behind
-  `/api/places/resolve`. Both take entries and give them back checked, and
-  never throw: what cannot be checked is saved as written.
+- **The services.** Real flights: `findRealFlights` (`lib/realFlights.js`,
+  Google Flights) behind `/api/flights` mode `legs`. Real stays:
+  `findRealStays` (`lib/realStays.js`, Google Hotels) behind `/api/stays`.
+  Real journeys: `findRealJourneys` (`lib/realJourneys.js`; Google Routes at
+  the planned time, or the app's own Japan timetables) behind `/api/journeys`.
+  Exact places: `resolveMany` / `settlePlace` (`lib/places.js`) behind
+  `/api/places/resolve`. The editor calls the first three directly in the
+  server. All take entries and give them back checked, and never throw: what
+  cannot be checked is saved as written. Flights and hotels share one SerpApi
+  client and one search budget (`lib/serpApi.js`).
+- Not verified against the live services: SerpApi's Google Hotels answer and
+  Google Routes' timed transit answer are read as their documentation shows
+  them; check `readHotels` and `readTimedRoute` against the first real
+  answers. How far ahead Google's Routes API gives timetabled transit is not
+  known here; a refused or empty answer keeps the journey's own times.
 - **They run at the same time.** The flight check pins every flight at its
-  departure airport itself (`atAirport`, from the airport table), matched or
-  not, with both airports' time zones. So the two checks never touch the same
-  entry and neither waits for the other: `checkNewEntries` and the planner
-  send flights to one and everything else to the other with `Promise.all`. A
-  flight whose airports cannot be read at all comes back unpinned, and only
-  those are then looked up as places.
+  airport itself (`atAirport`, from the airport table) and the journey check
+  every journey at its station, matched or not, so those skip the place
+  check. A hotel goes to both the stay and the place check, and the stay
+  check's answer wins where it found the hotel. `checkNewEntries`, the planner
+  and `proposeEdits` start every check with one `Promise.all`. A flight or
+  journey that came back unpinned is then looked up as a place, alone.
 - **Two things stay in order, for a reason.** The planner finds the flights
   there and back before it writes the plan, because the plan is built around
   when they land and leave. The editor matches flights before it shows a

@@ -28,7 +28,7 @@ import { authHeader } from '@/lib/supabase';
 import { transportLine } from '@/lib/transport';
 import { cleanHome, homeName } from '@/lib/home';
 import { dayIndexOf, fixedFlights } from '@/lib/flightPlan';
-import { fetchRealFlights, fetchRealStays } from '@/lib/entryChecks';
+import { fetchRealFlights, fetchRealStays, fetchRealJourneys } from '@/lib/entryChecks';
 import { splitPlaceMatches, withChosenPlaces } from '@/lib/tripChanges';
 import { pinFields } from '@/lib/geo';
 import {
@@ -458,13 +458,16 @@ function Planner() {
      * matched stays as the planner wrote it.
      */
     const isFlight = (r) => r.category === 'transport' && r.subtype === 'flight';
+    // Trains, buses and ferries pin at their stations themselves, as flights do.
+    const isJourney = (r) => r.category === 'transport' && ['train', 'bus', 'ferry'].includes(r.subtype);
     const flightRows = rows.map((r, i) => (isFlight(r) ? i : -1)).filter((i) => i >= 0);
+    const journeyRows = rows.map((r, i) => (isJourney(r) ? i : -1)).filter((i) => i >= 0);
     const targets = rows
       .map((r, i) => ({
         id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
         named: named[i],
       }))
-      .filter((t, i) => t.query && !isFlight(rows[i]) && !Number.isFinite(rows[i].lat));
+      .filter((t, i) => t.query && !isFlight(rows[i]) && !isJourney(rows[i]) && !Number.isFinite(rows[i].lat));
     if (flightRows.length || targets.length) setPhase('locating');
 
     const findFlights = async () => {
@@ -512,8 +515,28 @@ function Planner() {
         return null;
       }
     };
-    const [legsByFlight, places, stays] = await Promise.all([findFlights(), findPlaces(), findStays()]);
+    // Trains, buses and ferries: the real service at the planned time (lib/realJourneys.js).
+    const findJourneys = async () => {
+      if (!journeyRows.length) return null;
+      try {
+        return await fetchRealJourneys(journeyRows.map((i) => rows[i]), {
+          said: brief, currency: plan.currency, zone: plan.timezone || '', signal: controller.signal,
+        });
+      } catch (e) {
+        return null;
+      }
+    };
+    const [legsByFlight, places, stays, journeys] = await Promise.all([
+      findFlights(), findPlaces(), findStays(), findJourneys(),
+    ]);
     if (cancelledRef.current || abortRef.current !== controller) return;
+
+    // Each journey pinned at its station, with its real service where found.
+    if (journeys) {
+      journeyRows.forEach((i, k) => {
+        rows[i] = { ...journeys.entries[k], sort_order: rows[i].sort_order };
+      });
+    }
 
     // A hotel found on Google Hotels is its own answer: pinned, timed and priced.
     const stayed = new Set();

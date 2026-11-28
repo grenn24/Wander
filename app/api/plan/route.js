@@ -203,6 +203,10 @@ Rules:
   check-in and check-out times and its rate for those nights. A hotel you
   cannot name exactly is worse than none. Nights that end on a flight home
   need no hotel.
+- A train, bus or ferry's details.from and details.to are the stations, stops
+  or piers it runs between, by name ("Kyoto Station", "Busta Shinjuku"), and
+  its start_time the departure you would plan the day around: the app looks
+  up the real service and its times.
 - Include travel between cities as a transport activity on the day it happens,
   and say which kind it is in "subtype". A Grab, a taxi or an airport pick-up
   is "transfer" — it is not a flight. Leave it null if you genuinely cannot

@@ -91,7 +91,7 @@ export default function QuickAdd({
       if (!drafts.length) { setError('Could not read that.'); return; }
       // Its flight made real and its place pinned, as every new entry is.
       await onCreate(await checkNewEntries(drafts, {
-        bias: trip.destination || '', said: raw, currency: trip.currency || '',
+        bias: trip.destination || '', said: raw, currency: trip.currency || '', zone: trip.timezone || '',
       }));
       reset();
     } catch (err) {
