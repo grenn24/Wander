@@ -133,6 +133,9 @@ html[data-scrollbar="none"]::-webkit-scrollbar { display: none; }
  */
 /* Android can draw the root canvas behind its system navigation controls. */
 html { -webkit-tap-highlight-color: transparent; background: var(--surface-0); }
+/* iOS Safari inflates text on its own when the phone is turned sideways,
+   unevenly, so lines that fit in portrait wrap and spill in landscape. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--surface-0);
@@ -949,7 +952,10 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .lp-top .grow, .lp-foot .grow { flex: 1; min-width: 0; }
 .lp-foot {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  max-width: 1080px; margin: 0 auto; padding: 22px; width: 100%;
+  max-width: 1080px; margin: 0 auto; width: 100%;
+  /* Clear of the notch, the home indicator and Safari's floating toolbar. */
+  padding: 22px max(22px, env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom))
+    max(22px, env(safe-area-inset-left));
   border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2);
 }
 
