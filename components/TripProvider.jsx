@@ -9,7 +9,8 @@ import { isSessionTokenError, readWithSessionRecovery } from '@/lib/sessionRecov
 import { createSerialQueue } from '@/lib/asyncWork';
 import { mergeAgentHistory } from '@/lib/agentHistory';
 import { removeDownload } from '@/public/offline-store';
-import { lodgingPayload, moveStay } from '@/lib/lodging';
+import { moveStay } from '@/lib/lodging';
+import { activityRow } from '@/lib/entryShape';
 import { arrivalQueries, arrivalPins } from '@/lib/geo';
 import { authHeader } from '@/lib/supabase';
 
@@ -158,35 +159,13 @@ export default function TripProvider({ tripId, children }) {
   }, [supabase, tripId, userId, displayName]);
 
   /* -------------------------------------------------------- activities --- */
+  /*
+   * Every row this page writes is shaped by the one function the planner's
+   * save uses too (lib/entryShape.js), so an entry is the same row however
+   * it was made: the form, quick add, the editor's Apply, the map.
+   */
   function activityPayload(draft) {
-    return {
-      trip_id: tripId,
-      day: draft.day,
-      start_time: draft.start_time || null,
-      end_time: draft.end_time || null,
-      title: (draft.title || '').trim() || 'Untitled',
-      category: draft.category || 'sightseeing',
-      location: draft.location || '',
-      lat: draft.lat === '' || draft.lat == null ? null : Number(draft.lat),
-      lng: draft.lng === '' || draft.lng == null ? null : Number(draft.lng),
-      cost: Number(draft.cost || 0),
-      // The editor can pin a place too, and used to drop what it learned on
-      // the way to the database — so an activity located by hand kept its
-      // coordinates and lost the identity behind them.
-      place_id: draft.place_id || null,
-      photo_ref: draft.photo_ref || null,
-      booking_ref: draft.booking_ref || '',
-      notes: draft.notes || '',
-      /*
-       * Only transport has a mode, and only a mode has fields. Anything else
-       * carrying a subtype would be a leftover from a category change, so both
-       * are cleared rather than kept where they mean nothing.
-       */
-      subtype: draft.category === 'transport' ? draft.subtype || null : null,
-      details: draft.category === 'transport' && draft.details ? draft.details : {},
-      ...lodgingPayload(draft),
-      updated_at: new Date().toISOString(),
-    };
+    return { trip_id: tripId, ...activityRow(draft), updated_at: new Date().toISOString() };
   }
 
   const saveActivity = useCallback(async (draft) => {
@@ -209,11 +188,7 @@ export default function TripProvider({ tripId, children }) {
     const { title, start_time } = parseQuickAdd(text);
     const payload = {
       trip_id: tripId,
-      day,
-      title: title || 'Untitled',
-      start_time,
-      category: 'sightseeing',
-      cost: 0,
+      ...activityRow({ day, title, start_time, category: 'sightseeing' }),
       sort_order: nextSortOrder(activities, day),
     };
     const { data, error } = await supabase.from('activities').insert(payload).select().single();
@@ -312,13 +287,7 @@ export default function TripProvider({ tripId, children }) {
     if (!supabase || !tripId) return null;
     const payload = {
       trip_id: tripId,
-      day: draft.day,
-      title: (draft.title || '').trim() || 'Untitled',
-      category: draft.category || 'sightseeing',
-      location: draft.location || '',
-      lat: Number(draft.lat),
-      lng: Number(draft.lng),
-      cost: 0,
+      ...activityRow({ ...draft, cost: 0 }),
       sort_order: nextSortOrder(activities, draft.day),
     };
     const { data, error } = await supabase.from('activities').insert(payload).select().single();
@@ -336,26 +305,8 @@ export default function TripProvider({ tripId, children }) {
     if (!supabase || !tripId || !drafts.length) return [];
     const rows = [];
     drafts.forEach((d) => {
-      rows.push({
-        trip_id: tripId,
-        day: d.day,
-        title: (d.title || '').trim() || 'Untitled',
-        start_time: d.start_time || null,
-        end_time: d.end_time || null,
-        category: d.category || 'sightseeing',
-        location: d.location || '',
-        lat: d.lat === '' || d.lat == null ? null : Number(d.lat),
-        lng: d.lng === '' || d.lng == null ? null : Number(d.lng),
-        cost: Number(d.cost || 0),
-        subtype: d.category === 'transport' ? d.subtype || null : null,
-        details: d.category === 'transport' && d.details ? d.details : {},
-        ...lodgingPayload(d),
-        booking_ref: d.booking_ref || '',
-        notes: d.notes || '',
-        place_id: d.place_id || null,
-        photo_ref: d.photo_ref || null,
-        sort_order: nextSortOrder([...activities, ...rows], d.day),
-      });
+      const row = activityRow(d);
+      rows.push({ trip_id: tripId, ...row, sort_order: nextSortOrder([...activities, ...rows], row.day) });
     });
     const { data, error } = await supabase.from('activities').insert(rows).select();
     if (error) { fail(error); return []; }

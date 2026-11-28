@@ -3,7 +3,7 @@ import {
   askJson, aiConfigured, notConfigured, AI_CATEGORIES, cleanCategory, cleanTime,
 } from '@/lib/ai';
 import { userFromRequest, notSignedIn } from '@/lib/supabaseServer';
-import { TRANSPORT } from '@/lib/transport';
+import { TRANSPORT_IDS, detailsSchema, cleanDetails } from '@/lib/entryShape';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +17,6 @@ const MAX_ENTRIES = 8;
  * Only four, not every field the editor has: this answers while someone
  * types, and seats and gates are not typed into one line.
  */
-const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
 const JOURNEY = ['carrier', 'code', 'from', 'to'];
 
 const ACTIVITY = {
@@ -41,18 +40,16 @@ const ACTIVITY = {
       enum: [...TRANSPORT_IDS, null],
       description: 'Transport only, and only when you know which. A taxi or a Grab is "transfer". Null otherwise.',
     },
-    details: {
-      type: 'object',
-      additionalProperties: false,
-      required: JOURNEY,
+    details: detailsSchema({
+      keys: JOURNEY,
       description: 'Transport only; all null otherwise.',
-      properties: {
-        carrier: { type: ['string', 'null'], description: 'The airline, railway or operator' },
-        code: { type: ['string', 'null'], description: 'The flight or service number, e.g. SQ638' },
-        from: { type: ['string', 'null'], description: "Where it leaves from; for a flight, the airport's IATA code" },
-        to: { type: ['string', 'null'], description: "Where it arrives; for a flight, the airport's IATA code" },
+      describe: {
+        carrier: 'The airline, railway or operator',
+        code: 'The flight or service number, e.g. SQ638',
+        from: "Where it leaves from; for a flight, the airport's IATA code",
+        to: "Where it arrives; for a flight, the airport's IATA code",
       },
-    },
+    }),
     location: {
       type: 'string',
       description: 'What to type into Google Maps to land on this exact venue: its name, '
@@ -149,18 +146,14 @@ function clock(value) {
   return cleanTime(value) || '';
 }
 
-/** A journey's own fields, only for transport, only the ones its kind has. */
+/**
+ * A journey's own fields, only for transport and only the ones its kind has,
+ * by the rules every writer shares (lib/entryShape.js).
+ */
 function journey(a) {
-  const mode = cleanCategory(a.category) === 'transport'
-    ? TRANSPORT.find((t) => t.id === a.subtype) : null;
-  if (!mode) return { subtype: null, details: {} };
-  const has = new Set(mode.fields.map((f) => f.k));
-  const src = a.details && typeof a.details === 'object' ? a.details : {};
-  const details = JOURNEY.reduce((o, k) => {
-    const v = String(src[k] == null ? '' : src[k]).trim().slice(0, 80);
-    return has.has(k) && v ? { ...o, [k]: v } : o;
-  }, {});
-  return { subtype: mode.id, details };
+  const category = cleanCategory(a.category);
+  const subtype = category === 'transport' && TRANSPORT_IDS.includes(a.subtype) ? a.subtype : null;
+  return { subtype, details: cleanDetails(category, subtype, a.details, { only: JOURNEY }) };
 }
 
 function entry(a, fallback) {

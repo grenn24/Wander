@@ -462,8 +462,9 @@ function CommandBar({ onClose }) {
     if ((await changes.apply(plan)) != null) onClose();
   }
 
-  async function continueAfterPlaceReview() {
-    if ((await changes.continueReview()) != null) onClose();
+  // The apply waiting on this choice saves and closes the bar itself.
+  function continueAfterPlaceReview() {
+    changes.continueReview();
   }
 
   function choose(row) {

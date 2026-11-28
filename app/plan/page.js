@@ -16,13 +16,14 @@ import { handleMessageEnter } from '@/lib/messageKeyboard';
 import Loading from '@/components/Loading';
 import PlanningJourney from '@/components/PlanningJourney';
 import { PlaceChoices } from '@/components/PlaceReview';
+import usePlaceChoice from '@/components/usePlaceChoice';
 import { planningProgress } from '@/lib/planningProgress';
 import {
   readPlan, resumePoint, resumeBrief, mergeResumed, RESUME_LIMIT,
 } from '@/lib/planResume';
 import { followDraft } from '@/lib/planDraft';
 import { activityIcon, tripHome } from '@/lib/icons';
-import { lodgingPayload } from '@/lib/lodging';
+import { activityRow } from '@/lib/entryShape';
 import { authHeader } from '@/lib/supabase';
 import { transportLine } from '@/lib/transport';
 import { cleanHome, homeName } from '@/lib/home';
@@ -82,7 +83,9 @@ function Planner() {
   // start | reading | clarifying | flights | streaming | locating | reviewing | saving | error
   const [phase, setPhase] = useState('start');
   const [briefCheck, setBriefCheck] = useState(null);
-  const [placeReview, setPlaceReview] = useState(null);
+  // "Which place did you mean": the same pause the command bar and the Assistant use.
+  const choice = usePlaceChoice();
+  const { ask: askPlace, cancel: cancelPlaceChoice } = choice;
   const [error, setError] = useState('');
   const [noKey, setNoKey] = useState(false);
   // What the picture turned out to be, said back so nobody has to guess which
@@ -101,7 +104,6 @@ function Planner() {
   const savingRef = useRef(null);
   const leavingRef = useRef(false);
   const [leaving, setLeaving] = useState(false);
-  const placeReviewResolveRef = useRef(null);
 
   // Cancel and the save it interrupts both ask for this; they share one delete.
   const discardingRef = useRef(null);
@@ -146,10 +148,7 @@ function Planner() {
         .then(() => {}, () => {});
       draftRef.current = null;
     }
-    if (placeReviewResolveRef.current) {
-      placeReviewResolveRef.current(null);
-      placeReviewResolveRef.current = null;
-    }
+    cancelPlaceChoice();
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     if (savingRef.current || pendingTripRef.current) {
       const discard = async () => {
@@ -159,7 +158,7 @@ function Planner() {
       await Promise.race([discard(), new Promise((done) => { setTimeout(done, 4000); })]);
     }
     router.replace('/trips');
-  }, [discardPendingTrip, router]);
+  }, [discardPendingTrip, router, cancelPlaceChoice]);
 
   const run = useCallback(async (preparedBrief = '') => {
     if (!supabase || !user || (!query && !shots.length)) return;
@@ -170,7 +169,7 @@ function Planner() {
     setError(''); setNoKey(false); setMeta(null); setDays([]); setTravel(null);
     setUnreadable(false);
     setBriefCheck(null);
-    setPlaceReview(null);
+    cancelPlaceChoice();
     if (!preparedBrief) setRead('');
 
     /*
@@ -444,21 +443,9 @@ function Planner() {
       if (day > end) return;
       d.activities.forEach((a) => {
         named.push(a.named_place === true);
-        rows.push({
-          day,
-          title: a.title,
-          start_time: a.start_time,
-          end_time: a.end_time || null,
-          category: a.category,
-          subtype: a.subtype || null,
-          details: a.details || {},
-          ...lodgingPayload({ ...a, day }),
-          location: a.location,
-          cost: a.cost,
-          booking_ref: a.booking_ref || '',
-          notes: a.notes,
-          sort_order: nextSortOrder(rows, day),
-        });
+        // The same row shape every way of making entries saves (lib/entryShape.js).
+        const row = activityRow({ ...a, day });
+        rows.push({ ...row, sort_order: nextSortOrder(rows, row.day) });
       });
     });
 
@@ -519,15 +506,10 @@ function Planner() {
     if (places) {
       let { resolved } = places;
       if (places.uncertain.length) {
-        const selected = await new Promise((resolve) => {
-          placeReviewResolveRef.current = resolve;
-          setPlaceReview({ items: places.uncertain, selected: {} });
-          setPhase('reviewing');
-        });
-        placeReviewResolveRef.current = null;
+        setPhase('reviewing');
+        const selected = await askPlace(places.uncertain);
         if (!selected || cancelledRef.current) return;
         resolved = withChosenPlaces(resolved, places.uncertain, selected);
-        setPlaceReview(null);
       }
       Object.entries(resolved).forEach(([id, place]) => {
         const row = rows[Number(id)];
@@ -625,8 +607,11 @@ function Planner() {
     }
 
     if (rows.length) {
-      rows.forEach((row) => { row.trip_id = trip.id; });
-      const { error: actErr } = await supabase.from('activities').insert(rows);
+      // Shaped once more on the way out, so nothing a check added that is not
+      // a column (a hint, a review flag) can reach the table.
+      const { error: actErr } = await supabase.from('activities').insert(rows.map((row) => ({
+        trip_id: trip.id, ...activityRow(row), sort_order: row.sort_order,
+      })));
       if (actErr && !cancelledRef.current) fail(actErr);
     }
 
@@ -642,7 +627,7 @@ function Planner() {
      */
     try { sessionStorage.removeItem(SHOT_KEY); } catch (e) { /* storage may be unavailable */ }
     router.replace(tripHome(trip.id));
-  }, [supabase, user, query, longBrief, shots, router, fail, discardPendingTrip]);
+  }, [supabase, user, query, longBrief, shots, router, fail, discardPendingTrip, askPlace, cancelPlaceChoice]);
 
   useEffect(() => {
     if (started.current || !supabase || !user) return;
@@ -681,20 +666,6 @@ function Planner() {
       ? `${briefCheck.brief}\n\nTraveller answers:\n${details.join('\n\n')}`
       : briefCheck.brief;
     run(full);
-  }
-
-  function chooseResolvedPlace(itemId, placeId) {
-    setPlaceReview((current) => (current ? {
-      ...current,
-      selected: { ...current.selected, [itemId]: placeId },
-    } : current));
-  }
-
-  function continueAfterPlaceReview() {
-    if (!placeReview || !placeReviewResolveRef.current) return;
-    const resume = placeReviewResolveRef.current;
-    placeReviewResolveRef.current = null;
-    resume(placeReview.selected);
   }
 
   if (!query && !shots.length) {
@@ -741,9 +712,7 @@ function Planner() {
   const answeredBrief = briefCheck
     ? briefCheck.questions.every((q) => isAnswered(briefCheck.answers[q.id]))
     : false;
-  const reviewedPlaces = placeReview
-    ? placeReview.items.every((item) => !!placeReview.selected[item.id])
-    : false;
+  const placeReview = choice.review;
 
   return (
     <div className="shell">
@@ -858,15 +827,15 @@ function Planner() {
             ) : null
           ) : phase === 'reviewing' && placeReview ? (
             <form className="card planquestions place-review"
-              onSubmit={(e) => { e.preventDefault(); if (reviewedPlaces) continueAfterPlaceReview(); }}>
+              onSubmit={(e) => { e.preventDefault(); if (choice.ready) choice.done(); }}>
               <p className="small muted planquestions-intro">
                 You named {placeReview.items.length === 1 ? 'a place' : 'places'} I found in
                 more than one spot. Choose the one you meant before I save the trip.
               </p>
               <PlaceChoices items={placeReview.items} selected={placeReview.selected}
-                onChoose={chooseResolvedPlace} />
+                onChoose={choice.choose} />
               <div className="planquestions-actions">
-                <button className="btn primary" type="submit" disabled={!reviewedPlaces}>
+                <button className="btn primary" type="submit" disabled={!choice.ready}>
                   Continue planning
                 </button>
               </div>

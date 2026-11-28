@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import usePlaceChoice from '@/components/usePlaceChoice';
 import { useTrip } from '@/components/TripProvider';
 import { useApp } from '@/components/AppProvider';
 import { authHeader } from '@/lib/supabase';
@@ -13,8 +14,10 @@ import {
  *
  * New and changed places are looked up first. A sure match is used as it is;
  * several plausible ones stop here (`placeReview`) for the person to choose,
- * and nothing is saved until they have. `apply` and `continueReview` resolve
- * to the number of changes made, or null when nothing was saved (yet).
+ * the same pause the planner uses (usePlaceChoice), and nothing is saved
+ * until they have. `apply` resolves to the number of changes made once they
+ * are saved, or null when nothing was (they went back, or it failed).
+ * `continueReview` and `cancelReview` answer the pause; `apply` carries on.
  */
 export default function useApplyChanges() {
   const {
@@ -24,8 +27,16 @@ export default function useApplyChanges() {
   const { pushToast, fail } = useApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // { plan, expanded, resolved, items, selected } while places await a choice.
-  const [placeReview, setPlaceReview] = useState(null);
+  const choice = usePlaceChoice();
+  /*
+   * The trip as it is now. A save can wait on someone choosing a place, and
+   * must then use the trip as it is when they finish (a collaborator may have
+   * added a stop meanwhile), not as it was when they pressed Apply.
+   */
+  const now = useRef(null);
+  now.current = {
+    trip, activities, api: { addActivities, saveActivity, moveActivity, deleteActivity, updateTrip },
+  };
 
   /** Write a fully reviewed proposal. No trip mutation happens before this. */
   async function commit(plan, expanded, resolved) {
@@ -34,9 +45,9 @@ export default function useApplyChanges() {
       const done = await applyChanges({
         expanded,
         resolved,
-        activities,
-        trip,
-        api: { addActivities, saveActivity, moveActivity, deleteActivity, updateTrip },
+        activities: now.current.activities,
+        trip: now.current.trip,
+        api: now.current.api,
       });
       await appendAgentMessage({
         role: 'assistant', kind: 'applied',
@@ -55,7 +66,7 @@ export default function useApplyChanges() {
 
   /**
    * Resolve every new or changed place before saving. Certain matches proceed
-   * automatically; plausible alternatives stop here for a human decision.
+   * automatically; plausible alternatives wait for a human decision.
    */
   async function apply(plan) {
     if (!plan || busy) return null;
@@ -64,6 +75,7 @@ export default function useApplyChanges() {
     if (!targets.length) return commit(plan, expanded, {});
 
     setBusy(true); setError('');
+    let places;
     try {
       const res = await fetch('/api/places/resolve', {
         method: 'POST',
@@ -74,53 +86,36 @@ export default function useApplyChanges() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not verify those locations.');
-
-      const { resolved, uncertain } = splitPlaceMatches(body.results, targets);
-      if (uncertain.length) {
-        setPlaceReview({
-          plan, expanded, resolved, items: uncertain, selected: {},
-        });
-        return null;
-      }
-      return await commit(plan, expanded, resolved);
+      places = splitPlaceMatches(body.results, targets);
     } catch (e) {
       setError(e.message || 'Could not verify those locations. Nothing was saved.');
       return null;
     } finally {
       setBusy(false);
     }
+
+    let { resolved } = places;
+    if (places.uncertain.length) {
+      const selected = await choice.ask(places.uncertain);
+      if (!selected) return null;
+      resolved = withChosenPlaces(resolved, places.uncertain, selected);
+    }
+    return commit(plan, expanded, resolved);
   }
-
-  const choosePlace = useCallback((id, placeId) => {
-    setPlaceReview((review) => (review ? {
-      ...review, selected: { ...review.selected, [id]: placeId },
-    } : review));
-  }, []);
-
-  async function continueReview() {
-    if (!placeReview) return null;
-    const {
-      plan, expanded, resolved, items, selected,
-    } = placeReview;
-    setPlaceReview(null);
-    return commit(plan, expanded, withChosenPlaces(resolved, items, selected));
-  }
-
-  const cancelReview = useCallback(() => setPlaceReview(null), []);
 
   /** Back to nothing pending: no choice of places open, no error showing. */
-  const reset = useCallback(() => { setPlaceReview(null); setError(''); }, []);
+  const { cancel } = choice;
+  const reset = useCallback(() => { cancel(); setError(''); }, [cancel]);
 
   return {
     busy,
     error,
-    placeReview,
-    reviewed: placeReview
-      ? placeReview.items.every((item) => !!placeReview.selected[item.id]) : false,
+    placeReview: choice.review,
+    reviewed: choice.ready,
     apply,
-    choosePlace,
-    continueReview,
-    cancelReview,
+    choosePlace: choice.choose,
+    continueReview: choice.done,
+    cancelReview: choice.cancel,
     reset,
   };
 }

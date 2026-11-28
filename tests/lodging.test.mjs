@@ -98,8 +98,11 @@ test('UI and AI paths retain shared booking metadata and accessible nonmoving ho
   assert.match(read('components/Itinerary.jsx'), /aria-label=\{`Hotel for tonight:/);
   assert.match(read('components/ActivityModal.jsx'), /confirm === 'outside'/);
   assert.match(read('components/Command.jsx'), /details: a.details/);
-  assert.match(read('app/api/plan/route.js'), /return cleanLodging\(a.details\)/);
-  assert.match(read('lib/tripEdits.js'), /...LODGING_KEYS/);
+  // Every writer keeps a stay's fields through the one shared sanitiser.
+  assert.match(read('lib/entryShape.js'), /if \(category === 'lodging' && !clearing\) return cleanLodging\(src\)/);
+  assert.match(read('lib/entryShape.js'), /\.\.\.LODGING_KEYS\]/);
+  assert.match(read('app/api/plan/route.js'), /details: cleanDetails\(category, subtype, it\.details\)/);
+  assert.match(read('lib/tripEdits.js'), /cleanDetails\(category, subtype, details, \{ clearing: true \}\)/);
   assert.match(read('app/globals.css'), /prefers-reduced-motion: reduce/);
   assert.match(read('app/globals.css'), /\.act \{ transition: background-color 220ms/);
   assert.match(read('components/Itinerary.jsx'), /data-tip=\{hotelName\} data-tip-detail=\{dates\}/);

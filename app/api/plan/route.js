@@ -9,8 +9,7 @@ import {
 } from '@/lib/planResume';
 import { publicAgentText } from '@/lib/agentText';
 import { validZone } from '@/public/trip-time';
-import { TRANSPORT } from '@/lib/transport';
-import { LODGING_KEYS, cleanLodging } from '@/lib/lodging';
+import { TRANSPORT_IDS, detailsSchema, cleanDetails } from '@/lib/entryShape';
 import { after } from 'next/server';
 import { userFromRequest, notSignedIn, asUser } from '@/lib/supabaseServer';
 import { openDraft, draftWriter } from '@/lib/planDraft';
@@ -28,13 +27,9 @@ export const dynamic = 'force-dynamic';
  */
 export const maxDuration = 300;
 
-/* flight, train, bus, ferry, car, transfer — the app's own list, so a new one
-   is offered to the planner the moment it exists rather than a year later. */
-const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
-
 /*
- * Every field the app can actually keep about a guide, taken from the same
- * table the editor builds its form from.
+ * Every field the app can actually keep about an entry, from the same table
+ * the editor builds its form from (lib/entryShape.js, shared by every writer).
  *
  * This is the fix for a whole class of complaint. The planner used to be given
  * six fields — a title, a time, a category, a place, a cost and a note — while
@@ -44,15 +39,7 @@ const TRANSPORT_IDS = TRANSPORT.map((t) => t.id);
  * (T1), MH 616 (confirmed)": five structured facts and an annotation, jammed
  * into the one box on offer. Give it the boxes and it stops writing prose.
  */
-const DETAIL_KEYS = [...new Set([...TRANSPORT.flatMap((t) => t.fields.map((f) => f.k)), ...LODGING_KEYS])];
-
-// Flight clocks belong to their endpoints, never to the browser.
-const DETAILS = {
-  type: 'object',
-  additionalProperties: false,
-  required: DETAIL_KEYS,
-  properties: DETAIL_KEYS.reduce((o, k) => ({ ...o, [k]: { type: ['string', 'null'] } }), {}),
-};
+const DETAILS = detailsSchema();
 
 const SCHEMA = {
   type: 'object',
@@ -279,35 +266,22 @@ function corrector(events) {
   };
 }
 
-/** The filled-in details of a guide, and nothing else. */
-function cleanDetails(a) {
-  if (cleanCategory(a.category) === 'lodging') return cleanLodging(a.details);
-  if (cleanCategory(a.category) !== 'transport') return {};
-  const mode = TRANSPORT.find((t) => t.id === a.subtype);
-  if (!mode) return {};
-  const allowed = new Set(mode.fields.map((f) => f.k));
-  const src = (a.details && typeof a.details === 'object') ? a.details : {};
-  return Object.entries(src).reduce((o, [k, v]) => {
-    const val = String(v == null ? '' : v).trim().slice(0, 120);
-    return allowed.has(k) && val ? { ...o, [k]: val } : o;
-  }, {});
-}
-
 function cleanActivity(a, fix) {
   const it = fix ? fix(a) : a;
+  const category = cleanCategory(it.category);
+  // Never on anything else: a subtype on a dinner would show transport
+  // fields on a restaurant.
+  const subtype = category === 'transport' && TRANSPORT_IDS.includes(it.subtype) ? it.subtype : null;
   return {
     title: String(it.title || '').trim().slice(0, 200) || 'Untitled',
     start_time: cleanTime(it.start_time),
-    category: cleanCategory(it.category),
-    // Never on anything else: a subtype on a dinner would show transport
-    // fields on a restaurant.
-    subtype: cleanCategory(it.category) === 'transport'
-      && TRANSPORT_IDS.includes(it.subtype) ? it.subtype : null,
+    category,
+    subtype,
     end_time: cleanTime(it.end_time),
     booking_ref: String(it.booking_ref || '').trim().slice(0, 120),
-    /* Only what this kind of guide actually has, and only what was filled
-       in — a jsonb full of nulls is a row that looks answered and is not. */
-    details: cleanDetails(it),
+    /* Only what this kind of entry has, and only what was filled in — a
+       jsonb full of nulls is a row that looks answered and is not. */
+    details: cleanDetails(category, subtype, it.details),
     location: String(it.location || '').trim().slice(0, 300),
     // Whether the traveller chose this venue. Only theirs is asked about
     // when the lookup finds it in more than one spot; the planner's own pick stands.

@@ -131,9 +131,9 @@ export default function AskChanges({
     if (done != null) onMark(message.id, { state: 'applied', done, at: new Date().toISOString() });
   }
 
-  async function continueReview() {
-    const done = await changes.continueReview();
-    if (done != null) onMark(message.id, { state: 'applied', done, at: new Date().toISOString() });
+  // The apply waiting on this choice saves and marks the proposal itself.
+  function continueReview() {
+    changes.continueReview();
   }
 
   if (changes.placeReview) {

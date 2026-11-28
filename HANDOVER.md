@@ -127,10 +127,14 @@ stupid" reports turned out to be one of them.
    has a `corrector()` that puts calendar titles and addresses back verbatim,
    because "use them exactly" was read as leave to annotate.
 
-3. **`app/api/command/route.js` has a whitelist sanitiser.** A new field must be
-   added in **four** places or it silently vanishes: the schema, the sanitiser,
-   the `expand()` bulk path, and the apply in `components/Command.jsx`. Missing
-   the sanitiser looks exactly like the model ignoring the request.
+3. **The trip editor has a whitelist sanitiser** (`cleanEdits` in
+   `lib/tripEdits.js`, behind `/api/command` and the Assistant). A new operation
+   field must be added to its schema, the sanitiser, the `expand()` bulk path
+   and `applyChanges` in `lib/tripChanges.js`, or it silently vanishes; missing
+   the sanitiser looks exactly like the model ignoring the request. A new
+   *details* field (a journey's or a stay's) is one line in `lib/transport.js`
+   or `lib/lodging.js`: every writer's schema and sanitiser come from
+   `lib/entryShape.js`.
 
 4. **`backdrop-filter` creates a containing block for `position: fixed`.** Any
    fixed overlay inside a glass surface must be portalled to `document.body`.
@@ -518,6 +522,15 @@ into a shared service, never into one page.**
   Assistant share `useApplyChanges` → `lib/tripChanges.js` (`placesToLookUp`,
   `splitPlaceMatches`, `withChosenPlaces`, `applyChanges`); the planner uses
   the same `splitPlaceMatches` / `withChosenPlaces`.
+- **One entry shape** (`lib/entryShape.js`): every writer offers the model the
+  same `details` fields (`detailsSchema`) and keeps only what that kind of
+  entry has (`cleanDetails`: a gate on a flight, never on a bus or a dinner;
+  a stay's dates checked as dates). Every row saved, from the planner, quick
+  add, the editor's Apply, the form or the map, is built by `activityRow`.
+- **One pause to choose a place** (`usePlaceChoice`, over `lib/placeChoice.js`):
+  the planner and `useApplyChanges` both `await choice.ask(uncertain)`, null
+  when the person goes back. The save after it reads the trip as it is then,
+  not as it was when Apply was pressed.
 - The editor sees each activity's `subtype` (both surfaces send it, and the
   listing says `transport/flight`), which is how a moved flight is known as
   one. A flight whose day only moves keeps its number (`_trusted`); a new time
