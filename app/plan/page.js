@@ -24,8 +24,11 @@ import { followDraft } from '@/lib/planDraft';
 import { activityIcon, tripHome } from '@/lib/icons';
 import { lodgingPayload } from '@/lib/lodging';
 import { authHeader } from '@/lib/supabase';
+import { transportLine } from '@/lib/transport';
+import { cleanHome, homeName } from '@/lib/home';
+import { dayIndexOf, fixedFlights, flightTargets } from '@/lib/flightPlan';
 import {
-  addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money,
+  addDays, todayISO, nextSortOrder, categoryOf, fmtTime, money, sortActs,
 } from '@/lib/util';
 
 export default function PlanPage() {
@@ -68,7 +71,12 @@ function Planner() {
 
   const [meta, setMeta] = useState(null);
   const [days, setDays] = useState([]); // [{ index, theme, activities: [] }]
-  // start | reading | clarifying | streaming | locating | reviewing | saving | error
+  /*
+   * The flights there and home, found before the plan (app/api/flights): the
+   * legs as activities, and the day the trip starts, which places them.
+   */
+  const [travel, setTravel] = useState(null); // { start, legs: [] }
+  // start | reading | clarifying | flights | streaming | matching | locating | reviewing | saving | error
   const [phase, setPhase] = useState('start');
   const [briefCheck, setBriefCheck] = useState(null);
   const [placeReview, setPlaceReview] = useState(null);
@@ -156,7 +164,7 @@ function Planner() {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setError(''); setNoKey(false); setMeta(null); setDays([]);
+    setError(''); setNoKey(false); setMeta(null); setDays([]); setTravel(null);
     setUnreadable(false);
     setBriefCheck(null);
     setPlaceReview(null);
@@ -236,6 +244,47 @@ function Planner() {
     // A check whose answer was cut off by Cancel reads as "no questions".
     if (cancelledRef.current) return;
     lastBrief.current = brief;
+
+    /*
+     * The flights there and home, before a single day is written: when they
+     * land and leave is what the first and last days can hold. Never in the
+     * way of a plan — a failure here plans the trip without them.
+     */
+    setPhase('flights');
+    let fixed = null;
+    let homeLegs = [];
+    try {
+      const res = await fetch('/api/flights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify({ mode: 'trip', prompt: brief, today: todayISO() }),
+        signal: controller.signal,
+      });
+      const found = res.ok ? await res.json().catch(() => ({})) : {};
+      const home = cleanHome(found.origin);
+      // Asked once and kept: the next trip starts from here without asking.
+      if (found.remember && home) {
+        supabase.auth.updateUser({ data: { home } }).then(({ error: homeErr }) => {
+          if (homeErr) console.error('[planner] could not keep the home:', homeErr.message);
+        }, () => {});
+      }
+      const flights = Array.isArray(found.flights) ? found.flights : [];
+      if (found.dates && flights.length && home) {
+        fixed = {
+          ...found.dates,
+          currency: found.currency || null,
+          home: homeName(home),
+          home_airports: home.airports,
+          flights: fixedFlights(flights),
+        };
+        homeLegs = flights.flatMap((f) => f.legs || []);
+        setTravel({ start: found.dates.start_date, legs: homeLegs });
+      }
+    } catch (e) {
+      if (cancelledRef.current || abortRef.current !== controller) return;
+      // Planned without flights, as every trip was before.
+    }
+    if (cancelledRef.current) return;
     setPhase('streaming');
 
     /*
@@ -296,6 +345,7 @@ function Planner() {
           body: JSON.stringify({
             prompt: brief,
             today: todayISO(),
+            ...(fixed ? { fixed } : {}),
             ...(resume ? { resume: resumeBrief(firstMeta, resume.kept, resume.from) } : {}),
           }),
           signal: controller.signal,
@@ -380,12 +430,12 @@ function Planner() {
     }
 
     const start = plan.start_date || addDays(todayISO(), 21);
-    const end = addDays(start, Math.max(0, plan.duration_days - 1));
+    let end = addDays(start, Math.max(0, plan.duration_days - 1));
 
-    const rows = [];
+    let rows = [];
     // Beside the rows, not on them: they are inserted as they are. Whether the
     // traveller named each venue, or the planner picked it.
-    const named = [];
+    let named = [];
     plan.days.forEach((d) => {
       const day = addDays(start, d.day_index - 1);
       if (day > end) return;
@@ -409,15 +459,67 @@ function Planner() {
       });
     });
 
+    /*
+     * The flights the planner put inside the trip, each swapped for the real
+     * flight nearest the time it planned around — or, for one the traveller
+     * named, that flight's real times. One the search cannot match stays as
+     * the planner wrote it.
+     */
+    const hops = flightTargets(rows, brief);
+    if (hops.length) {
+      setPhase('matching');
+      try {
+        const res = await fetch('/api/flights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+          body: JSON.stringify({ mode: 'legs', items: hops, currency: plan.currency }),
+          signal: controller.signal,
+        });
+        const { results } = res.ok ? await res.json().catch(() => ({})) : {};
+        const swap = new Map((results || []).filter((r) => Array.isArray(r.legs) && r.legs.length)
+          .map((r) => [Number(r.id), r.legs]));
+        if (swap.size) {
+          const nextRows = [];
+          const nextNamed = [];
+          rows.forEach((row, i) => {
+            const legs = swap.get(i);
+            if (!legs) { nextRows.push(row); nextNamed.push(named[i]); return; }
+            legs.forEach((leg, k) => {
+              nextRows.push({
+                ...leg,
+                booking_ref: k === 0 ? row.booking_ref : '',
+                sort_order: nextSortOrder(nextRows, leg.day),
+              });
+              nextNamed.push(false);
+            });
+          });
+          rows = nextRows;
+          named = nextNamed;
+        }
+      } catch (e) {
+        if (cancelledRef.current || abortRef.current !== controller) return;
+        // The planner's flights stand as written.
+      }
+    }
+
+    // The way there and home, as the real legs. A connection home can leave
+    // the day after the last one, and the trip runs until it does.
+    homeLegs.forEach((leg) => {
+      rows.push({ ...leg, sort_order: nextSortOrder(rows, leg.day) });
+      named.push(false);
+      if (leg.day > end) end = leg.day;
+    });
+
     // Resolve every stop in one batch before writing, so the map is already
     // populated the first time it is opened rather than filling in stop by stop.
+    // A flight is already pinned at its airport.
     if (rows.length) {
       setPhase('locating');
       const targets = rows
         .map((r, i) => ({
           id: String(i), query: r.location, title: r.title, category: r.category, day: r.day,
         }))
-        .filter((t) => t.query);
+        .filter((t, i) => t.query && !Number.isFinite(rows[i].lat));
       if (targets.length) {
         try {
           const res = await fetch('/api/places/resolve', {
@@ -660,7 +762,27 @@ function Planner() {
   }
 
   const expected = meta && meta.duration_days ? meta.duration_days : 0;
-  const progress = planningProgress({ phase, awaitingAnswers: !!briefCheck, pictureCount: shots.length, days, expected });
+  /*
+   * The days as they will be saved: the planner's, with the flights there and
+   * home in their places. A flight's day shows once the plan has reached it,
+   * so the way home does not sit at the foot of a plan still on day 2.
+   */
+  const reached = days.reduce((n, d) => Math.max(n, d.index), 1);
+  const shownDays = (() => {
+    if (!travel || !travel.legs.length) return days;
+    const byDay = new Map(days.map((d) => [d.index, { ...d, activities: d.activities.slice() }]));
+    travel.legs.forEach((leg) => {
+      const i = dayIndexOf(travel.start, leg.day);
+      if (i < 1 || (phase === 'streaming' && i > reached)) return;
+      if (!byDay.has(i)) byDay.set(i, { index: i, theme: '', activities: [] });
+      byDay.get(i).activities.push(leg);
+    });
+    return [...byDay.values()].sort((a, b) => a.index - b.index)
+      .map((d) => ({ ...d, activities: d.activities.slice().sort(sortActs) }));
+  })();
+  const progress = planningProgress({
+    phase, awaitingAnswers: !!briefCheck, pictureCount: shots.length, days: shownDays, expected,
+  });
   const answeredBrief = briefCheck
     ? briefCheck.questions.every((q) => isAnswered(briefCheck.answers[q.id]))
     : false;
@@ -757,10 +879,16 @@ function Planner() {
                     ) : (
                       <textarea className="textarea planq-text" rows={2} enterKeyHint="enter"
                         value={briefCheck.answers[q.id] || ''}
-                        placeholder="Type your answer"
+                        placeholder={q.id === 'origin' ? 'Town, city or airport' : 'Type your answer'}
                         onKeyDown={(e) => handleMessageEnter(e, () => { if (answeredBrief) continuePlanning(); })}
                         onChange={(e) => answerBrief(q.id, e.target.value)} />
                     )}
+                    {q.id === 'origin' ? (
+                      <p className="tiny dim planq-hint">
+                        For the flights there and back. Wander keeps it as your home for
+                        later trips; change it in Account.
+                      </p>
+                    ) : null}
                   </fieldset>
                 ))}
                 <div className="planquestions-actions">
@@ -834,7 +962,7 @@ function Planner() {
               ) : null}
 
               <div className="planlive" ref={liveRef}>
-                {days.length === 0 ? (
+                {shownDays.length === 0 ? (
                   <div className="planskel">
                     <div className="skel skel-head" />
                     <div className="skel skel-row" />
@@ -842,7 +970,7 @@ function Planner() {
                   </div>
                 ) : null}
 
-                {days.map((d) => (
+                {shownDays.map((d) => (
                   <section className="planday" key={d.index}>
                     <div className="planday-head">
                       <span className="day-num">Day {d.index}</span>
@@ -851,6 +979,8 @@ function Planner() {
                     {d.activities.map((a, k) => {
                       const cat = categoryOf(a.category);
                       const Icon = activityIcon(a);
+                      // A flight is its number and airports, not the terminal it is pinned at.
+                      const line = a.category === 'transport' ? transportLine(a.subtype, a.details) : '';
                       return (
                         <div className="planact" key={`${d.index}-${k}`}>
                           <span className="planact-time mono">
@@ -861,7 +991,8 @@ function Planner() {
                           </span>
                           <span className="planact-body">
                             <span className="planact-title">{a.title}</span>
-                            {a.location ? <span className="tiny dim">{a.location}</span> : null}
+                            {line || a.location
+                              ? <span className="tiny dim">{line || a.location}</span> : null}
                           </span>
                           {a.cost > 0 ? (
                             <span className="planact-cost mono">

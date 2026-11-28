@@ -16,6 +16,8 @@ test('animation is absent while awaiting answers, reviewing or after an error', 
 test('status follows real reading, checking, locating and saving phases', () => {
   assert.equal(planningProgress({ phase: 'reading', pictureCount: 1 }), 'Reading your picture');
   assert.equal(planningProgress({ phase: 'clarifying' }), 'Checking the details that shape your trip');
+  assert.equal(planningProgress({ phase: 'flights' }), 'Finding flights there and back');
+  assert.equal(planningProgress({ phase: 'matching' }), 'Finding real flights between your stops');
   assert.equal(planningProgress({ phase: 'locating', days }), 'Finding 3 stops on the map');
   assert.equal(planningProgress({ phase: 'saving', days }), 'Saving your trip with 3 activities');
 });

@@ -1,2 +1,5 @@
 # Packed by scripts/transit/build-*.mjs: one long line each, not worth diffing.
 data/transit/*-rail.json -diff linguist-generated=true
+
+# Packed by scripts/flights/build-airports.mjs.
+data/airports.json -diff linguist-generated=true

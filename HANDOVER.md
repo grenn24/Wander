@@ -265,6 +265,7 @@ code. Nothing is removed — rows, covers and members all stay.
 | Contact email in `app/privacy/page.js` and `app/terms/page.js` | `REPLACE_WITH_YOUR_CONTACT_EMAIL` |
 | Google OAuth verification | **rejected** — `vercel.app` cannot be verified as owned. Needs a custom domain, or stay in Testing mode (refresh tokens then expire every 7 days) |
 | Vector Map ID for compass rotation | optional |
+| `SERPAPI_API_KEY` in `.env.local` + Vercel (flights on planned trips) | not set |
 
 ---
 
@@ -480,6 +481,40 @@ Match the surrounding code — it is consistent and deliberate.
 - `public/promo/wander-promo.mp4` and its poster were recorded before this
   redesign, so the tour's first scene shows the previous landing page.
   Re-record when convenient.
+
+### Flights on planned trips (28 November 2026)
+
+- Owner action: set `SERPAPI_API_KEY` in `.env.local` and on Vercel
+  (serpapi.com, free plan 250 searches a month). Without it planned trips get
+  flights with airports, dates and zones but no times. **No schema change**:
+  the home lives in Supabase Auth `user_metadata.home` (`lib/home.js`).
+- Flow: `app/plan/page.js` asks `/api/flights` (mode `trip`) after the brief
+  check and before the plan; the route reads dates, origin and airports with
+  one fast model call (`flights` in `TASKS`), searches each way, and returns
+  the legs as activity rows (`offerActivities` in `lib/flights.js`). The page
+  sends them to `/api/plan` as `fixed` (`cleanFixed`, `fixedBlock` in
+  `lib/flightPlan.js`), which holds the plan to those dates and currency and
+  drops any copy of the flights the model writes (`isHomeFlight`). After the
+  plan, flights inside the trip go through mode `legs` (`flightTargets`).
+  A flight the traveller named is that flight or nothing (`pickOffer` with
+  `code`); a booked one keeps no fare and no "Not booked" note.
+- The clarify step adds "Where are you travelling from?" (`ORIGIN_QUESTION`
+  in the plan route) only while the account has no home; the answer is kept
+  with `supabase.auth.updateUser`. Account → Home (`components/HomeAirports.jsx`,
+  `/api/airports`) changes it.
+- Time zones and cities come from `data/airports.json`, never from SerpApi or
+  the model. `lib/airports.js` chooses a home's airports (large ones in the
+  same country within 50 km of the nearest; Singapore is SIN, not Seletar,
+  Batam or Johor Bahru). City names follow `cityFor` and `METRO` in the build
+  script: Taipei for TPE, not Taoyuan.
+- Not done yet: the command bar and Assistant do not look flights up when they
+  add one, and the activity editor has no "look up this flight number".
+  `searchOffers` + `pickOffer({ code })` is what either would call.
+- Verified: `tests/flights.test.mjs`, a production build, and the real route
+  handlers run in Node with OpenAI, SerpApi and Supabase mocked. **Not
+  verified against live SerpApi** (no key in the session that built it): the
+  response fields follow SerpApi's documentation, and the first real search
+  should be checked against `readOffers`.
 
 ### Assistant chats (22 November 2026)
 

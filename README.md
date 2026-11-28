@@ -39,6 +39,45 @@ changing reader assets; its script is served with `Cache-Control: no-store`.
 Implementation references: [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers)
 and [Google Calendar event times](https://developers.google.com/workspace/calendar/api/v3/reference/events).
 
+## Flights on planned trips
+
+A trip from the planner starts and ends with real flights: the airline, the
+flight number, local departure and arrival times, both airports' time zones,
+the arrival date and a one-way fare, one activity a leg, each pinned at its
+airport with its arrival already found.
+
+- **Home.** Where trips start is kept on the account (Supabase Auth
+  `user_metadata.home`: a label, a point and the airports flown from; no
+  migration). The planner asks "Where are you travelling from?" the first
+  time it is missing and keeps the answer; Account → Home shows and changes
+  it, airports included. A request that says "from London" wins for that trip.
+- **Before the plan** (`/api/flights`, mode `trip`): a quick model call reads
+  the dates, the origin, the first and last city and their airports, and
+  whether this trip is flown at all (Tokyo to Kyoto is not; a traveller who is
+  driving, or who has booked their own flights, gets none). Then one one-way
+  search each way. The plan is told the flights as facts and the dates are
+  held to them, so day 1 starts after the landing and the last day ends before
+  the airport. A flight the traveller names ("we're on SQ638") is that flight
+  or nothing.
+- **After the plan** (mode `legs`): every flight the planner put inside the
+  trip (Tokyo to Sapporo) is swapped for the real one nearest the time it
+  planned around, before the stops are located.
+- **Choosing** (`pickOffer` in `lib/flights.js`) starts from Google's own
+  "best" order and adds what Google cannot know: the way there should leave in
+  the day and land the same day, the way home should leave the last day some
+  use, a stop costs three hours, nothing leaves before 6am if it can help it.
+- **Without a key** the flights are still added, with airports, day and
+  clocks, and times for the traveller to fill in. A plan never fails for want
+  of a flight. "ONLY these places" requests get no flights.
+
+Flights come from Google Flights through [SerpApi](https://serpapi.com/google-flights-api).
+Amadeus closed its self-service APIs on 17 July 2026; Duffel returns real
+airlines only to an activated merchant account. SerpApi gives no terminals,
+gates or time zones: the zones come from `data/airports.json`, every airport
+with scheduled service (OurAirports, public domain, and mwgg/Airports, MIT;
+`data/LICENSE-airports`), rebuilt with `scripts/flights/build-airports.mjs`.
+Gates and terminals are left to the traveller rather than guessed.
+
 ## Train times in Japan
 
 Google's Routes API has no transit in Japan (the Google Maps app does; the API
@@ -275,6 +314,18 @@ the keys, with billing active. Text search, nearby search and photos all bill
 per request, so `lib/places.js` asks for the narrowest field mask that works
 and stores each place's id and photo handle to avoid looking it up twice.
 
+### Flights (optional)
+
+```
+SERPAPI_API_KEY = ...   # serpapi.com, Google Flights engine   (server)
+```
+
+A real secret, server only, no `NEXT_PUBLIC_`. The free plan has 250 searches a
+month; a planned trip costs two (one each way) plus one per flight inside it,
+and a search repeated within an hour is SerpApi's cache and free. Each person
+gets 40 an hour (`/api/flights`). Without it, planned trips get their flights
+with no times.
+
 ### If server-side lookups fail locally
 
 `npm run dev` runs Node with `--use-system-ca`. Without it, on a machine that
@@ -362,6 +413,9 @@ rows.
   model answers only a signed-in caller (the browser sends its Supabase access
   token; `authHeader` in `lib/supabase.js`), and `tests/ai-auth.test.mjs`
   fails if a new one does not check.
+- **SerpApi** (Google Flights) finds the flights on a planned trip, through
+  `/api/flights`, so `SERPAPI_API_KEY` never leaves the server. Airports and
+  their time zones are bundled in `data/airports.json`.
 - **Japanese train data** is bundled in `data/transit/` (Tokyo timetables
   from mini-tokyo-3d, MIT; the nationwide network from gtfs-gis.jp, CC BY 4.0 /
   ODbL) and planned on the server; nothing is called at runtime.

@@ -5,6 +5,7 @@ import { UserRound, ChevronLeft } from 'lucide-react';
 import AppProvider, { useApp } from '@/components/AppProvider';
 import TopBar from '@/components/TopBar';
 import CalendarLink from '@/components/CalendarLink';
+import HomeAirports from '@/components/HomeAirports';
 
 /**
  * The account, as opposed to any of the trips on it.
@@ -42,6 +43,8 @@ function Account() {
               Signed in as {user && user.email ? user.email : displayName}.
             </p>
           </section>
+
+          <HomeAirports />
 
           <CalendarLink mode="account" />
         </div>

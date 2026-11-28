@@ -106,6 +106,16 @@ export default function Terms() {
         each under the licence below; they remain their owners&rsquo; trademarks and are shown
         only to say who runs a line.
       </p>
+      <p>
+        Flights a plan suggests come from Google Flights, through{' '}
+        <a href="https://serpapi.com/" target="_blank" rel="noreferrer">SerpApi</a>, as they
+        were when the trip was planned. They are not booked, and times and fares change: check
+        both with the airline before you rely on them. Airports and their time zones come from{' '}
+        <a href="https://ourairports.com/data/" target="_blank" rel="noreferrer">OurAirports</a>{' '}
+        (public domain) and{' '}
+        <a href="https://github.com/mwgg/Airports" target="_blank" rel="noreferrer">mwgg/Airports</a>{' '}
+        (MIT licence).
+      </p>
       <details>
         <summary>Railway logos and their licences</summary>
         <ul>

@@ -15,6 +15,9 @@ import { after } from 'next/server';
 import { userFromRequest, notSignedIn, asUser } from '@/lib/supabaseServer';
 import { openDraft, draftWriter } from '@/lib/planDraft';
 import { listEvents, connection } from '@/lib/googleCal';
+import { hasExclusiveScope } from '@/lib/planScope';
+import { cleanFixed, fixedBlock, isHomeFlight } from '@/lib/flightPlan';
+import { homeOf } from '@/lib/home';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -187,7 +190,10 @@ Rules:
   when you were given one. Leave it blank rather than invent one.
 - Put times in 24-hour HH:MM. Use them for things that are genuinely time-bound
   (opening hours, transport, bookings) and leave others null.
-- For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line guides. Never guess a missing booking time.
+- For flights, start_time is local departure and end_time is local arrival. Put IANA zones in details.departure_timezone and details.arrival_timezone and the local arrival date YYYY-MM-DD in details.arrival_date, including overnight/date-line guides. details.from and details.to are the airports' three-letter IATA codes.
+- For a flight the traveller has booked, never guess a time they did not give.
+  For a flight you add between two places on the trip, give the departure you
+  would plan the day around: the app swaps in the real flight closest to it.
 - Costs are per person in the trip currency, as plain numbers. Use 0 when free,
   and give a real estimate rather than 0 for things that plainly cost money.
 - Fill in every field you have an answer for. An end time wherever the length
@@ -239,17 +245,6 @@ they wrote on it. These are facts, not suggestions:
   transport, a meal is food. "other" is for what genuinely fits nowhere.
 - Plan around the times they are busy. Do not schedule anything on top of
   them.`;
-
-/** Whether the traveller explicitly forbids suggestions beyond their list. */
-function hasExclusiveScope(text) {
-  const value = String(text || '');
-  return /\bONLY\b/.test(value)
-    || /\b(?:only|just)\s+(?:these|those|the\s+(?:following|listed|named))\b/i.test(value)
-    || /\b(?:these|those|following|listed|named)\s+(?:places|activities|stops)?\s*only\b/i.test(value)
-    || /\b(?:nothing|nowhere)\s+else\b/i.test(value)
-    || /\bno\s+(?:other|extra|additional)\s+(?:activities|places|stops|suggestions)\b/i.test(value)
-    || /\bdo(?:n't|\s+not)\s+(?:add|include|suggest|plan)\s+(?:anything|activities|places|stops)\b/i.test(value);
-}
 
 /**
  * Put back what the traveller actually wrote.
@@ -346,9 +341,13 @@ const WHEN = {
 const BRIEF_CHECK = {
   type: 'object',
   additionalProperties: false,
-  required: ['ready', 'questions'],
+  required: ['ready', 'origin', 'questions'],
   properties: {
     ready: { type: 'boolean' },
+    origin: {
+      type: ['string', 'null'],
+      description: 'Where the traveller says they are travelling from, in their words. Null when the request does not say.',
+    },
     questions: {
       type: 'array',
       items: {
@@ -400,8 +399,22 @@ Rules:
 - Include "No preference" when it is a sensible choice, as the last option.
 - Use text only for an exact date, place, budget, booking, or constraint that
   cannot be represented honestly as a short choice.
+- Never ask where they are travelling from: the app asks that itself, once,
+  and remembers it.
 - Set ready true and return no questions when the request already has enough
   information for a good plan.`;
+
+/*
+ * The one question the app asks rather than the model: where the trip starts,
+ * which decides its flights (app/api/flights). Asked only while the account
+ * has no home, and kept as it once answered (lib/home.js), so it is asked once.
+ */
+const ORIGIN_QUESTION = {
+  id: 'origin',
+  ask: 'Where are you travelling from?',
+  kind: 'text',
+  options: [],
+};
 
 /**
  * What the traveller already has on, during the trip they are asking for.
@@ -411,11 +424,12 @@ Rules:
  * planned without the calendar is the behaviour this has always had, and is a
  * far better outcome than a failure.
  */
-async function theirCalendar(user, prompt, today) {
+async function theirCalendar(user, prompt, today, fixed) {
   try {
     if (!(await connection(user.id))) return null;
 
-    const when = await askJson({
+    // Dates already settled with the flights are the dates; no need to ask again.
+    const when = fixed ? fixed : await askJson({
       schemaName: 'trip_dates',
       schema: WHEN,
       system: 'You work out which dates a travel request is about. Today is '
@@ -463,12 +477,15 @@ export async function POST(req) {
   let mode = '';
   // Set when the page is picking up a plan whose stream stopped part way.
   let resume = null;
+  // Dates and flights the page settled before planning (lib/flightPlan.js).
+  let fixed = null;
   try {
     const body = (await req.json()) || {};
     prompt = String(body.prompt || '').trim().slice(0, 6000);
     today = String(body.today || '').slice(0, 10);
     mode = String(body.mode || '');
     resume = readResume(body.resume);
+    fixed = cleanFixed(body.fixed);
   } catch (e) {
     return Response.json({ error: 'Malformed request.' }, { status: 400 });
   }
@@ -500,7 +517,10 @@ ${prompt}`,
             options,
           };
         }).filter((q) => q.ask);
-      return Response.json({ ready: !!out.ready || !questions.length, questions });
+      const askOrigin = !homeOf(user) && !String(out.origin || '').trim() && !hasExclusiveScope(prompt)
+        && !questions.some((q) => /travel+ing from|flying from|depart(ing)? from/i.test(q.ask));
+      if (askOrigin) questions.push(ORIGIN_QUESTION);
+      return Response.json({ ready: (!!out.ready && !askOrigin) || !questions.length, questions });
     } catch (e) {
       return aiFailure(e, 'brief');
     }
@@ -508,7 +528,7 @@ ${prompt}`,
 
   const strictOnly = hasExclusiveScope(prompt);
 
-  const mine = await theirCalendar(user, prompt, today);
+  const mine = await theirCalendar(user, prompt, today, fixed);
   const calendarBlock = mine ? [
     '',
     'Already in their calendar on these dates — use these exactly, and do not',
@@ -524,9 +544,11 @@ ${prompt}`,
         e.details ? `  notes: ${e.details}` : '',
       ].filter(Boolean).join('\n');
     }),
-    '',
-    `Unless the request clearly says otherwise, start the trip on ${mine.from}`
-      + ` and run it for ${mine.days} day${mine.days === 1 ? '' : 's'}.`,
+    ...(fixed ? [] : [
+      '',
+      `Unless the request clearly says otherwise, start the trip on ${mine.from}`
+        + ` and run it for ${mine.days} day${mine.days === 1 ? '' : 's'}.`,
+    ]),
   ].join('\n') : '';
   const scopeBlock = strictOnly ? `
 
@@ -570,7 +592,7 @@ and will be removed before the traveller sees it.` : '';
           {
             role: 'user',
             content: `Today is ${today || 'unknown'}. Plan this trip:`
-              + `\n\n${prompt}${scopeBlock}${calendarBlock}`
+              + `\n\n${prompt}${scopeBlock}${fixedBlock(fixed)}${calendarBlock}`
               + `${resume ? resumeInstruction(resume) : ''}`,
           },
         ],
@@ -600,7 +622,9 @@ and will be removed before the traveller sees it.` : '';
   // Applied to every activity, streamed and final alike, so the preview and
   // the saved trip cannot disagree about what something is called.
   const fix = corrector(mine && mine.events);
-  const includeActivity = (activity) => !strictOnly || activity.requested === true;
+  // The flights there and home are the page's to add; a copy the model wrote is dropped.
+  const includeActivity = (activity, day) => (!strictOnly || activity.requested === true)
+    && !isHomeFlight(activity, fixed, day);
   const exclusiveSummary = 'Only the places and guides you requested are included. '
     + 'The remaining time is left open.';
 
@@ -657,8 +681,10 @@ and will be removed before the traveller sees it.` : '';
       const meta = {
         name: typeof partial.name === 'string' ? partial.name : '',
         destination: typeof partial.destination === 'string' ? partial.destination : '',
-        currency: typeof partial.currency === 'string' ? partial.currency : '',
-        duration_days: Number(partial.duration_days) || 0,
+        // The flights' fares are in this one; a resumed plan keeps what this said.
+        currency: (fixed && fixed.currency)
+          || (typeof partial.currency === 'string' ? partial.currency : ''),
+        duration_days: fixed ? fixed.duration_days : (Number(partial.duration_days) || 0),
         summary: strictOnly
           ? exclusiveSummary
           : (typeof partial.summary === 'string' ? partial.summary : ''),
@@ -674,7 +700,7 @@ and will be removed before the traveller sees it.` : '';
 
         const acts = Array.isArray(d.activities) ? d.activities : [];
         const theme = typeof d.theme === 'string' ? d.theme : '';
-        if ((!strictOnly || acts.some(includeActivity)) && sentThemes.get(idx) !== theme) {
+        if ((!strictOnly || acts.some((x) => includeActivity(x, idx))) && sentThemes.get(idx) !== theme) {
           sentThemes.set(idx, theme);
           keptDay(idx).theme = theme;
           send({ t: 'day', i: idx, theme });
@@ -683,7 +709,7 @@ and will be removed before the traveller sees it.` : '';
         const already = sentCounts.get(idx) || 0;
         for (let k = already; k < acts.length; k += 1) {
           // parsePartial only ever yields complete objects, so this is whole.
-          if (includeActivity(acts[k])) {
+          if (includeActivity(acts[k], idx)) {
             const a = cleanActivity(acts[k], fix);
             keptDay(idx).activities.push(a);
             send({ t: 'act', d: idx, a });
@@ -747,14 +773,15 @@ and will be removed before the traveller sees it.` : '';
         send({ t: 'cut', why: 'unfinished' });
         return;
       }
-      const duration = Math.min(30, Math.max(1, Number(final.duration_days) || 1));
+      const duration = fixed ? fixed.duration_days
+        : Math.min(30, Math.max(1, Number(final.duration_days) || 1));
       const days = (Array.isArray(final.days) ? final.days : [])
         .filter((d) => Number(d.day_index) >= fromDay && Number(d.day_index) <= duration)
         .map((d) => ({
           day_index: Number(d.day_index),
           theme: String(d.theme || ''),
           activities: (Array.isArray(d.activities) ? d.activities : [])
-            .filter(includeActivity).slice(0, 8).map((x) => cleanActivity(x, fix)),
+            .filter((x) => includeActivity(x, Number(d.day_index))).slice(0, 8).map((x) => cleanActivity(x, fix)),
         }))
         .filter((d) => !strictOnly || d.activities.length > 0);
 
@@ -762,8 +789,11 @@ and will be removed before the traveller sees it.` : '';
         name: String(final.name || '').trim().slice(0, 120) || 'New trip',
         destination: String(final.destination || '').trim().slice(0, 200),
         timezone: validZone(final.timezone) ? final.timezone : null,
-        currency: /^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD',
-        start_date: /^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null,
+        // With flights found, their fares are in this currency and on these dates.
+        currency: (fixed && fixed.currency)
+          || (/^[A-Z]{3}$/.test(final.currency) ? final.currency : 'SGD'),
+        start_date: fixed ? fixed.start_date
+          : (/^\d{4}-\d{2}-\d{2}$/.test(final.start_date || '') ? final.start_date : null),
         duration_days: duration,
         summary: strictOnly
           ? exclusiveSummary

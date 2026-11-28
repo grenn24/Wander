@@ -2443,6 +2443,8 @@ body:has(.lp)::before { display: none; }
 .tset-hint { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--text-2); max-width: 60ch; }
 .tset-foot { margin: 9px 0 0; max-width: 60ch; }
 .tset-row { display: flex; gap: 8px; align-items: stretch; }
+.home-airports { border: 0; margin: 12px 0 0; padding: 0; min-width: 0; }
+.home-airports legend { padding: 0; margin-bottom: 8px; color: var(--text-2); }
 .tset-row .input { flex: 1; min-width: 0; }
 .tset-row .btn { flex: none; }
 .tset-people { display: flex; flex-direction: column; gap: 8px; }
@@ -3869,6 +3871,7 @@ body::before {
   font-size: 11px;
 }
 .planq-text { min-height: 72px; }
+.planq-hint { margin: 8px 0 0; max-width: 60ch; }
 .place-review-query { margin: -4px 0 10px 32px; overflow-wrap: anywhere; }
 .place-review-options { display: grid; gap: 8px; }
 .place-review-option {
