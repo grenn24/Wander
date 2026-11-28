@@ -773,6 +773,10 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
   /* With Today among them, four do not fit across a phone and pushed the
      whole page wider than the screen: two rows of two instead. */
   .page-head .chiprow:has(> button:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; }
+  /* Five (Today plus Share): two across the top, three underneath. */
+  .page-head .chiprow:has(> button:nth-of-type(5)) { grid-template-columns: repeat(6, 1fr); }
+  .page-head .chiprow:has(> button:nth-of-type(5)) > .btn { grid-column: span 2; }
+  .page-head .chiprow:has(> button:nth-of-type(5)) > .btn:nth-of-type(-n + 2) { grid-column: span 3; }
 }
 
 /* The rail holds links now, not buttons, so it needs both selectors. */

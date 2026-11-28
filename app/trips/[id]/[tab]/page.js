@@ -188,6 +188,7 @@ export default function TripTabPage({ params }) {
           focus={focusReq}
           onFocused={clearFocus}
           onEditTrip={() => setTripDraft({ ...trip })}
+          onOpenSharing={() => { setTripSection('people'); setTripDraft({ ...trip }); }}
           onEditCover={() => setCoverOpen(true)} />
       ) : null}
 

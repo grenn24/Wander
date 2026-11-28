@@ -30,6 +30,7 @@ import { savedLines } from '@/lib/travel';
 import { useMapPreferences } from '@/components/MapAppearance';
 import PlanningDesk from '@/components/PlanningDesk';
 import TripHero from '@/components/TripHero';
+import ShareTripButton from '@/components/ShareTripButton';
 import { coverPhoto, coverURL, heroCoverURL } from '@/lib/tripCover';
 
 /** Structural stops anchor a day; everything else sits between them. */
@@ -58,7 +59,7 @@ function clockTip(mark, tripZone, day) {
 
 export default function Itinerary({
   trip, days, activities, onAdd, onEdit, onMove, onDuplicate, onDelete,
-  onEditTrip, onEditCover, onPrint, onAddMany, focus, onFocused,
+  onEditTrip, onEditCover, onPrint, onAddMany, focus, onFocused, onOpenSharing,
   // Which row is waiting on its place before the editor can open. A click that
   // does nothing visible for half a second reads as a click that missed.
   opening = '',
@@ -435,6 +436,7 @@ export default function Itinerary({
               <LocateFixed size={15} /> Today
             </button>
           ) : null}
+          <ShareTripButton trip={trip} onFallback={onOpenSharing || onEditTrip} />
           <button className="btn sm" onClick={onPrint}
             data-tip="Print or save PDF"><Printer size={15} /> Print</button>
           <button className="btn sm" onClick={onEditTrip}
