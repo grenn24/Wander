@@ -1,4 +1,6 @@
-import { resolveMany, placesKey, notConfigured, placesFailure } from '@/lib/places';
+import {
+  resolveMany, settlePlace, placesKey, notConfigured, placesFailure,
+} from '@/lib/places';
 import { aiConfigured, askJson } from '@/lib/ai';
 import { userFromRequest } from '@/lib/supabaseServer';
 
@@ -138,6 +140,8 @@ export async function POST(req) {
     if (body.reviewAmbiguous && unsure && (await userFromRequest(req))) {
       results = await rankUncertain(items, results, bias);
     }
+    // A person is asked only to choose between places in different spots.
+    results = results.map(settlePlace);
     return Response.json({ results });
   } catch (e) {
     return placesFailure(e, 'resolve');

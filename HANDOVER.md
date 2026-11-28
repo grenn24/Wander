@@ -409,6 +409,19 @@ to copy.
   and saves Google's formatted address; a `low` verdict stays unpinned.
   `/api/parse` answers `activities: []` (plus `activity` for tabs on the old
   build). Covered by `tests/atomic-activities.test.mjs`.
+- **The place picker only asks about places in different spots.** The
+  planner, the command bar and the Assistant all show "Choose the right
+  place" for results that `/api/places/resolve` marks `ambiguous`. That route
+  ends with `settlePlace` (`lib/places.js`): a stop is ambiguous only when
+  other candidates scoring within 15 points of the chosen one are at least
+  1 km from it and from each other. The picker then offers one place per
+  spot. A single match, or several names for one spot (a park and its
+  sculptures, the shops on one street), is pinned without asking. A lone
+  match the ranking rated `low` comes back `found: false`, so it is left
+  unpinned with its words kept. A multi-country `bias` ("Denmark, Sweden and
+  Norway") never satisfies the heuristic's destination check, which is why
+  every stop used to be "uncertain". Covered by
+  `tests/place-choice.test.mjs`.
 
 Match the surrounding code — it is consistent and deliberate.
 
