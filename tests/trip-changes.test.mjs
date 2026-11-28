@@ -110,7 +110,7 @@ test('bulk edits expand to the stops they land on', () => {
 
 test('new and moved places are looked up before saving; ambiguous ones wait for a choice', () => {
   const expanded = [
-    { kind: 'add_activity', title: 'JINS Ginza Loft', location: 'JINS Ginza Loft, Ginza, Tokyo', category: 'shopping', day: '2026-12-12' },
+    { kind: 'add_activity', title: 'JINS Ginza Loft', location: 'JINS Ginza Loft, Ginza, Tokyo', category: 'shopping', day: '2026-12-12', named_place: true },
     { kind: 'update_activity', activity_id: 'a-moma', location: 'MoMA Design Store, Ginza Loft, Ginza, Tokyo' },
     { kind: 'update_activity', activity_id: 'a-ginza', location: 'Ginza Six, Tokyo' },
   ];
@@ -128,6 +128,26 @@ test('new and moved places are looked up before saving; ambiguous ones wait for 
   const chosen = withChosenPlaces(resolved, uncertain, { 'op-0': 'p1' });
   assert.equal(chosen['op-0'].place_id, 'p1');
   assert.equal(withChosenPlaces(resolved, uncertain, { 'op-0': '__none__' })['op-0'], null);
+});
+
+test('a venue the editor chose is never a question: its ranked match stands', () => {
+  const expanded = [
+    { kind: 'add_activity', title: 'Ramen lunch', location: 'Ichiran, Ginza, Tokyo', category: 'food', day: '2026-12-12', named_place: false },
+    { kind: 'add_activity', title: 'Coffee', location: 'Blue Bottle, Tokyo', category: 'food', day: '2026-12-12' },
+  ];
+  const { targets } = placeTargets(expanded, activities, trip);
+  assert.deepEqual(targets.map((t) => t.named), [false, false], 'a missing flag is the editor\'s pick');
+  const two = [
+    { place_id: 'i1', label: 'Ichiran Ginza', lat: 35.67, lng: 139.76 },
+    { place_id: 'i2', label: 'Ichiran Shibuya', lat: 35.66, lng: 139.70 },
+  ];
+  const { resolved, uncertain } = sortPlaces([
+    { id: 'op-0', found: true, ambiguous: true, confidence: 'medium', ...two[0], candidates: two },
+    { id: 'op-1', found: true, ambiguous: true, confidence: 'low', place_id: 'b1', candidates: [{ place_id: 'b1' }, { place_id: 'b2' }] },
+  ], targets);
+  assert.equal(uncertain.length, 0);
+  assert.equal(resolved['op-0'].place_id, 'i1', 'the ranked match is pinned');
+  assert.equal(resolved['op-1'], null, 'none trusted: the words stay, unpinned');
 });
 
 test('applying writes each edit through the trip, pins included', async () => {

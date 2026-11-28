@@ -59,7 +59,8 @@ export default function PlaceReview({
     <form className={`cmd-plan cmd-place-review ${className}`.trim()}
       onSubmit={(e) => { e.preventDefault(); if (reviewed) onContinue(); }}>
       <p className="small muted cmd-summary">
-        I found more than one plausible match. Choose the right place before I apply anything.
+        You named {review.items.length === 1 ? 'a place' : 'places'} I found in more than one
+        spot. Choose the one you meant before I apply anything.
       </p>
       <PlaceChoices items={review.items} selected={review.selected} onChoose={onChoose} />
       <div className="cmd-actions">
